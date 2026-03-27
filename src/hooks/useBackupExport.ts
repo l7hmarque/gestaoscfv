@@ -111,10 +111,17 @@ export function useBackupExport() {
       }
 
       if (categories.includes("Profissionais")) {
-        const { data } = await supabase.from("profiles").select("*, user_roles(role)").order("nome");
+        const { data } = await supabase.from("profiles").select("*").order("nome");
+        const { data: roles } = await supabase.from("user_roles").select("*");
+        const roleMap = new Map<string, string[]>();
+        (roles || []).forEach((r: any) => {
+          const arr = roleMap.get(r.user_id) || [];
+          arr.push(r.role);
+          roleMap.set(r.user_id, arr);
+        });
         if (data?.length) {
           const mapped = data.map((p: any) => ({
-            nome: p.nome, cargo: p.cargo || "", role: p.user_roles?.map((r: any) => r.role).join(", ") || "",
+            nome: p.nome, cargo: p.cargo || "", role: (roleMap.get(p.user_id) || []).join(", "),
             ativo: p.ativo ? "Sim" : "Não",
           }));
           const headers = [
