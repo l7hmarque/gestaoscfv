@@ -90,10 +90,56 @@ const ParticipantePerfilPage = () => {
     delete payload.id; delete payload.created_at; delete payload.updated_at;
     ["bairro_id", "ponto_transporte_id", "data_nascimento", "iniciou_em"].forEach((k) => { if (!payload[k]) payload[k] = null; });
     if (!canSeeConfidential) delete payload.observacoes_sigilosas;
+
+    // Detectar mudanças relevantes antes de salvar
+    const oldStatus = participante?.status || "ativo";
+    const newStatus = form.status || "ativo";
+    const oldBairro = participante?.bairro_id || null;
+    const newBairro = (payload.bairro_id as string) || null;
+    const oldPeriodo = participante?.periodo || null;
+    const newPeriodo = (payload.periodo as string) || null;
+    const oldDataNasc = participante?.data_nascimento || null;
+    const newDataNasc = (payload.data_nascimento as string) || null;
+
     const { error } = await supabase.from("participantes").update(payload as any).eq("id", id!);
     setSaving(false);
     if (error) { toast.error("Erro: " + error.message); return; }
     toast.success("Atualizado com sucesso!");
+
+    // Automação 1: Desligar → remover de turmas
+    if (newStatus === "desligado" && oldStatus !== "desligado") {
+      const { data: links } = await supabase.from("turma_participantes").select("id").eq("participante_id", id!);
+      if (links && links.length > 0) {
+        await supabase.from("turma_participantes").delete().eq("participante_id", id!);
+        toast.info(`Removido de ${links.length} turma(s) automaticamente`);
+      }
+    }
+
+    // Automação 3: Realocar turmas se bairro/período/idade mudaram e está ativo
+    if (newStatus === "ativo" && oldStatus === "ativo") {
+      const oldFaixa = calcFaixaFromDate(oldDataNasc);
+      const newFaixa = calcFaixaFromDate(newDataNasc);
+      const changed = oldBairro !== newBairro || oldPeriodo !== newPeriodo || oldFaixa !== newFaixa;
+
+      if (changed && newBairro && newPeriodo && newFaixa) {
+        // Remover vínculos antigos
+        await supabase.from("turma_participantes").delete().eq("participante_id", id!);
+
+        // Buscar turmas compatíveis
+        let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", newBairro).eq("faixa_etaria", newFaixa);
+        if (newPeriodo !== "integral") query = query.eq("periodo", newPeriodo);
+
+        const { data: turmasCompativeis } = await query;
+        if (turmasCompativeis && turmasCompativeis.length > 0) {
+          const newLinks = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: id! }));
+          await supabase.from("turma_participantes").insert(newLinks);
+          toast.info(`Realocado para ${turmasCompativeis.length} turma(s) compatível(is)`);
+        } else {
+          toast.warning("Nenhuma turma compatível encontrada para os novos dados");
+        }
+      }
+    }
+
     setEditing(false);
     fetchAll();
   };
