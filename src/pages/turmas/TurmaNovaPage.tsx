@@ -112,7 +112,7 @@ const TurmaNovaPage = () => {
               <Label className="text-xs font-medium">Bairro</Label>
               <Select value={bairroId} onValueChange={setBairroId}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>{bairros.map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
+                <SelectContent>{bairros.filter(b => isBairroSCFV(b.nome)).map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="col-span-2">

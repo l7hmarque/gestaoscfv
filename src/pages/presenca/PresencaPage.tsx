@@ -172,7 +172,7 @@ const PresencaPage = () => {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos</SelectItem>
-                    {bairros.map(b => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}
+                    {bairros.filter(b => isBairroSCFV(b.nome)).map(b => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

@@ -145,7 +145,7 @@ const TurmaDetalhePage = () => {
             <div><Label className="text-xs">Bairro</Label>
               <Select value={form.bairro_id || ""} onValueChange={(v) => setForm({ ...form, bairro_id: v })}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="—" /></SelectTrigger>
-                <SelectContent>{bairros.map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
+                <SelectContent>{bairros.filter(b => isBairroSCFV(b.nome)).map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="col-span-2"><Label className="text-xs">Educador</Label>
