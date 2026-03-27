@@ -144,6 +144,30 @@ const ParticipanteNovoPage = () => {
         }
       }
 
+      // Auto-vincular a turmas compatíveis
+      if (inserted && (inserted.status === "ativo" || !inserted.status)) {
+        try {
+          const faixa = calcFaixaFromDate(inserted.data_nascimento);
+          if (inserted.bairro_id && inserted.periodo && faixa) {
+            let query = supabase.from("turmas").select("id")
+              .eq("ativa", true)
+              .eq("bairro_id", inserted.bairro_id)
+              .eq("faixa_etaria", faixa);
+
+            if (inserted.periodo !== "integral") {
+              query = query.eq("periodo", inserted.periodo);
+            }
+
+            const { data: turmasCompativeis } = await query;
+            if (turmasCompativeis && turmasCompativeis.length > 0) {
+              const links = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: inserted.id }));
+              await supabase.from("turma_participantes").insert(links);
+              toast.success(`Vinculado automaticamente a ${turmasCompativeis.length} turma(s)`);
+            }
+          }
+        } catch { /* silently ignore linking errors */ }
+      }
+
       toast.success("Participante cadastrado!");
       navigate("/participantes");
     } catch (err: any) {
