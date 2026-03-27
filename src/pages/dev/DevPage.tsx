@@ -90,7 +90,10 @@ export default function DevPage() {
     setLoading(false);
   };
 
+  const isDemo = useIsDemo();
+
   const removeRole = async (roleId: string) => {
+    if (guardDemo(isDemo)) return;
     const { error } = await supabase.from("user_roles").delete().eq("id", roleId);
     if (error) { toast.error(error.message); return; }
     toast.success("Role removida");
