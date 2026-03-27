@@ -33,42 +33,44 @@ import ProfissionalPerfilPage from "./pages/profissional/ProfissionalPerfilPage"
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-              <Route path="/" element={<Index />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/banco-de-dados" element={<BancoDadosPage />} />
-              <Route path="/participantes" element={<ParticipantesPage />} />
-              <Route path="/participantes/novo" element={<ParticipanteNovoPage />} />
-              <Route path="/participantes/importar" element={<ParticipanteImportarPage />} />
-              <Route path="/participantes/:id" element={<ParticipantePerfilPage />} />
-              <Route path="/turmas" element={<TurmasPage />} />
-              <Route path="/turmas/nova" element={<TurmaNovaPage />} />
-              <Route path="/turmas/:id" element={<TurmaDetalhePage />} />
-              <Route path="/presenca" element={<PresencaPage />} />
-              <Route path="/presenca/historico" element={<PresencaHistoricoPage />} />
-              <Route path="/presenca/exportar" element={<PresencaExportarPage />} />
-              <Route path="/planejamentos" element={<PlanejamentosPage />} />
-              <Route path="/planejamentos/novo" element={<PlanejamentoNovoPage />} />
-              <Route path="/planejamentos/:id" element={<PlanejamentoDetalhePage />} />
-              <Route path="/relatorios" element={<RelatoriosPage />} />
-              <Route path="/relatorios/novo" element={<RelatorioNovoPage />} />
-              <Route path="/relatorios/:id" element={<RelatorioDetalhePage />} />
-              <Route path="/profissional/:id" element={<ProfissionalPerfilPage />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                <Route path="/" element={<Index />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/banco-de-dados" element={<BancoDadosPage />} />
+                <Route path="/participantes" element={<ParticipantesPage />} />
+                <Route path="/participantes/novo" element={<ParticipanteNovoPage />} />
+                <Route path="/participantes/importar" element={<ParticipanteImportarPage />} />
+                <Route path="/participantes/:id" element={<ParticipantePerfilPage />} />
+                <Route path="/turmas" element={<TurmasPage />} />
+                <Route path="/turmas/nova" element={<TurmaNovaPage />} />
+                <Route path="/turmas/:id" element={<TurmaDetalhePage />} />
+                <Route path="/presenca" element={<PresencaPage />} />
+                <Route path="/presenca/historico" element={<PresencaHistoricoPage />} />
+                <Route path="/presenca/exportar" element={<PresencaExportarPage />} />
+                <Route path="/planejamentos" element={<PlanejamentosPage />} />
+                <Route path="/planejamentos/novo" element={<PlanejamentoNovoPage />} />
+                <Route path="/planejamentos/:id" element={<PlanejamentoDetalhePage />} />
+                <Route path="/relatorios" element={<RelatoriosPage />} />
+                <Route path="/relatorios/novo" element={<RelatorioNovoPage />} />
+                <Route path="/relatorios/:id" element={<RelatorioDetalhePage />} />
+                <Route path="/profissional/:id" element={<ProfissionalPerfilPage />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
