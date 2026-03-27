@@ -509,7 +509,7 @@ export async function exportMatrizFrequenciaDocx(
     }],
   });
   const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([buffer]), `SysELO_Frequencia_${turma.nome?.replace(/\s/g, "_")}_${preenchida ? "preenchida" : "branco"}.docx`);
+  saveAs(new Blob([new Uint8Array(buffer)]), `SysELO_Frequencia_${turma.nome?.replace(/\s/g, "_")}_${preenchida ? "preenchida" : "branco"}.docx`);
 }
 
 export function exportMatrizFrequenciaPdf(
