@@ -73,7 +73,7 @@ const ParticipantePerfilPage = () => {
     setBairros(b || []);
     setPontos(pt || []);
     setTurmas((tp || []).map((t: any) => ({ turma_id: t.turma_id, turma_nome: t.turmas?.nome || "" })));
-    setDocs((docData || []) as DocRow[]);
+    setDocs((docData || []) as unknown as DocRow[]);
     if (p) {
       const f: Record<string, string> = {};
       Object.entries(p).forEach(([k, v]) => { f[k] = v == null ? "" : String(v); });
