@@ -662,6 +662,7 @@ export async function exportMatrizFrequenciaPdf(
 
 // ===== LISTA DE PRESENÇA (em branco, por mês) =====
 const DIAS_MAP: Record<string, number> = {
+  seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6, dom: 0,
   segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6, domingo: 0,
 };
 
