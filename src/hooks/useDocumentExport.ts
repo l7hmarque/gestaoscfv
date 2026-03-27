@@ -398,7 +398,7 @@ export async function exportFichaInscricaoDocx(p: any) {
     sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }],
   });
   const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([buffer]), `SysELO_FichaInscricao_${p.nome_completo?.replace(/\s/g, "_") || "participante"}.docx`);
+  saveAs(new Blob([new Uint8Array(buffer)]), `SysELO_FichaInscricao_${p.nome_completo?.replace(/\s/g, "_") || "participante"}.docx`);
 }
 
 export function exportFichaInscricaoPdf(p: any) {
