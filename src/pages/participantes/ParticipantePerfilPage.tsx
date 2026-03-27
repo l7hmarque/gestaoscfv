@@ -288,7 +288,14 @@ const ParticipantePerfilPage = () => {
                   </Select>
                 </div>
                 <div><Label className="text-xs">Bairro SCFV</Label>
-                  <Select value={form.bairro_id || ""} onValueChange={(v) => set("bairro_id", v)}>
+                  <Select value={form.bairro_id || ""} onValueChange={(v) => {
+                    set("bairro_id", v);
+                    // Limpar ponto se não pertence ao novo bairro
+                    if (form.ponto_transporte_id) {
+                      const ponto = pontos.find(p => p.id === form.ponto_transporte_id);
+                      if (ponto && ponto.bairro_id !== v) set("ponto_transporte_id", "");
+                    }
+                  }}>
                     <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue placeholder="—" /></SelectTrigger>
                     <SelectContent>{bairrosSCFV.map(b => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
                   </Select>

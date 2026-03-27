@@ -263,17 +263,24 @@ const ParticipanteNovoPage = () => {
             <Field label="Número" field="endereco_numero" placeholder="Nº" half />
             <Field label="Bairro (texto)" field="endereco_bairro" placeholder="Bairro" half />
             <div>
-              <Label className="text-xs font-medium">Bairro (cadastrado)</Label>
-              <Select value={form.bairro_id} onValueChange={(v) => set("bairro_id", v)}>
+              <Label className="text-xs font-medium">Bairro SCFV</Label>
+              <Select value={form.bairro_id} onValueChange={(v) => {
+                set("bairro_id", v);
+                // Limpar ponto se não pertence ao novo bairro
+                if (form.ponto_transporte_id) {
+                  const ponto = pontos.find(p => p.id === form.ponto_transporte_id);
+                  if (ponto && ponto.bairro_id !== v) set("ponto_transporte_id", "");
+                }
+              }}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>{bairros.map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
+                <SelectContent>{bairros.filter(b => isBairroSCFV(b.nome)).map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
               <Label className="text-xs font-medium">Ponto de Transporte</Label>
               <Select value={form.ponto_transporte_id} onValueChange={(v) => set("ponto_transporte_id", v)}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>{pontos.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}</SelectContent>
+                <SelectContent>{pontos.filter(p => !form.bairro_id || p.bairro_id === form.bairro_id).map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <Field label="UF de Origem" field="uf_origem" placeholder="Ex: PR" half />

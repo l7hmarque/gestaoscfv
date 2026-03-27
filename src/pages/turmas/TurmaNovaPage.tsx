@@ -13,18 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
-import { isBairroSCFV } from "@/lib/constants";
-import { differenceInYears } from "date-fns";
-
-const calcFaixaFromDate = (dataNascimento: string | null): string => {
-  if (!dataNascimento) return "";
-  const age = differenceInYears(new Date(), new Date(dataNascimento));
-  if (age >= 6 && age <= 8) return "6-8";
-  if (age >= 9 && age <= 11) return "9-11";
-  if (age >= 12 && age <= 17) return "12-17";
-  if (age >= 60) return "idosos";
-  return "";
-};
+import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
 
 const diasOptions = [
   { value: "seg", label: "Segunda" }, { value: "ter", label: "Terça" }, { value: "qua", label: "Quarta" },
