@@ -74,10 +74,10 @@ export function useDashboardData() {
       generoMap[g] = (generoMap[g] || 0) + 1;
     });
 
-    // Bairro
+    // Bairro SCFV (usando bairro_id da tabela bairros)
     const bairroMap: Record<string, number> = {};
     parts.forEach((p: any) => {
-      const b = p.endereco_bairro || "Não informado";
+      const b = p.bairro_id ? (bairrosMap[p.bairro_id] || "Não informado") : "Não informado";
       bairroMap[b] = (bairroMap[b] || 0) + 1;
     });
 
