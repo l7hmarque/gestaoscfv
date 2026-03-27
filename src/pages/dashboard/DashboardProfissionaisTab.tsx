@@ -116,22 +116,24 @@ export default function DashboardProfissionaisTab() {
 
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {profs.map(p => (
-          <Card key={p.id} className="relative">
-            <CardContent className="p-4 flex gap-3">
-              <Avatar className="h-12 w-12 shrink-0">
-                <AvatarImage src={p.foto_url || undefined} />
-                <AvatarFallback className="bg-primary/10 text-primary text-sm">{p.nome?.slice(0, 2).toUpperCase()}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-sm text-foreground truncate">{p.nome}</p>
-                <p className="text-xs text-muted-foreground">{p.cargo || "Sem cargo"}</p>
-                {(p as any).telefone && <p className="text-xs text-muted-foreground">{(p as any).telefone}</p>}
-                {(p as any).email && <p className="text-xs text-muted-foreground truncate">{(p as any).email}</p>}
-              </div>
-              <Button size="icon" variant="ghost" className="shrink-0" onClick={() => handleOpen(p)}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </CardContent>
+          <Card key={p.id} className="relative group">
+            <Link to={`/profissional/${p.id}`}>
+              <CardContent className="p-4 flex gap-3 cursor-pointer hover:bg-accent/50 transition-colors rounded-lg">
+                <Avatar className="h-12 w-12 shrink-0">
+                  <AvatarImage src={p.foto_url || undefined} />
+                  <AvatarFallback className="bg-primary/10 text-primary text-sm">{p.nome?.slice(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-sm text-foreground truncate">{p.nome}</p>
+                  <p className="text-xs text-muted-foreground">{p.cargo || "Sem cargo"}</p>
+                  {(p as any).telefone && <p className="text-xs text-muted-foreground">{(p as any).telefone}</p>}
+                  {(p as any).email && <p className="text-xs text-muted-foreground truncate">{(p as any).email}</p>}
+                </div>
+              </CardContent>
+            </Link>
+            <Button size="icon" variant="ghost" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.preventDefault(); handleOpen(p); }}>
+              <Pencil className="h-4 w-4" />
+            </Button>
           </Card>
         ))}
       </div>
