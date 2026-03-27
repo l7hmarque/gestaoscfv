@@ -47,10 +47,24 @@ const LoginPage = () => {
               <Label htmlFor="password" className="text-xs">Senha</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || demoLoading}>
               {loading ? "Entrando..." : "Entrar"}
             </Button>
           </form>
+          <div className="mt-3 pt-3 border-t">
+            <Button
+              variant="outline"
+              className="w-full gap-2 text-muted-foreground"
+              disabled={loading || demoLoading}
+              onClick={handleDemoLogin}
+            >
+              {demoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+              Experimentar como Visitante
+            </Button>
+            <p className="text-[10px] text-muted-foreground text-center mt-1.5">
+              Navegue pelo sistema sem alterar dados reais
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
