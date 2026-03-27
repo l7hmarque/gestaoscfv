@@ -46,12 +46,21 @@ export default function BancoDadosPage() {
       supabase.from("planejamentos").select("*, profiles!planejamentos_educador_id_fkey(nome)").order("created_at", { ascending: false }),
       supabase.from("profiles").select("*").order("nome"),
     ]);
+    // Fetch user_roles separately since FK goes to auth.users, not profiles
+    const { data: roles } = await supabase.from("user_roles").select("*");
+    const roleMap = new Map<string, string[]>();
+    (roles || []).forEach((r: any) => {
+      const arr = roleMap.get(r.user_id) || [];
+      arr.push(r.role);
+      roleMap.set(r.user_id, arr);
+    });
+
     setParticipantes(p.data || []);
     setTurmas(t.data || []);
     setPresenca((pr.data || []).map((x: any) => ({ ...x, participante_nome: x.participantes?.nome_completo || "", turma_nome: x.turmas?.nome || "", presente_str: x.presente ? "Sim" : "Não" })));
     setRelatorios((r.data || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "" })));
     setPlanejamentos((pl.data || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "", avaliacao_str: x.forma_avaliacao?.join(", ") || "" })));
-    setProfissionais((prof.data || []).map((x: any) => ({ ...x, roles_str: x.user_roles?.map((r: any) => r.role).join(", ") || "", ativo_str: x.ativo ? "Sim" : "Não" })));
+    setProfissionais((prof.data || []).map((x: any) => ({ ...x, roles_str: (roleMap.get(x.user_id) || []).join(", "), ativo_str: x.ativo ? "Sim" : "Não" })));
     setLoading(false);
   };
 
