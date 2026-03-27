@@ -1,46 +1,29 @@
-## Plano: Gerar Lista de Presença em PDF (individual ou em lote)
+## Plano: Corrigir download da Lista de Presença
 
-### Ideia central
+### Problema identificado
 
-Nova função na página `PresencaExportarPage` que gera listas de presença em branco (para impressão), com base nos **dias de atendimento** da turma e no **mês selecionado**. O PDF sai em formato A4 paisagem, com cabeçalho institucional, nomes dos participantes, colunas com as datas corretas (ex: todas as terças e quintas de abril) e quadradinhos vazios para marcar de caneta.
+O PDF não é gerado porque o mapeamento de dias da semana está errado. O banco de dados armazena valores abreviados (`"seg"`, `"ter"`, `"qua"`, `"qui"`, `"sex"`, `"sab"`) mas o código em `useDocumentExport.ts` espera valores por extenso (`"segunda"`, `"terca"`, `"quarta"`...). Resultado: nenhuma data é calculada, a função retorna silenciosamente sem gerar nada.
 
-### Diferença da funcionalidade atual
+### Correção
 
-A exportação atual ("Matriz de Frequência") usa datas de presenças **já registradas** no sistema. A nova função gera datas **futuras/planejadas** com base nos dias da semana da turma e mês escolhido, sem depender de registros existentes.
+**Arquivo:** `src/hooks/useDocumentExport.ts` (linha 664)
 
-### Fluxo
+Alterar o `DIAS_MAP` para usar as abreviações corretas do banco:
 
-1. Usuário acessa `/presenca/exportar`
-2. Seleciona **mês/ano** (novo campo)
-3. Aplica filtros de bairro/faixa/período (já existentes)
-4. Clica "Gerar Lista de Presença (PDF)"
-5. Para cada turma filtrada, o sistema:
-  - Lê `turma.dias_semana` (ex: `["terca", "quinta"]`)
-  - Calcula todas as datas do mês que caem nesses dias
-  - Busca participantes da turma, ordena por nome
-  - Gera PDF A4 paisagem com:
-    - Cabeçalho: "SOCIEDADE CIVIL NOSSA SENHORA APARECIDA   
-    Centro de Atenção Integral ao Adolescente - Medianeira"
-    - Título: "Lista de Presença - SCFV"
-    - Info: turma, bairro, período, faixa etária, mês/ano
-    - Tabela: Nº | Nome | colunas de data (dd/MM) com quadradinhos `☐`
-    - Rodapé: linha de assinatura do educador
-6. Se em lote, gera um PDF por turma (download sequencial)
+```typescript
+// DE:
+const DIAS_MAP: Record<string, number> = {
+  segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6, domingo: 0,
+};
 
-### Arquivos
+// PARA:
+const DIAS_MAP: Record<string, number> = {
+  seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6, dom: 0,
+  segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6, domingo: 0,
+};
+```
 
-
-| Arquivo                                       | Ação                                                                   |
-| --------------------------------------------- | ---------------------------------------------------------------------- |
-| `src/pages/presenca/PresencaExportarPage.tsx` | Adicionar seletor de mês/ano + botão "Gerar Lista de Presença (PDF)"   |
-| `src/hooks/useDocumentExport.ts`              | Nova função `exportListaPresencaPdf(turma, participantes, datasDoMes)` |
-
-
-### Detalhes do PDF
-
-- Formato A4 paisagem
-- Cabeçalho institucional (mesmo padrão da Matriz de Frequência)
-- Colunas de data calculadas a partir de `dias_semana` da turma + mês selecionado
-- Cada célula de presença contém `☐` (quadradinho vazio para marcar de caneta)
-- Fontes pequenas (6-7pt) para caber muitas colunas
-- Mapeamento de dias: `segunda→1, terca→2, quarta→3, quinta→4, sexta→5, sabado→6`
+Inclui ambas as formas para robustez e precisao dos dados.  
+Opcao de unificar em um unico PDF.  
+Deslocar essa funcionalidade pro endereco das Turmas em aba separada.  
+Nenhuma outra alteração necessária.
