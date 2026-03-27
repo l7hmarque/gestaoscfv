@@ -28,7 +28,7 @@ const TurmaDetalhePage = () => {
   const { id } = useParams();
   const [turma, setTurma] = useState<any>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
-  const [allParticipantes, setAllParticipantes] = useState<Tables<"participantes">[]>([]);
+  const [allParticipantes, setAllParticipantes] = useState<{ id: string; nome_completo: string; periodo: string | null }[]>([]);
   const [bairros, setBairros] = useState<Tables<"bairros">[]>([]);
   const [educadores, setEducadores] = useState<Tables<"profiles">[]>([]);
   const [loading, setLoading] = useState(true);
