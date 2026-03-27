@@ -1,24 +1,48 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Download, Loader2, FileSpreadsheet, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
-import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { exportMatrizFrequenciaDocx, exportMatrizFrequenciaPdf } from "@/hooks/useDocumentExport";
+import { isBairroSCFV } from "@/lib/constants";
 
-const BAIRROS_SCFV = ["JARDIM IRENE", "PARQUE INDEPENDENCIA", "ALVORADA"];
+const FAIXAS = [
+  { value: "6-8", label: "6-8 anos" },
+  { value: "9-11", label: "9-11 anos" },
+  { value: "12-17", label: "12-17 anos" },
+  { value: "idosos", label: "Idosos" },
+];
+
+const PERIODOS = [
+  { value: "manha", label: "Manhã" },
+  { value: "tarde", label: "Tarde" },
+  { value: "integral", label: "Integral" },
+];
 
 const PresencaExportarPage = () => {
   const [turmas, setTurmas] = useState<any[]>([]);
-  const [selectedTurma, setSelectedTurma] = useState("");
   const [preenchida, setPreenchida] = useState(true);
   const [loading, setLoading] = useState(false);
   const [turmasLoading, setTurmasLoading] = useState(true);
+
+  // Multi-select filters
+  const [selBairros, setSelBairros] = useState<string[]>([]);
+  const [selFaixas, setSelFaixas] = useState<string[]>([]);
+  const [selPeriodos, setSelPeriodos] = useState<string[]>([]);
+
+  // Unique bairros from turmas (SCFV only)
+  const bairrosSCFV = Array.from(
+    new Map(
+      turmas
+        .filter(t => t.bairros?.nome && isBairroSCFV(t.bairros.nome))
+        .map(t => [t.bairro_id, { id: t.bairro_id, nome: t.bairros.nome }])
+    ).values()
+  ).sort((a, b) => a.nome.localeCompare(b.nome));
 
   useEffect(() => {
     const load = async () => {
@@ -29,48 +53,55 @@ const PresencaExportarPage = () => {
     load();
   }, []);
 
+  const toggleArray = (arr: string[], val: string, setter: (v: string[]) => void) => {
+    setter(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
+  };
+
+  // Filtered turmas based on multi-select
+  const filteredTurmas = turmas.filter(t => {
+    if (selBairros.length > 0 && !selBairros.includes(t.bairro_id)) return false;
+    if (selFaixas.length > 0 && !selFaixas.includes(t.faixa_etaria)) return false;
+    if (selPeriodos.length > 0 && !selPeriodos.includes(t.periodo)) return false;
+    return true;
+  });
+
   const handleExport = async (format: "docx" | "pdf") => {
-    if (!selectedTurma) { toast.error("Selecione uma turma"); return; }
+    if (filteredTurmas.length === 0) { toast.error("Nenhuma turma corresponde aos filtros"); return; }
     setLoading(true);
     try {
-      const turma = turmas.find(t => t.id === selectedTurma);
-      if (!turma) return;
+      for (const turma of filteredTurmas) {
+        const { data: tpData } = await supabase
+          .from("turma_participantes")
+          .select("participante_id, participantes(nome_completo)")
+          .eq("turma_id", turma.id);
 
-      // Get participants
-      const { data: tpData } = await supabase
-        .from("turma_participantes")
-        .select("participante_id, participantes(nome_completo)")
-        .eq("turma_id", selectedTurma);
-      
-      // Get all presenca records for this turma
-      const { data: presData } = await supabase
-        .from("presenca")
-        .select("participante_id, data, presente")
-        .eq("turma_id", selectedTurma)
-        .order("data");
+        const { data: presData } = await supabase
+          .from("presenca")
+          .select("participante_id, data, presente")
+          .eq("turma_id", turma.id)
+          .order("data");
 
-      // Unique dates
-      const datasSet = new Set<string>();
-      (presData || []).forEach(p => datasSet.add(p.data));
-      const datas = Array.from(datasSet).sort();
+        const datasSet = new Set<string>();
+        (presData || []).forEach(p => datasSet.add(p.data));
+        const datas = Array.from(datasSet).sort();
 
-      // Build participant data
-      const participantes = (tpData || [])
-        .map((tp: any) => {
-          const presencas: Record<string, boolean> = {};
-          (presData || []).filter(p => p.participante_id === tp.participante_id).forEach(p => {
-            presencas[p.data] = p.presente || false;
-          });
-          return { nome: tp.participantes?.nome_completo || "", presencas };
-        })
-        .sort((a, b) => a.nome.localeCompare(b.nome));
+        const participantes = (tpData || [])
+          .map((tp: any) => {
+            const presencas: Record<string, boolean> = {};
+            (presData || []).filter(p => p.participante_id === tp.participante_id).forEach(p => {
+              presencas[p.data] = p.presente || false;
+            });
+            return { nome: tp.participantes?.nome_completo || "", presencas };
+          })
+          .sort((a, b) => a.nome.localeCompare(b.nome));
 
-      if (format === "docx") {
-        await exportMatrizFrequenciaDocx(turma, participantes, datas, preenchida);
-      } else {
-        exportMatrizFrequenciaPdf(turma, participantes, datas, preenchida);
+        if (format === "docx") {
+          await exportMatrizFrequenciaDocx(turma, participantes, datas, preenchida);
+        } else {
+          exportMatrizFrequenciaPdf(turma, participantes, datas, preenchida);
+        }
       }
-      toast.success(`Matriz exportada em ${format.toUpperCase()}`);
+      toast.success(`${filteredTurmas.length} matriz(es) exportada(s) em ${format.toUpperCase()}`);
     } catch (err) {
       toast.error("Erro ao exportar");
     } finally {
@@ -86,21 +117,60 @@ const PresencaExportarPage = () => {
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="text-sm">Configurações</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">Filtros</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <Label className="text-xs">Turma</Label>
-            <Select value={selectedTurma} onValueChange={setSelectedTurma}>
-              <SelectTrigger><SelectValue placeholder={turmasLoading ? "Carregando..." : "Selecione a turma"} /></SelectTrigger>
-              <SelectContent>
-                {turmas.map(t => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.nome} — {t.bairros?.nome || "Sem bairro"} ({t.periodo})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <p className="text-xs text-muted-foreground">Selecione os filtros para escolher quais turmas exportar. Deixe em branco para incluir todas.</p>
+
+          <div>
+            <Label className="text-xs font-medium mb-2 block">Bairros SCFV</Label>
+            <div className="flex flex-wrap gap-3">
+              {turmasLoading ? (
+                <span className="text-xs text-muted-foreground">Carregando...</span>
+              ) : bairrosSCFV.map(b => (
+                <label key={b.id} className="flex items-center gap-1.5 cursor-pointer">
+                  <Checkbox checked={selBairros.includes(b.id)} onCheckedChange={() => toggleArray(selBairros, b.id, setSelBairros)} />
+                  <span className="text-sm">{b.nome}</span>
+                </label>
+              ))}
+            </div>
           </div>
+
+          <div>
+            <Label className="text-xs font-medium mb-2 block">Faixas Etárias</Label>
+            <div className="flex flex-wrap gap-3">
+              {FAIXAS.map(f => (
+                <label key={f.value} className="flex items-center gap-1.5 cursor-pointer">
+                  <Checkbox checked={selFaixas.includes(f.value)} onCheckedChange={() => toggleArray(selFaixas, f.value, setSelFaixas)} />
+                  <span className="text-sm">{f.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-xs font-medium mb-2 block">Períodos</Label>
+            <div className="flex flex-wrap gap-3">
+              {PERIODOS.map(p => (
+                <label key={p.value} className="flex items-center gap-1.5 cursor-pointer">
+                  <Checkbox checked={selPeriodos.includes(p.value)} onCheckedChange={() => toggleArray(selPeriodos, p.value, setSelPeriodos)} />
+                  <span className="text-sm">{p.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {filteredTurmas.length > 0 && (
+            <div className="rounded-md border p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Turmas selecionadas: {filteredTurmas.length}</p>
+              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-auto">
+                {filteredTurmas.map(t => (
+                  <Badge key={t.id} variant="secondary" className="text-[10px]">
+                    {t.nome}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
 
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <Checkbox checked={preenchida} onCheckedChange={(v) => setPreenchida(!!v)} />
@@ -108,18 +178,18 @@ const PresencaExportarPage = () => {
           </label>
 
           <div className="flex gap-2">
-            <Button size="sm" className="gap-1.5" disabled={loading || !selectedTurma} onClick={() => handleExport("docx")}>
+            <Button size="sm" className="gap-1.5" disabled={loading || filteredTurmas.length === 0} onClick={() => handleExport("docx")}>
               {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
               Exportar DOCX
             </Button>
-            <Button size="sm" variant="outline" className="gap-1.5" disabled={loading || !selectedTurma} onClick={() => handleExport("pdf")}>
+            <Button size="sm" variant="outline" className="gap-1.5" disabled={loading || filteredTurmas.length === 0} onClick={() => handleExport("pdf")}>
               {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
               Exportar PDF
             </Button>
           </div>
 
           <p className="text-[10px] text-muted-foreground">
-            A matriz será gerada em formato A4 paisagem com cabeçalho institucional, lista de nomes e datas.
+            A matriz será gerada em formato A4 paisagem com cabeçalho institucional.
             {preenchida ? " Presenças lançadas digitalmente serão marcadas com ✓." : " Será gerada em branco para preenchimento manual."}
           </p>
         </CardContent>
