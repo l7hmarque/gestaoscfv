@@ -55,6 +55,8 @@ export function useDashboardData() {
     const turmas = (tRes.data || []).filter((t: any) => t.ativa);
     const rels = rRes.data || [];
     const plans = plRes.data || [];
+    const bairrosMap: Record<string, string> = {};
+    (bRes.data || []).forEach((b: any) => { bairrosMap[b.id] = b.nome; });
 
     // Faixa etária
     const faixaMap: Record<string, number> = {};
