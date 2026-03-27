@@ -117,7 +117,10 @@ const TurmaDetalhePage = () => {
     setLoading(false);
   };
 
+  const isDemo = useIsDemo();
+
   const addParticipante = async (pId: string) => {
+    if (guardDemo(isDemo)) return;
     const { error } = await supabase.from("turma_participantes").insert({ turma_id: id!, participante_id: pId });
     if (error) { toast.error(error.message.includes("duplicate") ? "Já está na turma" : error.message); return; }
     toast.success("Adicionado!");
