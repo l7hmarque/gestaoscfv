@@ -79,6 +79,7 @@ const RelatorioNovoPage = () => {
     intervencoes: "",
     observacoes: "",
     presenca: {} as Record<string, boolean>,
+    justificativas: {} as Record<string, string>,
   });
 
   const scoreElo = useMemo(() => {
