@@ -126,8 +126,8 @@ const ParticipantePerfilPage = () => {
         await supabase.from("turma_participantes").delete().eq("participante_id", id!);
 
         // Buscar turmas compatíveis
-        let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", newBairro).eq("faixa_etaria", newFaixa);
-        if (newPeriodo !== "integral") query = query.eq("periodo", newPeriodo);
+        let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", newBairro).eq("faixa_etaria", newFaixa as any);
+        if (newPeriodo !== "integral") query = query.eq("periodo", newPeriodo as any);
 
         const { data: turmasCompativeis } = await query;
         if (turmasCompativeis && turmasCompativeis.length > 0) {

@@ -152,10 +152,10 @@ const ParticipanteNovoPage = () => {
             let query = supabase.from("turmas").select("id")
               .eq("ativa", true)
               .eq("bairro_id", inserted.bairro_id)
-              .eq("faixa_etaria", faixa);
+              .eq("faixa_etaria", faixa as any);
 
             if (inserted.periodo !== "integral") {
-              query = query.eq("periodo", inserted.periodo);
+              query = query.eq("periodo", inserted.periodo as any);
             }
 
             const { data: turmasCompativeis } = await query;
