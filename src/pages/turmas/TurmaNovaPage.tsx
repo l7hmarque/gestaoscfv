@@ -135,10 +135,55 @@ const TurmaNovaPage = () => {
       ...(batchEducadorId ? { educador_id: batchEducadorId } : {}),
     }));
 
-    const { error } = await supabase.from("turmas").insert(rows as any);
+    const { data: turmasCriadas, error } = await supabase.from("turmas").insert(rows as any).select();
+    if (error) { setBatchSaving(false); toast.error("Erro: " + error.message); return; }
+
+    let totalVinculados = 0;
+
+    if (autoVincular && turmasCriadas && turmasCriadas.length > 0) {
+      // Fetch active participants from selected bairros
+      const { data: participantes } = await supabase
+        .from("participantes")
+        .select("id, bairro_id, periodo, data_nascimento")
+        .eq("status", "ativo")
+        .in("bairro_id", batchBairros);
+
+      if (participantes && participantes.length > 0) {
+        const links: { turma_id: string; participante_id: string }[] = [];
+
+        for (const turma of turmasCriadas) {
+          const matched = participantes.filter(p => {
+            if (p.bairro_id !== turma.bairro_id) return false;
+            // Period match
+            const tPeriodo = turma.periodo as string;
+            if (tPeriodo !== "integral" && p.periodo !== tPeriodo) return false;
+            // Age match
+            const faixa = calcFaixaFromDate(p.data_nascimento);
+            if (faixa !== (turma.faixa_etaria as string)) return false;
+            return true;
+          });
+
+          for (const p of matched) {
+            links.push({ turma_id: turma.id, participante_id: p.id });
+          }
+        }
+
+        if (links.length > 0) {
+          const { error: linkError } = await supabase.from("turma_participantes").insert(links);
+          if (linkError) {
+            toast.warning("Turmas criadas, mas erro ao vincular: " + linkError.message);
+          } else {
+            totalVinculados = links.length;
+          }
+        }
+      }
+    }
+
     setBatchSaving(false);
-    if (error) { toast.error("Erro: " + error.message); return; }
-    toast.success(`${rows.length} turma(s) criada(s)!`);
+    const msg = totalVinculados > 0
+      ? `${turmasCriadas!.length} turma(s) criada(s) com ${totalVinculados} participante(s) vinculado(s)!`
+      : `${turmasCriadas!.length} turma(s) criada(s)!`;
+    toast.success(msg);
     navigate("/turmas");
   };
 
