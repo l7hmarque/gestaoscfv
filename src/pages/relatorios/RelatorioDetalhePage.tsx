@@ -81,7 +81,7 @@ const RelatorioDetalhePage = () => {
               <DropdownMenuItem onClick={() => exportRelatorioDocx(item, turmaNames, presenca, fotos)} className="text-xs gap-2">
                 <FileSpreadsheet className="h-3.5 w-3.5" /> DOCX
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportRelatorioPdf(item, turmaNames, presenca)} className="text-xs gap-2">
+              <DropdownMenuItem onClick={() => exportRelatorioPdf(item, turmaNames, presenca).catch(() => {})} className="text-xs gap-2">
                 <FileText className="h-3.5 w-3.5" /> PDF
               </DropdownMenuItem>
             </DropdownMenuContent>

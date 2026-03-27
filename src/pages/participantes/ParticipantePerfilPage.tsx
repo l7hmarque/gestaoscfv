@@ -99,7 +99,7 @@ const ParticipantePerfilPage = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem onClick={() => exportFichaInscricaoDocx(participante)} className="text-xs gap-2"><FileSpreadsheet className="h-3.5 w-3.5" /> DOCX</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportFichaInscricaoPdf(participante)} className="text-xs gap-2"><FileText className="h-3.5 w-3.5" /> PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportFichaInscricaoPdf(participante).catch(() => {})} className="text-xs gap-2"><FileText className="h-3.5 w-3.5" /> PDF</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
