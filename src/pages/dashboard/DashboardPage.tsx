@@ -1,11 +1,16 @@
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, GraduationCap, FileText, BookOpen, TrendingUp, Percent } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, RadarChart, PolarGrid, PolarAngleAxis,
-  PolarRadiusAxis, Radar, Legend,
+  PolarRadiusAxis, Radar,
 } from "recharts";
+import DashboardProfissionaisTab from "./DashboardProfissionaisTab";
+import DashboardTransporteTab from "./DashboardTransporteTab";
+import DashboardAdminTab from "./DashboardAdminTab";
+import DashboardRelatorioMensalTab from "./DashboardRelatorioMensalTab";
 
 const COLORS = ["hsl(0,65%,67%)", "hsl(210,22%,49%)", "hsl(45,80%,55%)", "hsl(150,45%,45%)", "hsl(280,40%,55%)", "hsl(30,70%,55%)"];
 const OBJ_LABELS: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
@@ -27,19 +32,12 @@ function KPICard({ icon: Icon, label, value, sub }: { icon: any; label: string; 
   );
 }
 
-export default function DashboardPage() {
+function IndicadoresTab() {
   const { data, loading } = useDashboardData();
-
-  if (loading || !data) return <div className="p-6 text-sm text-muted-foreground">Carregando dashboard...</div>;
+  if (loading || !data) return <div className="p-6 text-sm text-muted-foreground">Carregando indicadores...</div>;
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-[1400px]">
-      <div>
-        <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-xs text-muted-foreground">Indicadores de gestão do SCFV</p>
-      </div>
-
-      {/* KPIs */}
+    <div className="space-y-5">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <KPICard icon={Users} label="Participantes Ativos" value={data.totalParticipantesAtivos} />
         <KPICard icon={GraduationCap} label="Turmas Ativas" value={data.totalTurmasAtivas} />
@@ -49,9 +47,7 @@ export default function DashboardPage() {
         <KPICard icon={Percent} label="Média Adesão" value={`${data.mediaAdesao.toFixed(0)}%`} />
       </div>
 
-      {/* Charts row 1 */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Faixa etária */}
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Faixa Etária</CardTitle></CardHeader>
           <CardContent className="h-52">
@@ -67,7 +63,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Gênero */}
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Gênero</CardTitle></CardHeader>
           <CardContent className="h-52">
@@ -82,7 +77,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Bairro */}
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Bairro (top 10)</CardTitle></CardHeader>
           <CardContent className="h-52">
@@ -99,9 +93,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Charts row 2 */}
       <div className="grid md:grid-cols-2 gap-4">
-        {/* ELO mensal */}
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Score ELO Mensal</CardTitle></CardHeader>
           <CardContent className="h-56">
@@ -119,7 +111,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Adesão mensal */}
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">% Adesão Mensal</CardTitle></CardHeader>
           <CardContent className="h-56">
@@ -138,9 +129,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Charts row 3 */}
       <div className="grid md:grid-cols-2 gap-4">
-        {/* Radar competências */}
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Competências ELO</CardTitle></CardHeader>
           <CardContent className="h-64">
@@ -158,7 +147,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Objetivos */}
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Objetivos Alcançados</CardTitle></CardHeader>
           <CardContent className="h-64">
@@ -178,6 +166,32 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <div className="p-4 md:p-6 space-y-5 max-w-[1400px]">
+      <div>
+        <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
+        <p className="text-xs text-muted-foreground">Gestão do SCFV</p>
+      </div>
+
+      <Tabs defaultValue="indicadores" className="space-y-4">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="indicadores">Indicadores</TabsTrigger>
+          <TabsTrigger value="profissionais">Profissionais</TabsTrigger>
+          <TabsTrigger value="transporte">Transporte</TabsTrigger>
+          <TabsTrigger value="relatorio-mensal">Relatório Mensal</TabsTrigger>
+          <TabsTrigger value="admin">Administração</TabsTrigger>
+        </TabsList>
+        <TabsContent value="indicadores"><IndicadoresTab /></TabsContent>
+        <TabsContent value="profissionais"><DashboardProfissionaisTab /></TabsContent>
+        <TabsContent value="transporte"><DashboardTransporteTab /></TabsContent>
+        <TabsContent value="relatorio-mensal"><DashboardRelatorioMensalTab /></TabsContent>
+        <TabsContent value="admin"><DashboardAdminTab /></TabsContent>
+      </Tabs>
     </div>
   );
 }
