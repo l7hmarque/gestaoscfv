@@ -128,6 +128,7 @@ const TurmaDetalhePage = () => {
   };
 
   const removeParticipante = async (tpId: string) => {
+    if (guardDemo(isDemo)) return;
     await supabase.from("turma_participantes").delete().eq("id", tpId);
     toast.success("Removido");
     fetchAll();
