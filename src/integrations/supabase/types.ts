@@ -46,6 +46,7 @@ export type Database = {
           iniciou_em: string | null
           laudo: string | null
           nome_completo: string
+          observacoes_sigilosas: string | null
           origem_encaminhamento: string | null
           periodo: Database["public"]["Enums"]["periodo_enum"] | null
           ponto_transporte_id: string | null
@@ -78,6 +79,7 @@ export type Database = {
           iniciou_em?: string | null
           laudo?: string | null
           nome_completo: string
+          observacoes_sigilosas?: string | null
           origem_encaminhamento?: string | null
           periodo?: Database["public"]["Enums"]["periodo_enum"] | null
           ponto_transporte_id?: string | null
@@ -110,6 +112,7 @@ export type Database = {
           iniciou_em?: string | null
           laudo?: string | null
           nome_completo?: string
+          observacoes_sigilosas?: string | null
           origem_encaminhamento?: string | null
           periodo?: Database["public"]["Enums"]["periodo_enum"] | null
           ponto_transporte_id?: string | null

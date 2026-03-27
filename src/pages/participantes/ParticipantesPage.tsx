@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { isBairroSCFV } from "@/lib/constants";
 import type { Tables } from "@/integrations/supabase/types";
 
 const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto" };
@@ -95,7 +96,7 @@ const ParticipantesPage = () => {
           <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos bairros</SelectItem>
-            {bairros.map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}
+            {bairros.filter((b) => isBairroSCFV(b.nome)).map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>

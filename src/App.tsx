@@ -29,6 +29,7 @@ import RelatorioDetalhePage from "./pages/relatorios/RelatorioDetalhePage";
 import BancoDadosPage from "./pages/banco-dados/BancoDadosPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
 import ProfissionalPerfilPage from "./pages/profissional/ProfissionalPerfilPage";
+import DevPage from "./pages/dev/DevPage";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +65,7 @@ const App = () => (
                 <Route path="/relatorios/:id" element={<RelatorioDetalhePage />} />
                 <Route path="/profissional/:id" element={<ProfissionalPerfilPage />} />
               </Route>
+              <Route path="/dev" element={<DevPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>
