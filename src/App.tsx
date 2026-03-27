@@ -41,6 +41,8 @@ const App = () => (
             <Route path="/login" element={<LoginPage />} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<Index />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/banco-de-dados" element={<BancoDadosPage />} />
               <Route path="/participantes" element={<ParticipantesPage />} />
               <Route path="/participantes/novo" element={<ParticipanteNovoPage />} />
               <Route path="/participantes/importar" element={<ParticipanteImportarPage />} />
