@@ -28,6 +28,18 @@ const LoginPage = () => {
     }
   };
 
+  const handleDemoLogin = async () => {
+    setDemoLoading(true);
+    const { error } = await signIn("visitante@syselo.demo", "visitantecaia");
+    setDemoLoading(false);
+    if (error) {
+      toast.error("Conta de visitante não disponível. Contate o administrador.");
+    } else {
+      toast.info("Modo demonstração ativo — alterações não serão salvas");
+      navigate("/");
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
