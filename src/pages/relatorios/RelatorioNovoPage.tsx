@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const LIKERT_LABELS = ["Muito Baixo", "Baixo", "Moderado", "Alto", "Excepcional"];
 const ENGAJAMENTO_OPT = ["Alta participação", "Participação parcial", "Pouca interação", "Dispersão", "Resistência"];
