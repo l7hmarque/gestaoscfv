@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { isBairroSCFV } from "@/lib/constants";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { format } from "date-fns";
 import { Document, Packer, Paragraph, TextRun, Table as DocxTable, TableRow as DocxTableRow, TableCell as DocxTableCell, WidthType, AlignmentType, BorderStyle, HeadingLevel } from "docx";
 import { saveAs } from "file-saver";
@@ -116,7 +117,10 @@ const TurmaDetalhePage = () => {
     setLoading(false);
   };
 
+  const isDemo = useIsDemo();
+
   const addParticipante = async (pId: string) => {
+    if (guardDemo(isDemo)) return;
     const { error } = await supabase.from("turma_participantes").insert({ turma_id: id!, participante_id: pId });
     if (error) { toast.error(error.message.includes("duplicate") ? "Já está na turma" : error.message); return; }
     toast.success("Adicionado!");
@@ -124,12 +128,14 @@ const TurmaDetalhePage = () => {
   };
 
   const removeParticipante = async (tpId: string) => {
+    if (guardDemo(isDemo)) return;
     await supabase.from("turma_participantes").delete().eq("id", tpId);
     toast.success("Removido");
     fetchAll();
   };
 
   const handleSave = async () => {
+    if (guardDemo(isDemo)) return;
     setSaving(true);
     const payload: Record<string, unknown> = { ...form };
     if (!payload.bairro_id) payload.bairro_id = null;

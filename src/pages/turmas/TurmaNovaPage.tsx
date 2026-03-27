@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const diasOptions = [
   { value: "seg", label: "Segunda" }, { value: "ter", label: "Terça" }, { value: "qua", label: "Quarta" },
@@ -76,8 +77,11 @@ const TurmaNovaPage = () => {
     setter(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
   };
 
+  const isDemo = useIsDemo();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (guardDemo(isDemo)) return;
     if (!nome.trim()) { toast.error("Nome da turma é obrigatório"); return; }
     setSaving(true);
     const payload: Record<string, unknown> = {

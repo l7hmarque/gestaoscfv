@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const FORMAS_AVALIACAO = [
   "Ficha de Observação",
@@ -78,7 +79,10 @@ const PlanejamentoNovoPage = () => {
     }));
   };
 
+  const isDemo = useIsDemo();
+
   const handleSave = async () => {
+    if (guardDemo(isDemo)) return;
     if (!form.titulo.trim()) { toast.error("Título é obrigatório"); return; }
     setSaving(true);
     try {

@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { isBairroSCFV } from "@/lib/constants";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const FAIXAS: Record<string, [number, number]> = {
   "6-8": [6, 8],
@@ -96,7 +97,10 @@ const PresencaPage = () => {
   const numPresentes = filteredParticipantes.filter(p => presenca[p.id]).length;
   const numAusentes = filteredParticipantes.length - numPresentes;
 
+  const isDemo = useIsDemo();
+
   const handleSave = async () => {
+    if (guardDemo(isDemo)) return;
     if (!data) { toast.error("Selecione uma data"); return; }
     if (!selectedTurma) { toast.error("Selecione uma turma"); return; }
     setSaving(true);

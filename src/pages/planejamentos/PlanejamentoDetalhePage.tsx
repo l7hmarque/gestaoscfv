@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { exportPlanejamentoDocx, exportPlanejamentoPdf } from "@/hooks/useDocumentExport";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const PlanejamentoDetalhePage = () => {
   const { id } = useParams();
@@ -46,7 +47,10 @@ const PlanejamentoDetalhePage = () => {
     fetch();
   }, [id]);
 
+  const isDemo = useIsDemo();
+
   const handleSave = async () => {
+    if (guardDemo(isDemo)) return;
     const { error } = await supabase.from("planejamentos").update({
       titulo: form.titulo,
       tema: form.tema || null,

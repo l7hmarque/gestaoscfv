@@ -16,6 +16,7 @@ import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDocumentScanner, CATEGORIES } from "@/hooks/useDocumentScanner";
 import type { Tables } from "@/integrations/supabase/types";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto" };
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
@@ -84,7 +85,10 @@ const ParticipantePerfilPage = () => {
 
   const set = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
 
+  const isDemo = useIsDemo();
+
   const handleSave = async () => {
+    if (guardDemo(isDemo)) return;
     setSaving(true);
     const payload: Record<string, unknown> = { ...form };
     delete payload.id; delete payload.created_at; delete payload.updated_at;
