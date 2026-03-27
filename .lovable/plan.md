@@ -1,76 +1,46 @@
 
 
-# Plano Consolidado — Funcionalidades Pendentes SysELO
+## Plano: Exportação baseada em modelo DOCX institucional
 
-## 1. Exportacao Institucional DOCX + PDF
+### Ideia central
+Em vez de construir o documento do zero com `docx-js`, o sistema vai **carregar o modelo DOCX institucional original** que você enviou, localizar as tags (ex: `{DATA}`, `{EDUCADOR}`, `{TURMA}`) e **preencher automaticamente** com os dados do banco. Assim o layout, fontes, margens e formatação ficam **exatamente** como no seu modelo. O mesmo documento preenchido é exportado em DOCX e convertido para PDF.
 
-Criar hook `src/hooks/useDocumentExport.ts` que gera documentos seguindo os modelos enviados.
+### Como funciona
 
-**Modelos:**
-- **Relatorio de Atividade**: cabecalho SCFV/CAIA, dados, checkboxes pintadas (☐/☑), competencias com cores de fundo (1=vermelho a 5=verde), fotos dinamicas (remove tabelas nao usadas), quebras de pagina
-- **Planejamento**: cabecalho institucional, tags mapeadas aos campos do banco
-- **Ficha de Inscricao**: dados completos do participante no formato institucional
-- **Matriz de Frequencia**: A4 paisagem, cabecalho institucional, nomes x datas, checkmarks para presentes, versao em branco e preenchida
+1. **Templates armazenados no Storage** — Os modelos DOCX institucionais (Relatório, Planejamento, Ficha de Inscrição, Matriz de Frequência) ficam salvos em um bucket `templates` no backend. A coordenação pode subir novos modelos quando quiser.
 
-Formatos: DOCX (via `docx-js`) + PDF (via `jsPDF`). Botoes de export nas paginas de detalhe e no Banco de Dados. Backup ZIP inclui versoes DOCX+PDF.
+2. **Biblioteca `docxtemplater`** — Substitui a `docx-js` para exportação. Ela abre o `.docx` original como ZIP, encontra as tags `{TAG}` dentro do XML e preenche com os valores correspondentes. Suporta:
+   - Tags simples: `{DATA}`, `{EDUCADOR}`, `{NOME_ATIVIDADE}`
+   - Loops (tabelas de presença): `{#PRESENCA}{NOME} {STATUS}{/PRESENCA}`
+   - Checkboxes condicionais: `{CHECK_ENGAJAMENTO_1}`
+   - Cores Likert nos campos de competência
 
-## 2. Pagina Individual do Profissional
+3. **Mapeamento de tags** — Cada tipo de documento tem um mapeamento fixo:
+   - Relatório: `{DATA}` → `item.data`, `{EDUCADOR}` → `item.profiles.nome`, `{SCORE_ELO}` → `item.score_elo`, etc.
+   - Planejamento: `{TITULO}` → `item.titulo`, `{TEMA}` → `item.tema`, etc.
+   - Ficha: `{NOME_COMPLETO}` → `p.nome_completo`, `{CPF}` → `p.cpf`, etc.
 
-Nova rota `/profissional/:id` com layout tipo perfil:
-- Header: foto, nome, cargo, status
-- Cronograma semanal: grade visual seg-sex gerada das turmas do profissional
-- Tabs: Turmas, Planejamentos, Relatorios, Presencas — todos filtrados pelo `educador_id`
-- Cards de profissionais no Dashboard viram links clicaveis para o perfil
+4. **Exportação PDF** — Após preencher o DOCX via `docxtemplater`, o mesmo conteúdo é replicado com `jsPDF` seguindo a mesma estrutura visual (cabeçalho institucional completo, tabelas formatadas, cores Likert, checkboxes).
 
-## 3. Integracao de Documentos nas Paginas
+5. **Página de gestão de templates** — Tela simples (acessível à coordenação) para upload/substituição dos modelos DOCX.
 
-- **Participante perfil**: botao "Ficha de Inscricao" gera DOCX/PDF institucional
-- **Profissional perfil**: acesso direto aos planejamentos e relatorios do educador
-- **Relatorio detalhe**: botoes "Exportar DOCX" e "Exportar PDF"
-- **Planejamento detalhe**: botoes "Exportar DOCX" e "Exportar PDF"
+### Arquivos
 
-## 4. Impressao Direta do Navegador
-
-- Botao "Imprimir" em: Relatorio, Planejamento, Participante, Profissional
-- CSS `@media print` global em `index.css`: esconde sidebar/header/botoes, ajusta margens A4
-
-## 5. Seguranca e Protecao de Dados
-
-### RLS por cargo
-- Adicionar role `educador` ao enum `app_role`
-- UPDATE em planejamentos/relatorios: somente autor OU coordenacao
-- DELETE em todas as tabelas criticas: somente coordenacao
-- INSERT em turmas/pontos_transporte/bairros: somente coordenacao
-
-### Storage
-- Tornar buckets `fotos-participantes` e `fotos-relatorios` privados
-- Policies: SELECT/INSERT para authenticated, DELETE para coordenacao
-
-### Profiles update
-- Permitir coordenacao atualizar perfis de outros (policy UPDATE)
-
-### Sessao
-- Hook `useSessionTimeout.ts`: auto-logout apos 30min de inatividade
-- Integrar no `AppLayout.tsx`
-
----
-
-## Arquivos
-
-| Arquivo | Acao |
+| Arquivo | Ação |
 |---|---|
-| `src/hooks/useDocumentExport.ts` | Criar |
-| `src/pages/profissional/ProfissionalPerfilPage.tsx` | Criar |
-| `src/hooks/useSessionTimeout.ts` | Criar |
-| `src/App.tsx` | Editar — rota `/profissional/:id` |
-| `src/index.css` | Editar — `@media print` |
-| `src/pages/relatorios/RelatorioDetalhePage.tsx` | Editar — botoes export + imprimir |
-| `src/pages/planejamentos/PlanejamentoDetalhePage.tsx` | Editar — botoes export + imprimir |
-| `src/pages/participantes/ParticipantePerfilPage.tsx` | Editar — ficha inscricao + imprimir |
-| `src/pages/presenca/PresencaExportarPage.tsx` | Reescrever — matriz frequencia DOCX+PDF |
-| `src/pages/dashboard/DashboardProfissionaisTab.tsx` | Editar — cards clicaveis |
-| `src/hooks/useBackupExport.ts` | Editar — incluir DOCX/PDF no ZIP |
-| `src/pages/banco-dados/BancoDadosPage.tsx` | Editar — opcao DOCX no dropdown |
-| `src/components/AppLayout.tsx` | Editar — integrar timeout |
-| Migration SQL | RLS refinado, role educador, storage policies |
+| `src/hooks/useDocumentExport.ts` | Reescrever — usar `docxtemplater` para carregar template do Storage e preencher tags; reescrever funções PDF para espelhar o layout do template |
+| `src/pages/dashboard/DashboardAdminTab.tsx` | Editar — adicionar seção de upload/gestão dos templates DOCX |
+| Migration SQL | Criar bucket `templates` no Storage com policies para coordenação |
+| `package.json` | Adicionar `docxtemplater`, `pizzip` |
+
+### Fluxo do usuário
+1. Coordenação faz upload do modelo DOCX com as tags nos campos
+2. Educador abre um relatório → clica "Exportar DOCX" → sistema baixa o template, preenche as tags, gera o arquivo
+3. Educador clica "Exportar PDF" → mesmo conteúdo, formatado identicamente em PDF
+
+### Detalhes técnicos
+- `docxtemplater` + `pizzip` para manipulação do DOCX template
+- Templates baixados do bucket `templates` via `supabase.storage.from('templates').download('relatorio.docx')`
+- Cache local do template para evitar downloads repetidos
+- Fallback: se não houver template no Storage, usa a geração atual como backup
 
