@@ -234,17 +234,26 @@ export type Database = {
       }
       pontos_transporte: {
         Row: {
+          ativo: boolean | null
           bairro_id: string | null
+          horario_manha: string | null
+          horario_tarde: string | null
           id: string
           nome: string
         }
         Insert: {
+          ativo?: boolean | null
           bairro_id?: string | null
+          horario_manha?: string | null
+          horario_tarde?: string | null
           id?: string
           nome: string
         }
         Update: {
+          ativo?: boolean | null
           bairro_id?: string | null
+          horario_manha?: string | null
+          horario_tarde?: string | null
           id?: string
           nome?: string
         }
@@ -317,30 +326,57 @@ export type Database = {
         Row: {
           ativo: boolean | null
           cargo: string | null
+          cpf: string | null
           created_at: string | null
+          data_inicio: string | null
+          email: string | null
+          endereco: string | null
           foto_url: string | null
           id: string
           nome: string
+          registro_profissional: string | null
+          rg: string | null
+          rg_data_expedicao: string | null
+          rg_orgao_expedidor: string | null
+          telefone: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
           ativo?: boolean | null
           cargo?: string | null
+          cpf?: string | null
           created_at?: string | null
+          data_inicio?: string | null
+          email?: string | null
+          endereco?: string | null
           foto_url?: string | null
           id?: string
           nome?: string
+          registro_profissional?: string | null
+          rg?: string | null
+          rg_data_expedicao?: string | null
+          rg_orgao_expedidor?: string | null
+          telefone?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
           ativo?: boolean | null
           cargo?: string | null
+          cpf?: string | null
           created_at?: string | null
+          data_inicio?: string | null
+          email?: string | null
+          endereco?: string | null
           foto_url?: string | null
           id?: string
           nome?: string
+          registro_profissional?: string | null
+          rg?: string | null
+          rg_data_expedicao?: string | null
+          rg_orgao_expedidor?: string | null
+          telefone?: string | null
           updated_at?: string | null
           user_id?: string
         }
