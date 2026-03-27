@@ -1,200 +1,146 @@
 
 
-# Fase 1 — SysELO: Base + Turmas + Presenca + Relatorio de Atividades + Planejamento
+# Plano Atualizado — Fase 1 SysELO (com Backup, Exportacao em Massa e Dashboard)
 
-## Resumo
+## Resumo das Adicoes
 
-Construir o sistema completo da Fase 1 incluindo: design system, autenticacao, cadastro de participantes com importacao em lote, gestao de turmas, presenca digital/exportavel, relatorio de atividades com avaliacao Likert e fotos, e planejamento de atividades com exportacao DOCX/PDF.
-
----
-
-## Dados Mapeados dos Arquivos
-
-### Relatorio de Atividades (campos do formulario + planilha)
-- Data, Dia da Semana, Profissional, Bairro, Faixa Etaria, Periodo
-- Tipo de Atividade Realizada (ex: "Educando")
-- Nome da Atividade (livre ou selecionar de planejamento proprio)
-- Selecao de multiplas turmas cadastradas
-- Competencias Likert 1-5: Iniciativa, Autonomia, Colaboracao, Comunicacao, Respeito Mutuo
-- Score ELO = media das 5 competencias
-- Checkboxes: Engajamento (participativo, disperso, conflitos, boa interacao, intervencao)
-- Checkboxes: Situacoes relevantes (nenhuma, conflito, vulnerabilidade, encaminhamento, comunicacao familia)
-- Checkboxes: Objetivo (alcancado, parcialmente, nao alcancado)
-- Situacoes/Observacoes (texto livre)
-- Intervencoes Realizadas (texto livre)
-- Upload de ate 5 fotos
-- Numero de Participantes, Ausentes, Total Matriculados, % Adesao
-- Analise IA (texto gerado automaticamente)
-- Presenca individual: marca presente/ausente cada participante da turma selecionada
-
-### Planejamento de Atividades (campos)
-- Educador/Facilitador, Grupo (faixa etaria), Bairro, Periodo
-- Tema da Atividade ou Demanda
-- Titulo da Atividade
-- Questao Geradora / Desafio
-- Forma de Avaliacao (multipla escolha: Ficha Observacao, Rubrica, Likert, Autoavaliacao, Roda de Conversa, Portfolio)
-- Objetivos Foco (texto livre, multiplos)
-- Data de Aplicacao
-- Roteiro da Atividade (texto livre, passos numerados)
-- Materiais Necessarios
-- Apoio Tecnico (texto livre)
-- Selecao de turmas cadastradas
+Incluir no plano: (1) pagina de Banco de Dados interativo com backup/exportacao completa zipada, (2) exportacao em massa por intervalo de data com arquivos nomeados por padrao rastreavel, (3) dashboard de gestao com indicadores quantitativos.
 
 ---
 
-## Arquitetura Tecnica
-
-### Tabelas Supabase (adicoes para esta fase)
+## Novas Rotas
 
 ```text
--- Tabelas base (ja planejadas)
-profiles, user_roles, bairros, pontos_transporte,
-participantes, turmas, turma_participantes, presenca
-
--- NOVAS: Planejamento
-planejamentos (
-  id, educador_id FK profiles,
-  titulo, tema, questao_geradora,
-  objetivos text, forma_avaliacao text[],
-  roteiro text, materiais text, apoio_tecnico text,
-  data_aplicacao date,
-  created_at, updated_at
-)
-
-planejamento_turmas (id, planejamento_id FK, turma_id FK)
-
--- NOVAS: Relatorio de Atividades
-relatorios_atividade (
-  id, educador_id FK profiles,
-  data date, dia_semana text,
-  tipo_atividade text, nome_atividade text,
-  planejamento_id FK planejamentos (nullable),
-  -- Likert 1-5
-  iniciativa int, autonomia int, colaboracao int,
-  comunicacao int, respeito_mutuo int, score_elo decimal,
-  -- Checkboxes (arrays de opcoes selecionadas)
-  engajamento text[], situacoes_relevantes text[],
-  objetivo_alcancado enum[alcancado,parcial,nao_alcancado],
-  -- Textos
-  observacoes text, intervencoes text,
-  -- Contagens
-  num_participantes int, num_ausentes int,
-  num_matriculados int, pct_adesao decimal,
-  -- IA
-  analise_ia text,
-  created_at
-)
-
-relatorio_turmas (id, relatorio_id FK, turma_id FK)
-
-relatorio_fotos (id, relatorio_id FK, foto_url text, ordem int)
-
-relatorio_presenca (
-  id, relatorio_id FK, participante_id FK,
-  presente boolean, justificativa text
-)
+/banco-de-dados          — Interacao com dados brutos + exportacao em massa
+/dashboard               — Painel de indicadores de gestao
 ```
 
-### Rotas (completas da Fase 1)
+## Sidebar atualizada
+
+Adicionar dois itens: "Banco de Dados" (icone Database) e "Dashboard" (icone LayoutDashboard), totalizando 8 itens no menu.
+
+---
+
+## 11. Banco de Dados + Backup + Exportacao em Massa
+
+### Pagina `/banco-de-dados`
+
+**Interface com abas**: Participantes | Turmas | Presenca | Relatorios | Planejamentos | Profissionais
+
+Cada aba:
+- Tabela interativa com todas as colunas, busca, filtros contextuais, ordenacao, paginacao (50/pagina)
+- Contagem total de registros
+
+**Exportacao individual por aba**: botao com dropdown PDF / XLSX / DOCX (dados filtrados)
+
+**Padrao de nomenclatura dos arquivos**:
+```text
+SysELO_{categoria}_{YYYY-MM-DD}_{HHmmss}.{ext}
+Exemplos:
+  SysELO_Participantes_2026-03-27_143022.xlsx
+  SysELO_Relatorio_Atividade_2026-03-15_091500.docx
+  SysELO_Presenca_Mar2026_2026-03-27_143022.pdf
+```
+
+**Exportacao em massa por intervalo de data**:
+- Seletor de data inicio/fim
+- Checkboxes para selecionar categorias a incluir (Participantes, Turmas, Presenca, Relatorios, Planejamentos)
+- Gera arquivo ZIP com estrutura de pastas:
 
 ```text
-/login
-/                        — Home (atalhos rapidos)
-/participantes           — Lista com filtros
-/participantes/novo      — Cadastro
-/participantes/importar  — Import XLSX
-/participantes/:id       — Perfil
-/turmas                  — Lista de turmas
-/turmas/nova             — Criar turma
-/turmas/:id              — Detalhe + participantes
-/presenca                — Marcar presenca do dia
-/presenca/historico      — Historico mensal
-/presenca/exportar       — Gerar lista XLSX/PDF
-/planejamentos           — Lista de planejamentos do educador
-/planejamentos/novo      — Criar planejamento
-/planejamentos/:id       — Visualizar/editar
-/relatorios              — Lista de relatorios do educador
-/relatorios/novo         — Criar relatorio de atividade
-/relatorios/:id          — Visualizar relatorio
+SysELO_Backup_{YYYY-MM-DD}_{HHmmss}.zip
+├── Participantes/
+│   └── SysELO_Participantes_2026-03-27.xlsx
+├── Turmas/
+│   └── SysELO_Turmas_2026-03-27.xlsx
+├── Presenca/
+│   └── SysELO_Presenca_2026-03-27.xlsx
+├── Relatorios/
+│   ├── SysELO_Relatorios_Dados_2026-03-27.xlsx
+│   └── modelos/
+│       ├── SysELO_Relatorio_Atividade_2026-03-15.docx
+│       └── SysELO_Relatorio_Atividade_2026-03-20.docx
+├── Planejamentos/
+│   ├── SysELO_Planejamentos_Dados_2026-03-27.xlsx
+│   └── modelos/
+│       ├── SysELO_Planejamento_TituloAtividade_2026-03-10.docx
+│       └── ...
+└── Profissionais/
+    └── SysELO_Profissionais_2026-03-27.xlsx
 ```
 
----
+- Dados brutos em XLSX + documentos individuais em DOCX dentro dos modelos institucionais
+- Usa `JSZip` no frontend para montar o arquivo ZIP
 
-## Etapas de Implementacao
+### Implementacao tecnica
 
-### 1. Design system + Layout
-- Paleta vermelho/azul/offwhite no `index.css`
-- `AppSidebar` com categorias: Inicio, Participantes, Turmas, Presenca, Planejamento, Relatorios
-- Layout responsivo com `SidebarProvider`
+| Arquivo | Acao |
+|---------|------|
+| `src/pages/banco-dados/BancoDadosPage.tsx` | Criar — pagina com Tabs, tabelas, filtros, exportacao |
+| `src/components/DataTable.tsx` | Criar — componente tabela reutilizavel com busca/filtro/paginacao/sort |
+| `src/hooks/useDataExport.ts` | Criar — logica de exportacao PDF/XLSX/DOCX + ZIP em massa |
+| `src/hooks/useBackupExport.ts` | Criar — orquestra fetch de todas as categorias + monta ZIP |
 
-### 2. Autenticacao (Lovable Cloud)
-- Tabelas `profiles` + `user_roles` + trigger
-- Login por email/senha
-- `ProtectedRoute`
-
-### 3. Banco de dados — migrations
-- Todas as tabelas listadas acima
-- RLS por role
-- Seed bairros + pontos transporte
-
-### 4. Cadastro de participantes
-- Formulario completo (mapeado da ficha de inscricao)
-- Upload foto, lista com filtros, perfil individual
-
-### 5. Importacao em lote
-- Upload XLSX, mapeamento automatico, preview, insercao batch
-
-### 6. Gestao de turmas
-- CRUD turmas (ordinaria/extraordinaria), dias da semana, educador
-- Popular com participantes, quick update periodo
-
-### 7. Presenca digital + exportacao
-- Interface de marcacao por turma/data
-- Calendario mensal (somente dias da turma)
-- Exportar lista de chamada XLSX/PDF
-
-### 8. Planejamento de atividades
-- Formulario: titulo, tema, questao geradora, objetivos, roteiro, materiais, apoio tecnico
-- Selecao de turmas cadastradas
-- Selecao de forma de avaliacao (checkboxes multiplos)
-- Data de aplicacao
-- Lista de planejamentos do educador (filtro por turma, data)
-- Visualizacao individual
-- Exportacao DOCX/PDF seguindo modelo enviado (cabecalho SCNSA, secoes I-IV)
-
-### 9. Relatorio de atividades
-- Formulario completo:
-  - Selecionar turma(s) → popula automaticamente lista de participantes
-  - Nome da atividade: livre ou selecionar de planejamentos proprios
-  - Tipo de atividade
-  - Marcacao de presenca individual (presente/ausente) integrada ao relatorio
-  - Avaliacao Likert 1-5 para cada competencia (slider ou radio)
-  - Score ELO calculado automaticamente (media)
-  - Checkboxes de engajamento, situacoes, objetivo
-  - Campos texto: observacoes e intervencoes
-  - Upload de ate 5 fotos
-  - Contagem automatica de presentes/ausentes/matriculados e % adesao
-- Lista de relatorios com filtros (educador, turma, data)
-- Visualizacao individual com layout do modelo
-- Exportacao DOCX/PDF seguindo modelo enviado (cabecalho, dados, competencias, fotos em Anexo I)
-- A presenca registrada no relatorio tambem alimenta a tabela `presenca` (sincroniza)
-
-### 10. Integracao presenca ↔ relatorio
-- Ao salvar relatorio, os dados de presenca individual sao gravados na tabela `presenca`
-- % frequencia do participante e calculada a partir de todas as presencas registradas
-- Dashboard futuro consumira esses dados
+Bibliotecas: `SheetJS (xlsx)`, `jsPDF + jspdf-autotable`, `docx`, `JSZip`, `file-saver`
 
 ---
 
-## Detalhes Tecnicos
+## 12. Dashboard de Gestao
 
-- **Exportacao DOCX**: biblioteca `docx` (docx-js) no frontend para gerar documentos seguindo os modelos enviados
-- **Exportacao PDF**: `jsPDF` para listas de chamada e versao PDF dos relatorios/planejamentos
-- **Exportacao XLSX**: `SheetJS` (xlsx) para listas de presenca e importacao
-- **Upload de fotos**: Supabase Storage buckets
-- **Likert UI**: componente slider ou grupo de radio buttons estilizados (1-5 com labels: Muito Baixo → Excepcional)
-- **Score ELO**: media simples das 5 competencias, exibido com 2 casas decimais
+### Pagina `/dashboard`
 
-## Fora do Escopo
-Feed social, financeiro, dashboard, painel motorista/cozinheiro, mural, tickets, prestacao de contas — fases seguintes.
+Painel com cards e graficos calculados a partir dos dados existentes nas tabelas.
+
+**Indicadores principais (cards)**:
+- Total de participantes ativos
+- Total de turmas ativas
+- Total de relatorios no periodo
+- Media geral do Score ELO
+- % media de adesao (presenca)
+- Total de planejamentos no periodo
+
+**Graficos e analises**:
+- Distribuicao de participantes por faixa etaria (bar chart)
+- Distribuicao por genero (pie chart)
+- Distribuicao por bairro (bar chart)
+- Evolucao do Score ELO ao longo do tempo (line chart, por mes)
+- % de adesao mensal (line chart)
+- Competencias ELO comparadas (radar chart — Iniciativa, Autonomia, Colaboracao, Comunicacao, Respeito Mutuo)
+- Objetivo alcancado vs parcial vs nao alcancado (stacked bar)
+- Ranking de turmas por frequencia media
+
+**Filtros do dashboard**:
+- Periodo (mes/ano ou intervalo de datas)
+- Turma especifica ou todas
+- Educador especifico ou todos
+
+**Fonte de dados**: queries ao Supabase agregando `relatorios_atividade`, `presenca`, `participantes`, `turmas`
+
+### Implementacao tecnica
+
+| Arquivo | Acao |
+|---------|------|
+| `src/pages/dashboard/DashboardPage.tsx` | Criar — layout com cards + graficos |
+| `src/hooks/useDashboardData.ts` | Criar — queries agregadas ao Supabase |
+| `src/components/AppSidebar.tsx` | Editar — adicionar Dashboard e Banco de Dados |
+| `src/App.tsx` | Editar — adicionar rotas /dashboard e /banco-de-dados |
+
+Graficos: usa `recharts` (ja disponivel via shadcn/ui chart components)
+
+---
+
+## Plano completo revisado — ordem de etapas
+
+1. Design system + Layout (feito)
+2. Autenticacao (feito)
+3. Banco de dados — migrations (feito)
+4. Cadastro de participantes (feito)
+5. Importacao em lote
+6. Gestao de turmas (feito)
+7. Presenca digital + exportacao
+8. Planejamento de atividades (feito)
+9. Relatorio de atividades (feito)
+10. Integracao presenca - relatorio
+11. **Banco de Dados + Backup + Exportacao em Massa** (novo)
+12. **Dashboard de Gestao** (novo)
 
