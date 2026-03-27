@@ -43,11 +43,12 @@ export function useDashboardData() {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    const [pRes, tRes, rRes, plRes] = await Promise.all([
+    const [pRes, tRes, rRes, plRes, bRes] = await Promise.all([
       supabase.from("participantes").select("*"),
       supabase.from("turmas").select("*"),
       supabase.from("relatorios_atividade").select("*").order("data"),
       supabase.from("planejamentos").select("*"),
+      supabase.from("bairros").select("id, nome"),
     ]);
 
     const parts = (pRes.data || []).filter((p: any) => p.status === "ativo");
