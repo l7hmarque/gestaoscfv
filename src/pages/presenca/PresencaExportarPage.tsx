@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Download, Loader2, FileSpreadsheet, FileText } from "lucide-react";
+import { ArrowLeft, Download, Loader2, FileSpreadsheet, FileText, Printer } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { exportMatrizFrequenciaDocx, exportMatrizFrequenciaPdf } from "@/hooks/useDocumentExport";
+import { exportMatrizFrequenciaDocx, exportMatrizFrequenciaPdf, exportListaPresencaPdf } from "@/hooks/useDocumentExport";
 import { isBairroSCFV } from "@/lib/constants";
 
 const FAIXAS = [
