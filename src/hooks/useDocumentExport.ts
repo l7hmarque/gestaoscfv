@@ -659,3 +659,92 @@ export async function exportMatrizFrequenciaPdf(
 
   doc.save(`SysELO_Frequencia_${fileTimestamp()}.pdf`);
 }
+
+// ===== LISTA DE PRESENÇA (em branco, por mês) =====
+const DIAS_MAP: Record<string, number> = {
+  segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6, domingo: 0,
+};
+
+function calcularDatasDoMes(ano: number, mes: number, diasSemana: string[]): Date[] {
+  const diasNum = diasSemana.map(d => DIAS_MAP[d]).filter(d => d !== undefined);
+  const datas: Date[] = [];
+  const primeiroDia = new Date(ano, mes, 1);
+  const ultimoDia = new Date(ano, mes + 1, 0);
+  for (let d = primeiroDia; d <= ultimoDia; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+    if (diasNum.includes(d.getDay())) datas.push(new Date(d));
+  }
+  return datas;
+}
+
+export async function exportListaPresencaPdf(
+  turma: any, participantes: { nome: string }[], ano: number, mes: number
+) {
+  const diasSemana = turma.dias_semana || [];
+  const datas = calcularDatasDoMes(ano, mes, diasSemana);
+  if (datas.length === 0) return;
+
+  const meses = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  let y = 8;
+
+  // Header institucional
+  doc.setFontSize(9); doc.setFont("helvetica", "bold");
+  doc.text("SOCIEDADE CIVIL NOSSA SENHORA APARECIDA", 148, y, { align: "center" });
+  y += 3.5; doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
+  doc.text("Centro de Atenção Integral ao Adolescente - Medianeira", 148, y, { align: "center" });
+
+  y += 5; doc.setFontSize(11); doc.setTextColor(26, 82, 118); doc.setFont("helvetica", "bold");
+  doc.text("LISTA DE PRESENÇA - SCFV", 148, y, { align: "center" });
+  doc.setTextColor(0); doc.setFont("helvetica", "normal"); y += 5;
+
+  // Info turma
+  doc.setFontSize(8);
+  const bairroNome = turma.bairros?.nome || "—";
+  const periodoLabel = turma.periodo === "manha" ? "Manhã" : turma.periodo === "tarde" ? "Tarde" : turma.periodo === "integral" ? "Integral" : "—";
+  const faixaLabel = turma.faixa_etaria || "—";
+  doc.text(`Turma: ${turma.nome}  |  Bairro: ${bairroNome}  |  Período: ${periodoLabel}  |  Faixa: ${faixaLabel}  |  Mês: ${meses[mes]}/${ano}`, 14, y);
+  y += 4;
+
+  // Date headers
+  const dateHeaders = datas.map(d => format(d, "dd/MM"));
+  const dayNames: Record<number, string> = { 0: "Dom", 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sáb" };
+  const dayLabels = datas.map(d => dayNames[d.getDay()]);
+
+  // Table
+  autoTable(doc, {
+    startY: y,
+    head: [
+      ["Nº", "Nome do Participante", ...dateHeaders],
+      ["", "", ...dayLabels],
+    ],
+    body: participantes.map((p, i) => [
+      i + 1,
+      p.nome,
+      ...datas.map(() => "☐"),
+    ]),
+    headStyles: { fillColor: [26, 82, 118], fontSize: 6, cellPadding: 1.5, halign: "center" },
+    styles: { fontSize: 6, cellPadding: 1.5 },
+    columnStyles: {
+      0: { cellWidth: 7, halign: "center" },
+      1: { cellWidth: 45 },
+    },
+    didParseCell: (data: any) => {
+      // Style the checkbox cells
+      if (data.section === "body" && data.column.index >= 2) {
+        data.cell.styles.halign = "center";
+        data.cell.styles.fontSize = 7;
+      }
+    },
+  });
+
+  // Footer - assinatura
+  const finalY = (doc as any).lastAutoTable?.finalY || 180;
+  doc.setFontSize(8);
+  doc.text("________________________________", 14, finalY + 12);
+  doc.text("Assinatura do Educador(a)", 14, finalY + 16);
+  doc.text("________________________________", 180, finalY + 12);
+  doc.text("Assinatura do Coordenador(a)", 180, finalY + 16);
+
+  doc.save(`SysELO_Lista_Presenca_${turma.nome.replace(/\s+/g, "_")}_${meses[mes]}_${ano}.pdf`);
+}
