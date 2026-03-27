@@ -98,7 +98,7 @@ const PresencaExportarPage = () => {
         if (format === "docx") {
           await exportMatrizFrequenciaDocx(turma, participantes, datas, preenchida);
         } else {
-          exportMatrizFrequenciaPdf(turma, participantes, datas, preenchida);
+          await exportMatrizFrequenciaPdf(turma, participantes, datas, preenchida);
         }
       }
       toast.success(`${filteredTurmas.length} matriz(es) exportada(s) em ${format.toUpperCase()}`);

@@ -100,7 +100,7 @@ const PlanejamentoDetalhePage = () => {
                   <DropdownMenuItem onClick={() => exportPlanejamentoDocx(item, turmaNames)} className="text-xs gap-2">
                     <FileSpreadsheet className="h-3.5 w-3.5" /> DOCX
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => exportPlanejamentoPdf(item, turmaNames)} className="text-xs gap-2">
+                  <DropdownMenuItem onClick={() => exportPlanejamentoPdf(item, turmaNames).catch(() => {})} className="text-xs gap-2">
                     <FileText className="h-3.5 w-3.5" /> PDF
                   </DropdownMenuItem>
                 </DropdownMenuContent>
