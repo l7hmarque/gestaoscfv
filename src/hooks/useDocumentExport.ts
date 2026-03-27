@@ -314,7 +314,7 @@ export async function exportPlanejamentoDocx(item: any, turmaNames: string[]) {
     sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }],
   });
   const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([buffer]), `SysELO_Planejamento_${item.titulo?.replace(/\s/g, "_") || "sem-titulo"}.docx`);
+  saveAs(new Blob([new Uint8Array(buffer)]), `SysELO_Planejamento_${item.titulo?.replace(/\s/g, "_") || "sem-titulo"}.docx`);
 }
 
 export function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
