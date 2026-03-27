@@ -25,6 +25,8 @@ import PlanejamentoDetalhePage from "./pages/planejamentos/PlanejamentoDetalhePa
 import RelatoriosPage from "./pages/relatorios/RelatoriosPage";
 import RelatorioNovoPage from "./pages/relatorios/RelatorioNovoPage";
 import RelatorioDetalhePage from "./pages/relatorios/RelatorioDetalhePage";
+import BancoDadosPage from "./pages/banco-dados/BancoDadosPage";
+import DashboardPage from "./pages/dashboard/DashboardPage";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +41,8 @@ const App = () => (
             <Route path="/login" element={<LoginPage />} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<Index />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/banco-de-dados" element={<BancoDadosPage />} />
               <Route path="/participantes" element={<ParticipantesPage />} />
               <Route path="/participantes/novo" element={<ParticipanteNovoPage />} />
               <Route path="/participantes/importar" element={<ParticipanteImportarPage />} />

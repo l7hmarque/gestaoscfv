@@ -1,5 +1,5 @@
 import {
-  Home, Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut,
+  Home, Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -10,12 +10,13 @@ import {
 } from "@/components/ui/sidebar";
 
 const menuItems = [
-  { title: "Início", url: "/", icon: Home },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Participantes", url: "/participantes", icon: Users },
   { title: "Turmas", url: "/turmas", icon: GraduationCap },
   { title: "Presença", url: "/presenca", icon: ClipboardCheck },
   { title: "Planejamento", url: "/planejamentos", icon: BookOpen },
   { title: "Relatórios", url: "/relatorios", icon: FileText },
+  { title: "Banco de Dados", url: "/banco-de-dados", icon: Database },
 ];
 
 export function AppSidebar() {
