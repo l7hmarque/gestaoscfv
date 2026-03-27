@@ -25,11 +25,19 @@ const PERIODOS = [
   { value: "integral", label: "Integral" },
 ];
 
+const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
 const PresencaExportarPage = () => {
   const [turmas, setTurmas] = useState<any[]>([]);
   const [preenchida, setPreenchida] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [loadingLista, setLoadingLista] = useState(false);
   const [turmasLoading, setTurmasLoading] = useState(true);
+
+  // Month/year for lista de presença
+  const now = new Date();
+  const [mesSel, setMesSel] = useState(String(now.getMonth()));
+  const [anoSel, setAnoSel] = useState(String(now.getFullYear()));
 
   // Multi-select filters
   const [selBairros, setSelBairros] = useState<string[]>([]);
