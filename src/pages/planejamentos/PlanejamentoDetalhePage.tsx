@@ -47,7 +47,10 @@ const PlanejamentoDetalhePage = () => {
     fetch();
   }, [id]);
 
+  const isDemo = useIsDemo();
+
   const handleSave = async () => {
+    if (guardDemo(isDemo)) return;
     const { error } = await supabase.from("planejamentos").update({
       titulo: form.titulo,
       tema: form.tema || null,

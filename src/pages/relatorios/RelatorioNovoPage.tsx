@@ -138,7 +138,10 @@ const RelatorioNovoPage = () => {
   const numAusentes = participantesTurma.length - numParticipantes;
   const pctAdesao = participantesTurma.length > 0 ? ((numParticipantes / participantesTurma.length) * 100) : 0;
 
+  const isDemo = useIsDemo();
+
   const handleSave = async () => {
+    if (guardDemo(isDemo)) return;
     if (!form.data) { toast.error("Data é obrigatória"); return; }
     if (!form.nome_atividade.trim()) { toast.error("Nome da atividade é obrigatório"); return; }
     setSaving(true);

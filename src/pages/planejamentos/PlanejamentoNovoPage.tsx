@@ -79,7 +79,10 @@ const PlanejamentoNovoPage = () => {
     }));
   };
 
+  const isDemo = useIsDemo();
+
   const handleSave = async () => {
+    if (guardDemo(isDemo)) return;
     if (!form.titulo.trim()) { toast.error("Título é obrigatório"); return; }
     setSaving(true);
     try {

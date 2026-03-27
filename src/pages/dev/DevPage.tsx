@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Shield, Trash2, Plus, Database, Users, BookOpen, FileText, ClipboardList, Bus, Check, X as XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Constants } from "@/integrations/supabase/types";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const ROLES = Constants.public.Enums.app_role;
 const DEV_PASSWORD = "leoleo";

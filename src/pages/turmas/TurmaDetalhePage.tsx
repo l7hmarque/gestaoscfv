@@ -135,6 +135,7 @@ const TurmaDetalhePage = () => {
   };
 
   const handleSave = async () => {
+    if (guardDemo(isDemo)) return;
     setSaving(true);
     const payload: Record<string, unknown> = { ...form };
     if (!payload.bairro_id) payload.bairro_id = null;

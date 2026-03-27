@@ -104,8 +104,11 @@ const ParticipanteNovoPage = () => {
 
   const removePendingDoc = (index: number) => setPendingDocs(prev => prev.filter((_, i) => i !== index));
 
+  const isDemo = useIsDemo();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (guardDemo(isDemo)) return;
     if (!form.nome_completo.trim()) { toast.error("Nome é obrigatório"); return; }
     setSaving(true);
 
