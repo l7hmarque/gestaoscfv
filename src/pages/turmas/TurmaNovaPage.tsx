@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Save, Zap } from "lucide-react";
+import { ArrowLeft, Save, Zap, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { isBairroSCFV } from "@/lib/constants";
+import { differenceInYears } from "date-fns";
+
+const calcFaixaFromDate = (dataNascimento: string | null): string => {
+  if (!dataNascimento) return "";
+  const age = differenceInYears(new Date(), new Date(dataNascimento));
+  if (age >= 6 && age <= 8) return "6-8";
+  if (age >= 9 && age <= 11) return "9-11";
+  if (age >= 12 && age <= 17) return "12-17";
+  if (age >= 60) return "idosos";
+  return "";
+};
 
 const diasOptions = [
   { value: "seg", label: "Segunda" }, { value: "ter", label: "Terça" }, { value: "qua", label: "Quarta" },
@@ -53,6 +65,7 @@ const TurmaNovaPage = () => {
   const [batchEducadorId, setBatchEducadorId] = useState("");
   const [batchTipo, setBatchTipo] = useState("ordinaria");
   const [batchSaving, setBatchSaving] = useState(false);
+  const [autoVincular, setAutoVincular] = useState(true);
 
   const scfvBairros = bairros.filter(b => isBairroSCFV(b.nome));
 
@@ -122,10 +135,55 @@ const TurmaNovaPage = () => {
       ...(batchEducadorId ? { educador_id: batchEducadorId } : {}),
     }));
 
-    const { error } = await supabase.from("turmas").insert(rows as any);
+    const { data: turmasCriadas, error } = await supabase.from("turmas").insert(rows as any).select();
+    if (error) { setBatchSaving(false); toast.error("Erro: " + error.message); return; }
+
+    let totalVinculados = 0;
+
+    if (autoVincular && turmasCriadas && turmasCriadas.length > 0) {
+      // Fetch active participants from selected bairros
+      const { data: participantes } = await supabase
+        .from("participantes")
+        .select("id, bairro_id, periodo, data_nascimento")
+        .eq("status", "ativo")
+        .in("bairro_id", batchBairros);
+
+      if (participantes && participantes.length > 0) {
+        const links: { turma_id: string; participante_id: string }[] = [];
+
+        for (const turma of turmasCriadas) {
+          const matched = participantes.filter(p => {
+            if (p.bairro_id !== turma.bairro_id) return false;
+            // Period match
+            const tPeriodo = turma.periodo as string;
+            if (tPeriodo !== "integral" && p.periodo !== tPeriodo) return false;
+            // Age match
+            const faixa = calcFaixaFromDate(p.data_nascimento);
+            if (faixa !== (turma.faixa_etaria as string)) return false;
+            return true;
+          });
+
+          for (const p of matched) {
+            links.push({ turma_id: turma.id, participante_id: p.id });
+          }
+        }
+
+        if (links.length > 0) {
+          const { error: linkError } = await supabase.from("turma_participantes").insert(links);
+          if (linkError) {
+            toast.warning("Turmas criadas, mas erro ao vincular: " + linkError.message);
+          } else {
+            totalVinculados = links.length;
+          }
+        }
+      }
+    }
+
     setBatchSaving(false);
-    if (error) { toast.error("Erro: " + error.message); return; }
-    toast.success(`${rows.length} turma(s) criada(s)!`);
+    const msg = totalVinculados > 0
+      ? `${turmasCriadas!.length} turma(s) criada(s) com ${totalVinculados} participante(s) vinculado(s)!`
+      : `${turmasCriadas!.length} turma(s) criada(s)!`;
+    toast.success(msg);
     navigate("/turmas");
   };
 
@@ -286,6 +344,16 @@ const TurmaNovaPage = () => {
                       <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Nenhum" /></SelectTrigger>
                       <SelectContent>{educadores.map(e => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}</SelectContent>
                     </Select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 rounded-md border p-3 bg-muted/50">
+                  <Switch checked={autoVincular} onCheckedChange={setAutoVincular} />
+                  <div>
+                    <Label className="text-xs font-medium flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5" />Vincular participantes automaticamente
+                    </Label>
+                    <p className="text-[10px] text-muted-foreground">Participantes ativos com bairro, período e faixa etária compatíveis serão adicionados às turmas</p>
                   </div>
                 </div>
 
