@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { useDocumentScanner, CATEGORIES } from "@/hooks/useDocumentScanner";
 import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 interface PendingDoc {
   blob: Blob;
