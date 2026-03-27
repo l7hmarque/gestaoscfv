@@ -118,11 +118,44 @@ const PresencaExportarPage = () => {
     }
   };
 
+  const handleExportLista = async () => {
+    if (filteredTurmas.length === 0) { toast.error("Nenhuma turma corresponde aos filtros"); return; }
+    const turmasSemDias = filteredTurmas.filter(t => !t.dias_semana || t.dias_semana.length === 0);
+    if (turmasSemDias.length > 0) {
+      toast.warning(`${turmasSemDias.length} turma(s) sem dias de atendimento cadastrados serão ignoradas`);
+    }
+    const turmasComDias = filteredTurmas.filter(t => t.dias_semana && t.dias_semana.length > 0);
+    if (turmasComDias.length === 0) { toast.error("Nenhuma turma com dias de atendimento cadastrados"); return; }
+
+    setLoadingLista(true);
+    try {
+      for (const turma of turmasComDias) {
+        const { data: tpData } = await supabase
+          .from("turma_participantes")
+          .select("participante_id, participantes(nome_completo)")
+          .eq("turma_id", turma.id);
+
+        const participantes = (tpData || [])
+          .map((tp: any) => ({ nome: tp.participantes?.nome_completo || "" }))
+          .sort((a, b) => a.nome.localeCompare(b.nome));
+
+        await exportListaPresencaPdf(turma, participantes, Number(anoSel), Number(mesSel));
+      }
+      toast.success(`${turmasComDias.length} lista(s) de presença gerada(s)`);
+    } catch (err) {
+      toast.error("Erro ao gerar lista de presença");
+    } finally {
+      setLoadingLista(false);
+    }
+  };
+
+  const anos = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
+
   return (
     <div className="space-y-4 max-w-2xl">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" asChild><Link to="/presenca"><ArrowLeft className="h-4 w-4" /></Link></Button>
-        <h1 className="text-xl font-semibold text-foreground">Exportar Matriz de Frequência</h1>
+        <h1 className="text-xl font-semibold text-foreground">Exportar Presença</h1>
       </div>
 
       <Card>
@@ -180,6 +213,14 @@ const PresencaExportarPage = () => {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Matriz de Frequência */}
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Matriz de Frequência</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">Exporta as presenças já registradas no sistema.</p>
 
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <Checkbox checked={preenchida} onCheckedChange={(v) => setPreenchida(!!v)} />
@@ -198,8 +239,51 @@ const PresencaExportarPage = () => {
           </div>
 
           <p className="text-[10px] text-muted-foreground">
-            A matriz será gerada em formato A4 paisagem com cabeçalho institucional.
-            {preenchida ? " Presenças lançadas digitalmente serão marcadas com ✓." : " Será gerada em branco para preenchimento manual."}
+            {preenchida ? "Presenças lançadas digitalmente serão marcadas com ✓." : "Será gerada em branco para preenchimento manual."}
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Lista de Presença (em branco) */}
+      <Card>
+        <CardHeader><CardTitle className="text-sm">📋 Lista de Presença (para impressão)</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Gera lista em branco com as datas do mês baseadas nos dias de atendimento da turma. Ideal para imprimir e preencher de caneta.
+          </p>
+
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <Label className="text-xs font-medium mb-1 block">Mês</Label>
+              <Select value={mesSel} onValueChange={setMesSel}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MESES.map((m, i) => (
+                    <SelectItem key={i} value={String(i)}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-24">
+              <Label className="text-xs font-medium mb-1 block">Ano</Label>
+              <Select value={anoSel} onValueChange={setAnoSel}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {anos.map(a => (
+                    <SelectItem key={a} value={String(a)}>{a}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Button size="sm" className="gap-1.5" disabled={loadingLista || filteredTurmas.length === 0} onClick={handleExportLista}>
+            {loadingLista ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+            Gerar Lista de Presença (PDF)
+          </Button>
+
+          <p className="text-[10px] text-muted-foreground">
+            PDF A4 paisagem com cabeçalho institucional, nomes e quadradinhos ☐ para cada data de atendimento do mês.
           </p>
         </CardContent>
       </Card>
