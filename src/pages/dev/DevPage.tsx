@@ -101,6 +101,7 @@ export default function DevPage() {
   };
 
   const addRole = async () => {
+    if (guardDemo(isDemo)) return;
     if (!addingRole) return;
     const { error } = await supabase.from("user_roles").insert({
       user_id: addingRole.userId,
