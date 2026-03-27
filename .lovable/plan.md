@@ -1,46 +1,79 @@
 
 
-## Plano: Exportação baseada em modelo DOCX institucional
+## Plano: Melhorias em Bairros SCFV, Transporte, Perfil do Participante e Página do Desenvolvedor
 
-### Ideia central
-Em vez de construir o documento do zero com `docx-js`, o sistema vai **carregar o modelo DOCX institucional original** que você enviou, localizar as tags (ex: `{DATA}`, `{EDUCADOR}`, `{TURMA}`) e **preencher automaticamente** com os dados do banco. Assim o layout, fontes, margens e formatação ficam **exatamente** como no seu modelo. O mesmo documento preenchido é exportado em DOCX e convertido para PDF.
+### 1. Filtrar bairros SCFV em todos os selects (exceto Banco de Dados)
 
-### Como funciona
+Aplicar `isBairroSCFV` nos selects de bairro das seguintes páginas que ainda mostram todos os bairros:
 
-1. **Templates armazenados no Storage** — Os modelos DOCX institucionais (Relatório, Planejamento, Ficha de Inscrição, Matriz de Frequência) ficam salvos em um bucket `templates` no backend. A coordenação pode subir novos modelos quando quiser.
+| Arquivo | Mudança |
+|---|---|
+| `src/pages/participantes/ParticipantesPage.tsx` | Filtro de bairro na listagem → somente SCFV |
+| `src/pages/participantes/ParticipantePerfilPage.tsx` | Select de bairro no edit mode → somente SCFV (endereço permanece livre) |
+| `src/pages/dashboard/DashboardTransporteTab.tsx` | Select de bairro no "Novo Ponto" → somente SCFV |
+| `src/pages/presenca/PresencaExportarPage.tsx` | Já filtra SCFV ✓ |
+| `src/pages/presenca/PresencaPage.tsx` | Já filtra SCFV ✓ |
+| `src/pages/turmas/*` | Já filtra SCFV ✓ |
+| `src/pages/banco-dados/BancoDadosPage.tsx` | Mantém todos (conforme solicitado) |
 
-2. **Biblioteca `docxtemplater`** — Substitui a `docx-js` para exportação. Ela abre o `.docx` original como ZIP, encontra as tags `{TAG}` dentro do XML e preenche com os valores correspondentes. Suporta:
-   - Tags simples: `{DATA}`, `{EDUCADOR}`, `{NOME_ATIVIDADE}`
-   - Loops (tabelas de presença): `{#PRESENCA}{NOME} {STATUS}{/PRESENCA}`
-   - Checkboxes condicionais: `{CHECK_ENGAJAMENTO_1}`
-   - Cores Likert nos campos de competência
+---
 
-3. **Mapeamento de tags** — Cada tipo de documento tem um mapeamento fixo:
-   - Relatório: `{DATA}` → `item.data`, `{EDUCADOR}` → `item.profiles.nome`, `{SCORE_ELO}` → `item.score_elo`, etc.
-   - Planejamento: `{TITULO}` → `item.titulo`, `{TEMA}` → `item.tema`, etc.
-   - Ficha: `{NOME_COMPLETO}` → `p.nome_completo`, `{CPF}` → `p.cpf`, etc.
+### 2. Transporte: edição manual e em massa de pontos
 
-4. **Exportação PDF** — Após preencher o DOCX via `docxtemplater`, o mesmo conteúdo é replicado com `jsPDF` seguindo a mesma estrutura visual (cabeçalho institucional completo, tabelas formatadas, cores Likert, checkboxes).
+**Arquivo:** `src/pages/dashboard/DashboardTransporteTab.tsx`
 
-5. **Página de gestão de templates** — Tela simples (acessível à coordenação) para upload/substituição dos modelos DOCX.
+- Adicionar botão "Editar" por ponto (ícone lápis) que abre inline editing do **nome**, **bairro** e **horários** (além dos horários que já existem)
+- Adicionar modo de **seleção em massa** (checkboxes por ponto) com barra de ações:
+  - Alterar horário manhã/tarde em todos os selecionados
+  - Ativar/desligar todos os selecionados
+  - Alterar bairro de todos os selecionados
+- Adicionar botão "Excluir" ponto (com confirmação)
 
-### Arquivos
+---
+
+### 3. Perfil do participante: destaque SCFV + seção sigilosa
+
+**Arquivo:** `src/pages/participantes/ParticipantePerfilPage.tsx`
+
+**Destaque no topo:**
+- Abaixo do nome, adicionar uma faixa destacada com 3 badges coloridos:
+  - **Bairro SCFV** (baseado no `bairro_id` do participante, mostrando o nome do bairro)
+  - **Faixa Etária** (calculada a partir da `data_nascimento`: 6-8, 9-11, 12-17, idosos)
+  - **Período** (Manhã/Tarde/Integral)
+
+**Seção sigilosa para equipe técnica:**
+- Nova seção `Card` no final da página, visível apenas para usuários com role `equipe_tecnica` ou `coordenacao`
+- Conteúdo: campo de texto livre "Observações Sigilosas" salvo em uma nova coluna `observacoes_sigilosas` na tabela `participantes`
+- Visual diferenciado (borda vermelha/amarela, ícone de cadeado)
+
+**Migration SQL:** Adicionar coluna `observacoes_sigilosas text` à tabela `participantes`
+
+---
+
+### 4. Página do Desenvolvedor (protegida com senha)
+
+**Novos arquivos:**
+- `src/pages/dev/DevPage.tsx` — página protegida por senha local ("leoleo")
+
+**Funcionalidades da página:**
+- Prompt de senha ao acessar (armazenada em sessionStorage após validação)
+- **Gestão de permissões:** Lista todos os profissionais com suas roles, permitindo adicionar/remover roles rapidamente
+- **Configurações rápidas:** Toggle para habilitar/desabilitar funcionalidades do sistema
+- **Info do sistema:** Contagem de registros por tabela, versão, etc.
+
+**Arquivo modificado:**
+- `src/App.tsx` — adicionar rota `/dev` (pública, sem ProtectedRoute, a senha é validada internamente na página)
+
+---
+
+### Resumo de arquivos
 
 | Arquivo | Ação |
 |---|---|
-| `src/hooks/useDocumentExport.ts` | Reescrever — usar `docxtemplater` para carregar template do Storage e preencher tags; reescrever funções PDF para espelhar o layout do template |
-| `src/pages/dashboard/DashboardAdminTab.tsx` | Editar — adicionar seção de upload/gestão dos templates DOCX |
-| Migration SQL | Criar bucket `templates` no Storage com policies para coordenação |
-| `package.json` | Adicionar `docxtemplater`, `pizzip` |
-
-### Fluxo do usuário
-1. Coordenação faz upload do modelo DOCX com as tags nos campos
-2. Educador abre um relatório → clica "Exportar DOCX" → sistema baixa o template, preenche as tags, gera o arquivo
-3. Educador clica "Exportar PDF" → mesmo conteúdo, formatado identicamente em PDF
-
-### Detalhes técnicos
-- `docxtemplater` + `pizzip` para manipulação do DOCX template
-- Templates baixados do bucket `templates` via `supabase.storage.from('templates').download('relatorio.docx')`
-- Cache local do template para evitar downloads repetidos
-- Fallback: se não houver template no Storage, usa a geração atual como backup
+| `src/pages/participantes/ParticipantesPage.tsx` | Filtrar bairros SCFV |
+| `src/pages/participantes/ParticipantePerfilPage.tsx` | Destaque SCFV + seção sigilosa |
+| `src/pages/dashboard/DashboardTransporteTab.tsx` | Edição manual + em massa |
+| `src/pages/dev/DevPage.tsx` | Criar — página do desenvolvedor |
+| `src/App.tsx` | Adicionar rota `/dev` |
+| Migration SQL | Adicionar `observacoes_sigilosas` em `participantes` |
 
