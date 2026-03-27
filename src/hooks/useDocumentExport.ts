@@ -189,7 +189,7 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
     sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }],
   });
   const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([buffer]), `SysELO_Relatorio_${item.data || "sem-data"}.docx`);
+  saveAs(new Blob([new Uint8Array(buffer)]), `SysELO_Relatorio_${item.data || "sem-data"}.docx`);
 }
 
 export function exportRelatorioPdf(item: any, turmaNames: string[], presenca: any[]) {
