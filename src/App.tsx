@@ -27,6 +27,7 @@ import RelatorioNovoPage from "./pages/relatorios/RelatorioNovoPage";
 import RelatorioDetalhePage from "./pages/relatorios/RelatorioDetalhePage";
 import BancoDadosPage from "./pages/banco-dados/BancoDadosPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
+import ProfissionalPerfilPage from "./pages/profissional/ProfissionalPerfilPage";
 
 const queryClient = new QueryClient();
 
