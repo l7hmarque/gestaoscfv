@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Printer, FileText, FileSpreadsheet } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { exportRelatorioDocx, exportRelatorioPdf } from "@/hooks/useDocumentExport";
 
 const LIKERT_LABELS = ["", "Muito Baixo", "Baixo", "Moderado", "Alto", "Excepcional"];
 const OBJ_LABELS: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
@@ -61,10 +63,30 @@ const RelatorioDetalhePage = () => {
   if (!item) return <div className="text-sm text-muted-foreground py-8 text-center">Não encontrado</div>;
 
   return (
-    <div className="space-y-4 max-w-3xl">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" asChild><Link to="/relatorios"><ArrowLeft className="h-4 w-4" /></Link></Button>
-        <h1 className="text-xl font-semibold text-foreground">{item.nome_atividade || "Relatório"}</h1>
+    <div className="space-y-4 max-w-3xl print:max-w-none">
+      <div className="flex items-center justify-between print:hidden">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" asChild><Link to="/relatorios"><ArrowLeft className="h-4 w-4" /></Link></Button>
+          <h1 className="text-xl font-semibold text-foreground">{item.nome_atividade || "Relatório"}</h1>
+        </div>
+        <div className="flex gap-1">
+          <Button variant="outline" size="sm" className="gap-1" onClick={() => window.print()}>
+            <Printer className="h-3.5 w-3.5" />Imprimir
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1"><FileText className="h-3.5 w-3.5" />Exportar</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => exportRelatorioDocx(item, turmaNames, presenca, fotos)} className="text-xs gap-2">
+                <FileSpreadsheet className="h-3.5 w-3.5" /> DOCX
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportRelatorioPdf(item, turmaNames, presenca)} className="text-xs gap-2">
+                <FileText className="h-3.5 w-3.5" /> PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <div className="flex gap-2 flex-wrap text-xs text-muted-foreground">
@@ -120,7 +142,7 @@ const RelatorioDetalhePage = () => {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-base">Presença</CardTitle></CardHeader>
           <CardContent>
-            <div className="space-y-1 max-h-60 overflow-y-auto">
+            <div className="space-y-1 max-h-60 overflow-y-auto print:max-h-none">
               {presenca.map((p: any) => (
                 <div key={p.id} className="flex items-center justify-between text-sm py-1 border-b border-border/50 last:border-0">
                   <span>{p.participantes?.nome_completo}</span>

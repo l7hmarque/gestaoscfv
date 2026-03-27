@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Save, Pencil } from "lucide-react";
+import { ArrowLeft, Save, Pencil, Printer, FileText, FileSpreadsheet } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { exportFichaInscricaoDocx, exportFichaInscricaoPdf } from "@/hooks/useDocumentExport";
 import type { Tables } from "@/integrations/supabase/types";
 
 const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto" };
@@ -88,7 +90,19 @@ const ParticipantePerfilPage = () => {
           </div>
         </div>
         {!editing ? (
-          <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Pencil className="h-3.5 w-3.5 mr-1" />Editar</Button>
+          <div className="flex gap-1">
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Pencil className="h-3.5 w-3.5 mr-1" />Editar</Button>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" />Imprimir</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1"><FileText className="h-3.5 w-3.5" />Ficha</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => exportFichaInscricaoDocx(participante)} className="text-xs gap-2"><FileSpreadsheet className="h-3.5 w-3.5" /> DOCX</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportFichaInscricaoPdf(participante)} className="text-xs gap-2"><FileText className="h-3.5 w-3.5" /> PDF</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         ) : (
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setEditing(false)}>Cancelar</Button>
