@@ -174,14 +174,32 @@ const RelatorioNovoPage = () => {
         await supabase.from("relatorio_turmas").insert(form.turma_ids.map(turma_id => ({ relatorio_id: relId, turma_id })));
       }
 
-      // presença
+      // presença no relatório
       const presRows = participantesTurma.map(p => ({
         relatorio_id: relId,
         participante_id: p.id,
         presente: form.presenca[p.id] ?? false,
+        justificativa: !(form.presenca[p.id] ?? false) ? (form.justificativas[p.id] || null) : null,
       }));
       if (presRows.length > 0) {
         await supabase.from("relatorio_presenca").insert(presRows);
+      }
+
+      // salvar também na tabela presenca (frequência oficial) para cada turma
+      if (form.turma_ids.length > 0) {
+        const dataStr = format(form.data, "yyyy-MM-dd");
+        for (const turmaId of form.turma_ids) {
+          await supabase.from("presenca").delete().eq("turma_id", turmaId).eq("data", dataStr);
+          const presencaRows = participantesTurma.map(p => ({
+            turma_id: turmaId,
+            participante_id: p.id,
+            data: dataStr,
+            presente: form.presenca[p.id] ?? false,
+            justificativa: !(form.presenca[p.id] ?? false) ? (form.justificativas[p.id] || null) : null,
+            registrado_por: user?.id || null,
+          }));
+          await supabase.from("presenca").insert(presencaRows);
+        }
       }
 
       // fotos
