@@ -11,10 +11,14 @@ export interface DashboardData {
   participantesPorFaixa: { faixa: string; count: number }[];
   participantesPorGenero: { genero: string; count: number }[];
   participantesPorBairro: { bairro: string; count: number }[];
+  participantesPorPeriodo: { periodo: string; count: number }[];
   eloMensal: { mes: string; elo: number }[];
   adesaoMensal: { mes: string; adesao: number }[];
   competencias: { name: string; value: number }[];
   objetivos: { status: string; count: number }[];
+  taxaFrequenciaGeral: number;
+  topEducadores: { nome: string; count: number }[];
+  totalParticipantesAlerta: number;
 }
 
 function calcAge(dob: string): number {
@@ -33,8 +37,10 @@ function faixaFromAge(age: number): string {
 }
 
 function monthKey(d: string) {
-  return d.slice(0, 7); // YYYY-MM
+  return d.slice(0, 7);
 }
+
+const PERIODO_LABELS: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 
 export function useDashboardData() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -43,18 +49,20 @@ export function useDashboardData() {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    const [pRes, tRes, rRes, plRes, bRes] = await Promise.all([
+    const [pRes, tRes, rRes, plRes, bRes, presRes] = await Promise.all([
       supabase.from("participantes").select("*"),
       supabase.from("turmas").select("*"),
-      supabase.from("relatorios_atividade").select("*").order("data"),
+      supabase.from("relatorios_atividade").select("*, profiles!relatorios_atividade_educador_id_fkey(nome)").order("data"),
       supabase.from("planejamentos").select("*"),
       supabase.from("bairros").select("id, nome"),
+      supabase.from("presenca").select("id, presente"),
     ]);
 
     const parts = (pRes.data || []).filter((p: any) => p.status === "ativo");
     const turmas = (tRes.data || []).filter((t: any) => t.ativa);
     const rels = rRes.data || [];
     const plans = plRes.data || [];
+    const presencaAll = presRes.data || [];
     const bairrosMap: Record<string, string> = {};
     (bRes.data || []).forEach((b: any) => { bairrosMap[b.id] = b.nome; });
 
@@ -74,11 +82,19 @@ export function useDashboardData() {
       generoMap[g] = (generoMap[g] || 0) + 1;
     });
 
-    // Bairro SCFV (usando bairro_id da tabela bairros)
+    // Bairro SCFV
     const bairroMap: Record<string, number> = {};
     parts.forEach((p: any) => {
       const b = p.bairro_id ? (bairrosMap[p.bairro_id] || "Não informado") : "Não informado";
       bairroMap[b] = (bairroMap[b] || 0) + 1;
+    });
+
+    // Período
+    const periodoMap: Record<string, number> = {};
+    parts.forEach((p: any) => {
+      const per = p.periodo || "manha";
+      const label = PERIODO_LABELS[per] || per;
+      periodoMap[label] = (periodoMap[label] || 0) + 1;
     });
 
     // ELO mensal
@@ -86,6 +102,7 @@ export function useDashboardData() {
     const adesaoByMonth: Record<string, number[]> = {};
     const compTotals = { iniciativa: [] as number[], autonomia: [] as number[], colaboracao: [] as number[], comunicacao: [] as number[], respeito_mutuo: [] as number[] };
     const objMap: Record<string, number> = {};
+    const educadorCount: Record<string, number> = {};
 
     rels.forEach((r: any) => {
       const mk = monthKey(r.data);
@@ -103,11 +120,24 @@ export function useDashboardData() {
       if (r.comunicacao != null) compTotals.comunicacao.push(r.comunicacao);
       if (r.respeito_mutuo != null) compTotals.respeito_mutuo.push(r.respeito_mutuo);
       if (r.objetivo_alcancado) objMap[r.objetivo_alcancado] = (objMap[r.objetivo_alcancado] || 0) + 1;
+      const edName = r.profiles?.nome || "Desconhecido";
+      educadorCount[edName] = (educadorCount[edName] || 0) + 1;
     });
 
     const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
     const allElo = rels.filter((r: any) => r.score_elo != null).map((r: any) => Number(r.score_elo));
     const allAdesao = rels.filter((r: any) => r.pct_adesao != null).map((r: any) => Number(r.pct_adesao));
+
+    // Frequência geral
+    const totalPresencaRecords = presencaAll.length;
+    const totalPresentes = presencaAll.filter((p: any) => p.presente).length;
+    const taxaFrequencia = totalPresencaRecords > 0 ? (totalPresentes / totalPresencaRecords) * 100 : 0;
+
+    // Top educadores
+    const topEd = Object.entries(educadorCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([nome, count]) => ({ nome, count }));
 
     setData({
       totalParticipantesAtivos: parts.length,
@@ -119,6 +149,7 @@ export function useDashboardData() {
       participantesPorFaixa: Object.entries(faixaMap).map(([faixa, count]) => ({ faixa, count })),
       participantesPorGenero: Object.entries(generoMap).map(([genero, count]) => ({ genero, count })),
       participantesPorBairro: Object.entries(bairroMap).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([bairro, count]) => ({ bairro, count })),
+      participantesPorPeriodo: Object.entries(periodoMap).map(([periodo, count]) => ({ periodo, count })),
       eloMensal: Object.entries(eloByMonth).sort().map(([mes, vals]) => ({ mes, elo: Number(avg(vals).toFixed(2)) })),
       adesaoMensal: Object.entries(adesaoByMonth).sort().map(([mes, vals]) => ({ mes, adesao: Number(avg(vals).toFixed(1)) })),
       competencias: [
@@ -129,6 +160,9 @@ export function useDashboardData() {
         { name: "Respeito Mútuo", value: Number(avg(compTotals.respeito_mutuo).toFixed(2)) },
       ],
       objetivos: Object.entries(objMap).map(([status, count]) => ({ status, count })),
+      taxaFrequenciaGeral: Number(taxaFrequencia.toFixed(1)),
+      topEducadores: topEd,
+      totalParticipantesAlerta: 0, // calculated in turma page
     });
     setLoading(false);
   };
