@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Save, Zap } from "lucide-react";
+import { ArrowLeft, Save, Zap, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { isBairroSCFV } from "@/lib/constants";
+import { differenceInYears } from "date-fns";
+
+const calcFaixaFromDate = (dataNascimento: string | null): string => {
+  if (!dataNascimento) return "";
+  const age = differenceInYears(new Date(), new Date(dataNascimento));
+  if (age >= 6 && age <= 8) return "6-8";
+  if (age >= 9 && age <= 11) return "9-11";
+  if (age >= 12 && age <= 17) return "12-17";
+  if (age >= 60) return "idosos";
+  return "";
+};
 
 const diasOptions = [
   { value: "seg", label: "Segunda" }, { value: "ter", label: "Terça" }, { value: "qua", label: "Quarta" },
