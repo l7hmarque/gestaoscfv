@@ -65,6 +65,7 @@ const TurmaNovaPage = () => {
   const [batchEducadorId, setBatchEducadorId] = useState("");
   const [batchTipo, setBatchTipo] = useState("ordinaria");
   const [batchSaving, setBatchSaving] = useState(false);
+  const [autoVincular, setAutoVincular] = useState(true);
 
   const scfvBairros = bairros.filter(b => isBairroSCFV(b.nome));
 
