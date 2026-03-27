@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const diasOptions = [
   { value: "seg", label: "Segunda" }, { value: "ter", label: "Terça" }, { value: "qua", label: "Quarta" },
