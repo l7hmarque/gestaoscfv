@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const FORMAS_AVALIACAO = [
   "Ficha de Observação",
