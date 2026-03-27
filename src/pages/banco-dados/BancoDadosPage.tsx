@@ -44,7 +44,7 @@ export default function BancoDadosPage() {
       supabase.from("presenca").select("*, participantes(nome_completo), turmas(nome)").order("data", { ascending: false }).limit(500),
       supabase.from("relatorios_atividade").select("*, profiles!relatorios_atividade_educador_id_fkey(nome)").order("data", { ascending: false }),
       supabase.from("planejamentos").select("*, profiles!planejamentos_educador_id_fkey(nome)").order("created_at", { ascending: false }),
-      supabase.from("profiles").select("*, user_roles(role)").order("nome"),
+      supabase.from("profiles").select("*").order("nome"),
     ]);
     setParticipantes(p.data || []);
     setTurmas(t.data || []);
