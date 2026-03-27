@@ -1,79 +1,39 @@
 
 
-## Plano: Melhorias em Bairros SCFV, Transporte, Perfil do Participante e Página do Desenvolvedor
+## Plano: Scan de Documentos com Câmera → PDF
 
-### 1. Filtrar bairros SCFV em todos os selects (exceto Banco de Dados)
+### Ideia central
+Ao clicar "Escanear" em qualquer categoria de documento, o sistema abre a câmera do celular. O usuário tira a foto do documento, e o sistema **converte automaticamente a imagem em PDF** antes de fazer o upload. Fotos adicionais podem ser adicionadas ao mesmo PDF (scan multi-página).
 
-Aplicar `isBairroSCFV` nos selects de bairro das seguintes páginas que ainda mostram todos os bairros:
+### Funcionalidades
 
-| Arquivo | Mudança |
-|---|---|
-| `src/pages/participantes/ParticipantesPage.tsx` | Filtro de bairro na listagem → somente SCFV |
-| `src/pages/participantes/ParticipantePerfilPage.tsx` | Select de bairro no edit mode → somente SCFV (endereço permanece livre) |
-| `src/pages/dashboard/DashboardTransporteTab.tsx` | Select de bairro no "Novo Ponto" → somente SCFV |
-| `src/pages/presenca/PresencaExportarPage.tsx` | Já filtra SCFV ✓ |
-| `src/pages/presenca/PresencaPage.tsx` | Já filtra SCFV ✓ |
-| `src/pages/turmas/*` | Já filtra SCFV ✓ |
-| `src/pages/banco-dados/BancoDadosPage.tsx` | Mantém todos (conforme solicitado) |
+1. **Captura via câmera** — Botão "Escanear" usa `<input type="file" accept="image/*" capture="environment">` para abrir a câmera traseira do dispositivo
+2. **Conversão imagem → PDF** — Usa `jsPDF` (já instalado) para converter a foto capturada em um PDF A4, centralizando a imagem e mantendo proporção
+3. **Scan multi-página** — Após a primeira foto, o usuário pode "Adicionar página" para capturar mais fotos e juntar tudo em um único PDF
+4. **Upload manual** — Botão "Upload" continua aceitando PDF ou imagem diretamente (imagens também convertidas para PDF)
+5. **Categorias** — Ficha de Inscrição, Laudo Médico, Receita de Medicamento, Comprovante Escolar, Termo de Autorização de Imagem, Outro
+6. **Tabela `participante_documentos`** — Registra cada documento com categoria, nome, URL e data
+7. **Gestão no perfil** — Seção "Documentos" na página do participante para visualizar, adicionar e excluir documentos por categoria
 
----
-
-### 2. Transporte: edição manual e em massa de pontos
-
-**Arquivo:** `src/pages/dashboard/DashboardTransporteTab.tsx`
-
-- Adicionar botão "Editar" por ponto (ícone lápis) que abre inline editing do **nome**, **bairro** e **horários** (além dos horários que já existem)
-- Adicionar modo de **seleção em massa** (checkboxes por ponto) com barra de ações:
-  - Alterar horário manhã/tarde em todos os selecionados
-  - Ativar/desligar todos os selecionados
-  - Alterar bairro de todos os selecionados
-- Adicionar botão "Excluir" ponto (com confirmação)
-
----
-
-### 3. Perfil do participante: destaque SCFV + seção sigilosa
-
-**Arquivo:** `src/pages/participantes/ParticipantePerfilPage.tsx`
-
-**Destaque no topo:**
-- Abaixo do nome, adicionar uma faixa destacada com 3 badges coloridos:
-  - **Bairro SCFV** (baseado no `bairro_id` do participante, mostrando o nome do bairro)
-  - **Faixa Etária** (calculada a partir da `data_nascimento`: 6-8, 9-11, 12-17, idosos)
-  - **Período** (Manhã/Tarde/Integral)
-
-**Seção sigilosa para equipe técnica:**
-- Nova seção `Card` no final da página, visível apenas para usuários com role `equipe_tecnica` ou `coordenacao`
-- Conteúdo: campo de texto livre "Observações Sigilosas" salvo em uma nova coluna `observacoes_sigilosas` na tabela `participantes`
-- Visual diferenciado (borda vermelha/amarela, ícone de cadeado)
-
-**Migration SQL:** Adicionar coluna `observacoes_sigilosas text` à tabela `participantes`
-
----
-
-### 4. Página do Desenvolvedor (protegida com senha)
-
-**Novos arquivos:**
-- `src/pages/dev/DevPage.tsx` — página protegida por senha local ("leoleo")
-
-**Funcionalidades da página:**
-- Prompt de senha ao acessar (armazenada em sessionStorage após validação)
-- **Gestão de permissões:** Lista todos os profissionais com suas roles, permitindo adicionar/remover roles rapidamente
-- **Configurações rápidas:** Toggle para habilitar/desabilitar funcionalidades do sistema
-- **Info do sistema:** Contagem de registros por tabela, versão, etc.
-
-**Arquivo modificado:**
-- `src/App.tsx` — adicionar rota `/dev` (pública, sem ProtectedRoute, a senha é validada internamente na página)
-
----
-
-### Resumo de arquivos
+### Arquivos
 
 | Arquivo | Ação |
 |---|---|
-| `src/pages/participantes/ParticipantesPage.tsx` | Filtrar bairros SCFV |
-| `src/pages/participantes/ParticipantePerfilPage.tsx` | Destaque SCFV + seção sigilosa |
-| `src/pages/dashboard/DashboardTransporteTab.tsx` | Edição manual + em massa |
-| `src/pages/dev/DevPage.tsx` | Criar — página do desenvolvedor |
-| `src/App.tsx` | Adicionar rota `/dev` |
-| Migration SQL | Adicionar `observacoes_sigilosas` em `participantes` |
+| Migration SQL | Criar tabela `participante_documentos` com RLS |
+| `src/hooks/useDocumentScanner.ts` | Criar — hook com lógica de captura câmera + conversão imagem→PDF via jsPDF |
+| `src/pages/participantes/ParticipanteNovoPage.tsx` | Refatorar seção de documentos para upload/scan categorizado |
+| `src/pages/participantes/ParticipantePerfilPage.tsx` | Adicionar seção "Documentos" com listagem, scan, upload e exclusão |
+
+### Fluxo do scan
+1. Usuário clica "Escanear" na categoria desejada
+2. Câmera abre (celular) ou seletor de arquivo (desktop)
+3. Foto capturada → `jsPDF` cria um PDF A4 com a imagem ajustada
+4. Opção "Adicionar página" para scan multi-página (cada foto vira uma página do mesmo PDF)
+5. "Finalizar" → upload do PDF ao bucket `documentos/{participante_id}/{categoria}_{timestamp}.pdf` + registro na tabela
+
+### Detalhes técnicos
+- Conversão usa `jsPDF` + `addImage()` com redimensionamento proporcional para A4
+- Imagens comprimidas via Canvas (`toDataURL('image/jpeg', 0.85)`) antes de inserir no PDF
+- `<input capture="environment">` garante câmera traseira no mobile
+- Nomenclatura: `SysELO_Doc_{categoria}_{YYYY-MM-DD}_{HHmmss}.pdf`
 
