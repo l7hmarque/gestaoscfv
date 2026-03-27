@@ -96,3 +96,12 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 }
+
+@media print {
+  body { background: white !important; }
+  .print\\:hidden, [data-sidebar], header, nav, footer,
+  button:not(.print-keep), .no-print { display: none !important; }
+  main { padding: 0 !important; margin: 0 !important; overflow: visible !important; }
+  .min-h-screen { min-height: auto !important; }
+  @page { size: A4; margin: 15mm; }
+}
