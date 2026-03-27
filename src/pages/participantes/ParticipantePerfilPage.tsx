@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Save, Pencil, Printer, FileText, FileSpreadsheet, Lock } from "lucide-react";
+import { ArrowLeft, Save, Pencil, Printer, FileText, FileSpreadsheet, Lock, Camera, Upload, X, Plus, Check, Eye, Trash2 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { exportFichaInscricaoDocx, exportFichaInscricaoPdf } from "@/hooks/useDocumentExport";
 import { isBairroSCFV } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDocumentScanner, CATEGORIES } from "@/hooks/useDocumentScanner";
 import type { Tables } from "@/integrations/supabase/types";
 
 const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto" };
@@ -29,6 +30,8 @@ function calcFaixaEtaria(dataNasc: string | null): string {
   return `${age} anos`;
 }
 
+interface DocRow { id: string; categoria: string; nome_arquivo: string; arquivo_url: string; created_at: string; }
+
 const ParticipantePerfilPage = () => {
   const { id } = useParams();
   const { user } = useAuth();
@@ -41,6 +44,9 @@ const ParticipantePerfilPage = () => {
   const [form, setForm] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [userRoles, setUserRoles] = useState<string[]>([]);
+  const [docs, setDocs] = useState<DocRow[]>([]);
+
+  const scanner = useDocumentScanner();
 
   useEffect(() => { fetchAll(); }, [id]);
 
@@ -52,19 +58,22 @@ const ParticipantePerfilPage = () => {
   }, [user]);
 
   const canSeeConfidential = userRoles.includes("tecnico") || userRoles.includes("coordenacao");
+  const canDelete = userRoles.includes("coordenacao");
 
   const fetchAll = async () => {
     setLoading(true);
-    const [{ data: p }, { data: b }, { data: pt }, { data: tp }] = await Promise.all([
+    const [{ data: p }, { data: b }, { data: pt }, { data: tp }, { data: docData }] = await Promise.all([
       supabase.from("participantes").select("*").eq("id", id!).single(),
       supabase.from("bairros").select("*").order("nome"),
       supabase.from("pontos_transporte").select("*").order("nome"),
       supabase.from("turma_participantes").select("turma_id, turmas(nome)").eq("participante_id", id!),
+      supabase.from("participante_documentos" as any).select("*").eq("participante_id", id!).order("created_at", { ascending: false }),
     ]);
     setParticipante(p as any);
     setBairros(b || []);
     setPontos(pt || []);
     setTurmas((tp || []).map((t: any) => ({ turma_id: t.turma_id, turma_nome: t.turmas?.nome || "" })));
+    setDocs((docData || []) as unknown as DocRow[]);
     if (p) {
       const f: Record<string, string> = {};
       Object.entries(p).forEach(([k, v]) => { f[k] = v == null ? "" : String(v); });
@@ -89,12 +98,65 @@ const ParticipantePerfilPage = () => {
     fetchAll();
   };
 
+  // Document management
+  const handleUploadDoc = async (categoria: string) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*,application/pdf";
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0] as File | undefined;
+      if (!file) return;
+      const blob = await scanner.processUploadFile(file);
+      await uploadDocBlob(blob, categoria);
+    };
+    input.click();
+  };
+
+  const uploadDocBlob = async (blob: Blob, categoria: string) => {
+    const now = new Date();
+    const ts = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}${String(now.getSeconds()).padStart(2,"0")}`;
+    const fileName = `SysELO_Doc_${categoria}_${ts}.pdf`;
+    const storagePath = `${id}/${fileName}`;
+    const { error: upErr } = await supabase.storage.from("documentos").upload(storagePath, blob, { contentType: "application/pdf" });
+    if (upErr) { toast.error("Erro no upload: " + upErr.message); return; }
+    await supabase.from("participante_documentos" as any).insert({
+      participante_id: id,
+      categoria,
+      nome_arquivo: fileName,
+      arquivo_url: storagePath,
+    });
+    toast.success("Documento salvo!");
+    fetchAll();
+  };
+
+  const handleFinalizeScanProfile = async () => {
+    const result = scanner.finalizeScan();
+    if (!result) return;
+    await uploadDocBlob(result.blob, result.categoria);
+  };
+
+  const handleViewDoc = async (doc: DocRow) => {
+    const { data } = await supabase.storage.from("documentos").createSignedUrl(doc.arquivo_url, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    else toast.error("Erro ao gerar link");
+  };
+
+  const handleDeleteDoc = async (doc: DocRow) => {
+    if (!confirm("Excluir este documento?")) return;
+    await supabase.storage.from("documentos").remove([doc.arquivo_url]);
+    await supabase.from("participante_documentos" as any).delete().eq("id", doc.id);
+    toast.success("Documento excluído");
+    fetchAll();
+  };
+
   if (loading) return <div className="flex justify-center py-12"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
   if (!participante) return <div className="text-center py-12 text-muted-foreground">Participante não encontrado.</div>;
 
   const bairroNome = bairros.find(b => b.id === participante.bairro_id)?.nome || "—";
   const faixaEtaria = calcFaixaEtaria(participante.data_nascimento);
   const periodo = participante.periodo ? periodoLabel[participante.periodo] : "—";
+  const bairrosSCFV = bairros.filter(b => isBairroSCFV(b.nome));
+  const catLabel = (v: string) => CATEGORIES.find(c => c.value === v)?.label || v;
 
   const Info = ({ label, value }: { label: string; value: string | null | undefined }) => (
     <div><span className="text-xs text-muted-foreground">{label}</span><p className="text-sm">{value || "—"}</p></div>
@@ -104,10 +166,9 @@ const ParticipantePerfilPage = () => {
     <div><Label className="text-xs">{label}</Label><Input type={type} value={form[field] || ""} onChange={(e) => set(field, e.target.value)} className="h-8 text-sm mt-0.5" /></div>
   );
 
-  const bairrosSCFV = bairros.filter(b => isBairroSCFV(b.nome));
-
   return (
     <div className="space-y-4 max-w-4xl">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" asChild><Link to="/participantes"><ArrowLeft className="h-4 w-4" /></Link></Button>
@@ -154,6 +215,7 @@ const ParticipantePerfilPage = () => {
       )}
 
       <div className="grid gap-4">
+        {/* Dados Pessoais */}
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Dados Pessoais</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -206,6 +268,7 @@ const ParticipantePerfilPage = () => {
           </CardContent>
         </Card>
 
+        {/* Endereço */}
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Endereço</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -217,6 +280,7 @@ const ParticipantePerfilPage = () => {
           </CardContent>
         </Card>
 
+        {/* Responsáveis */}
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Responsáveis</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -228,6 +292,7 @@ const ParticipantePerfilPage = () => {
           </CardContent>
         </Card>
 
+        {/* Complementar */}
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Complementar</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -248,7 +313,83 @@ const ParticipantePerfilPage = () => {
           </CardContent>
         </Card>
 
-        {/* Seção Sigilosa — Equipe Técnica / Coordenação */}
+        {/* Documentos */}
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Documentos</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            {/* Scan session */}
+            {scanner.scanSession && (
+              <div className="border-2 border-primary/50 rounded-lg p-4 bg-primary/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Escaneando: {catLabel(scanner.scanSession.categoria)}</p>
+                  <Badge variant="secondary">{scanner.scanSession.pages.length} página(s)</Badge>
+                </div>
+                {scanner.scanSession.pages.length > 0 && (
+                  <div className="flex gap-2 flex-wrap">
+                    {scanner.scanSession.pages.map((page, i) => (
+                      <div key={i} className="relative group w-16 h-20 border rounded overflow-hidden">
+                        <img src={page.dataUrl} alt={`Página ${i+1}`} className="w-full h-full object-cover" />
+                        <button type="button" onClick={() => scanner.removePageFromScan(i)} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <X className="h-3 w-3" />
+                        </button>
+                        <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] text-center">{i+1}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={scanner.addPageToScan}><Plus className="h-3.5 w-3.5 mr-1" />Adicionar Página</Button>
+                  {scanner.scanSession.pages.length > 0 && (
+                    <Button type="button" size="sm" onClick={handleFinalizeScanProfile}><Check className="h-3.5 w-3.5 mr-1" />Finalizar Scan</Button>
+                  )}
+                  <Button type="button" size="sm" variant="ghost" onClick={scanner.cancelScan}>Cancelar</Button>
+                </div>
+              </div>
+            )}
+
+            {/* Categories with docs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {CATEGORIES.map((cat) => {
+                const catDocs = docs.filter(d => d.categoria === cat.value);
+                return (
+                  <div key={cat.value} className="border rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium">{cat.label}</span>
+                      {catDocs.length > 0 && <Badge variant="secondary" className="text-[10px]">{catDocs.length}</Badge>}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <Button type="button" variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => scanner.startScan(cat.value)} disabled={!!scanner.scanSession}>
+                        <Camera className="h-3 w-3 mr-1" />Escanear
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => handleUploadDoc(cat.value)} disabled={!!scanner.scanSession}>
+                        <Upload className="h-3 w-3 mr-1" />Upload
+                      </Button>
+                    </div>
+                    {catDocs.map((doc) => (
+                      <div key={doc.id} className="flex items-center gap-2 bg-muted/50 rounded p-1.5">
+                        <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="text-[10px] truncate flex-1">{doc.nome_arquivo}</span>
+                        <button type="button" onClick={() => handleViewDoc(doc)} className="text-primary hover:text-primary/80" title="Visualizar">
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        {canDelete && (
+                          <button type="button" onClick={() => handleDeleteDoc(doc)} className="text-destructive hover:text-destructive/80" title="Excluir">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Hidden scan input */}
+            <input ref={scanner.scanInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={scanner.handleScanCapture} />
+          </CardContent>
+        </Card>
+
+        {/* Seção Sigilosa */}
         {canSeeConfidential && (
           <Card className="border-destructive/50">
             <CardHeader className="pb-2">

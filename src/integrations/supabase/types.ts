@@ -29,6 +29,41 @@ export type Database = {
         }
         Relationships: []
       }
+      participante_documentos: {
+        Row: {
+          arquivo_url: string
+          categoria: string
+          created_at: string | null
+          id: string
+          nome_arquivo: string
+          participante_id: string
+        }
+        Insert: {
+          arquivo_url: string
+          categoria: string
+          created_at?: string | null
+          id?: string
+          nome_arquivo: string
+          participante_id: string
+        }
+        Update: {
+          arquivo_url?: string
+          categoria?: string
+          created_at?: string | null
+          id?: string
+          nome_arquivo?: string
+          participante_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participante_documentos_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "participantes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       participantes: {
         Row: {
           bairro_id: string | null

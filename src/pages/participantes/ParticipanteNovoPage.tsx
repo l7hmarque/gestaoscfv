@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Save, Upload, Camera, X, FileText, Image } from "lucide-react";
+import { ArrowLeft, Save, Upload, Camera, X, FileText, Image, Plus, Check } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,14 +7,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
+import { useDocumentScanner, CATEGORIES } from "@/hooks/useDocumentScanner";
 
-interface UploadedFile {
-  file: File;
-  preview: string;
-  type: "image" | "pdf";
+interface PendingDoc {
+  blob: Blob;
+  categoria: string;
+  fileName: string;
+  pageCount: number;
 }
 
 const ParticipanteNovoPage = () => {
@@ -24,10 +27,11 @@ const ParticipanteNovoPage = () => {
   const [pontos, setPontos] = useState<Tables<"pontos_transporte">[]>([]);
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
-  const [documentos, setDocumentos] = useState<UploadedFile[]>([]);
+  const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const docInputRef = useRef<HTMLInputElement>(null);
+
+  const scanner = useDocumentScanner();
 
   const [form, setForm] = useState({
     nome_completo: "", data_nascimento: "", genero: "", cor_raca: "",
@@ -56,39 +60,47 @@ const ParticipanteNovoPage = () => {
   const handleFotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Selecione um arquivo de imagem");
-      return;
-    }
+    if (!file.type.startsWith("image/")) { toast.error("Selecione um arquivo de imagem"); return; }
     setFotoFile(file);
     setFotoPreview(URL.createObjectURL(file));
   };
 
-  const handleDocumentos = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    const newDocs: UploadedFile[] = [];
-    Array.from(files).forEach((file) => {
-      if (documentos.length + newDocs.length >= 10) return;
-      const isImage = file.type.startsWith("image/");
-      const isPdf = file.type === "application/pdf";
-      if (!isImage && !isPdf) {
-        toast.error(`${file.name}: formato não suportado (use imagem ou PDF)`);
-        return;
-      }
-      newDocs.push({
-        file,
-        preview: isImage ? URL.createObjectURL(file) : "",
-        type: isImage ? "image" : "pdf",
-      });
-    });
-    setDocumentos((prev) => [...prev, ...newDocs]);
-    e.target.value = "";
+  const handleUploadFile = async (categoria: string) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*,application/pdf";
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0] as File | undefined;
+      if (!file) return;
+      const blob = await scanner.processUploadFile(file);
+      const now = new Date();
+      const ts = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}${String(now.getSeconds()).padStart(2,"0")}`;
+      setPendingDocs(prev => [...prev, {
+        blob,
+        categoria,
+        fileName: `SysELO_Doc_${categoria}_${ts}.pdf`,
+        pageCount: 1,
+      }]);
+      toast.success("Documento adicionado!");
+    };
+    input.click();
   };
 
-  const removeDoc = (index: number) => {
-    setDocumentos((prev) => prev.filter((_, i) => i !== index));
+  const handleFinalizeScan = () => {
+    const result = scanner.finalizeScan();
+    if (!result) return;
+    const now = new Date();
+    const ts = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}${String(now.getSeconds()).padStart(2,"0")}`;
+    setPendingDocs(prev => [...prev, {
+      blob: result.blob,
+      categoria: result.categoria,
+      fileName: `SysELO_Doc_${result.categoria}_${ts}.pdf`,
+      pageCount: scanner.scanSession?.pages.length || 1,
+    }]);
+    toast.success("Scan finalizado!");
   };
+
+  const removePendingDoc = (index: number) => setPendingDocs(prev => prev.filter((_, i) => i !== index));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,7 +114,6 @@ const ParticipanteNovoPage = () => {
       if (!payload.data_nascimento) delete payload.data_nascimento;
       if (!payload.iniciou_em) delete payload.iniciou_em;
 
-      // Upload foto de perfil
       if (fotoFile) {
         const ext = fotoFile.name.split(".").pop();
         const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
@@ -116,12 +127,19 @@ const ParticipanteNovoPage = () => {
       const { data: inserted, error } = await supabase.from("participantes").insert(payload as any).select().single();
       if (error) throw error;
 
-      // Upload documentos
-      if (inserted && documentos.length > 0) {
-        for (const doc of documentos) {
-          const ext = doc.file.name.split(".").pop();
-          const path = `${inserted.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-          await supabase.storage.from("documentos").upload(path, doc.file);
+      // Upload categorized documents
+      if (inserted && pendingDocs.length > 0) {
+        for (const doc of pendingDocs) {
+          const storagePath = `${inserted.id}/${doc.fileName}`;
+          const { error: upErr } = await supabase.storage.from("documentos").upload(storagePath, doc.blob, { contentType: "application/pdf" });
+          if (!upErr) {
+            await supabase.from("participante_documentos" as any).insert({
+              participante_id: inserted.id,
+              categoria: doc.categoria,
+              nome_arquivo: doc.fileName,
+              arquivo_url: storagePath,
+            });
+          }
         }
       }
 
@@ -141,6 +159,8 @@ const ParticipanteNovoPage = () => {
     </div>
   );
 
+  const catLabel = (v: string) => CATEGORIES.find(c => c.value === v)?.label || v;
+
   return (
     <div className="space-y-4 max-w-4xl">
       <div className="flex items-center gap-2">
@@ -154,20 +174,12 @@ const ParticipanteNovoPage = () => {
           <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Foto de Perfil</CardTitle></CardHeader>
           <CardContent className="flex items-center gap-4">
             <div className="w-24 h-24 rounded-full bg-muted border-2 border-dashed border-border flex items-center justify-center overflow-hidden">
-              {fotoPreview ? (
-                <img src={fotoPreview} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                <Image className="h-8 w-8 text-muted-foreground" />
-              )}
+              {fotoPreview ? <img src={fotoPreview} alt="Preview" className="w-full h-full object-cover" /> : <Image className="h-8 w-8 text-muted-foreground" />}
             </div>
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                  <Upload className="h-3.5 w-3.5 mr-1" />Selecionar Foto
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => cameraInputRef.current?.click()}>
-                  <Camera className="h-3.5 w-3.5 mr-1" />Câmera
-                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="h-3.5 w-3.5 mr-1" />Selecionar Foto</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => cameraInputRef.current?.click()}><Camera className="h-3.5 w-3.5 mr-1" />Câmera</Button>
               </div>
               <p className="text-xs text-muted-foreground">JPG, PNG. Máx 5MB.</p>
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFotoSelect} />
@@ -189,35 +201,21 @@ const ParticipanteNovoPage = () => {
               <Label className="text-xs font-medium">Gênero</Label>
               <Select value={form.genero} onValueChange={(v) => set("genero", v)}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="masculino">Masculino</SelectItem>
-                  <SelectItem value="feminino">Feminino</SelectItem>
-                  <SelectItem value="outro">Outro</SelectItem>
-                </SelectContent>
+                <SelectContent><SelectItem value="masculino">Masculino</SelectItem><SelectItem value="feminino">Feminino</SelectItem><SelectItem value="outro">Outro</SelectItem></SelectContent>
               </Select>
             </div>
             <div>
               <Label className="text-xs font-medium">Cor/Raça</Label>
               <Select value={form.cor_raca} onValueChange={(v) => set("cor_raca", v)}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="branca">Branca</SelectItem>
-                  <SelectItem value="preta">Preta</SelectItem>
-                  <SelectItem value="parda">Parda</SelectItem>
-                  <SelectItem value="amarela">Amarela</SelectItem>
-                  <SelectItem value="indigena">Indígena</SelectItem>
-                </SelectContent>
+                <SelectContent><SelectItem value="branca">Branca</SelectItem><SelectItem value="preta">Preta</SelectItem><SelectItem value="parda">Parda</SelectItem><SelectItem value="amarela">Amarela</SelectItem><SelectItem value="indigena">Indígena</SelectItem></SelectContent>
               </Select>
             </div>
             <div>
               <Label className="text-xs font-medium">Período</Label>
               <Select value={form.periodo} onValueChange={(v) => set("periodo", v)}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manha">Manhã</SelectItem>
-                  <SelectItem value="tarde">Tarde</SelectItem>
-                  <SelectItem value="integral">Integral</SelectItem>
-                </SelectContent>
+                <SelectContent><SelectItem value="manha">Manhã</SelectItem><SelectItem value="tarde">Tarde</SelectItem><SelectItem value="integral">Integral</SelectItem></SelectContent>
               </Select>
             </div>
           </CardContent>
@@ -289,49 +287,79 @@ const ParticipanteNovoPage = () => {
           </CardContent>
         </Card>
 
-        {/* Documentos */}
+        {/* Documentos Categorizados */}
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Documentos e Anexos</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Ficha de inscrição, laudo médico, receita, termo de imagem, documento escolar, etc. (imagens ou PDF, máx 10 arquivos)
-            </p>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => docInputRef.current?.click()}>
-                <Upload className="h-3.5 w-3.5 mr-1" />Selecionar Arquivos
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => {
-                const input = document.createElement("input");
-                input.type = "file";
-                input.accept = "image/*,application/pdf";
-                input.capture = "environment";
-                input.onchange = (e) => handleDocumentos(e as any);
-                input.click();
-              }}>
-                <Camera className="h-3.5 w-3.5 mr-1" />Escanear com Câmera
-              </Button>
-            </div>
-            <input ref={docInputRef} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={handleDocumentos} />
+          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Documentos</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">Escaneie com a câmera do celular ou faça upload de arquivos. Imagens são convertidas automaticamente para PDF.</p>
 
-            {documentos.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {documentos.map((doc, i) => (
-                  <div key={i} className="relative group border rounded-lg p-2 bg-muted/50">
-                    <button type="button" onClick={() => removeDoc(i)} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                      <X className="h-3 w-3" />
-                    </button>
-                    {doc.type === "image" ? (
-                      <img src={doc.preview} alt={doc.file.name} className="w-full h-20 object-cover rounded" />
-                    ) : (
-                      <div className="w-full h-20 flex items-center justify-center bg-muted rounded">
-                        <FileText className="h-8 w-8 text-muted-foreground" />
+            {/* Scan session overlay */}
+            {scanner.scanSession && (
+              <div className="border-2 border-primary/50 rounded-lg p-4 bg-primary/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Escaneando: {catLabel(scanner.scanSession.categoria)}</p>
+                  <Badge variant="secondary">{scanner.scanSession.pages.length} página(s)</Badge>
+                </div>
+                {scanner.scanSession.pages.length > 0 && (
+                  <div className="flex gap-2 flex-wrap">
+                    {scanner.scanSession.pages.map((page, i) => (
+                      <div key={i} className="relative group w-16 h-20 border rounded overflow-hidden">
+                        <img src={page.dataUrl} alt={`Página ${i+1}`} className="w-full h-full object-cover" />
+                        <button type="button" onClick={() => scanner.removePageFromScan(i)} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <X className="h-3 w-3" />
+                        </button>
+                        <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] text-center">{i+1}</span>
                       </div>
-                    )}
-                    <p className="text-[10px] text-muted-foreground mt-1 truncate">{doc.file.name}</p>
+                    ))}
                   </div>
-                ))}
+                )}
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={scanner.addPageToScan}><Plus className="h-3.5 w-3.5 mr-1" />Adicionar Página</Button>
+                  {scanner.scanSession.pages.length > 0 && (
+                    <Button type="button" size="sm" onClick={handleFinalizeScan}><Check className="h-3.5 w-3.5 mr-1" />Finalizar Scan</Button>
+                  )}
+                  <Button type="button" size="sm" variant="ghost" onClick={scanner.cancelScan}>Cancelar</Button>
+                </div>
               </div>
             )}
+
+            {/* Category buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {CATEGORIES.map((cat) => {
+                const docsForCat = pendingDocs.filter(d => d.categoria === cat.value);
+                return (
+                  <div key={cat.value} className="border rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium">{cat.label}</span>
+                      {docsForCat.length > 0 && <Badge variant="secondary" className="text-[10px]">{docsForCat.length}</Badge>}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <Button type="button" variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => scanner.startScan(cat.value)} disabled={!!scanner.scanSession}>
+                        <Camera className="h-3 w-3 mr-1" />Escanear
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => handleUploadFile(cat.value)} disabled={!!scanner.scanSession}>
+                        <Upload className="h-3 w-3 mr-1" />Upload
+                      </Button>
+                    </div>
+                    {docsForCat.map((doc, i) => {
+                      const globalIdx = pendingDocs.indexOf(doc);
+                      return (
+                        <div key={i} className="flex items-center gap-2 bg-muted/50 rounded p-1.5">
+                          <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-[10px] truncate flex-1">{doc.fileName}</span>
+                          <button type="button" onClick={() => removePendingDoc(globalIdx)} className="text-destructive hover:text-destructive/80">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Hidden scan input */}
+            <input ref={scanner.scanInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={scanner.handleScanCapture} />
           </CardContent>
         </Card>
 
