@@ -65,6 +65,7 @@ const App = () => (
                 <Route path="/relatorios/:id" element={<RelatorioDetalhePage />} />
                 <Route path="/profissional/:id" element={<ProfissionalPerfilPage />} />
               </Route>
+              <Route path="/dev" element={<DevPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>

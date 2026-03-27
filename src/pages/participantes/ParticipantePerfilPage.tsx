@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Save, Pencil, Printer, FileText, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, Save, Pencil, Printer, FileText, FileSpreadsheet, Lock } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,14 +12,27 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { exportFichaInscricaoDocx, exportFichaInscricaoPdf } from "@/hooks/useDocumentExport";
+import { isBairroSCFV } from "@/lib/constants";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Tables } from "@/integrations/supabase/types";
 
 const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto" };
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 
+function calcFaixaEtaria(dataNasc: string | null): string {
+  if (!dataNasc) return "—";
+  const age = Math.floor((Date.now() - new Date(dataNasc).getTime()) / 31557600000);
+  if (age >= 6 && age <= 8) return "6-8";
+  if (age >= 9 && age <= 11) return "9-11";
+  if (age >= 12 && age <= 17) return "12-17";
+  if (age >= 60) return "Idosos";
+  return `${age} anos`;
+}
+
 const ParticipantePerfilPage = () => {
   const { id } = useParams();
-  const [participante, setParticipante] = useState<Tables<"participantes"> | null>(null);
+  const { user } = useAuth();
+  const [participante, setParticipante] = useState<(Tables<"participantes"> & { observacoes_sigilosas?: string | null }) | null>(null);
   const [bairros, setBairros] = useState<Tables<"bairros">[]>([]);
   const [pontos, setPontos] = useState<Tables<"pontos_transporte">[]>([]);
   const [turmas, setTurmas] = useState<{ turma_id: string; turma_nome: string }[]>([]);
@@ -27,8 +40,18 @@ const ParticipantePerfilPage = () => {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [userRoles, setUserRoles] = useState<string[]>([]);
 
   useEffect(() => { fetchAll(); }, [id]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("user_roles").select("role").eq("user_id", user.id).then(({ data }) => {
+      setUserRoles((data || []).map((r: any) => r.role));
+    });
+  }, [user]);
+
+  const canSeeConfidential = userRoles.includes("tecnico") || userRoles.includes("coordenacao");
 
   const fetchAll = async () => {
     setLoading(true);
@@ -38,7 +61,7 @@ const ParticipantePerfilPage = () => {
       supabase.from("pontos_transporte").select("*").order("nome"),
       supabase.from("turma_participantes").select("turma_id, turmas(nome)").eq("participante_id", id!),
     ]);
-    setParticipante(p);
+    setParticipante(p as any);
     setBairros(b || []);
     setPontos(pt || []);
     setTurmas((tp || []).map((t: any) => ({ turma_id: t.turma_id, turma_nome: t.turmas?.nome || "" })));
@@ -57,6 +80,7 @@ const ParticipantePerfilPage = () => {
     const payload: Record<string, unknown> = { ...form };
     delete payload.id; delete payload.created_at; delete payload.updated_at;
     ["bairro_id", "ponto_transporte_id", "data_nascimento", "iniciou_em"].forEach((k) => { if (!payload[k]) payload[k] = null; });
+    if (!canSeeConfidential) delete payload.observacoes_sigilosas;
     const { error } = await supabase.from("participantes").update(payload as any).eq("id", id!);
     setSaving(false);
     if (error) { toast.error("Erro: " + error.message); return; }
@@ -68,6 +92,10 @@ const ParticipantePerfilPage = () => {
   if (loading) return <div className="flex justify-center py-12"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
   if (!participante) return <div className="text-center py-12 text-muted-foreground">Participante não encontrado.</div>;
 
+  const bairroNome = bairros.find(b => b.id === participante.bairro_id)?.nome || "—";
+  const faixaEtaria = calcFaixaEtaria(participante.data_nascimento);
+  const periodo = participante.periodo ? periodoLabel[participante.periodo] : "—";
+
   const Info = ({ label, value }: { label: string; value: string | null | undefined }) => (
     <div><span className="text-xs text-muted-foreground">{label}</span><p className="text-sm">{value || "—"}</p></div>
   );
@@ -75,6 +103,8 @@ const ParticipantePerfilPage = () => {
   const EditField = ({ label, field, type = "text" }: { label: string; field: string; type?: string }) => (
     <div><Label className="text-xs">{label}</Label><Input type={type} value={form[field] || ""} onChange={(e) => set(field, e.target.value)} className="h-8 text-sm mt-0.5" /></div>
   );
+
+  const bairrosSCFV = bairros.filter(b => isBairroSCFV(b.nome));
 
   return (
     <div className="space-y-4 max-w-4xl">
@@ -85,7 +115,6 @@ const ParticipantePerfilPage = () => {
             <h1 className="text-xl font-semibold text-foreground">{participante.nome_completo}</h1>
             <div className="flex gap-2 mt-0.5">
               <Badge variant="secondary" className="text-xs">{statusLabel[participante.status || "ativo"]}</Badge>
-              {participante.periodo && <Badge variant="outline" className="text-xs">{periodoLabel[participante.periodo]}</Badge>}
             </div>
           </div>
         </div>
@@ -109,6 +138,13 @@ const ParticipantePerfilPage = () => {
             <Button size="sm" onClick={handleSave} disabled={saving}><Save className="h-3.5 w-3.5 mr-1" />{saving ? "Salvando..." : "Salvar"}</Button>
           </div>
         )}
+      </div>
+
+      {/* Destaque SCFV */}
+      <div className="flex gap-2 flex-wrap">
+        <Badge className="bg-blue-600 text-white hover:bg-blue-700 text-xs px-3 py-1">{bairroNome}</Badge>
+        <Badge className="bg-amber-500 text-white hover:bg-amber-600 text-xs px-3 py-1">Faixa: {faixaEtaria}</Badge>
+        <Badge className="bg-emerald-600 text-white hover:bg-emerald-700 text-xs px-3 py-1">{periodo}</Badge>
       </div>
 
       {turmas.length > 0 && (
@@ -141,6 +177,12 @@ const ParticipantePerfilPage = () => {
                   <Select value={form.periodo || "manha"} onValueChange={(v) => set("periodo", v)}>
                     <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="manha">Manhã</SelectItem><SelectItem value="tarde">Tarde</SelectItem><SelectItem value="integral">Integral</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div><Label className="text-xs">Bairro SCFV</Label>
+                  <Select value={form.bairro_id || ""} onValueChange={(v) => set("bairro_id", v)}>
+                    <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue placeholder="—" /></SelectTrigger>
+                    <SelectContent>{bairrosSCFV.map(b => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div><Label className="text-xs">Status</Label>
@@ -205,6 +247,30 @@ const ParticipantePerfilPage = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Seção Sigilosa — Equipe Técnica / Coordenação */}
+        {canSeeConfidential && (
+          <Card className="border-destructive/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2 text-destructive">
+                <Lock className="h-4 w-4" /> Observações Sigilosas
+              </CardTitle>
+              <p className="text-[10px] text-muted-foreground">Visível apenas para equipe técnica e coordenação</p>
+            </CardHeader>
+            <CardContent>
+              {editing ? (
+                <Textarea
+                  value={form.observacoes_sigilosas || ""}
+                  onChange={(e) => set("observacoes_sigilosas", e.target.value)}
+                  placeholder="Registre aqui observações sigilosas sobre o participante..."
+                  className="text-sm min-h-[100px] border-destructive/30"
+                />
+              ) : (
+                <p className="text-sm whitespace-pre-wrap">{(participante as any).observacoes_sigilosas || "Nenhuma observação registrada."}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
