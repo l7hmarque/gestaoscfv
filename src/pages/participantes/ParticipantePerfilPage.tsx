@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { exportFichaInscricaoDocx, exportFichaInscricaoPdf } from "@/hooks/useDocumentExport";
-import { isBairroSCFV } from "@/lib/constants";
+import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDocumentScanner, CATEGORIES } from "@/hooks/useDocumentScanner";
 import type { Tables } from "@/integrations/supabase/types";
@@ -90,10 +90,56 @@ const ParticipantePerfilPage = () => {
     delete payload.id; delete payload.created_at; delete payload.updated_at;
     ["bairro_id", "ponto_transporte_id", "data_nascimento", "iniciou_em"].forEach((k) => { if (!payload[k]) payload[k] = null; });
     if (!canSeeConfidential) delete payload.observacoes_sigilosas;
+
+    // Detectar mudanças relevantes antes de salvar
+    const oldStatus = participante?.status || "ativo";
+    const newStatus = form.status || "ativo";
+    const oldBairro = participante?.bairro_id || null;
+    const newBairro = (payload.bairro_id as string) || null;
+    const oldPeriodo = participante?.periodo || null;
+    const newPeriodo = (payload.periodo as string) || null;
+    const oldDataNasc = participante?.data_nascimento || null;
+    const newDataNasc = (payload.data_nascimento as string) || null;
+
     const { error } = await supabase.from("participantes").update(payload as any).eq("id", id!);
     setSaving(false);
     if (error) { toast.error("Erro: " + error.message); return; }
     toast.success("Atualizado com sucesso!");
+
+    // Automação 1: Desligar → remover de turmas
+    if (newStatus === "desligado" && oldStatus !== "desligado") {
+      const { data: links } = await supabase.from("turma_participantes").select("id").eq("participante_id", id!);
+      if (links && links.length > 0) {
+        await supabase.from("turma_participantes").delete().eq("participante_id", id!);
+        toast.info(`Removido de ${links.length} turma(s) automaticamente`);
+      }
+    }
+
+    // Automação 3: Realocar turmas se bairro/período/idade mudaram e está ativo
+    if (newStatus === "ativo" && oldStatus === "ativo") {
+      const oldFaixa = calcFaixaFromDate(oldDataNasc);
+      const newFaixa = calcFaixaFromDate(newDataNasc);
+      const changed = oldBairro !== newBairro || oldPeriodo !== newPeriodo || oldFaixa !== newFaixa;
+
+      if (changed && newBairro && newPeriodo && newFaixa) {
+        // Remover vínculos antigos
+        await supabase.from("turma_participantes").delete().eq("participante_id", id!);
+
+        // Buscar turmas compatíveis
+        let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", newBairro).eq("faixa_etaria", newFaixa as any);
+        if (newPeriodo !== "integral") query = query.eq("periodo", newPeriodo as any);
+
+        const { data: turmasCompativeis } = await query;
+        if (turmasCompativeis && turmasCompativeis.length > 0) {
+          const newLinks = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: id! }));
+          await supabase.from("turma_participantes").insert(newLinks);
+          toast.info(`Realocado para ${turmasCompativeis.length} turma(s) compatível(is)`);
+        } else {
+          toast.warning("Nenhuma turma compatível encontrada para os novos dados");
+        }
+      }
+    }
+
     setEditing(false);
     fetchAll();
   };
@@ -242,7 +288,14 @@ const ParticipantePerfilPage = () => {
                   </Select>
                 </div>
                 <div><Label className="text-xs">Bairro SCFV</Label>
-                  <Select value={form.bairro_id || ""} onValueChange={(v) => set("bairro_id", v)}>
+                  <Select value={form.bairro_id || ""} onValueChange={(v) => {
+                    set("bairro_id", v);
+                    // Limpar ponto se não pertence ao novo bairro
+                    if (form.ponto_transporte_id) {
+                      const ponto = pontos.find(p => p.id === form.ponto_transporte_id);
+                      if (ponto && ponto.bairro_id !== v) set("ponto_transporte_id", "");
+                    }
+                  }}>
                     <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue placeholder="—" /></SelectTrigger>
                     <SelectContent>{bairrosSCFV.map(b => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
                   </Select>

@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { useDocumentScanner, CATEGORIES } from "@/hooks/useDocumentScanner";
+import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
 
 interface PendingDoc {
   blob: Blob;
@@ -143,6 +144,30 @@ const ParticipanteNovoPage = () => {
         }
       }
 
+      // Auto-vincular a turmas compatíveis
+      if (inserted && (inserted.status === "ativo" || !inserted.status)) {
+        try {
+          const faixa = calcFaixaFromDate(inserted.data_nascimento);
+          if (inserted.bairro_id && inserted.periodo && faixa) {
+            let query = supabase.from("turmas").select("id")
+              .eq("ativa", true)
+              .eq("bairro_id", inserted.bairro_id)
+              .eq("faixa_etaria", faixa as any);
+
+            if (inserted.periodo !== "integral") {
+              query = query.eq("periodo", inserted.periodo as any);
+            }
+
+            const { data: turmasCompativeis } = await query;
+            if (turmasCompativeis && turmasCompativeis.length > 0) {
+              const links = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: inserted.id }));
+              await supabase.from("turma_participantes").insert(links);
+              toast.success(`Vinculado automaticamente a ${turmasCompativeis.length} turma(s)`);
+            }
+          }
+        } catch { /* silently ignore linking errors */ }
+      }
+
       toast.success("Participante cadastrado!");
       navigate("/participantes");
     } catch (err: any) {
@@ -238,17 +263,24 @@ const ParticipanteNovoPage = () => {
             <Field label="Número" field="endereco_numero" placeholder="Nº" half />
             <Field label="Bairro (texto)" field="endereco_bairro" placeholder="Bairro" half />
             <div>
-              <Label className="text-xs font-medium">Bairro (cadastrado)</Label>
-              <Select value={form.bairro_id} onValueChange={(v) => set("bairro_id", v)}>
+              <Label className="text-xs font-medium">Bairro SCFV</Label>
+              <Select value={form.bairro_id} onValueChange={(v) => {
+                set("bairro_id", v);
+                // Limpar ponto se não pertence ao novo bairro
+                if (form.ponto_transporte_id) {
+                  const ponto = pontos.find(p => p.id === form.ponto_transporte_id);
+                  if (ponto && ponto.bairro_id !== v) set("ponto_transporte_id", "");
+                }
+              }}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>{bairros.map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
+                <SelectContent>{bairros.filter(b => isBairroSCFV(b.nome)).map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
               <Label className="text-xs font-medium">Ponto de Transporte</Label>
               <Select value={form.ponto_transporte_id} onValueChange={(v) => set("ponto_transporte_id", v)}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>{pontos.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}</SelectContent>
+                <SelectContent>{pontos.filter(p => !form.bairro_id || p.bairro_id === form.bairro_id).map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <Field label="UF de Origem" field="uf_origem" placeholder="Ex: PR" half />
