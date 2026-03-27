@@ -361,16 +361,35 @@ const RelatorioNovoPage = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-1 max-h-60 overflow-y-auto">
-              {participantesTurma.map(p => (
-                <label key={p.id} className="flex items-center gap-2 text-sm cursor-pointer py-1 border-b border-border/50 last:border-0">
-                  <Checkbox
-                    checked={form.presenca[p.id] ?? false}
-                    onCheckedChange={c => setForm(f => ({ ...f, presenca: { ...f.presenca, [p.id]: !!c } }))}
-                  />
-                  {p.nome}
-                </label>
-              ))}
+            <div className="space-y-1 max-h-72 overflow-y-auto">
+              {participantesTurma.map((p, idx) => {
+                const presente = form.presenca[p.id] ?? false;
+                return (
+                  <div key={p.id} className="flex items-center gap-2 py-1.5 border-b border-border/50 last:border-0">
+                    <span className="text-xs text-muted-foreground w-6 text-right">{idx + 1}.</span>
+                    <Checkbox
+                      checked={presente}
+                      onCheckedChange={c => {
+                        setForm(f => ({
+                          ...f,
+                          presenca: { ...f.presenca, [p.id]: !!c },
+                          justificativas: c ? (() => { const j = { ...f.justificativas }; delete j[p.id]; return j; })() : f.justificativas,
+                        }));
+                      }}
+                    />
+                    <span className={cn("text-sm flex-1", !presente && "text-muted-foreground line-through")}>{p.nome}</span>
+                    {!presente && (
+                      <Input
+                        value={form.justificativas[p.id] || ""}
+                        onChange={e => setForm(f => ({ ...f, justificativas: { ...f.justificativas, [p.id]: e.target.value.slice(0, 60) } }))}
+                        placeholder="Justificativa (opcional)"
+                        className="max-w-[200px] h-7 text-xs"
+                        maxLength={60}
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
