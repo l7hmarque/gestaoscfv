@@ -79,6 +79,7 @@ const RelatorioNovoPage = () => {
     intervencoes: "",
     observacoes: "",
     presenca: {} as Record<string, boolean>,
+    justificativas: {} as Record<string, string>,
   });
 
   const scoreElo = useMemo(() => {
@@ -173,14 +174,32 @@ const RelatorioNovoPage = () => {
         await supabase.from("relatorio_turmas").insert(form.turma_ids.map(turma_id => ({ relatorio_id: relId, turma_id })));
       }
 
-      // presença
+      // presença no relatório
       const presRows = participantesTurma.map(p => ({
         relatorio_id: relId,
         participante_id: p.id,
         presente: form.presenca[p.id] ?? false,
+        justificativa: !(form.presenca[p.id] ?? false) ? (form.justificativas[p.id] || null) : null,
       }));
       if (presRows.length > 0) {
         await supabase.from("relatorio_presenca").insert(presRows);
+      }
+
+      // salvar também na tabela presenca (frequência oficial) para cada turma
+      if (form.turma_ids.length > 0) {
+        const dataStr = format(form.data, "yyyy-MM-dd");
+        for (const turmaId of form.turma_ids) {
+          await supabase.from("presenca").delete().eq("turma_id", turmaId).eq("data", dataStr);
+          const presencaRows = participantesTurma.map(p => ({
+            turma_id: turmaId,
+            participante_id: p.id,
+            data: dataStr,
+            presente: form.presenca[p.id] ?? false,
+            justificativa: !(form.presenca[p.id] ?? false) ? (form.justificativas[p.id] || null) : null,
+            registrado_por: user?.id || null,
+          }));
+          await supabase.from("presenca").insert(presencaRows);
+        }
       }
 
       // fotos
@@ -360,16 +379,35 @@ const RelatorioNovoPage = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-1 max-h-60 overflow-y-auto">
-              {participantesTurma.map(p => (
-                <label key={p.id} className="flex items-center gap-2 text-sm cursor-pointer py-1 border-b border-border/50 last:border-0">
-                  <Checkbox
-                    checked={form.presenca[p.id] ?? false}
-                    onCheckedChange={c => setForm(f => ({ ...f, presenca: { ...f.presenca, [p.id]: !!c } }))}
-                  />
-                  {p.nome}
-                </label>
-              ))}
+            <div className="space-y-1 max-h-72 overflow-y-auto">
+              {participantesTurma.map((p, idx) => {
+                const presente = form.presenca[p.id] ?? false;
+                return (
+                  <div key={p.id} className="flex items-center gap-2 py-1.5 border-b border-border/50 last:border-0">
+                    <span className="text-xs text-muted-foreground w-6 text-right">{idx + 1}.</span>
+                    <Checkbox
+                      checked={presente}
+                      onCheckedChange={c => {
+                        setForm(f => ({
+                          ...f,
+                          presenca: { ...f.presenca, [p.id]: !!c },
+                          justificativas: c ? (() => { const j = { ...f.justificativas }; delete j[p.id]; return j; })() : f.justificativas,
+                        }));
+                      }}
+                    />
+                    <span className={cn("text-sm flex-1", !presente && "text-muted-foreground line-through")}>{p.nome}</span>
+                    {!presente && (
+                      <Input
+                        value={form.justificativas[p.id] || ""}
+                        onChange={e => setForm(f => ({ ...f, justificativas: { ...f.justificativas, [p.id]: e.target.value.slice(0, 60) } }))}
+                        placeholder="Justificativa (opcional)"
+                        className="max-w-[200px] h-7 text-xs"
+                        maxLength={60}
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
