@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { isBairroSCFV } from "@/lib/constants";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { format } from "date-fns";
 import { Document, Packer, Paragraph, TextRun, Table as DocxTable, TableRow as DocxTableRow, TableCell as DocxTableCell, WidthType, AlignmentType, BorderStyle, HeadingLevel } from "docx";
 import { saveAs } from "file-saver";
