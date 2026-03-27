@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { isBairroSCFV } from "@/lib/constants";
 
 const FAIXAS: Record<string, [number, number]> = {
   "6-8": [6, 8],
@@ -172,7 +173,7 @@ const PresencaPage = () => {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos</SelectItem>
-                    {bairros.map(b => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}
+                    {bairros.filter(b => isBairroSCFV(b.nome)).map(b => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

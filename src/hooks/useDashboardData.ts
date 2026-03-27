@@ -43,17 +43,20 @@ export function useDashboardData() {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    const [pRes, tRes, rRes, plRes] = await Promise.all([
+    const [pRes, tRes, rRes, plRes, bRes] = await Promise.all([
       supabase.from("participantes").select("*"),
       supabase.from("turmas").select("*"),
       supabase.from("relatorios_atividade").select("*").order("data"),
       supabase.from("planejamentos").select("*"),
+      supabase.from("bairros").select("id, nome"),
     ]);
 
     const parts = (pRes.data || []).filter((p: any) => p.status === "ativo");
     const turmas = (tRes.data || []).filter((t: any) => t.ativa);
     const rels = rRes.data || [];
     const plans = plRes.data || [];
+    const bairrosMap: Record<string, string> = {};
+    (bRes.data || []).forEach((b: any) => { bairrosMap[b.id] = b.nome; });
 
     // Faixa etária
     const faixaMap: Record<string, number> = {};
@@ -71,10 +74,10 @@ export function useDashboardData() {
       generoMap[g] = (generoMap[g] || 0) + 1;
     });
 
-    // Bairro
+    // Bairro SCFV (usando bairro_id da tabela bairros)
     const bairroMap: Record<string, number> = {};
     parts.forEach((p: any) => {
-      const b = p.endereco_bairro || "Não informado";
+      const b = p.bairro_id ? (bairrosMap[p.bairro_id] || "Não informado") : "Não informado";
       bairroMap[b] = (bairroMap[b] || 0) + 1;
     });
 
