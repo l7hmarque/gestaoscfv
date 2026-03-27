@@ -347,6 +347,16 @@ const TurmaNovaPage = () => {
                   </div>
                 </div>
 
+                <div className="flex items-center gap-3 rounded-md border p-3 bg-muted/50">
+                  <Switch checked={autoVincular} onCheckedChange={setAutoVincular} />
+                  <div>
+                    <Label className="text-xs font-medium flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5" />Vincular participantes automaticamente
+                    </Label>
+                    <p className="text-[10px] text-muted-foreground">Participantes ativos com bairro, período e faixa etária compatíveis serão adicionados às turmas</p>
+                  </div>
+                </div>
+
                 {combos.length > 0 && (
                   <div className="rounded-md border p-3 space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">Pré-visualização: {combos.length} turma(s) serão criadas</p>
