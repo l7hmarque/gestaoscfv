@@ -1,67 +1,70 @@
-## Plano: Conta de Visitante (Modo Demo)
+## Plano: Corrigir exportação DOCX (preencher template) e PDF (usar mesmo modelo)
 
-### Ideia central
+### Diagnóstico
 
-Botão "Experimentar como Visitante" na tela de login que faz login automático com uma conta demo. O visitante navega e interage normalmente, mas todas as operações de escrita (salvar, deletar, editar) são interceptadas e mostram um toast "Modo demonstração — alterações não são salvas" sem executar a operação.
+**Problema 1 — DOCX não preenche:** O `docxtemplater` está configurado corretamente, mas o Word frequentemente divide tags como `{TITULO}` em múltiplos "runs" XML internos (ex: `{`, `TITULO`, `}`), impedindo o reconhecimento. A lib trata isso parcialmente, mas formatação aplicada dentro da tag quebra o match. Solução: usar o módulo `angular-parser` do docxtemplater ou limpar os runs antes de renderizar.
+
+**Problema 2 — PDF não usa o modelo:** A função `exportPlanejamentoPdf` e `exportRelatorioPdf` ignoram o template completamente — geram o PDF do zero com jsPDF. Para o PDF sair igual ao modelo DOCX, precisamos converter o DOCX preenchido em PDF.
 
 ---
 
-### Etapas
+### Solução
 
-#### 1. Adicionar `visitante` ao enum `app_role`
+#### 1. Corrigir preenchimento do DOCX template
 
-- Migration: `ALTER TYPE app_role ADD VALUE 'visitante'`
+**Arquivo:** `src/hooks/useDocumentExport.ts`
 
-#### 2. Criar conta demo via edge function (one-time)
-
-- Email: `visitante@syselo.demo` / Senha: `visitantecaia`
-- Criar user via admin API, atribuir role `visitante`
-- Pode ser executado manualmente uma vez pela DevPage ou via edge function
-
-#### 3. Botão na LoginPage
-
-- Abaixo do formulário: botão outline "Experimentar como Visitante" com ícone de olho
-- Ao clicar, faz `signIn("visitante@syselo.demo", "visitantecaia")` automaticamente
-- Texto auxiliar: "Navegue pelo sistema sem alterar dados reais"
-
-#### 4. Hook `useIsDemo()`
-
-- **Arquivo novo:** `src/hooks/useIsDemo.ts`
-- Busca roles do usuário logado e retorna `true` se tiver role `visitante`
-- Cache com React Query para não repetir consulta
-
-#### 5. Interceptar escritas nas páginas
-
-- Criar helper `guardDemo(isDemo: boolean): boolean` que, se demo, dispara toast e retorna `true` (bloqueia)
-- Aplicar no início de cada `handleSave`, `handleDelete`, `handleSubmit` dos arquivos:
-  - `ParticipanteNovoPage`, `ParticipantePerfilPage`
-  - `TurmaNovaPage`, `TurmaDetalhePage`
-  - `PlanejamentoNovoPage`, `PlanejamentoDetalhePage`
-  - `RelatorioNovoPage`, `RelatorioDetalhePage`
-  - `PresencaPage` (salvar presença)
-  - `DevPage` (gestão de roles)
-
-Padrão simples em cada handler:
+- Instalar e usar o módulo `**docxtemplater-utils**` de inspeção OU forçar a limpeza de runs XML antes do render
+- Adicionar um `parser` customizado no `Docxtemplater` para aceitar tags com espaços/formatação interna
+- Adicionar `try/catch` com log de erros detalhado (quais tags foram encontradas vs esperadas)
 
 ```typescript
-const isDemo = useIsDemo();
-// no handler:
-if (isDemo) { toast.info("Modo demonstração — alterações não são salvas"); return; }
+import expressionParser from "docxtemplater/expressions.js";
+
+const doc = new Docxtemplater(zip, {
+  paragraphLoop: true,
+  linebreaks: true,
+  parser: expressionParser,  // lida com tags quebradas pelo Word
+});
 ```
 
-#### 6. RLS adicional (segurança no banco)
+Se `expressions.js` não estiver disponível, alternativa: usar a opção `delimiters` com regex ou pré-processar o XML para unificar runs fragmentados.
 
-- Política de INSERT/UPDATE/DELETE nas tabelas principais negando para role `visitante` via `has_role`
-- Garante que mesmo manipulando o frontend, nada é gravado
+#### 2. PDF a partir do DOCX preenchido (Edge Function)
+
+**Novo arquivo:** `supabase/functions/convert-docx-pdf/index.ts`
+
+- Recebe o DOCX preenchido (blob base64) via POST
+- Usa a API do CloudConvert, LibreOffice headless, ou a API do Gotenberg para converter DOCX → PDF
+- Retorna o PDF como blob
+
+**Alternativa sem edge function (mais simples):**
+
+- Usar a lib `docx-pdf` ou `libreoffice-convert` no browser não é viável
+- Alternativa pragmática: usar a API gratuita do ConvertAPI ou similar direto do frontend
+
+#### 3. Atualizar funções de exportação PDF
+
+**Arquivo:** `src/hooks/useDocumentExport.ts`
+
+- `exportRelatorioPdf`: primeiro preenche o template DOCX, depois envia para a edge function converter em PDF
+- `exportPlanejamentoPdf`: mesma lógica
+- `exportFichaInscricaoPdf`: mesma lógica
+- Se a conversão falhar, mantém o fallback atual com jsPDF
 
 ---
 
 ### Arquivos modificados
 
 
-| Arquivo                        | Mudança                                     |
-| ------------------------------ | ------------------------------------------- |
-| Migration SQL                  | `ALTER TYPE app_role ADD VALUE 'visitante'` |
-| `src/hooks/useIsDemo.ts`       | Novo hook + helper `guardDemo`              |
-| `src/pages/auth/LoginPage.tsx` | Botão "Experimentar como Visitante"         |
-| ~10 páginas de formulário      | Guard no início dos handlers de escrita     |
+| Arquivo                                        | Mudança                                                           |
+| ---------------------------------------------- | ----------------------------------------------------------------- |
+| `package.json`                                 | Adicionar `docxtemplater` expressions parser se necessário        |
+| `src/hooks/useDocumentExport.ts`               | Fix parser do docxtemplater; PDF via conversão do DOCX preenchido |
+| `supabase/functions/convert-docx-pdf/index.ts` | Nova edge function para conversão DOCX → PDF                      |
+
+
+### Pergunta antes de implementar
+
+Preciso confirmar: os templates DOCX que você subiu usam as tags exatamente como listado (ex: `{TITULO}`, `{EDUCADOR}`)? Ou usam outro formato como `<<TITULO>>` ou `[TITULO]`? Isso é essencial para configurar o parser corretamente.  
+RESPOSTA: usam tags com " <<exemplo>>" 
