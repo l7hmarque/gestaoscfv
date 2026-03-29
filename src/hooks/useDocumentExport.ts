@@ -338,6 +338,21 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
 }
 
 export async function exportRelatorioPdf(item: any, turmaNames: string[], presenca: any[]) {
+  // Try template-based approach first — generates filled DOCX since browser can't convert to PDF
+  const template = await loadTemplate("relatorio.docx");
+  if (template) {
+    try {
+      const data = buildRelatorioTemplateData(item, turmaNames, presenca);
+      const blob = fillTemplate(template, data);
+      saveAs(blob, `SysELO_Relatorio_${fileTimestamp()}.docx`);
+      toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
+      return;
+    } catch (e) {
+      console.error("Template fill failed, using jsPDF fallback:", e);
+    }
+  }
+
+  // jsPDF fallback (simplified layout)
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   let y = pdfHeader(doc, 10);
   y = pdfTitle(doc, "RELATÓRIO DE ATIVIDADE", y);
