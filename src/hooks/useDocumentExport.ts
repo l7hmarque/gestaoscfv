@@ -685,22 +685,27 @@ export async function exportMatrizFrequenciaDocx(
   const template = await loadTemplate("matriz_frequencia.docx");
 
   if (template) {
-    const dateHeaders = datas.map(d => format(new Date(d + "T12:00:00"), "dd/MM"));
-    const data = {
-      TURMA: turma.nome || "—",
-      PERIODO: turma.periodo || "—",
-      FAIXA_ETARIA: turma.faixa_etaria || "—",
-      DATA_EXPORT: format(new Date(), "dd/MM/yyyy HH:mm"),
-      PARTICIPANTES: participantes.map((p, i) => ({
-        NUM: i + 1,
-        NOME: p.nome,
-        ...Object.fromEntries(datas.map((d, di) => [`D${di + 1}`, preenchida ? (p.presencas[d] ? "✓" : "") : ""])),
-      })),
-      DATAS: dateHeaders.map((d, i) => ({ HEADER: d, INDEX: i + 1 })),
-    };
-    const blob = fillTemplate(template, data);
-    saveAs(blob, `SysELO_Frequencia_${fileTimestamp()}.docx`);
-    return;
+    try {
+      const dateHeaders = datas.map(d => format(new Date(d + "T12:00:00"), "dd/MM"));
+      const data = {
+        TURMA: turma.nome || "—",
+        PERIODO: turma.periodo || "—",
+        FAIXA_ETARIA: turma.faixa_etaria || "—",
+        DATA_EXPORT: format(new Date(), "dd/MM/yyyy HH:mm"),
+        PARTICIPANTES: participantes.map((p, i) => ({
+          NUM: i + 1,
+          NOME: p.nome,
+          ...Object.fromEntries(datas.map((d, di) => [`D${di + 1}`, preenchida ? (p.presencas[d] ? "✓" : "") : ""])),
+        })),
+        DATAS: dateHeaders.map((d, i) => ({ HEADER: d, INDEX: i + 1 })),
+      };
+      const blob = fillTemplate(template, data);
+      saveAs(blob, `SysELO_Frequencia_${fileTimestamp()}.docx`);
+      return;
+    } catch (e) {
+      console.error("Template fill failed, generating fallback DOCX:", e);
+      toast.error("Modelo institucional com erro. Exportando versão padrão.");
+    }
   }
 
   // Fallback
