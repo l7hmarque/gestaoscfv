@@ -8,10 +8,10 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 
 const TEMPLATES = [
-  { key: "relatorio.docx", label: "Relatório de Atividade", description: "Tags: {DATA}, {EDUCADOR}, {TURMAS}, {NOME_ATIVIDADE}, {SCORE_ELO}, {#PRESENCA}..." },
-  { key: "planejamento.docx", label: "Planejamento", description: "Tags: {TITULO}, {EDUCADOR}, {DATA_APLICACAO}, {TURMAS}, {TEMA}, {OBJETIVOS}..." },
-  { key: "ficha_inscricao.docx", label: "Ficha de Inscrição", description: "Tags: {NOME_COMPLETO}, {DATA_NASCIMENTO}, {GENERO}, {ESCOLA}, {SERIE}..." },
-  { key: "matriz_frequencia.docx", label: "Matriz de Frequência", description: "Tags: {TURMA}, {PERIODO}, {FAIXA_ETARIA}, {#PARTICIPANTES}..." },
+  { key: "relatorio.docx", label: "Relatório de Atividade", description: "Tags: <<DATA>>, <<EDUCADOR>>, <<TURMAS>>, <<NOME_ATIVIDADE>>, <<SCORE_ELO>>..." },
+  { key: "planejamento.docx", label: "Planejamento", description: "Tags: <<TITULO>>, <<EDUCADOR>>, <<DATA_APLICACAO>>, <<TURMAS>>, <<TEMA>>, <<OBJETIVOS>>..." },
+  { key: "ficha_inscricao.docx", label: "Ficha de Inscrição", description: "Tags: <<NOME_COMPLETO>>, <<DATA_NASCIMENTO>>, <<GENERO>>, <<ESCOLA>>, <<SERIE>>..." },
+  { key: "matriz_frequencia.docx", label: "Matriz de Frequência", description: "Tags: <<TURMA>>, <<PERIODO>>, <<FAIXA_ETARIA>>..." },
 ];
 
 export default function DashboardAdminTab() {
