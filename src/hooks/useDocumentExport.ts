@@ -484,10 +484,15 @@ export async function exportPlanejamentoDocx(item: any, turmaNames: string[]) {
   const template = await loadTemplate("planejamento.docx");
 
   if (template) {
-    const data = buildPlanejamentoTemplateData(item, turmaNames);
-    const blob = fillTemplate(template, data);
-    saveAs(blob, `SysELO_Planejamento_${fileTimestamp()}.docx`);
-    return;
+    try {
+      const data = buildPlanejamentoTemplateData(item, turmaNames);
+      const blob = fillTemplate(template, data);
+      saveAs(blob, `SysELO_Planejamento_${fileTimestamp()}.docx`);
+      return;
+    } catch (e) {
+      console.error("Template fill failed, generating fallback DOCX:", e);
+      toast.error("Modelo institucional com erro. Exportando versão padrão.");
+    }
   }
 
   // Fallback
