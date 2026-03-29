@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 // ===== TEMPLATE CACHE =====
 const templateCache: Record<string, ArrayBuffer> = {};
