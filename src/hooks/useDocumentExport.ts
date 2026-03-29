@@ -223,11 +223,15 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
   const template = await loadTemplate("relatorio.docx");
   
   if (template) {
-    // Template-based export
-    const data = buildRelatorioTemplateData(item, turmaNames, presenca);
-    const blob = fillTemplate(template, data);
-    saveAs(blob, `SysELO_Relatorio_${fileTimestamp()}.docx`);
-    return;
+    try {
+      const data = buildRelatorioTemplateData(item, turmaNames, presenca);
+      const blob = fillTemplate(template, data);
+      saveAs(blob, `SysELO_Relatorio_${fileTimestamp()}.docx`);
+      return;
+    } catch (e) {
+      console.error("Template fill failed, generating fallback DOCX:", e);
+      toast.error("Modelo institucional com erro. Exportando versão padrão.");
+    }
   }
 
   // Fallback: generate from scratch
