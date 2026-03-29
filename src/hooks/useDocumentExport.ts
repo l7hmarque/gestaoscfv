@@ -27,15 +27,75 @@ async function loadTemplate(templateName: string): Promise<ArrayBuffer | null> {
   }
 }
 
+/**
+ * Clean XML runs inside the DOCX zip so that delimiter tags like <<TAG>>
+ * that Word may have split across multiple <w:r> elements are merged back
+ * into a single run. This ensures docxtemplater can recognise them.
+ */
+function cleanXmlRuns(zip: PizZip): void {
+  const xmlFiles = Object.keys(zip.files).filter(f => f.endsWith(".xml"));
+  const delimiterRegex = /<<|>>/g;
+
+  for (const fileName of xmlFiles) {
+    let content = zip.file(fileName)?.asText();
+    if (!content || (!content.includes("<<") && !content.includes("&lt;&lt;"))) continue;
+
+    // Merge runs: find sequences where a delimiter tag is split across
+    // multiple <w:t> elements within the same paragraph and collapse them.
+    // Strategy: strip </w:t></w:r><w:r><w:t> (and variants with <w:rPr>)
+    // between fragments of the same tag.
+    // We work on the raw XML: replace encoded delimiters first.
+    content = content.replace(/&lt;&lt;/g, "<<").replace(/&gt;&gt;/g, ">>");
+
+    // Remove run boundaries inside incomplete delimiter expressions.
+    // Pattern: </w:t></w:r><w:r [optional rPr]><w:t [optional attrs]> between << and >>
+    const runBoundary = /<\/w:t>\s*<\/w:r>\s*<w:r(?:\s[^>]*)?>(?:\s*<w:rPr>[\s\S]*?<\/w:rPr>)?\s*<w:t(?:\s[^>]*)?>/g;
+
+    // Iteratively clean until stable (max 10 passes for safety)
+    for (let pass = 0; pass < 10; pass++) {
+      let changed = false;
+      // Find all partial tag sequences and merge their runs
+      content = content.replace(
+        /(<<[^>]*?)(<\/w:t>\s*<\/w:r>\s*<w:r(?:\s[^>]*)?>(?:\s*<w:rPr>[\s\S]*?<\/w:rPr>)?\s*<w:t(?:\s[^>]*)?>)([\s\S]*?>>)/g,
+        (_match, before, _boundary, after) => {
+          changed = true;
+          return before + after;
+        }
+      );
+      if (!changed) break;
+    }
+
+    zip.file(fileName, content);
+  }
+}
+
 function fillTemplate(templateBuffer: ArrayBuffer, data: Record<string, any>): Blob {
   const zip = new PizZip(templateBuffer);
+
+  // Clean fragmented XML runs before docxtemplater processes the template
+  cleanXmlRuns(zip);
+
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
-    delimiters: { start: "{", end: "}" },
+    delimiters: { start: "<<", end: ">>" },
   });
-  doc.render(data);
-  const out = doc.getZip().generate({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+
+  try {
+    doc.render(data);
+  } catch (e: any) {
+    console.error("Docxtemplater render error:", e);
+    // Log which tags were expected vs found for debugging
+    if (e.properties?.errors) {
+      console.error("Tag errors:", e.properties.errors.map((err: any) => err.properties?.id || err.message));
+    }
+    throw e;
+  }
+
+  const out = doc.getZip().generate({
+    type: "blob",
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
   return out;
 }
 
