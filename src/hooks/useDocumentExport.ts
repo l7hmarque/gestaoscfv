@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 // ===== TEMPLATE CACHE =====
 const templateCache: Record<string, ArrayBuffer> = {};
@@ -27,15 +28,75 @@ async function loadTemplate(templateName: string): Promise<ArrayBuffer | null> {
   }
 }
 
+/**
+ * Clean XML runs inside the DOCX zip so that delimiter tags like <<TAG>>
+ * that Word may have split across multiple <w:r> elements are merged back
+ * into a single run. This ensures docxtemplater can recognise them.
+ */
+function cleanXmlRuns(zip: PizZip): void {
+  const xmlFiles = Object.keys(zip.files).filter(f => f.endsWith(".xml"));
+  const delimiterRegex = /<<|>>/g;
+
+  for (const fileName of xmlFiles) {
+    let content = zip.file(fileName)?.asText();
+    if (!content || (!content.includes("<<") && !content.includes("&lt;&lt;"))) continue;
+
+    // Merge runs: find sequences where a delimiter tag is split across
+    // multiple <w:t> elements within the same paragraph and collapse them.
+    // Strategy: strip </w:t></w:r><w:r><w:t> (and variants with <w:rPr>)
+    // between fragments of the same tag.
+    // We work on the raw XML: replace encoded delimiters first.
+    content = content.replace(/&lt;&lt;/g, "<<").replace(/&gt;&gt;/g, ">>");
+
+    // Remove run boundaries inside incomplete delimiter expressions.
+    // Pattern: </w:t></w:r><w:r [optional rPr]><w:t [optional attrs]> between << and >>
+    const runBoundary = /<\/w:t>\s*<\/w:r>\s*<w:r(?:\s[^>]*)?>(?:\s*<w:rPr>[\s\S]*?<\/w:rPr>)?\s*<w:t(?:\s[^>]*)?>/g;
+
+    // Iteratively clean until stable (max 10 passes for safety)
+    for (let pass = 0; pass < 10; pass++) {
+      let changed = false;
+      // Find all partial tag sequences and merge their runs
+      content = content.replace(
+        /(<<[^>]*?)(<\/w:t>\s*<\/w:r>\s*<w:r(?:\s[^>]*)?>(?:\s*<w:rPr>[\s\S]*?<\/w:rPr>)?\s*<w:t(?:\s[^>]*)?>)([\s\S]*?>>)/g,
+        (_match, before, _boundary, after) => {
+          changed = true;
+          return before + after;
+        }
+      );
+      if (!changed) break;
+    }
+
+    zip.file(fileName, content);
+  }
+}
+
 function fillTemplate(templateBuffer: ArrayBuffer, data: Record<string, any>): Blob {
   const zip = new PizZip(templateBuffer);
+
+  // Clean fragmented XML runs before docxtemplater processes the template
+  cleanXmlRuns(zip);
+
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
-    delimiters: { start: "{", end: "}" },
+    delimiters: { start: "<<", end: ">>" },
   });
-  doc.render(data);
-  const out = doc.getZip().generate({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+
+  try {
+    doc.render(data);
+  } catch (e: any) {
+    console.error("Docxtemplater render error:", e);
+    // Log which tags were expected vs found for debugging
+    if (e.properties?.errors) {
+      console.error("Tag errors:", e.properties.errors.map((err: any) => err.properties?.id || err.message));
+    }
+    throw e;
+  }
+
+  const out = doc.getZip().generate({
+    type: "blob",
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
   return out;
 }
 
@@ -277,6 +338,21 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
 }
 
 export async function exportRelatorioPdf(item: any, turmaNames: string[], presenca: any[]) {
+  // Try template-based approach first — generates filled DOCX since browser can't convert to PDF
+  const template = await loadTemplate("relatorio.docx");
+  if (template) {
+    try {
+      const data = buildRelatorioTemplateData(item, turmaNames, presenca);
+      const blob = fillTemplate(template, data);
+      saveAs(blob, `SysELO_Relatorio_${fileTimestamp()}.docx`);
+      toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
+      return;
+    } catch (e) {
+      console.error("Template fill failed, using jsPDF fallback:", e);
+    }
+  }
+
+  // jsPDF fallback (simplified layout)
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   let y = pdfHeader(doc, 10);
   y = pdfTitle(doc, "RELATÓRIO DE ATIVIDADE", y);
@@ -441,6 +517,19 @@ export async function exportPlanejamentoDocx(item: any, turmaNames: string[]) {
 }
 
 export async function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
+  const template = await loadTemplate("planejamento.docx");
+  if (template) {
+    try {
+      const data = buildPlanejamentoTemplateData(item, turmaNames);
+      const blob = fillTemplate(template, data);
+      saveAs(blob, `SysELO_Planejamento_${fileTimestamp()}.docx`);
+      toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
+      return;
+    } catch (e) {
+      console.error("Template fill failed, using jsPDF fallback:", e);
+    }
+  }
+
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   let y = pdfHeader(doc, 10);
   y = pdfTitle(doc, "REGISTRO DE PLANEJAMENTO", y);
@@ -536,6 +625,19 @@ export async function exportFichaInscricaoDocx(p: any) {
 }
 
 export async function exportFichaInscricaoPdf(p: any) {
+  const template = await loadTemplate("ficha_inscricao.docx");
+  if (template) {
+    try {
+      const data = buildFichaTemplateData(p);
+      const blob = fillTemplate(template, data);
+      saveAs(blob, `SysELO_FichaInscricao_${fileTimestamp()}.docx`);
+      toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
+      return;
+    } catch (e) {
+      console.error("Template fill failed, using jsPDF fallback:", e);
+    }
+  }
+
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   let y = pdfHeader(doc, 10);
   y = pdfTitle(doc, "FICHA DE INSCRIÇÃO E CADASTRO", y);
