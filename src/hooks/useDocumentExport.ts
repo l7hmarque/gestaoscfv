@@ -625,6 +625,19 @@ export async function exportFichaInscricaoDocx(p: any) {
 }
 
 export async function exportFichaInscricaoPdf(p: any) {
+  const template = await loadTemplate("ficha_inscricao.docx");
+  if (template) {
+    try {
+      const data = buildFichaTemplateData(p);
+      const blob = fillTemplate(template, data);
+      saveAs(blob, `SysELO_FichaInscricao_${fileTimestamp()}.docx`);
+      toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
+      return;
+    } catch (e) {
+      console.error("Template fill failed, using jsPDF fallback:", e);
+    }
+  }
+
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   let y = pdfHeader(doc, 10);
   y = pdfTitle(doc, "FICHA DE INSCRIÇÃO E CADASTRO", y);
