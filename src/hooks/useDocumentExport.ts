@@ -517,6 +517,19 @@ export async function exportPlanejamentoDocx(item: any, turmaNames: string[]) {
 }
 
 export async function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
+  const template = await loadTemplate("planejamento.docx");
+  if (template) {
+    try {
+      const data = buildPlanejamentoTemplateData(item, turmaNames);
+      const blob = fillTemplate(template, data);
+      saveAs(blob, `SysELO_Planejamento_${fileTimestamp()}.docx`);
+      toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
+      return;
+    } catch (e) {
+      console.error("Template fill failed, using jsPDF fallback:", e);
+    }
+  }
+
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   let y = pdfHeader(doc, 10);
   y = pdfTitle(doc, "REGISTRO DE PLANEJAMENTO", y);
