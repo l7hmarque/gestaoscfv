@@ -593,10 +593,15 @@ export async function exportFichaInscricaoDocx(p: any) {
   const template = await loadTemplate("ficha_inscricao.docx");
 
   if (template) {
-    const data = buildFichaTemplateData(p);
-    const blob = fillTemplate(template, data);
-    saveAs(blob, `SysELO_FichaInscricao_${fileTimestamp()}.docx`);
-    return;
+    try {
+      const data = buildFichaTemplateData(p);
+      const blob = fillTemplate(template, data);
+      saveAs(blob, `SysELO_FichaInscricao_${fileTimestamp()}.docx`);
+      return;
+    } catch (e) {
+      console.error("Template fill failed, generating fallback DOCX:", e);
+      toast.error("Modelo institucional com erro. Exportando versão padrão.");
+    }
   }
 
   // Fallback
