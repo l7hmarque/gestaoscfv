@@ -1,63 +1,84 @@
 
 
-## Plano: Correções — Cadastro de Profissional, Vínculo Planejamento↔Relatório, Geração de Turmas e Calendários
+## Plano: Corrigir DOCX/PDF export e remover preambulo IA do Instagram
 
----
+### Problema 1 — DOCX template nao preenche / nao baixa
 
-### 1. Erro ao cadastrar profissional
+A funcao `cleanXmlRuns` tenta unificar runs fragmentados com regex, mas o padrao e fragil e pode falhar silenciosamente ou corromper o XML. O `docxtemplater` tem um modulo nativo para isso: **`InspectModule`** nao, mas a solucao mais robusta e usar o parser da propria lib para lidar com tags quebradas.
 
-**Causa:** A edge function `create-professional` usa `Deno.env.get("SUPABASE_PUBLISHABLE_KEY")` que não existe. O nome correto do secret é `SUPABASE_ANON_KEY`.
+A abordagem correta: em vez de tentar remontar o XML manualmente, configurar o `docxtemplater` com a opcao `parser` que use `angular-expressions` ou, mais simples, usar a funcionalidade built-in do `docxtemplater` que ja lida com runs fragmentados quando os delimiters sao configurados corretamente.
 
-**Correção:**
-- `supabase/functions/create-professional/index.ts` — trocar `SUPABASE_PUBLISHABLE_KEY` por `SUPABASE_ANON_KEY` na linha 18
+O problema real pode ser que o `docxtemplater` com delimiters `<<` e `>>` interpreta os `<` e `>` como XML. A solucao e:
 
----
+1. **Trocar delimiters para `{` e `}`** no template E no codigo — OU
+2. **Pre-processar o XML** para substituir `&lt;&lt;TAG&gt;&gt;` por `{TAG}` antes do render, e usar delimiters `{ }` padrao
 
-### 2. Vínculo Planejamento ↔ Relatório
+**Solucao escolhida**: Pre-processar o XML para converter `&lt;&lt;...&gt;&gt;` em `{...}` (que e seguro em XML) e usar os delimiters padrao `{ }` do docxtemplater. Isso elimina toda a complexidade de lidar com `<<>>` dentro de XML.
 
-**Problema:** O relatório já salva `planejamento_id`, mas nenhuma das páginas de detalhe mostra o link cruzado.
+**Arquivo**: `src/hooks/useDocumentExport.ts`
 
-**Correções:**
-- **`RelatorioDetalhePage.tsx`**: buscar o planejamento vinculado (`item.planejamento_id`) e exibir um link clicável para `/planejamentos/{id}` com o título do planejamento
-- **`PlanejamentoDetalhePage.tsx`**: fazer query em `relatorios_atividade` filtrando `planejamento_id = id` para listar relatórios vinculados, com links para `/relatorios/{id}`
-- **`ProfissionalPerfilPage.tsx`**: na aba Planejamentos, mostrar se há relatório vinculado (badge "Relatório ✓"); na aba Relatórios, mostrar planejamento vinculado
+```typescript
+function cleanXmlRuns(zip: PizZip): void {
+  const xmlFiles = Object.keys(zip.files).filter(f => f.endsWith(".xml"));
+  for (const fileName of xmlFiles) {
+    let content = zip.file(fileName)?.asText();
+    if (!content) continue;
 
----
+    // Step 1: Merge adjacent runs that split a tag
+    // Remove run boundaries between opening and closing delimiters
+    for (let pass = 0; pass < 15; pass++) {
+      const before = content;
+      content = content.replace(
+        /(&lt;&lt;[^&]*?)(<\/w:t><\/w:r><w:r[^>]*>(?:<w:rPr>[^<]*(?:<[^/][^<]*)*<\/w:rPr>)?<w:t[^>]*>)([^&]*?&gt;&gt;)/g,
+        (_, a, _b, c) => a + c
+      );
+      if (content === before) break;
+    }
 
-### 3. Geração de turmas em lote — participantes errados
+    // Step 2: Convert <<TAG>> to {TAG} so docxtemplater default delimiters work
+    content = content.replace(/&lt;&lt;(\w+)&gt;&gt;/g, '{$1}');
+    
+    zip.file(fileName, content);
+  }
+}
+```
 
-**Problema:** O auto-vínculo não verifica se o participante já está em outra turma da mesma faixa/período. Resultado: participantes duplicados ou mal distribuídos.
+E remover a config de `delimiters` do Docxtemplater (voltar ao padrao `{ }`).
 
-**Correção em `TurmaNovaPage.tsx`:**
-- Antes de vincular, buscar vínculos existentes em `turma_participantes` para os participantes candidatos
-- Filtrar: não vincular participante que já esteja em outra turma com mesma `faixa_etaria` + `periodo`
-- Isso evita duplicação e garante alocação correta
+Tambem adicionar `try/catch` robusto com fallback em TODAS as funcoes de export.
 
----
+### Problema 2 — PDF nao baixa
 
-### 4. Calendários devem abrir no mês atual
+O PDF de relatorio tenta usar template primeiro (exporta DOCX em vez de PDF). Se o template falha, o fallback jsPDF deveria funcionar, mas se o `cleanXmlRuns` corromper o XML, pode dar erro antes.
 
-**Problema:** Os componentes `<Calendar>` não recebem `defaultMonth`, então podem abrir em meses aleatórios quando nenhuma data está selecionada.
+A correcao do problema 1 resolve isso tambem. O fallback jsPDF ja existe e funciona.
 
-**Correção em todas as páginas com calendário:**
-- Adicionar `defaultMonth={new Date()}` em cada `<Calendar>`:
-  - `PlanejamentoNovoPage.tsx`
-  - `RelatorioNovoPage.tsx`
-  - `PresencaPage.tsx`
-  - Qualquer outro local que use `<Calendar>` sem data pré-selecionada
+### Problema 3 — Instagram post com preambulo de IA
 
----
+A edge function `generate-instagram-post` precisa de instrucao mais forte no prompt para evitar a intro padrao da IA.
+
+**Arquivo**: `supabase/functions/generate-instagram-post/index.ts`
+
+Adicionar ao prompt:
+```
+- NÃO inicie com frases introdutórias como "Aqui está", "Segue o texto", "Com base no relatório" etc.
+- Comece DIRETAMENTE com "CAIA MEDIANEIRA 🌍" sem nenhuma frase antes
+- Retorne APENAS o texto da publicação, sem explicações ou comentários
+```
+
+E no system message reforcar:
+```
+Retorne SOMENTE o texto da publicação. Nunca adicione frases introdutórias, explicações ou comentários antes ou depois do texto.
+```
 
 ### Arquivos modificados
 
-| Arquivo | Mudança |
+| Arquivo | Mudanca |
 |---|---|
-| `supabase/functions/create-professional/index.ts` | Trocar `SUPABASE_PUBLISHABLE_KEY` → `SUPABASE_ANON_KEY` |
-| `src/pages/relatorios/RelatorioDetalhePage.tsx` | Mostrar link para planejamento vinculado |
-| `src/pages/planejamentos/PlanejamentoDetalhePage.tsx` | Listar relatórios vinculados ao planejamento |
-| `src/pages/profissional/ProfissionalPerfilPage.tsx` | Mostrar vínculo planejamento↔relatório nas abas |
-| `src/pages/turmas/TurmaNovaPage.tsx` | Evitar duplicação no auto-vínculo em lote |
-| `src/pages/planejamentos/PlanejamentoNovoPage.tsx` | `defaultMonth={new Date()}` no Calendar |
-| `src/pages/relatorios/RelatorioNovoPage.tsx` | `defaultMonth={new Date()}` no Calendar |
-| `src/pages/presenca/PresencaPage.tsx` | `defaultMonth={new Date()}` no Calendar |
+| `src/hooks/useDocumentExport.ts` | Reescrever `cleanXmlRuns` para converter `<<TAG>>` em `{TAG}`; remover `delimiters` customizado; blindar todos exports com try/catch |
+| `supabase/functions/generate-instagram-post/index.ts` | Adicionar instrucoes anti-preambulo no prompt e system message |
+
+### Nota sobre o build error 503
+
+O erro `failed to acquire sandbox config: scheduler http error: status code 503` e um erro transitorio de infraestrutura, nao relacionado ao codigo. Resolve sozinho ao recarregar.
 
