@@ -57,6 +57,12 @@ const RelatorioDetalhePage = () => {
       if (r.data) {
         setItem(r.data);
         setTurmaNames(r.data.relatorio_turmas?.map((rt: any) => rt.turmas?.nome).filter(Boolean) || []);
+        // Fetch linked planejamento title
+        if (r.data.planejamento_id) {
+          const { data: plan } = await supabase.from("planejamentos").select("id, titulo").eq("id", r.data.planejamento_id).single();
+          if (plan) r.data._planejamento = plan;
+          setItem({ ...r.data });
+        }
       }
       if (f.data) setFotos(f.data);
       if (p.data) setPresenca(p.data.sort((a: any, b: any) => (a.participantes?.nome_completo || "").localeCompare(b.participantes?.nome_completo || "")));
