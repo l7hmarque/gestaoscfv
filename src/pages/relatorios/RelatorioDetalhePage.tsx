@@ -61,8 +61,7 @@ const RelatorioDetalhePage = () => {
         // Fetch linked planejamento title
         if (r.data.planejamento_id) {
           const { data: plan } = await supabase.from("planejamentos").select("id, titulo").eq("id", r.data.planejamento_id).single();
-          if (plan) r.data._planejamento = plan;
-          setItem({ ...r.data });
+          if (plan) setPlanejamentoLink(plan);
         }
       }
       if (f.data) setFotos(f.data);
