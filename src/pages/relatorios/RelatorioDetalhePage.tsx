@@ -169,9 +169,9 @@ const RelatorioDetalhePage = () => {
         {item.profiles?.nome && <span>👤 {item.profiles.nome}</span>}
         {item.tipo_atividade && <span>📋 {item.tipo_atividade}</span>}
         {turmaNames.map(n => <Badge key={n} variant="secondary" className="text-[10px]">{n}</Badge>)}
-        {item._planejamento && (
-          <Link to={`/planejamentos/${item._planejamento.id}`} className="text-primary hover:underline text-xs">
-            📋 {item._planejamento.titulo}
+        {planejamentoLink && (
+          <Link to={`/planejamentos/${planejamentoLink.id}`} className="text-primary hover:underline text-xs">
+            📋 {planejamentoLink.titulo}
           </Link>
         )}
       </div>
