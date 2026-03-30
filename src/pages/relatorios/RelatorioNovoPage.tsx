@@ -255,7 +255,7 @@ const RelatorioNovoPage = () => {
                       const dias = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
                       setForm(f => ({ ...f, data: d, dia_semana: dias[d.getDay()] }));
                     }
-                  }} className="p-3 pointer-events-auto" />
+                  }} defaultMonth={new Date()} className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
             </div>

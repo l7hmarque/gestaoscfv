@@ -175,6 +175,10 @@ const ProfissionalPerfilPage = () => {
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(r.data + "T12:00:00"), "dd/MM/yyyy")}
                         {r.relatorio_turmas?.length > 0 && ` · ${r.relatorio_turmas.map((rt: any) => rt.turmas?.nome).filter(Boolean).join(", ")}`}
+                        {r.planejamento_id && (() => {
+                          const plan = planejamentos.find(p => p.id === r.planejamento_id);
+                          return plan ? ` · 📋 ${plan.titulo}` : "";
+                        })()}
                       </p>
                     </div>
                     {r.score_elo != null && <Badge variant="outline" className="text-xs">ELO: {Number(r.score_elo).toFixed(1)}</Badge>}

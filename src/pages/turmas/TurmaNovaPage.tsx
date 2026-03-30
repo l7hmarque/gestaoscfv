@@ -142,22 +142,37 @@ const TurmaNovaPage = () => {
         .in("bairro_id", batchBairros);
 
       if (participantes && participantes.length > 0) {
+        // Fetch existing assignments to avoid duplicates
+        const { data: existingLinks } = await supabase
+          .from("turma_participantes")
+          .select("participante_id, turmas(faixa_etaria, periodo)")
+          .in("participante_id", participantes.map(p => p.id));
+
+        const alreadyAssigned = new Set<string>();
+        (existingLinks || []).forEach((link: any) => {
+          if (link.turmas) {
+            alreadyAssigned.add(`${link.participante_id}_${link.turmas.faixa_etaria}_${link.turmas.periodo}`);
+          }
+        });
+
         const links: { turma_id: string; participante_id: string }[] = [];
 
         for (const turma of turmasCriadas) {
           const matched = participantes.filter(p => {
             if (p.bairro_id !== turma.bairro_id) return false;
-            // Period match
             const tPeriodo = turma.periodo as string;
             if (tPeriodo !== "integral" && p.periodo !== tPeriodo) return false;
-            // Age match
             const faixa = calcFaixaFromDate(p.data_nascimento);
             if (faixa !== (turma.faixa_etaria as string)) return false;
+            // Skip if already in a turma with same faixa+periodo
+            const key = `${p.id}_${turma.faixa_etaria}_${turma.periodo}`;
+            if (alreadyAssigned.has(key)) return false;
             return true;
           });
 
           for (const p of matched) {
             links.push({ turma_id: turma.id, participante_id: p.id });
+            alreadyAssigned.add(`${p.id}_${turma.faixa_etaria}_${turma.periodo}`);
           }
         }
 

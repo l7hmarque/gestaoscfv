@@ -157,7 +157,7 @@ const PresencaPage = () => {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={data || undefined} onSelect={d => d && setData(d)} className="p-3 pointer-events-auto" />
+                  <Calendar mode="single" selected={data || undefined} onSelect={d => d && setData(d)} defaultMonth={new Date()} className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
             </div>
