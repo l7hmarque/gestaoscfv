@@ -144,13 +144,18 @@ const ProfissionalPerfilPage = () => {
             {planejamentos.map(p => (
               <Link key={p.id} to={`/planejamentos/${p.id}`}>
                 <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
-                  <CardContent className="p-3">
-                    <p className="text-sm font-medium">{p.titulo}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {p.data_aplicacao && format(new Date(p.data_aplicacao + "T12:00:00"), "dd/MM/yyyy")}
-                      {p.tema && ` · ${p.tema}`}
-                      {p.planejamento_turmas?.length > 0 && ` · ${p.planejamento_turmas.map((pt: any) => pt.turmas?.nome).filter(Boolean).join(", ")}`}
-                    </p>
+                  <CardContent className="p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">{p.titulo}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {p.data_aplicacao && format(new Date(p.data_aplicacao + "T12:00:00"), "dd/MM/yyyy")}
+                        {p.tema && ` · ${p.tema}`}
+                        {p.planejamento_turmas?.length > 0 && ` · ${p.planejamento_turmas.map((pt: any) => pt.turmas?.nome).filter(Boolean).join(", ")}`}
+                      </p>
+                    </div>
+                    {relatorios.some(r => r.planejamento_id === p.id) && (
+                      <Badge variant="default" className="text-[10px]">Relatório ✓</Badge>
+                    )}
                   </CardContent>
                 </Card>
               </Link>
