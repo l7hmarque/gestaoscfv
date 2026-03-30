@@ -21,6 +21,7 @@ const PlanejamentoDetalhePage = () => {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<any>({});
+  const [relatoriosVinculados, setRelatoriosVinculados] = useState<any[]>([]);
 
   useEffect(() => {
     const fetch = async () => {
