@@ -43,6 +43,13 @@ const PlanejamentoDetalhePage = () => {
           apoio_tecnico: data.apoio_tecnico || "",
         });
       }
+      // Fetch linked reports
+      const { data: rels } = await supabase
+        .from("relatorios_atividade")
+        .select("id, nome_atividade, data")
+        .eq("planejamento_id", id)
+        .order("data", { ascending: false });
+      setRelatoriosVinculados(rels || []);
       setLoading(false);
     };
     fetch();
