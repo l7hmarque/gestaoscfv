@@ -39,6 +39,7 @@ const RelatorioDetalhePage = () => {
   const [turmaNames, setTurmaNames] = useState<string[]>([]);
   const [fotos, setFotos] = useState<any[]>([]);
   const [presenca, setPresenca] = useState<any[]>([]);
+  const [planejamentoLink, setPlanejamentoLink] = useState<{ id: string; titulo: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [instaOpen, setInstaOpen] = useState(false);
