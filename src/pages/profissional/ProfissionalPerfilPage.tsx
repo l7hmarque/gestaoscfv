@@ -27,7 +27,7 @@ const ProfissionalPerfilPage = () => {
         supabase.from("profiles").select("*").eq("id", id!).single(),
         supabase.from("turmas").select("*, bairros(nome)").eq("educador_id", id!).order("nome"),
         supabase.from("planejamentos").select("*, planejamento_turmas(turma_id, turmas(nome))").eq("educador_id", id!).order("data_aplicacao", { ascending: false }),
-        supabase.from("relatorios_atividade").select("*, relatorio_turmas(turma_id, turmas(nome))").eq("educador_id", id!).order("data", { ascending: false }),
+        supabase.from("relatorios_atividade").select("*, relatorio_turmas(turma_id, turmas(nome)), planejamento_id").eq("educador_id", id!).order("data", { ascending: false }),
         supabase.from("presenca").select("data, turma_id, turmas(nome)").eq("registrado_por", id!).order("data", { ascending: false }),
       ]);
       setProfile(profRes.data);
