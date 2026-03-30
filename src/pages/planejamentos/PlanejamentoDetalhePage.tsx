@@ -21,6 +21,7 @@ const PlanejamentoDetalhePage = () => {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<any>({});
+  const [relatoriosVinculados, setRelatoriosVinculados] = useState<any[]>([]);
 
   useEffect(() => {
     const fetch = async () => {
@@ -42,6 +43,13 @@ const PlanejamentoDetalhePage = () => {
           apoio_tecnico: data.apoio_tecnico || "",
         });
       }
+      // Fetch linked reports
+      const { data: rels } = await supabase
+        .from("relatorios_atividade")
+        .select("id, nome_atividade, data")
+        .eq("planejamento_id", id)
+        .order("data", { ascending: false });
+      setRelatoriosVinculados(rels || []);
       setLoading(false);
     };
     fetch();
@@ -151,6 +159,23 @@ const PlanejamentoDetalhePage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Relatórios vinculados */}
+      {relatoriosVinculados.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <span className="text-xs font-medium text-muted-foreground">Relatórios vinculados</span>
+            <div className="space-y-1 mt-2">
+              {relatoriosVinculados.map((r: any) => (
+                <Link key={r.id} to={`/relatorios/${r.id}`} className="flex items-center justify-between text-sm py-1.5 px-2 rounded hover:bg-accent/50 transition-colors">
+                  <span className="font-medium text-primary">{r.nome_atividade || "Relatório"}</span>
+                  <span className="text-xs text-muted-foreground">{format(new Date(r.data + "T12:00:00"), "dd/MM/yyyy")}</span>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

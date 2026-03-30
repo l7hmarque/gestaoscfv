@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
 
     // Verify caller is coordenacao
     const authHeader = req.headers.get("Authorization")!;
-    const callerClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!);
+    const callerClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
     const { data: { user: caller } } = await callerClient.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!caller) return new Response(JSON.stringify({ error: "Não autenticado" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 

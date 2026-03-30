@@ -27,7 +27,7 @@ const ProfissionalPerfilPage = () => {
         supabase.from("profiles").select("*").eq("id", id!).single(),
         supabase.from("turmas").select("*, bairros(nome)").eq("educador_id", id!).order("nome"),
         supabase.from("planejamentos").select("*, planejamento_turmas(turma_id, turmas(nome))").eq("educador_id", id!).order("data_aplicacao", { ascending: false }),
-        supabase.from("relatorios_atividade").select("*, relatorio_turmas(turma_id, turmas(nome))").eq("educador_id", id!).order("data", { ascending: false }),
+        supabase.from("relatorios_atividade").select("*, relatorio_turmas(turma_id, turmas(nome)), planejamento_id").eq("educador_id", id!).order("data", { ascending: false }),
         supabase.from("presenca").select("data, turma_id, turmas(nome)").eq("registrado_por", id!).order("data", { ascending: false }),
       ]);
       setProfile(profRes.data);
@@ -144,13 +144,18 @@ const ProfissionalPerfilPage = () => {
             {planejamentos.map(p => (
               <Link key={p.id} to={`/planejamentos/${p.id}`}>
                 <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
-                  <CardContent className="p-3">
-                    <p className="text-sm font-medium">{p.titulo}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {p.data_aplicacao && format(new Date(p.data_aplicacao + "T12:00:00"), "dd/MM/yyyy")}
-                      {p.tema && ` · ${p.tema}`}
-                      {p.planejamento_turmas?.length > 0 && ` · ${p.planejamento_turmas.map((pt: any) => pt.turmas?.nome).filter(Boolean).join(", ")}`}
-                    </p>
+                  <CardContent className="p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">{p.titulo}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {p.data_aplicacao && format(new Date(p.data_aplicacao + "T12:00:00"), "dd/MM/yyyy")}
+                        {p.tema && ` · ${p.tema}`}
+                        {p.planejamento_turmas?.length > 0 && ` · ${p.planejamento_turmas.map((pt: any) => pt.turmas?.nome).filter(Boolean).join(", ")}`}
+                      </p>
+                    </div>
+                    {relatorios.some(r => r.planejamento_id === p.id) && (
+                      <Badge variant="default" className="text-[10px]">Relatório ✓</Badge>
+                    )}
                   </CardContent>
                 </Card>
               </Link>
@@ -170,6 +175,10 @@ const ProfissionalPerfilPage = () => {
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(r.data + "T12:00:00"), "dd/MM/yyyy")}
                         {r.relatorio_turmas?.length > 0 && ` · ${r.relatorio_turmas.map((rt: any) => rt.turmas?.nome).filter(Boolean).join(", ")}`}
+                        {r.planejamento_id && (() => {
+                          const plan = planejamentos.find(p => p.id === r.planejamento_id);
+                          return plan ? ` · 📋 ${plan.titulo}` : "";
+                        })()}
                       </p>
                     </div>
                     {r.score_elo != null && <Badge variant="outline" className="text-xs">ELO: {Number(r.score_elo).toFixed(1)}</Badge>}

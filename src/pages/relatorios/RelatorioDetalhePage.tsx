@@ -39,6 +39,7 @@ const RelatorioDetalhePage = () => {
   const [turmaNames, setTurmaNames] = useState<string[]>([]);
   const [fotos, setFotos] = useState<any[]>([]);
   const [presenca, setPresenca] = useState<any[]>([]);
+  const [planejamentoLink, setPlanejamentoLink] = useState<{ id: string; titulo: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [instaOpen, setInstaOpen] = useState(false);
@@ -57,6 +58,11 @@ const RelatorioDetalhePage = () => {
       if (r.data) {
         setItem(r.data);
         setTurmaNames(r.data.relatorio_turmas?.map((rt: any) => rt.turmas?.nome).filter(Boolean) || []);
+        // Fetch linked planejamento title
+        if (r.data.planejamento_id) {
+          const { data: plan } = await supabase.from("planejamentos").select("id, titulo").eq("id", r.data.planejamento_id).single();
+          if (plan) setPlanejamentoLink(plan);
+        }
       }
       if (f.data) setFotos(f.data);
       if (p.data) setPresenca(p.data.sort((a: any, b: any) => (a.participantes?.nome_completo || "").localeCompare(b.participantes?.nome_completo || "")));
@@ -163,6 +169,11 @@ const RelatorioDetalhePage = () => {
         {item.profiles?.nome && <span>👤 {item.profiles.nome}</span>}
         {item.tipo_atividade && <span>📋 {item.tipo_atividade}</span>}
         {turmaNames.map(n => <Badge key={n} variant="secondary" className="text-[10px]">{n}</Badge>)}
+        {planejamentoLink && (
+          <Link to={`/planejamentos/${planejamentoLink.id}`} className="text-primary hover:underline text-xs">
+            📋 {planejamentoLink.titulo}
+          </Link>
+        )}
       </div>
 
       {/* Score ELO */}

@@ -149,7 +149,7 @@ const PlanejamentoNovoPage = () => {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={form.data_aplicacao || undefined} onSelect={d => setForm(f => ({ ...f, data_aplicacao: d || null }))} className="p-3 pointer-events-auto" />
+                  <Calendar mode="single" selected={form.data_aplicacao || undefined} onSelect={d => setForm(f => ({ ...f, data_aplicacao: d || null }))} defaultMonth={new Date()} className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
             </div>
