@@ -1,131 +1,60 @@
-
-
-## Plano: DOCX template, Relatório Mensal, Dashboard por Turma, e Ranking de Atividades
+## Plano: Corrigir Matrizes de Frequência e Novas Inserções no Relatório Mensal
 
 ---
 
-### 1. Corrigir DOCX template — delimitadores `{ }`
+### Problema 1 — Matrizes mostram apenas datas com registros
 
-**Problema:** O usuario trocou as tags nos templates para `{TAG}` mas o codigo ainda usa `delimiters: { start: "<<", end: ">>" }` e o `cleanXmlRuns` procura por `&lt;&lt;`/`&gt;&gt;`.
+Atualmente as colunas da matriz vêm de `presenca.data` (só datas onde alguém teve registro). Se nenhuma presença foi lançada num dia de atividade, esse dia não aparece. O correto é gerar TODAS as datas de atividade do mês baseado nos `dias_semana` da turma, e marcar `✓`, `F` ou vazio conforme o registro.
 
-**Arquivo:** `src/hooks/useDocumentExport.ts`
+**Correção em `DashboardRelatorioMensalTab.tsx`:**
 
-- Remover a config `delimiters` do Docxtemplater (voltar ao padrao `{ }`)
-- Reescrever `cleanXmlRuns` para unificar runs fragmentados entre `{` e `}` (que no XML aparecem como texto normal, nao entidades)
-- O regex precisa buscar runs quebrados entre `{` e `}` dentro de `<w:t>` tags
-- Manter try/catch com fallback em todas as funcoes de export
+- Calcular todas as datas do mês que caem nos `dias_semana` da turma (ex: `["seg", "qua"]` → todas as segundas e quartas do mês)
+- Usar essas datas como colunas, em formato dd/mm, não apenas as datas com registro de presença
+- Na tabela, melhorar desing inserindo bordas e espacamentos harmoniosos.
+- Para cada participante x data: `✓` se presente, `F` se ausente com registro, vazio se sem registro
+
+### Problema 2 — "Novas Inserções" conta registros importados em massa
+
+O campo `created_at` reflete quando o registro foi criado no banco, não quando o participante efetivamente entrou no SCFV. Os 200 participantes importados em massa aparecem todos como "novos" em março.
+
+**Correção:**
+
+- Usar `iniciou_em` (data de início real no SCFV) em vez de `created_at` para contar novas inserções
+- Fallback: se `iniciou_em` for nulo, não contar como nova inserção (dados antigos/importados)
+- Renomear a seção para "NOVAS INSERÇÕES NO MÊS (por data de início)"
+
+---
+
+Em todas as abas do Relatorio Mensal, melhorar desing com bordas e espacamentos harmoniosos que facilitem a leitura e compreensao dos dados.  
+Nas Atividades, constar nos relatorios informacoes de: no. participantes, profissional responsavel, e um breve resumo com IA daquela atividade relatada (com linguagem tecnica, profissional, neutra, no max 120 caracteres).  
+Em todas as abas, reduzir o numero de linhas da planilha para 1 a mais a partir da ultima linha que contem informacao.  
+No relatorio deve constar tambem, em aba exclusiva, as atividades realizadas pela equipe técnica e para qual participante, responsavel ou turma foram direcionadas - caso nao tenha nenhum registro para acrescentar, deixar em branco.
+
+### Arquivo modificado
+
+
+| Arquivo                                               | Mudança                                                                                             |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Gerar datas de atividade a partir de `dias_semana` da turma; usar `iniciou_em` para novas inserções |
+
+
+### Detalhe técnico — geração de datas
 
 ```typescript
-// cleanXmlRuns: merge runs splitting { and }
-// No XML, { e } sao caracteres normais (nao entidades), entao basta unificar runs entre { e }
-function cleanXmlRuns(zip: PizZip): void {
-  const xmlFiles = Object.keys(zip.files).filter(f => f.endsWith(".xml"));
-  for (const fileName of xmlFiles) {
-    let content = zip.file(fileName)?.asText();
-    if (!content || !content.includes("{")) continue;
-    for (let pass = 0; pass < 10; pass++) {
-      let changed = false;
-      content = content.replace(
-        /(\{[^}]*?)(<\/w:t>\s*<\/w:r>\s*<w:r(?:\s[^>]*)?>(?:\s*<w:rPr>[\s\S]*?<\/w:rPr>)?\s*<w:t(?:\s[^>]*)?>)([^{]*?\})/g,
-        (_m, before, _boundary, after) => { changed = true; return before + after; }
-      );
-      if (!changed) break;
+const DIAS_MAP: Record<string, number> = {
+  dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6
+};
+
+function getDatasAtividade(ano: number, mes: number, diasSemana: string[]): string[] {
+  const datas: string[] = [];
+  const diasNum = diasSemana.map(d => DIAS_MAP[d]).filter(n => n !== undefined);
+  const d = new Date(ano, mes - 1, 1);
+  while (d.getMonth() === mes - 1) {
+    if (diasNum.includes(d.getDay())) {
+      datas.push(d.toISOString().slice(0, 10));
     }
-    zip.file(fileName, content);
+    d.setDate(d.getDate() + 1);
   }
+  return datas;
 }
-
-// fillTemplate: remover delimiters customizado
-const doc = new Docxtemplater(zip, {
-  paragraphLoop: true,
-  linebreaks: true,
-  // delimiters padrao { } — nao precisa especificar
-});
 ```
-
----
-
-### 2. Corrigir Relatório Mensal XLSX
-
-**Problema:** O relatorio provavelmente falha silenciosamente quando nao ha dados de presenca ou turmas. O `generate()` nao tem try/catch e o `setGenerating(false)` nao executa em caso de erro.
-
-**Arquivo:** `src/pages/dashboard/DashboardRelatorioMensalTab.tsx`
-
-- Envolver todo o `generate()` em try/catch/finally com `setGenerating(false)` no finally
-- Gerar o relatorio mesmo sem presenca (mostrar "0 atendidos", sheets vazias)
-- Adicionar toast.error em caso de excecao
-- Garantir que nomes de sheets nao tenham caracteres invalidos e nao repitam
-
----
-
-### 3. Dashboard simples na pagina da Turma
-
-**Arquivo:** `src/pages/turmas/TurmaDetalhePage.tsx`
-
-Adicionar secao de dashboard apos os badges, com cards mostrando:
-
-- **Taxa de adesao** (% de presencas sobre total de registros)
-- **Participantes presentes** (ultimo registro vs total de membros)
-- **Score ELO** (mediana dos relatorios vinculados a turma, com desvio padrao)
-- **Alertas** (participantes com 3+ faltas seguidas = busca ativa, ou adesao < 65%)
-
-Buscar dados:
-- `presenca` filtrado por `turma_id`
-- `relatorio_turmas` + `relatorios_atividade` filtrado por `turma_id`
-
-Exibir lista de **planejamentos** e **relatorios** associados a turma:
-- Query `planejamento_turmas` WHERE `turma_id = id` → join `planejamentos`
-- Query `relatorio_turmas` WHERE `turma_id = id` → join `relatorios_atividade`
-- Listar como cards clicaveis com link para `/planejamentos/:id` e `/relatorios/:id`
-
----
-
-### 4. Pagina de Relatorios — ver planejamento associado e ranking de atividades
-
-**Arquivo:** `src/pages/relatorios/RelatoriosPage.tsx`
-
-- Na listagem, mostrar badge com nome do planejamento vinculado (se existir)
-- Buscar `planejamento_id` que ja vem no select, e fazer join com `planejamentos(titulo)`
-
-**Arquivo:** `src/pages/relatorios/RelatorioDetalhePage.tsx`
-
-- Ja mostra link para planejamento (implementado antes) — verificar se funciona
-
-**Novo componente ou secao na pagina de Relatorios:**
-
-Adicionar secao/aba "Ranking de Atividades" que mostra:
-- Atividades planejadas ordenadas por melhor Score ELO medio
-- Regras de classificacao:
-  - Minimo 5 participantes para contar
-  - Peso maior para relatorios com mais participantes (media ponderada)
-  - Mostrar: nome da atividade, score ELO, nro de participantes, objetivo alcancado
-- Query: todos os `relatorios_atividade` com `score_elo IS NOT NULL` e `planejamento_id IS NOT NULL`
-
----
-
-### 5. Instagram post — remover preambulo
-
-**Arquivo:** `supabase/functions/generate-instagram-post/index.ts`
-
-Adicionar instrucoes explicitas no system message e no prompt:
-```
-system: "Retorne SOMENTE o texto da publicação. Nunca adicione frases introdutórias como 'Aqui está', 'Segue o texto', 'Com base no relatório'. Comece diretamente com o conteúdo."
-```
-E no prompt adicionar:
-```
-- NÃO inicie com frases introdutórias. Comece DIRETAMENTE com "CAIA MEDIANEIRA 🌍"
-- Retorne APENAS o texto da publicação
-```
-
----
-
-### Arquivos modificados
-
-| Arquivo | Mudanca |
-|---|---|
-| `src/hooks/useDocumentExport.ts` | Delimitadores `{ }`, reescrever cleanXmlRuns |
-| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | try/catch, gerar com dados parciais |
-| `src/pages/turmas/TurmaDetalhePage.tsx` | Dashboard com ELO/adesao/alertas + lista de planejamentos e relatorios |
-| `src/pages/relatorios/RelatoriosPage.tsx` | Badge de planejamento + secao ranking de atividades |
-| `supabase/functions/generate-instagram-post/index.ts` | Remover preambulo IA |
-
