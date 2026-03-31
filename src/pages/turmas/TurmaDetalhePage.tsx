@@ -57,6 +57,9 @@ const TurmaDetalhePage = () => {
   const [form, setForm] = useState<Record<string, any>>({});
   const [alerts, setAlerts] = useState<Record<string, AlertInfo>>({});
   const [participantesData, setParticipantesData] = useState<Record<string, any>>({});
+  const [dashboard, setDashboard] = useState<TurmaDashboard>({ taxaAdesao: 0, totalPresencas: 0, totalRegistros: 0, medianElo: 0, stdElo: 0, eloCount: 0 });
+  const [linkedPlans, setLinkedPlans] = useState<LinkedPlan[]>([]);
+  const [linkedReports, setLinkedReports] = useState<LinkedReport[]>([]);
 
   useEffect(() => { fetchAll(); }, [id]);
 
