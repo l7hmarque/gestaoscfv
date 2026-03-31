@@ -422,6 +422,77 @@ const TurmaDetalhePage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Dashboard */}
+      {!editing && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Card>
+            <CardContent className="p-3 text-center">
+              <BarChart3 className="h-4 w-4 mx-auto text-primary mb-1" />
+              <p className="text-lg font-bold text-foreground">{dashboard.taxaAdesao}%</p>
+              <p className="text-[10px] text-muted-foreground">Taxa de Adesão</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-center">
+              <Users className="h-4 w-4 mx-auto text-primary mb-1" />
+              <p className="text-lg font-bold text-foreground">{dashboard.totalPresencas}/{dashboard.totalRegistros}</p>
+              <p className="text-[10px] text-muted-foreground">Presenças/Registros</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-center">
+              <TrendingUp className="h-4 w-4 mx-auto text-primary mb-1" />
+              <p className="text-lg font-bold text-foreground">{dashboard.medianElo || "—"}</p>
+              <p className="text-[10px] text-muted-foreground">ELO Mediana (σ {dashboard.stdElo})</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-center">
+              <AlertTriangle className={`h-4 w-4 mx-auto mb-1 ${alertMembers.length > 0 ? "text-destructive" : "text-muted-foreground"}`} />
+              <p className={`text-lg font-bold ${alertMembers.length > 0 ? "text-destructive" : "text-foreground"}`}>{alertMembers.length}</p>
+              <p className="text-[10px] text-muted-foreground">Alertas Busca Ativa</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Planejamentos vinculados */}
+      {linkedPlans.length > 0 && !editing && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2"><ClipboardList className="h-4 w-4" />Planejamentos ({linkedPlans.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            {linkedPlans.map(p => (
+              <Link key={p.id} to={`/planejamentos/${p.id}`} className="flex items-center justify-between p-2 rounded hover:bg-muted text-sm">
+                <span className="truncate">{p.titulo}</span>
+                {p.data_aplicacao && <span className="text-xs text-muted-foreground shrink-0 ml-2">{format(new Date(p.data_aplicacao + "T12:00:00"), "dd/MM/yyyy")}</span>}
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Relatórios vinculados */}
+      {linkedReports.length > 0 && !editing && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2"><FileText className="h-4 w-4" />Relatórios ({linkedReports.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            {linkedReports.map(r => (
+              <Link key={r.id} to={`/relatorios/${r.id}`} className="flex items-center justify-between p-2 rounded hover:bg-muted text-sm">
+                <span className="truncate">{r.nome_atividade || "Sem nome"}</span>
+                <div className="flex items-center gap-2 shrink-0 ml-2">
+                  {r.score_elo != null && <Badge variant="outline" className="text-[10px]">ELO {r.score_elo.toFixed(2)}</Badge>}
+                  <span className="text-xs text-muted-foreground">{format(new Date(r.data + "T12:00:00"), "dd/MM/yyyy")}</span>
+                </div>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
