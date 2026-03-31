@@ -122,6 +122,25 @@ const TurmaDetalhePage = () => {
       setAlerts(alertMap);
     }
 
+    // Linked plans & reports
+    const plans: LinkedPlan[] = (ptData || []).map((r: any) => r.planejamentos).filter(Boolean).sort((a: any, b: any) => (b.data_aplicacao || "").localeCompare(a.data_aplicacao || ""));
+    setLinkedPlans(plans);
+    const reports: LinkedReport[] = (rtData || []).map((r: any) => r.relatorios_atividade).filter(Boolean).sort((a: any, b: any) => b.data.localeCompare(a.data));
+    setLinkedReports(reports);
+
+    // Dashboard stats
+    const { data: allPres } = await supabase.from("presenca").select("presente").eq("turma_id", id!);
+    const totalReg = (allPres || []).length;
+    const totalPres = (allPres || []).filter((p: any) => p.presente).length;
+    const taxaAdesao = totalReg > 0 ? (totalPres / totalReg) * 100 : 0;
+
+    const eloScores = reports.map(r => r.score_elo).filter((s): s is number => s != null);
+    const sortedElo = [...eloScores].sort((a, b) => a - b);
+    const medianElo = sortedElo.length > 0 ? sortedElo[Math.floor(sortedElo.length / 2)] : 0;
+    const meanElo = eloScores.length > 0 ? eloScores.reduce((a, b) => a + b, 0) / eloScores.length : 0;
+    const stdElo = eloScores.length > 1 ? Math.sqrt(eloScores.reduce((s, v) => s + (v - meanElo) ** 2, 0) / (eloScores.length - 1)) : 0;
+    setDashboard({ taxaAdesao: Number(taxaAdesao.toFixed(1)), totalPresencas: totalPres, totalRegistros: totalReg, medianElo: Number(medianElo.toFixed(2)), stdElo: Number(stdElo.toFixed(2)), eloCount: eloScores.length });
+
     setLoading(false);
   };
 
