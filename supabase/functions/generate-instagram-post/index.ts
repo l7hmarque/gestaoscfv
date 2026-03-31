@@ -13,10 +13,12 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const prompt = `Você é um social media especialista em projetos sociais. Transforme este relatório de atividade do SCFV (Serviço de Convivência e Fortalecimento de Vínculos) em um texto para publicação no Instagram.
+    const prompt = `Transforme este relatório de atividade do SCFV (Serviço de Convivência e Fortalecimento de Vínculos) em um texto para publicação no Instagram.
 
 REGRAS OBRIGATÓRIAS:
-- Inicie SEMPRE com "CAIA MEDIANEIRA 🌍"
+- NÃO inicie com frases introdutórias como "Aqui está", "Segue o texto", "Com base no relatório", "Claro!" etc.
+- Comece DIRETAMENTE com "CAIA MEDIANEIRA 🌍"
+- Retorne APENAS o texto da publicação, sem explicações ou comentários antes ou depois
 - Tom humanizado, atencioso e profissional
 - Destaque o que foi realizado e o impacto positivo nos participantes
 - Não mencione dados numéricos técnicos como "Score ELO" ou porcentagens
@@ -36,9 +38,7 @@ DADOS DO RELATÓRIO:
 - Intervenções: ${relatorio.intervencoes || ""}
 - Engajamento: ${relatorio.engajamento?.join(", ") || ""}
 - Situações relevantes: ${relatorio.situacoes_relevantes?.join(", ") || ""}
-- Objetivo: ${relatorio.objetivo_alcancado || ""}
-
-Gere o texto da publicação:`;
+- Objetivo: ${relatorio.objetivo_alcancado || ""}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
