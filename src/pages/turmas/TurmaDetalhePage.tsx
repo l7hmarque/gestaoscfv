@@ -65,12 +65,14 @@ const TurmaDetalhePage = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [{ data: t }, { data: tp }, { data: ap }, { data: b }, { data: e }] = await Promise.all([
+    const [{ data: t }, { data: tp }, { data: ap }, { data: b }, { data: e }, { data: ptData }, { data: rtData }] = await Promise.all([
       supabase.from("turmas").select("*, profiles(nome), bairros(nome)").eq("id", id!).single(),
       supabase.from("turma_participantes").select("id, participante_id, participantes(nome_completo, periodo)").eq("turma_id", id!),
       supabase.from("participantes").select("id, nome_completo, periodo").eq("status", "ativo").order("nome_completo"),
       supabase.from("bairros").select("*").order("nome"),
       supabase.from("profiles").select("*").order("nome"),
+      supabase.from("planejamento_turmas").select("planejamento_id, planejamentos(id, titulo, data_aplicacao)").eq("turma_id", id!),
+      supabase.from("relatorio_turmas").select("relatorio_id, relatorios_atividade(id, nome_atividade, data, score_elo)").eq("turma_id", id!),
     ]);
     setTurma(t);
     const membersList = (tp || []).map((r: any) => ({ tp_id: r.id, participante_id: r.participante_id, nome: r.participantes?.nome_completo || "", periodo: r.participantes?.periodo }));
