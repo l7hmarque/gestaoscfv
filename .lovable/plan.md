@@ -1,84 +1,131 @@
 
 
-## Plano: Corrigir DOCX/PDF export e remover preambulo IA do Instagram
+## Plano: DOCX template, Relatório Mensal, Dashboard por Turma, e Ranking de Atividades
 
-### Problema 1 — DOCX template nao preenche / nao baixa
+---
 
-A funcao `cleanXmlRuns` tenta unificar runs fragmentados com regex, mas o padrao e fragil e pode falhar silenciosamente ou corromper o XML. O `docxtemplater` tem um modulo nativo para isso: **`InspectModule`** nao, mas a solucao mais robusta e usar o parser da propria lib para lidar com tags quebradas.
+### 1. Corrigir DOCX template — delimitadores `{ }`
 
-A abordagem correta: em vez de tentar remontar o XML manualmente, configurar o `docxtemplater` com a opcao `parser` que use `angular-expressions` ou, mais simples, usar a funcionalidade built-in do `docxtemplater` que ja lida com runs fragmentados quando os delimiters sao configurados corretamente.
+**Problema:** O usuario trocou as tags nos templates para `{TAG}` mas o codigo ainda usa `delimiters: { start: "<<", end: ">>" }` e o `cleanXmlRuns` procura por `&lt;&lt;`/`&gt;&gt;`.
 
-O problema real pode ser que o `docxtemplater` com delimiters `<<` e `>>` interpreta os `<` e `>` como XML. A solucao e:
+**Arquivo:** `src/hooks/useDocumentExport.ts`
 
-1. **Trocar delimiters para `{` e `}`** no template E no codigo — OU
-2. **Pre-processar o XML** para substituir `&lt;&lt;TAG&gt;&gt;` por `{TAG}` antes do render, e usar delimiters `{ }` padrao
-
-**Solucao escolhida**: Pre-processar o XML para converter `&lt;&lt;...&gt;&gt;` em `{...}` (que e seguro em XML) e usar os delimiters padrao `{ }` do docxtemplater. Isso elimina toda a complexidade de lidar com `<<>>` dentro de XML.
-
-**Arquivo**: `src/hooks/useDocumentExport.ts`
+- Remover a config `delimiters` do Docxtemplater (voltar ao padrao `{ }`)
+- Reescrever `cleanXmlRuns` para unificar runs fragmentados entre `{` e `}` (que no XML aparecem como texto normal, nao entidades)
+- O regex precisa buscar runs quebrados entre `{` e `}` dentro de `<w:t>` tags
+- Manter try/catch com fallback em todas as funcoes de export
 
 ```typescript
+// cleanXmlRuns: merge runs splitting { and }
+// No XML, { e } sao caracteres normais (nao entidades), entao basta unificar runs entre { e }
 function cleanXmlRuns(zip: PizZip): void {
   const xmlFiles = Object.keys(zip.files).filter(f => f.endsWith(".xml"));
   for (const fileName of xmlFiles) {
     let content = zip.file(fileName)?.asText();
-    if (!content) continue;
-
-    // Step 1: Merge adjacent runs that split a tag
-    // Remove run boundaries between opening and closing delimiters
-    for (let pass = 0; pass < 15; pass++) {
-      const before = content;
+    if (!content || !content.includes("{")) continue;
+    for (let pass = 0; pass < 10; pass++) {
+      let changed = false;
       content = content.replace(
-        /(&lt;&lt;[^&]*?)(<\/w:t><\/w:r><w:r[^>]*>(?:<w:rPr>[^<]*(?:<[^/][^<]*)*<\/w:rPr>)?<w:t[^>]*>)([^&]*?&gt;&gt;)/g,
-        (_, a, _b, c) => a + c
+        /(\{[^}]*?)(<\/w:t>\s*<\/w:r>\s*<w:r(?:\s[^>]*)?>(?:\s*<w:rPr>[\s\S]*?<\/w:rPr>)?\s*<w:t(?:\s[^>]*)?>)([^{]*?\})/g,
+        (_m, before, _boundary, after) => { changed = true; return before + after; }
       );
-      if (content === before) break;
+      if (!changed) break;
     }
-
-    // Step 2: Convert <<TAG>> to {TAG} so docxtemplater default delimiters work
-    content = content.replace(/&lt;&lt;(\w+)&gt;&gt;/g, '{$1}');
-    
     zip.file(fileName, content);
   }
 }
+
+// fillTemplate: remover delimiters customizado
+const doc = new Docxtemplater(zip, {
+  paragraphLoop: true,
+  linebreaks: true,
+  // delimiters padrao { } — nao precisa especificar
+});
 ```
 
-E remover a config de `delimiters` do Docxtemplater (voltar ao padrao `{ }`).
+---
 
-Tambem adicionar `try/catch` robusto com fallback em TODAS as funcoes de export.
+### 2. Corrigir Relatório Mensal XLSX
 
-### Problema 2 — PDF nao baixa
+**Problema:** O relatorio provavelmente falha silenciosamente quando nao ha dados de presenca ou turmas. O `generate()` nao tem try/catch e o `setGenerating(false)` nao executa em caso de erro.
 
-O PDF de relatorio tenta usar template primeiro (exporta DOCX em vez de PDF). Se o template falha, o fallback jsPDF deveria funcionar, mas se o `cleanXmlRuns` corromper o XML, pode dar erro antes.
+**Arquivo:** `src/pages/dashboard/DashboardRelatorioMensalTab.tsx`
 
-A correcao do problema 1 resolve isso tambem. O fallback jsPDF ja existe e funciona.
+- Envolver todo o `generate()` em try/catch/finally com `setGenerating(false)` no finally
+- Gerar o relatorio mesmo sem presenca (mostrar "0 atendidos", sheets vazias)
+- Adicionar toast.error em caso de excecao
+- Garantir que nomes de sheets nao tenham caracteres invalidos e nao repitam
 
-### Problema 3 — Instagram post com preambulo de IA
+---
 
-A edge function `generate-instagram-post` precisa de instrucao mais forte no prompt para evitar a intro padrao da IA.
+### 3. Dashboard simples na pagina da Turma
 
-**Arquivo**: `supabase/functions/generate-instagram-post/index.ts`
+**Arquivo:** `src/pages/turmas/TurmaDetalhePage.tsx`
 
-Adicionar ao prompt:
+Adicionar secao de dashboard apos os badges, com cards mostrando:
+
+- **Taxa de adesao** (% de presencas sobre total de registros)
+- **Participantes presentes** (ultimo registro vs total de membros)
+- **Score ELO** (mediana dos relatorios vinculados a turma, com desvio padrao)
+- **Alertas** (participantes com 3+ faltas seguidas = busca ativa, ou adesao < 65%)
+
+Buscar dados:
+- `presenca` filtrado por `turma_id`
+- `relatorio_turmas` + `relatorios_atividade` filtrado por `turma_id`
+
+Exibir lista de **planejamentos** e **relatorios** associados a turma:
+- Query `planejamento_turmas` WHERE `turma_id = id` → join `planejamentos`
+- Query `relatorio_turmas` WHERE `turma_id = id` → join `relatorios_atividade`
+- Listar como cards clicaveis com link para `/planejamentos/:id` e `/relatorios/:id`
+
+---
+
+### 4. Pagina de Relatorios — ver planejamento associado e ranking de atividades
+
+**Arquivo:** `src/pages/relatorios/RelatoriosPage.tsx`
+
+- Na listagem, mostrar badge com nome do planejamento vinculado (se existir)
+- Buscar `planejamento_id` que ja vem no select, e fazer join com `planejamentos(titulo)`
+
+**Arquivo:** `src/pages/relatorios/RelatorioDetalhePage.tsx`
+
+- Ja mostra link para planejamento (implementado antes) — verificar se funciona
+
+**Novo componente ou secao na pagina de Relatorios:**
+
+Adicionar secao/aba "Ranking de Atividades" que mostra:
+- Atividades planejadas ordenadas por melhor Score ELO medio
+- Regras de classificacao:
+  - Minimo 5 participantes para contar
+  - Peso maior para relatorios com mais participantes (media ponderada)
+  - Mostrar: nome da atividade, score ELO, nro de participantes, objetivo alcancado
+- Query: todos os `relatorios_atividade` com `score_elo IS NOT NULL` e `planejamento_id IS NOT NULL`
+
+---
+
+### 5. Instagram post — remover preambulo
+
+**Arquivo:** `supabase/functions/generate-instagram-post/index.ts`
+
+Adicionar instrucoes explicitas no system message e no prompt:
 ```
-- NÃO inicie com frases introdutórias como "Aqui está", "Segue o texto", "Com base no relatório" etc.
-- Comece DIRETAMENTE com "CAIA MEDIANEIRA 🌍" sem nenhuma frase antes
-- Retorne APENAS o texto da publicação, sem explicações ou comentários
+system: "Retorne SOMENTE o texto da publicação. Nunca adicione frases introdutórias como 'Aqui está', 'Segue o texto', 'Com base no relatório'. Comece diretamente com o conteúdo."
+```
+E no prompt adicionar:
+```
+- NÃO inicie com frases introdutórias. Comece DIRETAMENTE com "CAIA MEDIANEIRA 🌍"
+- Retorne APENAS o texto da publicação
 ```
 
-E no system message reforcar:
-```
-Retorne SOMENTE o texto da publicação. Nunca adicione frases introdutórias, explicações ou comentários antes ou depois do texto.
-```
+---
 
 ### Arquivos modificados
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/hooks/useDocumentExport.ts` | Reescrever `cleanXmlRuns` para converter `<<TAG>>` em `{TAG}`; remover `delimiters` customizado; blindar todos exports com try/catch |
-| `supabase/functions/generate-instagram-post/index.ts` | Adicionar instrucoes anti-preambulo no prompt e system message |
-
-### Nota sobre o build error 503
-
-O erro `failed to acquire sandbox config: scheduler http error: status code 503` e um erro transitorio de infraestrutura, nao relacionado ao codigo. Resolve sozinho ao recarregar.
+| `src/hooks/useDocumentExport.ts` | Delimitadores `{ }`, reescrever cleanXmlRuns |
+| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | try/catch, gerar com dados parciais |
+| `src/pages/turmas/TurmaDetalhePage.tsx` | Dashboard com ELO/adesao/alertas + lista de planejamentos e relatorios |
+| `src/pages/relatorios/RelatoriosPage.tsx` | Badge de planejamento + secao ranking de atividades |
+| `supabase/functions/generate-instagram-post/index.ts` | Remover preambulo IA |
 
