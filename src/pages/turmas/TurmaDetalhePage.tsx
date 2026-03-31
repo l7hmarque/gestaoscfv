@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, UserPlus, Trash2, Pencil, Save, AlertTriangle, FileText } from "lucide-react";
+import { ArrowLeft, UserPlus, Trash2, Pencil, Save, AlertTriangle, FileText, TrendingUp, Users, BarChart3, ClipboardList, Calendar as CalendarIcon } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,9 @@ const diasOptions = [
 
 interface MemberRow { tp_id: string; participante_id: string; nome: string; periodo: string | null; }
 interface AlertInfo { consecutiveFaults: number; adesao: number; lastPresent: string | null; }
+interface TurmaDashboard { taxaAdesao: number; totalPresencas: number; totalRegistros: number; medianElo: number; stdElo: number; eloCount: number; }
+interface LinkedPlan { id: string; titulo: string; data_aplicacao: string | null; }
+interface LinkedReport { id: string; nome_atividade: string | null; data: string; score_elo: number | null; }
 
 function calcAge(dob: string): number {
   const b = new Date(dob);
@@ -54,17 +57,22 @@ const TurmaDetalhePage = () => {
   const [form, setForm] = useState<Record<string, any>>({});
   const [alerts, setAlerts] = useState<Record<string, AlertInfo>>({});
   const [participantesData, setParticipantesData] = useState<Record<string, any>>({});
+  const [dashboard, setDashboard] = useState<TurmaDashboard>({ taxaAdesao: 0, totalPresencas: 0, totalRegistros: 0, medianElo: 0, stdElo: 0, eloCount: 0 });
+  const [linkedPlans, setLinkedPlans] = useState<LinkedPlan[]>([]);
+  const [linkedReports, setLinkedReports] = useState<LinkedReport[]>([]);
 
   useEffect(() => { fetchAll(); }, [id]);
 
   const fetchAll = async () => {
     setLoading(true);
-    const [{ data: t }, { data: tp }, { data: ap }, { data: b }, { data: e }] = await Promise.all([
+    const [{ data: t }, { data: tp }, { data: ap }, { data: b }, { data: e }, { data: ptData }, { data: rtData }] = await Promise.all([
       supabase.from("turmas").select("*, profiles(nome), bairros(nome)").eq("id", id!).single(),
       supabase.from("turma_participantes").select("id, participante_id, participantes(nome_completo, periodo)").eq("turma_id", id!),
       supabase.from("participantes").select("id, nome_completo, periodo").eq("status", "ativo").order("nome_completo"),
       supabase.from("bairros").select("*").order("nome"),
       supabase.from("profiles").select("*").order("nome"),
+      supabase.from("planejamento_turmas").select("planejamento_id, planejamentos(id, titulo, data_aplicacao)").eq("turma_id", id!),
+      supabase.from("relatorio_turmas").select("relatorio_id, relatorios_atividade(id, nome_atividade, data, score_elo)").eq("turma_id", id!),
     ]);
     setTurma(t);
     const membersList = (tp || []).map((r: any) => ({ tp_id: r.id, participante_id: r.participante_id, nome: r.participantes?.nome_completo || "", periodo: r.participantes?.periodo }));
@@ -113,6 +121,25 @@ const TurmaDetalhePage = () => {
       });
       setAlerts(alertMap);
     }
+
+    // Linked plans & reports
+    const plans: LinkedPlan[] = (ptData || []).map((r: any) => r.planejamentos).filter(Boolean).sort((a: any, b: any) => (b.data_aplicacao || "").localeCompare(a.data_aplicacao || ""));
+    setLinkedPlans(plans);
+    const reports: LinkedReport[] = (rtData || []).map((r: any) => r.relatorios_atividade).filter(Boolean).sort((a: any, b: any) => b.data.localeCompare(a.data));
+    setLinkedReports(reports);
+
+    // Dashboard stats
+    const { data: allPres } = await supabase.from("presenca").select("presente").eq("turma_id", id!);
+    const totalReg = (allPres || []).length;
+    const totalPres = (allPres || []).filter((p: any) => p.presente).length;
+    const taxaAdesao = totalReg > 0 ? (totalPres / totalReg) * 100 : 0;
+
+    const eloScores = reports.map(r => r.score_elo).filter((s): s is number => s != null);
+    const sortedElo = [...eloScores].sort((a, b) => a - b);
+    const medianElo = sortedElo.length > 0 ? sortedElo[Math.floor(sortedElo.length / 2)] : 0;
+    const meanElo = eloScores.length > 0 ? eloScores.reduce((a, b) => a + b, 0) / eloScores.length : 0;
+    const stdElo = eloScores.length > 1 ? Math.sqrt(eloScores.reduce((s, v) => s + (v - meanElo) ** 2, 0) / (eloScores.length - 1)) : 0;
+    setDashboard({ taxaAdesao: Number(taxaAdesao.toFixed(1)), totalPresencas: totalPres, totalRegistros: totalReg, medianElo: Number(medianElo.toFixed(2)), stdElo: Number(stdElo.toFixed(2)), eloCount: eloScores.length });
 
     setLoading(false);
   };
@@ -395,6 +422,77 @@ const TurmaDetalhePage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Dashboard */}
+      {!editing && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Card>
+            <CardContent className="p-3 text-center">
+              <BarChart3 className="h-4 w-4 mx-auto text-primary mb-1" />
+              <p className="text-lg font-bold text-foreground">{dashboard.taxaAdesao}%</p>
+              <p className="text-[10px] text-muted-foreground">Taxa de Adesão</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-center">
+              <Users className="h-4 w-4 mx-auto text-primary mb-1" />
+              <p className="text-lg font-bold text-foreground">{dashboard.totalPresencas}/{dashboard.totalRegistros}</p>
+              <p className="text-[10px] text-muted-foreground">Presenças/Registros</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-center">
+              <TrendingUp className="h-4 w-4 mx-auto text-primary mb-1" />
+              <p className="text-lg font-bold text-foreground">{dashboard.medianElo || "—"}</p>
+              <p className="text-[10px] text-muted-foreground">ELO Mediana (σ {dashboard.stdElo})</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-center">
+              <AlertTriangle className={`h-4 w-4 mx-auto mb-1 ${alertMembers.length > 0 ? "text-destructive" : "text-muted-foreground"}`} />
+              <p className={`text-lg font-bold ${alertMembers.length > 0 ? "text-destructive" : "text-foreground"}`}>{alertMembers.length}</p>
+              <p className="text-[10px] text-muted-foreground">Alertas Busca Ativa</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Planejamentos vinculados */}
+      {linkedPlans.length > 0 && !editing && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2"><ClipboardList className="h-4 w-4" />Planejamentos ({linkedPlans.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            {linkedPlans.map(p => (
+              <Link key={p.id} to={`/planejamentos/${p.id}`} className="flex items-center justify-between p-2 rounded hover:bg-muted text-sm">
+                <span className="truncate">{p.titulo}</span>
+                {p.data_aplicacao && <span className="text-xs text-muted-foreground shrink-0 ml-2">{format(new Date(p.data_aplicacao + "T12:00:00"), "dd/MM/yyyy")}</span>}
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Relatórios vinculados */}
+      {linkedReports.length > 0 && !editing && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2"><FileText className="h-4 w-4" />Relatórios ({linkedReports.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            {linkedReports.map(r => (
+              <Link key={r.id} to={`/relatorios/${r.id}`} className="flex items-center justify-between p-2 rounded hover:bg-muted text-sm">
+                <span className="truncate">{r.nome_atividade || "Sem nome"}</span>
+                <div className="flex items-center gap-2 shrink-0 ml-2">
+                  {r.score_elo != null && <Badge variant="outline" className="text-[10px]">ELO {r.score_elo.toFixed(2)}</Badge>}
+                  <span className="text-xs text-muted-foreground">{format(new Date(r.data + "T12:00:00"), "dd/MM/yyyy")}</span>
+                </div>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

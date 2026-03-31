@@ -29,29 +29,21 @@ async function loadTemplate(templateName: string): Promise<ArrayBuffer | null> {
 }
 
 /**
- * Clean XML runs inside the DOCX zip so that delimiter tags like <<TAG>>
+ * Clean XML runs inside the DOCX zip so that tags like {TAG}
  * that Word may have split across multiple <w:r> elements are merged back
- * into a single run. Works with ENCODED entities (&lt;&lt; / &gt;&gt;) to
- * keep the XML valid.
+ * into a single run. Works with raw { } characters in XML text nodes.
  */
 function cleanXmlRuns(zip: PizZip): void {
   const xmlFiles = Object.keys(zip.files).filter(f => f.endsWith(".xml"));
 
   for (const fileName of xmlFiles) {
     let content = zip.file(fileName)?.asText();
-    if (!content) continue;
-    // Only process files that contain encoded delimiters
-    if (!content.includes("&lt;&lt;") && !content.includes("&gt;&gt;")) continue;
+    if (!content || !content.includes("{")) continue;
 
-    // Merge adjacent <w:r> runs that split an encoded delimiter tag.
-    // Pattern: remove </w:t></w:r><w:r [optional rPr]><w:t [attrs]> boundaries
-    // that sit between &lt;&lt; and &gt;&gt;.
-    const runBoundaryPattern = /<\/w:t>\s*<\/w:r>\s*<w:r(?:\s[^>]*)?>(?:\s*<w:rPr>[\s\S]*?<\/w:rPr>)?\s*<w:t(?:\s[^>]*)?>/g;
-
-    for (let pass = 0; pass < 10; pass++) {
+    for (let pass = 0; pass < 15; pass++) {
       let changed = false;
       content = content.replace(
-        /(&lt;&lt;[\s\S]*?)(<\/w:t>\s*<\/w:r>\s*<w:r(?:\s[^>]*)?>(?:\s*<w:rPr>[\s\S]*?<\/w:rPr>)?\s*<w:t(?:\s[^>]*)?>)([\s\S]*?&gt;&gt;)/g,
+        /(\{[^}]*?)(<\/w:t>\s*<\/w:r>\s*<w:r(?:\s[^>]*)?>(?:\s*<w:rPr>[\s\S]*?<\/w:rPr>)?\s*<w:t(?:\s[^>]*)?>)([^{]*?\})/g,
         (_match, before, _boundary, after) => {
           changed = true;
           return before + after;
@@ -73,8 +65,6 @@ function fillTemplate(templateBuffer: ArrayBuffer, data: Record<string, any>): B
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
-    // Use encoded XML entities as delimiters since we keep the XML valid
-    delimiters: { start: "<<", end: ">>" },
   });
 
   try {
