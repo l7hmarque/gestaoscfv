@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, UserPlus, Trash2, Pencil, Save, AlertTriangle, FileText } from "lucide-react";
+import { ArrowLeft, UserPlus, Trash2, Pencil, Save, AlertTriangle, FileText, TrendingUp, Users, BarChart3, ClipboardList, Calendar as CalendarIcon } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
