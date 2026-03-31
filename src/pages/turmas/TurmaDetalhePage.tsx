@@ -30,6 +30,9 @@ const diasOptions = [
 
 interface MemberRow { tp_id: string; participante_id: string; nome: string; periodo: string | null; }
 interface AlertInfo { consecutiveFaults: number; adesao: number; lastPresent: string | null; }
+interface TurmaDashboard { taxaAdesao: number; totalPresencas: number; totalRegistros: number; medianElo: number; stdElo: number; eloCount: number; }
+interface LinkedPlan { id: string; titulo: string; data_aplicacao: string | null; }
+interface LinkedReport { id: string; nome_atividade: string | null; data: string; score_elo: number | null; }
 
 function calcAge(dob: string): number {
   const b = new Date(dob);
