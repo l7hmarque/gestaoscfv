@@ -49,7 +49,7 @@ DADOS DO RELATÓRIO:
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: "Você é um especialista em comunicação social para projetos comunitários. Crie textos engajantes e humanizados para Instagram." },
+          { role: "system", content: "Você é um especialista em comunicação social para projetos comunitários. Retorne SOMENTE o texto da publicação. Nunca adicione frases introdutórias como 'Aqui está', 'Segue o texto', 'Com base no relatório'. Comece diretamente com o conteúdo solicitado. Nunca adicione explicações ou comentários após o texto." },
           { role: "user", content: prompt },
         ],
       }),
