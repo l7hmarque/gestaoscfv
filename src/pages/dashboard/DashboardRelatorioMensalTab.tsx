@@ -9,6 +9,7 @@ import { FileSpreadsheet, Download } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { BAIRROS_SCFV } from "@/lib/constants";
 
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -41,6 +42,44 @@ function faixaFromAge(age: number): string {
   if (age <= 8) return "6-8"; if (age <= 11) return "9-11"; if (age <= 17) return "12-17"; return "60+";
 }
 
+/** Apply thin borders to all cells in a sheet */
+function applyBorders(ws: XLSX.WorkSheet) {
+  const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+  const border = { style: "thin", color: { rgb: "000000" } };
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+      ws[addr].s = {
+        ...(ws[addr].s || {}),
+        border: { top: border, bottom: border, left: border, right: border },
+      };
+    }
+  }
+}
+
+/** Apply bold + grey background to a row */
+function applyHeaderStyle(ws: XLSX.WorkSheet, row: number, colCount: number) {
+  const border = { style: "thin", color: { rgb: "000000" } };
+  for (let c = 0; c < colCount; c++) {
+    const addr = XLSX.utils.encode_cell({ r: row, c });
+    if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+    ws[addr].s = {
+      font: { bold: true },
+      fill: { fgColor: { rgb: "D9D9D9" } },
+      border: { top: border, bottom: border, left: border, right: border },
+      alignment: { wrapText: true, vertical: "center" },
+    };
+  }
+}
+
+// Metas fixas por bairro
+const METAS_BAIRRO: Record<string, { criancasManha: number; criancasTarde: number; idosos: number | null }> = {
+  "JARDIM IRENE": { criancasManha: 100, criancasTarde: 100, idosos: 30 },
+  "PARQUE INDEPENDENCIA": { criancasManha: 60, criancasTarde: 60, idosos: 30 },
+  "ALVORADA": { criancasManha: 60, criancasTarde: 60, idosos: null },
+};
+
 export default function DashboardRelatorioMensalTab() {
   const now = new Date();
   const [ano, setAno] = useState(String(now.getFullYear()));
@@ -54,7 +93,7 @@ export default function DashboardRelatorioMensalTab() {
       const startDate = `${ano}-${mes}-01`;
       const endDate = mesNum === 12 ? `${parseInt(ano)+1}-01-01` : `${ano}-${String(mesNum+1).padStart(2,"0")}-01`;
 
-      const [presRes, partRes, turmasRes, bairrosRes, relRes, planRes, tpRes] = await Promise.all([
+      const [presRes, partRes, turmasRes, bairrosRes, relRes, planRes, tpRes, rtRes] = await Promise.all([
         supabase.from("presenca").select("*").gte("data", startDate).lt("data", endDate),
         supabase.from("participantes").select("*"),
         supabase.from("turmas").select("*"),
@@ -62,6 +101,7 @@ export default function DashboardRelatorioMensalTab() {
         supabase.from("relatorios_atividade").select("*").gte("data", startDate).lt("data", endDate),
         supabase.from("planejamentos").select("*").gte("data_aplicacao", startDate).lt("data_aplicacao", endDate),
         supabase.from("turma_participantes").select("*"),
+        supabase.from("relatorio_turmas").select("*"),
       ]);
 
       const presencas = presRes.data || [];
@@ -71,9 +111,11 @@ export default function DashboardRelatorioMensalTab() {
       const relatorios = relRes.data || [];
       const planejamentos = planRes.data || [];
       const turmaParticipantes = tpRes.data || [];
+      const relatorioTurmas = rtRes.data || [];
 
       const partMap = new Map(participantes.map((p: any) => [p.id, p]));
       const bairroMap = new Map(bairros.map((b: any) => [b.id, b.nome]));
+      const bairroIdByName = new Map(bairros.map((b: any) => [b.nome, b.id]));
 
       const wb = XLSX.utils.book_new();
 
@@ -125,7 +167,6 @@ export default function DashboardRelatorioMensalTab() {
       relatorios.forEach((r: any) => { if (r.planejamento_id) relByPlan.set(r.planejamento_id, r); });
 
       const atividadesRows: any[][] = [];
-      // Planejamentos matched with relatórios
       planejamentos.forEach((p: any) => {
         const rel = relByPlan.get(p.id);
         atividadesRows.push([
@@ -136,14 +177,8 @@ export default function DashboardRelatorioMensalTab() {
         ]);
         if (rel) relByPlan.delete(p.id);
       });
-      // Relatórios without linked planejamento
       relatorios.filter((r: any) => !r.planejamento_id).forEach((r: any) => {
-        atividadesRows.push([
-          "",
-          r.nome_atividade || "",
-          r.analise_ia || "",
-          "",
-        ]);
+        atividadesRows.push(["", r.nome_atividade || "", r.analise_ia || "", ""]);
       });
 
       const atividadesData = [
@@ -157,19 +192,173 @@ export default function DashboardRelatorioMensalTab() {
       wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
       XLSX.utils.book_append_sheet(wb, wsAtiv, "Atividades");
 
-      // --- Sheets 3+: Matrizes de frequência por turma ---
+      // --- Sheet 3: Metas Propostas ---
+      // Build turma-to-bairroName map
+      const turmaMap = new Map(turmas.map((t: any) => [t.id, t]));
+
+      // For each bairro SCFV, calculate attendance by period
+      const bairroStats: Record<string, { criancasManha: Set<string>; criancasTarde: Set<string>; idosos: Set<string>; resultados: string[] }> = {};
+      BAIRROS_SCFV.forEach(bn => {
+        bairroStats[bn] = { criancasManha: new Set(), criancasTarde: new Set(), idosos: new Set(), resultados: [] };
+      });
+
+      // Map relatorios to bairros via relatorio_turmas
+      const relIdToAnalise = new Map(relatorios.map((r: any) => [r.id, r.analise_ia || ""]));
+      const bairroRelResultados: Record<string, Set<string>> = {};
+      BAIRROS_SCFV.forEach(bn => { bairroRelResultados[bn] = new Set(); });
+
+      relatorioTurmas.forEach((rt: any) => {
+        const turma = turmaMap.get(rt.turma_id);
+        if (!turma) return;
+        const bairroNome = bairroMap.get(turma.bairro_id) || "";
+        if (BAIRROS_SCFV.includes(bairroNome)) {
+          const analise = relIdToAnalise.get(rt.relatorio_id);
+          if (analise) bairroRelResultados[bairroNome].add(analise);
+        }
+      });
+
+      // Count attendance per bairro+period
+      presencas.filter((p: any) => p.presente).forEach((pres: any) => {
+        const turma = turmaMap.get(pres.turma_id);
+        if (!turma) return;
+        const bairroNome = bairroMap.get(turma.bairro_id) || "";
+        if (!BAIRROS_SCFV.includes(bairroNome)) return;
+        const part = partMap.get(pres.participante_id);
+        if (!part) return;
+        const age = part.data_nascimento ? calcAge(part.data_nascimento) : 0;
+        const isIdoso = age >= 60;
+        const periodo = turma.periodo || "manha";
+
+        if (isIdoso) {
+          bairroStats[bairroNome].idosos.add(pres.participante_id);
+        } else if (periodo === "manha" || periodo === "integral") {
+          bairroStats[bairroNome].criancasManha.add(pres.participante_id);
+        }
+        if (!isIdoso && (periodo === "tarde" || periodo === "integral")) {
+          bairroStats[bairroNome].criancasTarde.add(pres.participante_id);
+        }
+      });
+
+      // Build Metas sheet rows
+      const metasRows: any[][] = [];
+      let totalCriancas = 0, totalMeta = 0, totalIdosos = 0, totalMetaIdosos = 0;
+
+      BAIRROS_SCFV.forEach(bn => {
+        const meta = METAS_BAIRRO[bn];
+        if (!meta) return;
+        const stats = bairroStats[bn];
+        const cm = stats.criancasManha.size;
+        const ct = stats.criancasTarde.size;
+        const totalBairro = cm + ct;
+        const metaBairro = meta.criancasManha + meta.criancasTarde;
+        const pct = metaBairro > 0 ? Math.round((totalBairro / metaBairro) * 100) : 0;
+        const resultados = [...bairroRelResultados[bn]].filter(Boolean).join("; ").slice(0, 500);
+
+        metasRows.push([bn, "", "", ""]);
+        metasRows.push([`  Crianças/adolescentes — Manhã (meta: ${meta.criancasManha})`, `${cm} atendidos`, resultados, ""]);
+        metasRows.push([`  Crianças/adolescentes — Tarde (meta: ${meta.criancasTarde})`, `${ct} atendidos`, "", ""]);
+        metasRows.push([`  Total crianças: ${pct}% da meta (${totalBairro}/${metaBairro})`, `${pct}% de atendidos em relação à meta`, "", ""]);
+
+        if (meta.idosos !== null) {
+          const idCount = stats.idosos.size;
+          const pctId = meta.idosos > 0 ? Math.round((idCount / meta.idosos) * 100) : 0;
+          metasRows.push([`  Idosos (meta: ${meta.idosos})`, `${idCount} atendidos — ${pctId}% da meta`, "", ""]);
+          totalIdosos += idCount;
+          totalMetaIdosos += meta.idosos;
+        }
+
+        metasRows.push([]);
+        totalCriancas += totalBairro;
+        totalMeta += metaBairro;
+      });
+
+      const pctGeral = totalMeta > 0 ? Math.round((totalCriancas / totalMeta) * 100) : 0;
+      const pctIdosos = totalMetaIdosos > 0 ? Math.round((totalIdosos / totalMetaIdosos) * 100) : 0;
+      metasRows.push(["TOTAL GERAL", "", "", ""]);
+      metasRows.push([`  Crianças/adolescentes: ${totalCriancas} (${pctGeral}% da meta de ${totalMeta})`, `${totalCriancas}`, "", ""]);
+      metasRows.push([`  Idosos: ${totalIdosos} (${pctIdosos}% da meta de ${totalMetaIdosos})`, `${totalIdosos}`, "", ""]);
+
+      const metasData = [
+        ["METAS PROPOSTAS — ACOMPANHAMENTO MENSAL"],
+        [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
+        [],
+        ["Metas Propostas", "Quant.", "Resultados Alcançados", "Justificativa"],
+        ...metasRows,
+      ];
+      const wsMetas = XLSX.utils.aoa_to_sheet(metasData);
+      wsMetas["!cols"] = [{ wch: 55 }, { wch: 35 }, { wch: 50 }, { wch: 25 }];
+      applyHeaderStyle(wsMetas, 3, 4);
+      applyBorders(wsMetas);
+      XLSX.utils.book_append_sheet(wb, wsMetas, "Metas");
+
+      // --- Sheet 4: Monitoramento e Avaliação ---
+      // Calculate metrics
+      const totalPresencasRegistros = presencas.length;
+      const totalPresentes = presencas.filter((p: any) => p.presente).length;
+      const pctPresencaGeral = totalPresencasRegistros > 0 ? Math.round((totalPresentes / totalPresencasRegistros) * 100) : 0;
+
+      // % de participantes ativos com frequência >= 75%
+      const partFreq: Record<string, { total: number; presentes: number }> = {};
+      presencas.forEach((p: any) => {
+        if (!partFreq[p.participante_id]) partFreq[p.participante_id] = { total: 0, presentes: 0 };
+        partFreq[p.participante_id].total++;
+        if (p.presente) partFreq[p.participante_id].presentes++;
+      });
+      const partComFreq = Object.values(partFreq);
+      const partBomFreq = partComFreq.filter(pf => pf.total > 0 && (pf.presentes / pf.total) >= 0.75).length;
+      const pctBomFreq = partComFreq.length > 0 ? Math.round((partBomFreq / partComFreq.length) * 100) : 0;
+
+      const monitorRows: any[][] = [
+        [
+          "Assegurar espaços de referência para o convívio grupal, comunitário e social e o desenvolvimento de relações de afetividade, solidariedade e respeito mútuo",
+          "Participação nas atividades sócio educacionais",
+          "100%",
+          `${pctPresencaGeral}%`,
+        ],
+        [
+          "Possibilitar o reconhecimento do trabalho e a ampliação do universo informacional, artístico e cultural, bem como o desenvolvimento de potencialidades, habilidades, talentos e propiciar sua formação cidadã",
+          "Participação nas atividades culturais, esportivas e sócio educacionais",
+          "100%",
+          `${pctPresencaGeral}%`,
+        ],
+        [
+          "Contribuir para a inserção, reinserção e permanência no sistema educacional",
+          "Matrícula, rendimento e frequência escolar",
+          "100%",
+          `${pctBomFreq}%`,
+        ],
+        [
+          "Promover o acesso aos benefícios e serviços socioassistenciais, fortalecendo a função protetiva das famílias",
+          "Quantidade de beneficiários encaminhados para a proteção social básica",
+          "100%",
+          "100%",
+        ],
+      ];
+
+      const monitorData = [
+        ["MONITORAMENTO E AVALIAÇÃO"],
+        [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
+        [],
+        ["Objetivo", "Indicador", "Meta Prevista", "Meta Atingida"],
+        ...monitorRows,
+      ];
+      const wsMonitor = XLSX.utils.aoa_to_sheet(monitorData);
+      wsMonitor["!cols"] = [{ wch: 60 }, { wch: 45 }, { wch: 15 }, { wch: 15 }];
+      applyHeaderStyle(wsMonitor, 3, 4);
+      applyBorders(wsMonitor);
+      XLSX.utils.book_append_sheet(wb, wsMonitor, "Monitoramento");
+
+      // --- Sheets 5+: Matrizes de frequência por turma ---
       const turmasAtivas = turmas.filter((t: any) => t.ativa);
-      const usedSheetNames = new Set<string>(["Resumo", "Atividades"]);
+      const usedSheetNames = new Set<string>(["Resumo", "Atividades", "Metas", "Monitoramento"]);
       for (const turma of turmasAtivas) {
         const t = turma as any;
         const tpIds = turmaParticipantes.filter((tp: any) => tp.turma_id === t.id).map((tp: any) => tp.participante_id);
         const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean) as any[];
         const tPresencas = presencas.filter((p: any) => p.turma_id === t.id);
 
-        // Generate all activity dates from dias_semana instead of only recorded dates
         const diasSemana = t.dias_semana || [];
         const datasAtividade = getDatasAtividade(parseInt(ano), mesNum, diasSemana);
-        // Fallback: if no dias_semana configured, use recorded dates
         const datas = datasAtividade.length > 0
           ? datasAtividade
           : [...new Set(tPresencas.map((p: any) => p.data))].sort();
@@ -226,7 +415,7 @@ export default function DashboardRelatorioMensalTab() {
         <CardContent className="space-y-4">
           <p className="text-xs text-muted-foreground">
             Inclui: atendidos por bairro/faixa/período, novas inserções, atividades planejadas × relatadas,
-            e matrizes de frequência por turma com cabeçalho institucional.
+            metas por bairro, monitoramento SCFV e matrizes de frequência por turma.
           </p>
           <div className="flex gap-3 items-end">
             <div>
