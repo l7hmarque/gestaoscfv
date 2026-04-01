@@ -1,68 +1,91 @@
+## Plano: Página pública de matrícula CAIA com uploads e aprovação
 
+### Alterações em relação ao plano anterior
 
-## Plano: Tabelas "Metas Propostas" e "Monitoramento e Avaliação" no Relatório Mensal XLSX
-
-### Resumo
-
-Adicionar duas novas sheets ao relatório mensal XLSX, formatadas com bordas e cabeçalhos em negrito para fácil cópia pro Word.
-
----
-
-### Sheet "Metas Propostas" (baseada na imagem 1)
-
-**Estrutura fixa de 4 colunas**: Metas Propostas | Quant. | Resultados Alcançados | Justificativa
-
-**Dados por bairro (valores fixos da primeira coluna)**:
-
-- **Jardim Irene**: meta 200 crianças (manhã e tarde), 30 idosos
-- **Parque Independência**: meta 60 crianças manhã, 60 crianças tarde, 30 idosos
-- **Parque Alvorada**: meta 60 crianças manhã, 60 crianças tarde (sem idosos)
-- **TOTAL GERAL**: soma
-
-**Coluna "Quant."** — calculada automaticamente a partir dos dados do mês:
-- Nº de crianças atendidas no bairro, período manhã (participantes com presença no mês em turmas daquele bairro com período "manha", idade < 60)
-- Nº de crianças atendidas no bairro, período tarde
-- % da soma em relação à meta (ex: "85% de atendidos em relação à meta")
-- Nº de idosos atendidos (idade ≥ 60) — exceto Alvorada
-
-**Coluna "Resultados Alcançados"** — para cada bairro, concatenar/resumir os `analise_ia` dos relatórios de atividades cujas turmas pertencem àquele bairro no mês.
-
-**Coluna "Justificativa"** — vazia por enquanto.
-
-**Lógica de cruzamento**:
-1. Filtrar turmas ativas por `bairro_id` → mapear para nome do bairro SCFV
-2. Para cada turma do bairro, buscar participantes com presença `presente=true` no mês
-3. Classificar por idade (criança vs idoso) e período da turma (manhã/tarde)
-4. Contar participantes únicos por combinação bairro+período+tipo
-5. Para resultados alcançados: filtrar `relatorios_atividade` via `relatorio_turmas` → turmas do bairro → concatenar `analise_ia`
+1. **Sem opção "Integral"** — apenas Manhã e Tarde
+2. **Upload de documentos** — categorias: Laudo Médico, Receita, Comprovante Escolar, Outro.
+3. **Branding "CAIA"** — título e design especificam "Matrícula — CAIA"
+4. **Ponto de transporte** — seletor filtrado pelo bairro SCFV selecionado, com link para mapa do Google Maps
+5. **Vinculação automática** — ao aprovar (mudar status de `pendente` → `ativo`), sistema vincula à turma compatível por bairro, faixa etária e período
+6. **Lista de pendentes com alerta** — banner na ParticipantesPage mostrando quantidade de matrículas pendentes não visualizadas
 
 ---
 
-### Sheet "Monitoramento" (baseada na imagem 2)
+### 1. Migração SQL
 
-**Estrutura de 4 colunas**: Objetivo | Indicador | Meta Prevista | Meta Atingida
+- Adicionar `'pendente'` ao enum `status_participante`
+- Adicionar coluna `visualizado_em timestamptz` na tabela `participantes` (null = não visualizado ainda, usado para alertas)
 
-**Linhas fixas baseadas nos objetivos do SCFV**:
+### 2. Edge Function `public-matricula`
 
-1. **Assegurar espaços de referência para convívio grupal...** | Participação nas atividades sócio educacionais | 100% | calculado: % de presença geral no mês
-2. **Possibilitar o desenvolvimento de potencialidades...** | Participação nas atividades culturais, esportivas e sócio educacionais | 100% | calculado: baseado na diversidade de tipos de atividade
-3. **Contribuir para inserção/permanência no sistema sócio educacional** | Matrícula, rendimento e frequência | 100% | calculado: % de participantes ativos com frequência ≥ 75%
-4. **Promover o acesso aos benefícios e serviços socioassistenciais** | Quantidade de beneficiários encaminhados para proteção social | 100% | 100% (fixo)
+**Arquivo:** `supabase/functions/public-matricula/index.ts`
+
+- Recebe dados do formulário + documentos como base64
+- Insere participante com `status = 'pendente'`
+- Faz upload dos documentos no bucket `documentos` (privado) e insere em `participante_documentos`
+- Usa service role para bypassar RLS
+- Valida campos obrigatórios (nome, responsável, whatsapp)
+
+### 3. Página pública `/matricula`
+
+**Arquivo:** `src/pages/matricula/MatriculaPublicaPage.tsx`
+
+- Layout independente (sem sidebar/header do app)
+- Título: "Matrícula Online — CAIA" com branding  
+Subtitulo: Após realizar a matricula, necessário assinar e nos enviar Termo de Autorização de Uso de Imagem, baixe e imprima aqui: botao pra baixar o pdf do termo.
+- Campos:
+  - Nome completo*, Data nascimento*, Gênero, Cor/Raça
+  - Escola, Série
+  - **Período**: apenas Manhã ou Tarde (sem Integral)
+  - Endereço: Rua, Número, Bairro
+  - **Bairro SCFV**: hardcoded (JARDIM IRENE, PARQUE INDEPENDENCIA, ALVORADA)
+  - **Ponto de transporte**: seletor filtrado por bairro selecionado (carrega pontos ativos via edge function ou query pública)
+  - Link: "Confira a localização dos pontos no mapa" → `https://www.google.com/maps/d/edit?mid=16Zj-8IkR-08tLtP1LxhQouLxCmuDxYg&usp=sharing`
+  - Responsável 1: Nome*, CPF, WhatsApp*
+  - Responsável 2: Nome, WhatsApp
+  - Restrição alimentar, Observações de saúde
+  - **Upload de documentos**: botões por categoria (mesmas do sistema interno), aceita PDF/imagem, múltiplos por categoria
+- Tela de confirmação após envio.
+
+### 4. Edge Function auxiliar `public-pontos`
+
+**Arquivo:** `supabase/functions/public-pontos/index.ts`
+
+- Retorna pontos de transporte ativos filtrados por bairro (para a página pública que não tem auth)
+- Recebe `bairro_nome` como parâmetro, busca bairro_id correspondente e retorna pontos
+
+### 5. Rota no App.tsx
+
+- `<Route path="/matricula" element={<MatriculaPublicaPage />} />` fora do ProtectedRoute
+
+### 6. Lista de pendentes na ParticipantesPage
+
+**Arquivo:** `src/pages/participantes/ParticipantesPage.tsx`
+
+- Adicionar `pendente` ao `statusLabel` e `statusColor`
+- Banner no topo: "X matrículas online aguardando aprovação" (conta participantes com status `pendente`)
+- Badge de alerta: se há pendentes com `visualizado_em IS NULL`, mostrar ícone de notificação
+- Ao clicar no banner, filtra por status `pendente`
+- Ao visualizar perfil de pendente, atualiza `visualizado_em` com timestamp atual
+
+### 7. Aprovação com vinculação automática
+
+**Arquivo:** `src/pages/participantes/ParticipantePerfilPage.tsx`
+
+- Ao mudar status de `pendente` → `ativo` no save, executar lógica existente de vinculação automática (calcFaixaFromDate + match turma por bairro/faixa/período)
+- A lógica de auto-link já existe no handleSave — garantir que funciona para transição `pendente` → `ativo`
 
 ---
 
-### Detalhes técnicos
+### Arquivos modificados
 
-- Ambas as sheets usam bordas em todas as células e cabeçalhos em negrito com fundo cinza
-- Larguras de coluna otimizadas para cópia pro Word
-- Os dados já são carregados na `generate()` (presencas, turmas, bairros, relatorios, turmaParticipantes)
-- Precisa buscar `relatorio_turmas` para vincular relatórios a turmas/bairros
 
----
-
-### Arquivo modificado
-
-| Arquivo | Mudança |
-|---|---|
-| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Adicionar sheets "Metas" e "Monitoramento" com dados calculados e formatação para Word |
-
+| Arquivo                                              | Mudança                                        |
+| ---------------------------------------------------- | ---------------------------------------------- |
+| Migração SQL                                         | `pendente` no enum + coluna `visualizado_em`   |
+| `supabase/functions/public-matricula/index.ts`       | Nova: insere participante + documentos         |
+| `supabase/functions/public-pontos/index.ts`          | Nova: retorna pontos ativos por bairro         |
+| `src/pages/matricula/MatriculaPublicaPage.tsx`       | Nova: formulário público de matrícula CAIA     |
+| `src/App.tsx`                                        | Rota `/matricula` pública                      |
+| `src/pages/participantes/ParticipantesPage.tsx`      | Banner de pendentes + alerta + status pendente |
+| `src/pages/participantes/ParticipantePerfilPage.tsx` | Marcar `visualizado_em` + auto-link ao aprovar |
