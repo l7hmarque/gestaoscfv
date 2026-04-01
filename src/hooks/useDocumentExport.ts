@@ -390,7 +390,9 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
   const template = await loadTemplate("relatorio.docx");
   if (template) {
     try {
-      const data = buildRelatorioTemplateData(item, turmaNames, presenca);
+      const baseData = buildRelatorioTemplateData(item, turmaNames, presenca);
+      const tagMappings = await loadTagMappings("relatorio.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_Relatorio_${fileTimestamp()}.docx`);
       toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
