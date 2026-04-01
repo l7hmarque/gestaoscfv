@@ -747,7 +747,7 @@ export async function exportMatrizFrequenciaDocx(
   if (template) {
     try {
       const dateHeaders = datas.map(d => format(new Date(d + "T12:00:00"), "dd/MM"));
-      const data = {
+      const baseData = {
         TURMA: turma.nome || "—",
         PERIODO: turma.periodo || "—",
         FAIXA_ETARIA: turma.faixa_etaria || "—",
@@ -759,6 +759,8 @@ export async function exportMatrizFrequenciaDocx(
         })),
         DATAS: dateHeaders.map((d, i) => ({ HEADER: d, INDEX: i + 1 })),
       };
+      const tagMappings = await loadTagMappings("matriz_frequencia.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_Frequencia_${fileTimestamp()}.docx`);
       return;
