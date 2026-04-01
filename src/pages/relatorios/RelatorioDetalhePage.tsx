@@ -171,6 +171,30 @@ const RelatorioDetalhePage = () => {
           <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate">{item.nome_atividade || "Relatório"}</h1>
         </div>
         <div className="flex gap-1 flex-wrap">
+          {isCoordenacao && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="gap-1 text-xs" disabled={deleting}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Excluir</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir relatório?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação não pode ser desfeita. Todos os dados vinculados (presença, fotos, turmas) serão removidos.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           {fotos.length > 0 && (
             <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={generateInstagramPost}>
               <Instagram className="h-3.5 w-3.5" />
