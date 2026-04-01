@@ -1,18 +1,41 @@
 
 
-## Plano: Corrigir scroll na janela de mapeamento de tags
+## Plano: Frequência por participante na turma + PDF profissional de Busca Ativa
 
-**Problema:** O `DialogContent` usa `max-h-[85vh]` e `flex flex-col`, e o `ScrollArea` usa `max-h-[55vh]`, mas o scroll do Radix `ScrollArea` pode não funcionar corretamente dentro de um Dialog com essas restrições. O `overflow-hidden` do `ScrollArea.Root` combinado com o layout flex pode impedir o scroll visível.
+---
 
-**Correção em `src/components/TemplateTagMapper.tsx` (linha 270 e 290):**
+### 1. Mostrar % de frequência e última presença de cada participante na tabela da turma
 
-1. No `DialogContent`, manter `max-h-[85vh] flex flex-col` mas adicionar `overflow-hidden`
-2. No `ScrollArea`, trocar `max-h-[55vh]` por `flex-1 min-h-0` — isso permite que o flex container calcule corretamente a altura disponível e o ScrollArea ocupe o espaço restante
-3. Adicionar `overflow-y-auto` como fallback no container interno caso o Radix ScrollArea falhe
+**Arquivo:** `src/pages/turmas/TurmaDetalhePage.tsx`
 
-Mudança concreta:
-- Linha 270: `className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"`
-- Linha 290: `<ScrollArea className="flex-1 min-h-0 pr-2">`
+Os dados já são carregados na `fetchAll` (linha 88-89: `presData` com `participante_id, data, presente`). Basta calcular para TODOS os membros (não só alertas):
 
-Isso garante que o flex layout dê ao ScrollArea uma altura calculada real (em vez de "auto"), permitindo o scroll interno funcionar.
+- Criar um estado `memberStats: Record<string, { pctFreq: number; lastDate: string | null }>` 
+- No `fetchAll`, para cada membro, calcular:
+  - `pctFreq = (presentes / total) * 100` (ou "—" se sem registros)
+  - `lastDate` = data mais recente onde `presente === true`
+- Adicionar duas colunas na tabela de participantes (linhas 380-419):
+  - **Frequência** (ex: `78.5%`)
+  - **Última Presença** (ex: `28/03/2026`)
+
+### 2. Exportar Busca Ativa como PDF profissional
+
+**Arquivo:** `src/pages/turmas/TurmaDetalhePage.tsx`
+
+Trocar o export DOCX atual (linhas 185-239) por um PDF usando `jsPDF` + `jspdf-autotable`:
+
+- Cabeçalho institucional com título "RELATÓRIO DE BUSCA ATIVA — SCFV"
+- Dados da turma: nome, bairro, período, educador, data de emissão
+- Texto: "Participantes em alerta: X"
+- Tabela com colunas: Nº, Nome, Idade, Responsável 1, Telefone 1, Responsável 2, Telefone 2, Endereço, Última Presença, Motivo do Alerta
+- Rodapé com "Documento gerado pelo SysELO" e data
+- Fonte técnica, bordas, cabeçalhos em negrito com fundo cinza
+
+---
+
+### Arquivos modificados
+
+| Arquivo | Mudança |
+|---|---|
+| `src/pages/turmas/TurmaDetalhePage.tsx` | Colunas % frequência e última presença na tabela; PDF de Busca Ativa |
 
