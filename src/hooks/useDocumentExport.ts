@@ -650,7 +650,9 @@ export async function exportFichaInscricaoDocx(p: any) {
 
   if (template) {
     try {
-      const data = buildFichaTemplateData(p);
+      const baseData = buildFichaTemplateData(p);
+      const tagMappings = await loadTagMappings("ficha_inscricao.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_FichaInscricao_${fileTimestamp()}.docx`);
       return;
