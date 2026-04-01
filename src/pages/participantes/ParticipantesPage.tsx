@@ -114,31 +114,38 @@ const ParticipantesPage = () => {
               <TableRow className="bg-muted/50">
                 <TableHead className="text-xs font-medium">Nome</TableHead>
                 <TableHead className="text-xs font-medium">Idade</TableHead>
+                <TableHead className="text-xs font-medium">Bairro SCFV</TableHead>
                 <TableHead className="text-xs font-medium">Período</TableHead>
                 <TableHead className="text-xs font-medium">Status</TableHead>
                 <TableHead className="text-xs font-medium">Responsável</TableHead>
+                <TableHead className="text-xs font-medium">Telefone</TableHead>
                 <TableHead className="text-xs font-medium w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((p) => (
-                <TableRow key={p.id} className="hover:bg-muted/30">
-                  <TableCell className="text-sm font-medium">{p.nome_completo}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{calcAge(p.data_nascimento)}</TableCell>
-                  <TableCell className="text-sm">{p.periodo ? periodoLabel[p.periodo] || p.periodo : "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className={`text-xs ${statusColor[p.status || "ativo"]}`}>
-                      {statusLabel[p.status || "ativo"]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{p.responsavel1_nome || "—"}</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                      <Link to={`/participantes/${p.id}`}><Eye className="h-3.5 w-3.5" /></Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filtered.map((p) => {
+                const bairroNome = bairros.find((b) => b.id === p.bairro_id)?.nome;
+                return (
+                  <TableRow key={p.id} className="hover:bg-muted/30">
+                    <TableCell className="text-sm font-medium">{p.nome_completo}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{calcAge(p.data_nascimento)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{bairroNome && isBairroSCFV(bairroNome) ? bairroNome : "—"}</TableCell>
+                    <TableCell className="text-sm">{p.periodo ? periodoLabel[p.periodo] || p.periodo : "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className={`text-xs ${statusColor[p.status || "ativo"]}`}>
+                        {statusLabel[p.status || "ativo"]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{p.responsavel1_nome || "—"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{p.responsavel1_whatsapp || "—"}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                        <Link to={`/participantes/${p.id}`}><Eye className="h-3.5 w-3.5" /></Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
