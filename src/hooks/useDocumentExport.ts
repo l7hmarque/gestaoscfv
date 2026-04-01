@@ -56,6 +56,64 @@ function cleanXmlRuns(zip: PizZip): void {
   }
 }
 
+// Cache for tag mappings from DB
+const mappingsCache: Record<string, Record<string, string>> = {};
+
+async function loadTagMappings(templateKey: string): Promise<Record<string, string>> {
+  if (mappingsCache[templateKey]) return mappingsCache[templateKey];
+  try {
+    const { data } = await supabase
+      .from("template_tag_mappings")
+      .select("tag_name, data_field")
+      .eq("template_key", templateKey);
+    const map: Record<string, string> = {};
+    data?.forEach((r: any) => { map[r.tag_name] = r.data_field; });
+    mappingsCache[templateKey] = map;
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+// Invalidate cache when templates are re-uploaded
+export function invalidateMappingsCache(templateKey?: string) {
+  if (templateKey) delete mappingsCache[templateKey];
+  else Object.keys(mappingsCache).forEach(k => delete mappingsCache[k]);
+}
+
+/**
+ * Remap data using DB tag mappings.
+ * For each tag in the mappings, find the corresponding value in allData
+ * and add it to the output keyed by the tag name.
+ * Unmapped tags pass through from the original data.
+ */
+function remapDataWithMappings(
+  originalData: Record<string, any>,
+  tagMappings: Record<string, string>,
+  allData: Record<string, any>
+): Record<string, any> {
+  if (Object.keys(tagMappings).length === 0) return originalData;
+
+  const result: Record<string, any> = { ...originalData };
+
+  for (const [tagName, fieldKey] of Object.entries(tagMappings)) {
+    // The fieldKey maps to a key in allData
+    // Check if the original data already has a value with the fieldKey as key
+    const upperTag = tagName.toUpperCase();
+    if (allData[upperTag] !== undefined) {
+      result[tagName] = allData[upperTag];
+    } else if (allData[tagName] !== undefined) {
+      result[tagName] = allData[tagName];
+    }
+    // Also ensure the tag exists in result keyed exactly as written in template
+    if (result[tagName] === undefined && result[upperTag] !== undefined) {
+      result[tagName] = result[upperTag];
+    }
+  }
+
+  return result;
+}
+
 function fillTemplate(templateBuffer: ArrayBuffer, data: Record<string, any>): Blob {
   const zip = new PizZip(templateBuffer);
 
@@ -214,7 +272,9 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
   
   if (template) {
     try {
-      const data = buildRelatorioTemplateData(item, turmaNames, presenca);
+      const baseData = buildRelatorioTemplateData(item, turmaNames, presenca);
+      const tagMappings = await loadTagMappings("relatorio.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_Relatorio_${fileTimestamp()}.docx`);
       return;
@@ -330,7 +390,9 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
   const template = await loadTemplate("relatorio.docx");
   if (template) {
     try {
-      const data = buildRelatorioTemplateData(item, turmaNames, presenca);
+      const baseData = buildRelatorioTemplateData(item, turmaNames, presenca);
+      const tagMappings = await loadTagMappings("relatorio.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_Relatorio_${fileTimestamp()}.docx`);
       toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
@@ -475,7 +537,9 @@ export async function exportPlanejamentoDocx(item: any, turmaNames: string[]) {
 
   if (template) {
     try {
-      const data = buildPlanejamentoTemplateData(item, turmaNames);
+      const baseData = buildPlanejamentoTemplateData(item, turmaNames);
+      const tagMappings = await loadTagMappings("planejamento.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_Planejamento_${fileTimestamp()}.docx`);
       return;
@@ -513,7 +577,9 @@ export async function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
   const template = await loadTemplate("planejamento.docx");
   if (template) {
     try {
-      const data = buildPlanejamentoTemplateData(item, turmaNames);
+      const baseData = buildPlanejamentoTemplateData(item, turmaNames);
+      const tagMappings = await loadTagMappings("planejamento.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_Planejamento_${fileTimestamp()}.docx`);
       toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
@@ -584,7 +650,9 @@ export async function exportFichaInscricaoDocx(p: any) {
 
   if (template) {
     try {
-      const data = buildFichaTemplateData(p);
+      const baseData = buildFichaTemplateData(p);
+      const tagMappings = await loadTagMappings("ficha_inscricao.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_FichaInscricao_${fileTimestamp()}.docx`);
       return;
@@ -626,7 +694,9 @@ export async function exportFichaInscricaoPdf(p: any) {
   const template = await loadTemplate("ficha_inscricao.docx");
   if (template) {
     try {
-      const data = buildFichaTemplateData(p);
+      const baseData = buildFichaTemplateData(p);
+      const tagMappings = await loadTagMappings("ficha_inscricao.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_FichaInscricao_${fileTimestamp()}.docx`);
       toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
@@ -677,7 +747,7 @@ export async function exportMatrizFrequenciaDocx(
   if (template) {
     try {
       const dateHeaders = datas.map(d => format(new Date(d + "T12:00:00"), "dd/MM"));
-      const data = {
+      const baseData = {
         TURMA: turma.nome || "—",
         PERIODO: turma.periodo || "—",
         FAIXA_ETARIA: turma.faixa_etaria || "—",
@@ -689,6 +759,8 @@ export async function exportMatrizFrequenciaDocx(
         })),
         DATAS: dateHeaders.map((d, i) => ({ HEADER: d, INDEX: i + 1 })),
       };
+      const tagMappings = await loadTagMappings("matriz_frequencia.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_Frequencia_${fileTimestamp()}.docx`);
       return;

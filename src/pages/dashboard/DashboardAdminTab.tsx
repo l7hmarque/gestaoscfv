@@ -3,9 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { RotateCcw, Percent, TrendingUp, Upload, FileText, Check, X } from "lucide-react";
+import { RotateCcw, Percent, TrendingUp, Upload, FileText, Check, X, Tags } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import TemplateTagMapper from "@/components/TemplateTagMapper";
 
 const TEMPLATES = [
   { key: "relatorio.docx", label: "Relatório de Atividade", description: "Tags: <<DATA>>, <<EDUCADOR>>, <<TURMAS>>, <<NOME_ATIVIDADE>>, <<SCORE_ELO>>..." },
@@ -20,6 +21,7 @@ export default function DashboardAdminTab() {
   const [uploadedTemplates, setUploadedTemplates] = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [mapperOpen, setMapperOpen] = useState<string | null>(null);
 
   useEffect(() => {
     checkTemplates();
@@ -126,9 +128,14 @@ export default function DashboardAdminTab() {
                   {uploading === t.key ? "Enviando..." : uploadedTemplates[t.key] ? "Substituir" : "Enviar"}
                 </Button>
                 {uploadedTemplates[t.key] && (
-                  <Button variant="ghost" size="sm" className="text-xs text-destructive" onClick={() => handleRemove(t.key)}>
-                    Remover
-                  </Button>
+                  <>
+                    <Button variant="outline" size="sm" className="text-xs gap-1" onClick={() => setMapperOpen(t.key)}>
+                      <Tags className="h-3 w-3" /> Mapear Tags
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-xs text-destructive" onClick={() => handleRemove(t.key)}>
+                      Remover
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -202,6 +209,14 @@ export default function DashboardAdminTab() {
           </CardContent>
         </Card>
       </div>
+
+      {mapperOpen && (
+        <TemplateTagMapper
+          templateKey={mapperOpen}
+          open={!!mapperOpen}
+          onOpenChange={(open) => { if (!open) setMapperOpen(null); }}
+        />
+      )}
     </div>
   );
 }

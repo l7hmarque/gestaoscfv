@@ -623,6 +623,30 @@ export type Database = {
           },
         ]
       }
+      template_tag_mappings: {
+        Row: {
+          created_at: string | null
+          data_field: string
+          id: string
+          tag_name: string
+          template_key: string
+        }
+        Insert: {
+          created_at?: string | null
+          data_field: string
+          id?: string
+          tag_name: string
+          template_key: string
+        }
+        Update: {
+          created_at?: string | null
+          data_field?: string
+          id?: string
+          tag_name?: string
+          template_key?: string
+        }
+        Relationships: []
+      }
       turma_participantes: {
         Row: {
           id: string
