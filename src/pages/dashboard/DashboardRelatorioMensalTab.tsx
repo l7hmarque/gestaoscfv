@@ -93,9 +93,8 @@ export default function DashboardRelatorioMensalTab() {
       atendidos.forEach((p: any) => { const per = p.periodo || "N/I"; byPeriodo[per] = (byPeriodo[per] || 0) + 1; });
 
       const novasInsercoes = participantes.filter((p: any) => {
-        if (!p.created_at) return false;
-        const d = p.created_at.slice(0, 10);
-        return d >= startDate && d < endDate;
+        if (!p.iniciou_em) return false;
+        return p.iniciou_em >= startDate && p.iniciou_em < endDate;
       });
 
       const resumoData = [
@@ -114,8 +113,8 @@ export default function DashboardRelatorioMensalTab() {
         ["POR PERÍODO"],
         ...Object.entries(byPeriodo).map(([p, c]) => [p, c]),
         [],
-        ["NOVAS INSERÇÕES NO MÊS", novasInsercoes.length],
-        ...novasInsercoes.map((p: any) => [p.nome_completo, p.created_at?.slice(0, 10)]),
+        ["NOVAS INSERÇÕES NO MÊS (por data de início)", novasInsercoes.length],
+        ...novasInsercoes.map((p: any) => [p.nome_completo, p.iniciou_em]),
       ];
       const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
       wsResumo["!cols"] = [{ wch: 40 }, { wch: 15 }];
