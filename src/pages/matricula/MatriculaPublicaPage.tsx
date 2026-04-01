@@ -335,7 +335,7 @@ const MatriculaPublicaPage = () => {
               Após realizar a matrícula, é necessário assinar e nos enviar o <strong>Termo de Autorização de Uso de Imagem</strong>.
             </p>
             <Button variant="outline" size="sm" className="mt-2 gap-2" asChild>
-              <a href="/termo-uso-imagem.pdf" download>
+              <a href="/termo-uso-imagem.pdf" target="_blank" rel="noopener noreferrer" download>
                 <FileDown className="h-4 w-4" />
                 Baixar Termo de Uso de Imagem
               </a>
