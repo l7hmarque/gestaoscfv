@@ -13,6 +13,24 @@ import { saveAs } from "file-saver";
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
+const DIAS_MAP: Record<string, number> = {
+  dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6
+};
+
+function getDatasAtividade(ano: number, mes: number, diasSemana: string[]): string[] {
+  const diasNum = diasSemana.map(d => DIAS_MAP[d.toLowerCase()]).filter(n => n !== undefined);
+  if (!diasNum.length) return [];
+  const datas: string[] = [];
+  const d = new Date(ano, mes - 1, 1);
+  while (d.getMonth() === mes - 1) {
+    if (diasNum.includes(d.getDay())) {
+      datas.push(d.toISOString().slice(0, 10));
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return datas;
+}
+
 function calcAge(dob: string): number {
   const b = new Date(dob); const now = new Date();
   let age = now.getFullYear() - b.getFullYear();
@@ -75,9 +93,8 @@ export default function DashboardRelatorioMensalTab() {
       atendidos.forEach((p: any) => { const per = p.periodo || "N/I"; byPeriodo[per] = (byPeriodo[per] || 0) + 1; });
 
       const novasInsercoes = participantes.filter((p: any) => {
-        if (!p.created_at) return false;
-        const d = p.created_at.slice(0, 10);
-        return d >= startDate && d < endDate;
+        if (!p.iniciou_em) return false;
+        return p.iniciou_em >= startDate && p.iniciou_em < endDate;
       });
 
       const resumoData = [
@@ -96,8 +113,8 @@ export default function DashboardRelatorioMensalTab() {
         ["POR PERÍODO"],
         ...Object.entries(byPeriodo).map(([p, c]) => [p, c]),
         [],
-        ["NOVAS INSERÇÕES NO MÊS", novasInsercoes.length],
-        ...novasInsercoes.map((p: any) => [p.nome_completo, p.created_at?.slice(0, 10)]),
+        ["NOVAS INSERÇÕES NO MÊS (por data de início)", novasInsercoes.length],
+        ...novasInsercoes.map((p: any) => [p.nome_completo, p.iniciou_em]),
       ];
       const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
       wsResumo["!cols"] = [{ wch: 40 }, { wch: 15 }];
@@ -126,7 +143,13 @@ export default function DashboardRelatorioMensalTab() {
         const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean) as any[];
         const tPresencas = presencas.filter((p: any) => p.turma_id === t.id);
 
-        const datas = [...new Set(tPresencas.map((p: any) => p.data))].sort();
+        // Generate all activity dates from dias_semana instead of only recorded dates
+        const diasSemana = t.dias_semana || [];
+        const datasAtividade = getDatasAtividade(parseInt(ano), mesNum, diasSemana);
+        // Fallback: if no dias_semana configured, use recorded dates
+        const datas = datasAtividade.length > 0
+          ? datasAtividade
+          : [...new Set(tPresencas.map((p: any) => p.data))].sort();
         if (!datas.length && !tParts.length) continue;
 
         const bairroNome = bairroMap.get(t.bairro_id) || "N/I";
