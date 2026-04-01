@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, Upload, X, MapPin, FileDown, AlertTriangle, MessageCircle } from "lucide-react";
 import { BAIRROS_SCFV } from "@/lib/constants";
-import termoUsoImagemUrl from "../../assets/termo-uso-imagem.pdf?url";
 
 const DOC_CATEGORIES = [
   { value: "laudo", label: "Laudo Médico" },
@@ -34,7 +33,7 @@ interface PontoTransporte {
 const MAPS_LINK = "https://www.google.com/maps/d/edit?mid=16Zj-8IkR-08tLtP1LxhQouLxCmuDxYg&usp=sharing";
 
 const WHATSAPP_LINKS: Record<string, string> = {
-  "ALVORADA": "https://chat.whatsapp.com/CMqGlJdUmRW0YKsGWdEZJK",
+  ALVORADA: "https://chat.whatsapp.com/CMqGlJdUmRW0YKsGWdEZJK",
   "JARDIM IRENE": "https://chat.whatsapp.com/FTpkWJLY6TzIT25VgdmDft",
   "PARQUE INDEPENDENCIA": "https://chat.whatsapp.com/FTpkWJLY6TzIT25VgdmDft",
 };
@@ -64,14 +63,11 @@ const MatriculaPublicaPage = () => {
     setChecking(true);
     try {
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      const res = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/public-check-participante`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nome_completo: nome, data_nascimento: dataNasc }),
-        }
-      );
+      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/public-check-participante`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome_completo: nome, data_nascimento: dataNasc }),
+      });
       const data = await res.json();
       if (data.found && data.participante) {
         const p = data.participante;
@@ -115,10 +111,13 @@ const MatriculaPublicaPage = () => {
   }, []);
 
   // Debounced check when name+dob change
-  const triggerCheck = useCallback((nome: string, dataNasc: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => checkExisting(nome, dataNasc), 800);
-  }, [checkExisting]);
+  const triggerCheck = useCallback(
+    (nome: string, dataNasc: string) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => checkExisting(nome, dataNasc), 800);
+    },
+    [checkExisting],
+  );
 
   const handleNameBlur = () => {
     if (form.nome_completo) {
@@ -141,7 +140,7 @@ const MatriculaPublicaPage = () => {
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
       const res = await fetch(
         `https://${projectId}.supabase.co/functions/v1/public-pontos?bairro_nome=${encodeURIComponent(bairroNome)}`,
-        { headers: { "Content-Type": "application/json" } }
+        { headers: { "Content-Type": "application/json" } },
       );
       const data = await res.json();
       setPontos(data.pontos || []);
@@ -191,9 +190,18 @@ const MatriculaPublicaPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.nome_completo?.trim()) { alert("Nome completo é obrigatório"); return; }
-    if (!form.responsavel1_nome?.trim()) { alert("Nome do responsável é obrigatório"); return; }
-    if (!form.responsavel1_whatsapp?.trim()) { alert("WhatsApp do responsável é obrigatório"); return; }
+    if (!form.nome_completo?.trim()) {
+      alert("Nome completo é obrigatório");
+      return;
+    }
+    if (!form.responsavel1_nome?.trim()) {
+      alert("Nome do responsável é obrigatório");
+      return;
+    }
+    if (!form.responsavel1_whatsapp?.trim()) {
+      alert("WhatsApp do responsável é obrigatório");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -211,36 +219,33 @@ const MatriculaPublicaPage = () => {
 
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 
-      const res = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/public-matricula`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            nome_completo: form.nome_completo,
-            data_nascimento: form.data_nascimento || null,
-            genero: form.genero || null,
-            cor_raca: form.cor_raca || null,
-            escola: form.escola || null,
-            serie: form.serie || null,
-            periodo: form.periodo || null,
-            endereco_rua: form.endereco_rua || null,
-            endereco_numero: form.endereco_numero || null,
-            endereco_bairro: form.endereco_bairro || null,
-            bairro_nome: form.bairro_scfv || null,
-            ponto_transporte_id: form.ponto_transporte_id || null,
-            responsavel1_nome: form.responsavel1_nome,
-            responsavel1_cpf: form.responsavel1_cpf || null,
-            responsavel1_whatsapp: form.responsavel1_whatsapp,
-            responsavel2_nome: form.responsavel2_nome || null,
-            responsavel2_whatsapp: form.responsavel2_whatsapp || null,
-            restricao_alimentar: form.restricao_alimentar || null,
-            laudo: form.laudo || null,
-            documentos: docsPayload,
-            existing_id: existingId,
-          }),
-        }
-      );
+      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/public-matricula`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome_completo: form.nome_completo,
+          data_nascimento: form.data_nascimento || null,
+          genero: form.genero || null,
+          cor_raca: form.cor_raca || null,
+          escola: form.escola || null,
+          serie: form.serie || null,
+          periodo: form.periodo || null,
+          endereco_rua: form.endereco_rua || null,
+          endereco_numero: form.endereco_numero || null,
+          endereco_bairro: form.endereco_bairro || null,
+          bairro_nome: form.bairro_scfv || null,
+          ponto_transporte_id: form.ponto_transporte_id || null,
+          responsavel1_nome: form.responsavel1_nome,
+          responsavel1_cpf: form.responsavel1_cpf || null,
+          responsavel1_whatsapp: form.responsavel1_whatsapp,
+          responsavel2_nome: form.responsavel2_nome || null,
+          responsavel2_whatsapp: form.responsavel2_whatsapp || null,
+          restricao_alimentar: form.restricao_alimentar || null,
+          laudo: form.laudo || null,
+          documentos: docsPayload,
+          existing_id: existingId,
+        }),
+      });
 
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Erro ao enviar matrícula");
@@ -264,7 +269,8 @@ const MatriculaPublicaPage = () => {
               {isRematricula ? "Rematrícula Enviada!" : "Matrícula Enviada!"}
             </h2>
             <p className="text-sm text-muted-foreground">
-              Agradecemos por confiar no nosso trabalho! A equipe do <strong>CAIA 🌍 Medianeira</strong> irá analisar os dados e entrar em contato pelo WhatsApp informado.
+              Agradecemos por confiar no nosso trabalho! A equipe do <strong>CAIA 🌍 Medianeira</strong> irá analisar os
+              dados e entrar em contato pelo WhatsApp informado.
             </p>
 
             {whatsappLink && (
@@ -304,9 +310,26 @@ const MatriculaPublicaPage = () => {
     );
   }
 
-  const Field = ({ label, field, required, type = "text", placeholder, onBlur }: { label: string; field: string; required?: boolean; type?: string; placeholder?: string; onBlur?: () => void }) => (
+  const Field = ({
+    label,
+    field,
+    required,
+    type = "text",
+    placeholder,
+    onBlur,
+  }: {
+    label: string;
+    field: string;
+    required?: boolean;
+    type?: string;
+    placeholder?: string;
+    onBlur?: () => void;
+  }) => (
     <div>
-      <Label className="text-sm font-medium">{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
+      <Label className="text-sm font-medium">
+        {label}
+        {required && <span className="text-destructive ml-0.5">*</span>}
+      </Label>
       <Input
         type={type}
         value={form[field] || ""}
@@ -323,8 +346,8 @@ const MatriculaPublicaPage = () => {
       {/* Header */}
       <div className="bg-[hsl(0,65%,67%)] text-white py-6 px-4">
         <div className="max-w-2xl mx-auto text-center">
-          <h1 className="text-2xl font-bold">Matrícula Online — CAIA</h1>
-          <p className="text-sm mt-2 opacity-90">Centro de Atividades para Infância e Adolescência</p>
+          <h1 className="text-2xl font-bold">Matrícula Online — CAIA 🌎</h1>
+          <p className="text-sm mt-2 opacity-90">Centro de Atencao Integral ao Adolescente</p>
         </div>
       </div>
 
@@ -333,10 +356,15 @@ const MatriculaPublicaPage = () => {
         <Card>
           <CardContent className="pt-4 pb-4">
             <p className="text-sm text-muted-foreground">
-              Após realizar a matrícula, é necessário assinar e nos enviar o <strong>Termo de Autorização de Uso de Imagem</strong>.
+              Após realizar a matrícula, é necessário assinar e nos enviar o{" "}
+              <strong>Termo de Autorização de Uso de Imagem</strong>.
             </p>
             <Button variant="outline" size="sm" className="mt-2 gap-2" asChild>
-              <a href={termoUsoImagemUrl} target="_blank" rel="noopener noreferrer" type="application/pdf">
+              <a
+                href="https://txyyncubqdsqbdnozwjz.supabase.co/storage/v1/object/public/documentos-publicos/termo-uso-imagem.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <FileDown className="h-4 w-4" />
                 Abrir Termo de Uso de Imagem
               </a>
@@ -361,13 +389,17 @@ const MatriculaPublicaPage = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Dados da Criança */}
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Dados da Criança / Adolescente</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Dados da Criança / Adolescente</CardTitle>
+            </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="sm:col-span-2">
                 <Field label="Nome Completo" field="nome_completo" required onBlur={handleNameBlur} />
               </div>
               <div>
-                <Label className="text-sm font-medium">Data de Nascimento<span className="text-destructive ml-0.5">*</span></Label>
+                <Label className="text-sm font-medium">
+                  Data de Nascimento<span className="text-destructive ml-0.5">*</span>
+                </Label>
                 <Input
                   type="date"
                   value={form.data_nascimento || ""}
@@ -378,7 +410,9 @@ const MatriculaPublicaPage = () => {
               <div>
                 <Label className="text-sm font-medium">Gênero</Label>
                 <Select value={form.genero || ""} onValueChange={(v) => set("genero", v)}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="masculino">Masculino</SelectItem>
                     <SelectItem value="feminino">Feminino</SelectItem>
@@ -389,7 +423,9 @@ const MatriculaPublicaPage = () => {
               <div>
                 <Label className="text-sm font-medium">Cor/Raça</Label>
                 <Select value={form.cor_raca || ""} onValueChange={(v) => set("cor_raca", v)}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="branca">Branca</SelectItem>
                     <SelectItem value="preta">Preta</SelectItem>
@@ -406,12 +442,16 @@ const MatriculaPublicaPage = () => {
 
           {/* Período e Local */}
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Período e Local</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Período e Local</CardTitle>
+            </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-sm font-medium">Período Desejado</Label>
                 <Select value={form.periodo || ""} onValueChange={(v) => set("periodo", v)}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="manha">Manhã</SelectItem>
                     <SelectItem value="tarde">Tarde</SelectItem>
@@ -421,10 +461,14 @@ const MatriculaPublicaPage = () => {
               <div>
                 <Label className="text-sm font-medium">Bairro SCFV</Label>
                 <Select value={form.bairro_scfv || ""} onValueChange={handleBairroChange}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione o bairro" /></SelectTrigger>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecione o bairro" />
+                  </SelectTrigger>
                   <SelectContent>
                     {BAIRROS_SCFV.map((b) => (
-                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -439,11 +483,15 @@ const MatriculaPublicaPage = () => {
                     <p className="text-xs text-muted-foreground mt-1">Nenhum ponto disponível para este bairro.</p>
                   ) : (
                     <Select value={form.ponto_transporte_id || ""} onValueChange={(v) => set("ponto_transporte_id", v)}>
-                      <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione o ponto" /></SelectTrigger>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Selecione o ponto" />
+                      </SelectTrigger>
                       <SelectContent>
                         {pontos.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
-                            {p.nome}{p.horario_manha ? ` (M: ${p.horario_manha})` : ""}{p.horario_tarde ? ` (T: ${p.horario_tarde})` : ""}
+                            {p.nome}
+                            {p.horario_manha ? ` (M: ${p.horario_manha})` : ""}
+                            {p.horario_tarde ? ` (T: ${p.horario_tarde})` : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -465,9 +513,13 @@ const MatriculaPublicaPage = () => {
 
           {/* Endereço */}
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Endereço</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Endereço</CardTitle>
+            </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2"><Field label="Rua" field="endereco_rua" /></div>
+              <div className="sm:col-span-2">
+                <Field label="Rua" field="endereco_rua" />
+              </div>
               <Field label="Número" field="endereco_numero" />
               <Field label="Bairro" field="endereco_bairro" />
             </CardContent>
@@ -475,7 +527,9 @@ const MatriculaPublicaPage = () => {
 
           {/* Responsáveis */}
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Responsável</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Responsável</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Field label="Nome do Responsável" field="responsavel1_nome" required />
@@ -494,32 +548,62 @@ const MatriculaPublicaPage = () => {
 
           {/* Saúde */}
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Informações de Saúde</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Informações de Saúde</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3">
               <div>
                 <Label className="text-sm font-medium">Restrição Alimentar</Label>
-                <Textarea value={form.restricao_alimentar || ""} onChange={(e) => set("restricao_alimentar", e.target.value)} className="mt-1 min-h-[60px]" placeholder="Ex: alergia a glúten, intolerância a lactose..." />
+                <Textarea
+                  value={form.restricao_alimentar || ""}
+                  onChange={(e) => set("restricao_alimentar", e.target.value)}
+                  className="mt-1 min-h-[60px]"
+                  placeholder="Ex: alergia a glúten, intolerância a lactose..."
+                />
               </div>
               <div>
                 <Label className="text-sm font-medium">Observações de Saúde / Laudo</Label>
-                <Textarea value={form.laudo || ""} onChange={(e) => set("laudo", e.target.value)} className="mt-1 min-h-[60px]" placeholder="Informe se a criança possui algum laudo ou condição de saúde relevante..." />
+                <Textarea
+                  value={form.laudo || ""}
+                  onChange={(e) => set("laudo", e.target.value)}
+                  className="mt-1 min-h-[60px]"
+                  placeholder="Informe se a criança possui algum laudo ou condição de saúde relevante..."
+                />
               </div>
             </CardContent>
           </Card>
 
           {/* Documentos */}
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Documentos</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Documentos</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-xs text-muted-foreground">Envie fotos ou PDFs dos documentos. Você pode enviar mais de um arquivo por categoria.</p>
+              <p className="text-xs text-muted-foreground">
+                Envie fotos ou PDFs dos documentos. Você pode enviar mais de um arquivo por categoria.
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {DOC_CATEGORIES.map((cat) => {
                   const count = docs.filter((d) => d.categoria === cat.value).length;
                   return (
-                    <Button key={cat.value} type="button" variant="outline" size="sm" className="text-xs h-auto py-2 flex-col gap-1 relative" onClick={() => triggerUpload(cat.value)}>
+                    <Button
+                      key={cat.value}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-auto py-2 flex-col gap-1 relative"
+                      onClick={() => triggerUpload(cat.value)}
+                    >
                       <Upload className="h-4 w-4" />
                       {cat.label}
-                      {count > 0 && <Badge variant="secondary" className="absolute -top-1.5 -right-1.5 text-[10px] h-5 w-5 p-0 flex items-center justify-center">{count}</Badge>}
+                      {count > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className="absolute -top-1.5 -right-1.5 text-[10px] h-5 w-5 p-0 flex items-center justify-center"
+                        >
+                          {count}
+                        </Badge>
+                      )}
                     </Button>
                   );
                 })}
@@ -529,9 +613,15 @@ const MatriculaPublicaPage = () => {
                 <div className="space-y-1.5">
                   {docs.map((doc, i) => (
                     <div key={i} className="flex items-center gap-2 bg-muted/50 rounded p-2 text-xs">
-                      <span className="font-medium">{DOC_CATEGORIES.find((c) => c.value === doc.categoria)?.label}:</span>
+                      <span className="font-medium">
+                        {DOC_CATEGORIES.find((c) => c.value === doc.categoria)?.label}:
+                      </span>
                       <span className="truncate flex-1">{doc.file.name}</span>
-                      <button type="button" onClick={() => removeDoc(i)} className="text-destructive hover:text-destructive/80">
+                      <button
+                        type="button"
+                        onClick={() => removeDoc(i)}
+                        className="text-destructive hover:text-destructive/80"
+                      >
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -539,7 +629,14 @@ const MatriculaPublicaPage = () => {
                 </div>
               )}
 
-              <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleFileSelected} multiple />
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*,application/pdf"
+                className="hidden"
+                onChange={handleFileSelected}
+                multiple
+              />
             </CardContent>
           </Card>
 
@@ -549,9 +646,7 @@ const MatriculaPublicaPage = () => {
           </Button>
         </form>
 
-        <p className="text-center text-xs text-muted-foreground pb-6">
-          SysELO — Sistema de Gestão SCFV
-        </p>
+        <p className="text-center text-xs text-muted-foreground pb-6">SysELO — Sistema de Gestão SCFV</p>
       </div>
     </div>
   );
