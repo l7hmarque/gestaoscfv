@@ -17,8 +17,8 @@ import type { Tables } from "@/integrations/supabase/types";
 import { isBairroSCFV } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { format } from "date-fns";
-import { Document, Packer, Paragraph, TextRun, Table as DocxTable, TableRow as DocxTableRow, TableCell as DocxTableCell, WidthType, AlignmentType, BorderStyle, HeadingLevel } from "docx";
-import { saveAs } from "file-saver";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const faixaLabel: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
@@ -56,6 +56,7 @@ const TurmaDetalhePage = () => {
   const [addSearch, setAddSearch] = useState("");
   const [form, setForm] = useState<Record<string, any>>({});
   const [alerts, setAlerts] = useState<Record<string, AlertInfo>>({});
+  const [memberStats, setMemberStats] = useState<Record<string, { pctFreq: number; lastDate: string | null }>>({});
   const [participantesData, setParticipantesData] = useState<Record<string, any>>({});
   const [dashboard, setDashboard] = useState<TurmaDashboard>({ taxaAdesao: 0, totalPresencas: 0, totalRegistros: 0, medianElo: 0, stdElo: 0, eloCount: 0 });
   const [linkedPlans, setLinkedPlans] = useState<LinkedPlan[]>([]);
@@ -95,31 +96,31 @@ const TurmaDetalhePage = () => {
       setParticipantesData(partMap);
 
       const alertMap: Record<string, AlertInfo> = {};
+      const statsMap: Record<string, { pctFreq: number; lastDate: string | null }> = {};
       pIds.forEach((pid: string) => {
         const records = (presData || []).filter((r: any) => r.participante_id === pid);
         if (records.length === 0) return;
 
-        // Count consecutive faults from most recent
         let consecutiveFaults = 0;
         for (const r of records) {
           if (!r.presente) consecutiveFaults++;
           else break;
         }
 
-        // Calculate adhesion
         const total = records.length;
         const present = records.filter((r: any) => r.presente).length;
         const adesao = total > 0 ? (present / total) * 100 : 100;
-
-        // Last present date
         const lastPresentRecord = records.find((r: any) => r.presente);
         const lastPresent = lastPresentRecord?.data || null;
+
+        statsMap[pid] = { pctFreq: Number(adesao.toFixed(1)), lastDate: lastPresent };
 
         if (consecutiveFaults >= 3 || adesao < 65) {
           alertMap[pid] = { consecutiveFaults, adesao: Number(adesao.toFixed(1)), lastPresent };
         }
       });
       setAlerts(alertMap);
+      setMemberStats(statsMap);
     }
 
     // Linked plans & reports
@@ -182,60 +183,61 @@ const TurmaDetalhePage = () => {
 
   const alertMembers = members.filter(m => alerts[m.participante_id]);
 
-  const exportBuscaAtiva = async () => {
-    const cellBorder = { style: BorderStyle.SINGLE, size: 1, color: "999999" };
-    const borders = { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder };
+  const exportBuscaAtiva = () => {
+    const doc = new jsPDF({ orientation: "landscape" });
+    const now = format(new Date(), "dd/MM/yyyy 'às' HH:mm");
+    const fileName = `SysELO_BuscaAtiva_${format(new Date(), "yyyy-MM-dd_HHmmss")}.pdf`;
 
-    const headerCells = ["Nome", "Idade", "Responsável", "Telefone", "Endereço", "Última Presença", "Motivo"].map(text =>
-      new DocxTableCell({
-        borders,
-        width: { size: 1400, type: WidthType.DXA },
-        children: [new Paragraph({ children: [new TextRun({ text, bold: true, size: 18, font: "Arial" })] })],
-      })
-    );
+    // Header
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("RELATÓRIO DE BUSCA ATIVA — SCFV", 148, 15, { align: "center" });
 
-    const dataRows = alertMembers.map(m => {
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Turma: ${turma?.nome || "—"}`, 14, 25);
+    doc.text(`Bairro: ${turma?.bairros?.nome || "—"}  |  Período: ${periodoLabel[turma?.periodo] || "—"}  |  Educador: ${turma?.profiles?.nome || "—"}`, 14, 31);
+    doc.text(`Data de emissão: ${now}`, 14, 37);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Participantes em alerta: ${alertMembers.length}`, 14, 44);
+
+    const rows = alertMembers.map((m, i) => {
       const pData = participantesData[m.participante_id] || {};
       const alert = alerts[m.participante_id];
-      const age = pData.data_nascimento ? `${calcAge(pData.data_nascimento)} anos` : "—";
-      const resp = pData.responsavel1_nome || "—";
-      const tel = pData.responsavel1_whatsapp || pData.responsavel2_whatsapp || "—";
+      const age = pData.data_nascimento ? `${calcAge(pData.data_nascimento)}` : "—";
       const addr = [pData.endereco_rua, pData.endereco_numero, pData.endereco_bairro].filter(Boolean).join(", ") || "—";
       const lastPres = alert.lastPresent ? format(new Date(alert.lastPresent + "T12:00:00"), "dd/MM/yyyy") : "—";
-      const motivo = [];
+      const motivo: string[] = [];
       if (alert.consecutiveFaults >= 3) motivo.push(`${alert.consecutiveFaults} faltas seguidas`);
       if (alert.adesao < 65) motivo.push(`Adesão: ${alert.adesao}%`);
-
-      return new DocxTableRow({
-        children: [m.nome, age, resp, tel, addr, lastPres, motivo.join("; ")].map(text =>
-          new DocxTableCell({
-            borders,
-            width: { size: 1400, type: WidthType.DXA },
-            children: [new Paragraph({ children: [new TextRun({ text, size: 18, font: "Arial" })] })],
-          })
-        ),
-      });
+      return [
+        String(i + 1), m.nome, age,
+        pData.responsavel1_nome || "—", pData.responsavel1_whatsapp || "—",
+        pData.responsavel2_nome || "—", pData.responsavel2_whatsapp || "—",
+        addr, lastPres, motivo.join("; "),
+      ];
     });
 
-    const doc = new Document({
-      sections: [{
-        children: [
-          new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: "RELATÓRIO DE BUSCA ATIVA", bold: true, size: 28, font: "Arial" })] }),
-          new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: `Turma: ${turma?.nome || ""} — ${format(new Date(), "dd/MM/yyyy")}`, size: 22, font: "Arial" })] }),
-          new Paragraph({ spacing: { after: 100 }, children: [
-            new TextRun({ text: `Bairro: ${turma?.bairros?.nome || "—"} | Período: ${periodoLabel[turma?.periodo] || "—"} | Educador: ${turma?.profiles?.nome || "—"}`, size: 20, font: "Arial" }),
-          ]}),
-          new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: `Participantes em alerta: ${alertMembers.length}`, size: 20, font: "Arial", bold: true })] }),
-          new DocxTable({
-            width: { size: 9800, type: WidthType.DXA },
-            rows: [new DocxTableRow({ children: headerCells }), ...dataRows],
-          }),
-        ],
-      }],
+    autoTable(doc, {
+      startY: 48,
+      head: [["Nº", "Nome", "Idade", "Responsável 1", "Tel. 1", "Responsável 2", "Tel. 2", "Endereço", "Últ. Presença", "Motivo"]],
+      body: rows,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [80, 80, 80], fontStyle: "bold", fontSize: 8 },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      margin: { left: 14, right: 14 },
     });
 
-    const buf = await Packer.toBlob(doc);
-    saveAs(buf, `BuscaAtiva_${turma?.nome || "turma"}_${format(new Date(), "yyyy-MM-dd")}.docx`);
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "italic");
+      doc.text(`Documento gerado pelo SysELO — ${now}`, 14, doc.internal.pageSize.height - 8);
+      doc.text(`Página ${i}/${pageCount}`, doc.internal.pageSize.width - 14, doc.internal.pageSize.height - 8, { align: "right" });
+    }
+
+    doc.save(fileName);
     toast.success("Relatório de Busca Ativa exportado!");
   };
 
@@ -381,12 +383,15 @@ const TurmaDetalhePage = () => {
                     <TableRow className="bg-muted/50">
                       <TableHead className="text-xs">Nome</TableHead>
                       <TableHead className="text-xs hidden sm:table-cell">Período</TableHead>
+                      <TableHead className="text-xs hidden sm:table-cell">Frequência</TableHead>
+                      <TableHead className="text-xs hidden sm:table-cell">Última Presença</TableHead>
                       <TableHead className="text-xs w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {members.map((m) => {
                       const alert = alerts[m.participante_id];
+                      const stats = memberStats[m.participante_id];
                       return (
                         <TableRow key={m.tp_id} className={alert ? "bg-destructive/5" : ""}>
                           <TableCell className="text-xs sm:text-sm">
@@ -407,6 +412,12 @@ const TurmaDetalhePage = () => {
                             </div>
                           </TableCell>
                           <TableCell className="text-xs sm:text-sm text-muted-foreground hidden sm:table-cell">{periodoLabel[m.periodo || ""] || "—"}</TableCell>
+                          <TableCell className={`text-xs sm:text-sm hidden sm:table-cell font-medium ${stats ? (stats.pctFreq < 65 ? "text-destructive" : stats.pctFreq < 80 ? "text-amber-600" : "text-emerald-600") : "text-muted-foreground"}`}>
+                            {stats ? `${stats.pctFreq}%` : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs sm:text-sm text-muted-foreground hidden sm:table-cell">
+                            {stats?.lastDate ? format(new Date(stats.lastDate + "T12:00:00"), "dd/MM/yyyy") : "—"}
+                          </TableCell>
                           <TableCell>
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => removeParticipante(m.tp_id)}>
                               <Trash2 className="h-3.5 w-3.5" />
