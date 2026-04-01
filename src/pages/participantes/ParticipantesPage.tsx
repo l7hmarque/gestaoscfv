@@ -106,6 +106,7 @@ const ParticipantesPage = () => {
           <SelectContent>
             <SelectItem value="todos">Todos status</SelectItem>
             <SelectItem value="ativo">Ativo</SelectItem>
+            <SelectItem value="pendente">Pendente</SelectItem>
             <SelectItem value="desligado">Desligado</SelectItem>
             <SelectItem value="incompleto">Incompleto</SelectItem>
           </SelectContent>
