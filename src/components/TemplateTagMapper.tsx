@@ -267,7 +267,7 @@ export default function TemplateTagMapper({ templateKey, open, onOpenChange }: T
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="text-base">
             Mapear Tags — {templateKey}
