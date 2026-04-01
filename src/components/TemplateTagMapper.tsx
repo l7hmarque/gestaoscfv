@@ -287,7 +287,7 @@ export default function TemplateTagMapper({ templateKey, open, onOpenChange }: T
             Nenhuma tag {"{TAG}"} encontrada no template.
           </p>
         ) : (
-          <ScrollArea className="flex-1 max-h-[55vh] pr-2">
+          <ScrollArea className="flex-1 min-h-0 pr-2">
             <div className="space-y-2">
               {tags.map(tag => (
                 <div key={tag} className="flex items-center gap-3 p-2 rounded-md border border-border bg-muted/20">
