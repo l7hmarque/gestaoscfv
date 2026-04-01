@@ -1,64 +1,68 @@
 
 
-## Plano: Gerar "Resultados Alcançados" com IA ao salvar relatório
+## Plano: Tabelas "Metas Propostas" e "Monitoramento e Avaliação" no Relatório Mensal XLSX
 
 ### Resumo
 
-Ao salvar um relatório de atividade, o sistema chamará uma edge function que gera um texto técnico de "Resultados Alcançados" vinculando a atividade aos objetivos do SCFV. O resultado é salvo no campo `analise_ia` (já existente na tabela `relatorios_atividade`) e exibido na página de detalhe do relatório. O relatório mensal XLSX usa esse campo diretamente, sem precisar chamar IA na hora da exportação.
+Adicionar duas novas sheets ao relatório mensal XLSX, formatadas com bordas e cabeçalhos em negrito para fácil cópia pro Word.
 
 ---
 
-### 1. Criar edge function `generate-resultados-alcancados`
+### Sheet "Metas Propostas" (baseada na imagem 1)
 
-**Arquivo:** `supabase/functions/generate-resultados-alcancados/index.ts`
+**Estrutura fixa de 4 colunas**: Metas Propostas | Quant. | Resultados Alcançados | Justificativa
 
-- Recebe os dados do relatório (nome_atividade, tipo_atividade, observacoes, intervencoes, engajamento, situacoes_relevantes, objetivo_alcancado, score_elo) e os dados do planejamento vinculado (titulo, tema, objetivos)
-- Prompt instrui a IA a:
-  - Vincular a atividade aos objetivos do SCFV (convivência, fortalecimento de vínculos, protagonismo, prevenção)
-  - Linguagem técnica e objetiva, sem afirmações falsas
-  - Máximo 130 caracteres
-  - Retornar apenas o texto, sem introduções
-- Retorna `{ resultado: "texto" }`
-- Modelo: `google/gemini-3-flash-preview`
+**Dados por bairro (valores fixos da primeira coluna)**:
 
-### 2. Chamar a edge function ao salvar relatório
+- **Jardim Irene**: meta 200 crianças (manhã e tarde), 30 idosos
+- **Parque Independência**: meta 60 crianças manhã, 60 crianças tarde, 30 idosos
+- **Parque Alvorada**: meta 60 crianças manhã, 60 crianças tarde (sem idosos)
+- **TOTAL GERAL**: soma
 
-**Arquivo:** `src/pages/relatorios/RelatorioNovoPage.tsx`
+**Coluna "Quant."** — calculada automaticamente a partir dos dados do mês:
+- Nº de crianças atendidas no bairro, período manhã (participantes com presença no mês em turmas daquele bairro com período "manha", idade < 60)
+- Nº de crianças atendidas no bairro, período tarde
+- % da soma em relação à meta (ex: "85% de atendidos em relação à meta")
+- Nº de idosos atendidos (idade ≥ 60) — exceto Alvorada
 
-Após inserir o relatório e obter o `relId`:
-- Se há `planejamento_id`, buscar dados do planejamento
-- Chamar `supabase.functions.invoke("generate-resultados-alcancados", { body: { relatorio, planejamento } })`
-- Atualizar o campo `analise_ia` do relatório com o resultado
-- Não bloquear o salvamento se a IA falhar (fire-and-forget com toast de aviso)
+**Coluna "Resultados Alcançados"** — para cada bairro, concatenar/resumir os `analise_ia` dos relatórios de atividades cujas turmas pertencem àquele bairro no mês.
 
-### 3. Exibir na página de detalhe
+**Coluna "Justificativa"** — vazia por enquanto.
 
-**Arquivo:** `src/pages/relatorios/RelatorioDetalhePage.tsx`
-
-- Adicionar um Card "Resultados Alcançados" que mostra `item.analise_ia` quando disponível
-- O campo já existe na tabela, só precisa renderizar
-
-### 4. Usar no relatório mensal XLSX
-
-**Arquivo:** `src/pages/dashboard/DashboardRelatorioMensalTab.tsx`
-
-- Na sheet "Atividades", cruzar planejamentos x relatórios via `planejamento_id`
-- Montar tabela de 4 colunas:
-  - **Atividades Propostas**: título do planejamento
-  - **Atividades Desenvolvidas**: nome_atividade do relatório vinculado
-  - **Resultados Alcançados**: campo `analise_ia` do relatório (já gerado)
-  - **Justificativas**: "Não realizada" se não há relatório vinculado
-- Formatação com bordas e cabeçalhos em negrito para fácil cópia pro Word
-- Relatórios sem planejamento aparecem como linhas extras
+**Lógica de cruzamento**:
+1. Filtrar turmas ativas por `bairro_id` → mapear para nome do bairro SCFV
+2. Para cada turma do bairro, buscar participantes com presença `presente=true` no mês
+3. Classificar por idade (criança vs idoso) e período da turma (manhã/tarde)
+4. Contar participantes únicos por combinação bairro+período+tipo
+5. Para resultados alcançados: filtrar `relatorios_atividade` via `relatorio_turmas` → turmas do bairro → concatenar `analise_ia`
 
 ---
 
-### Arquivos modificados
+### Sheet "Monitoramento" (baseada na imagem 2)
+
+**Estrutura de 4 colunas**: Objetivo | Indicador | Meta Prevista | Meta Atingida
+
+**Linhas fixas baseadas nos objetivos do SCFV**:
+
+1. **Assegurar espaços de referência para convívio grupal...** | Participação nas atividades sócio educacionais | 100% | calculado: % de presença geral no mês
+2. **Possibilitar o desenvolvimento de potencialidades...** | Participação nas atividades culturais, esportivas e sócio educacionais | 100% | calculado: baseado na diversidade de tipos de atividade
+3. **Contribuir para inserção/permanência no sistema sócio educacional** | Matrícula, rendimento e frequência | 100% | calculado: % de participantes ativos com frequência ≥ 75%
+4. **Promover o acesso aos benefícios e serviços socioassistenciais** | Quantidade de beneficiários encaminhados para proteção social | 100% | 100% (fixo)
+
+---
+
+### Detalhes técnicos
+
+- Ambas as sheets usam bordas em todas as células e cabeçalhos em negrito com fundo cinza
+- Larguras de coluna otimizadas para cópia pro Word
+- Os dados já são carregados na `generate()` (presencas, turmas, bairros, relatorios, turmaParticipantes)
+- Precisa buscar `relatorio_turmas` para vincular relatórios a turmas/bairros
+
+---
+
+### Arquivo modificado
 
 | Arquivo | Mudança |
 |---|---|
-| `supabase/functions/generate-resultados-alcancados/index.ts` | Nova edge function para gerar resultados com IA |
-| `src/pages/relatorios/RelatorioNovoPage.tsx` | Chamar IA após salvar e gravar em `analise_ia` |
-| `src/pages/relatorios/RelatorioDetalhePage.tsx` | Exibir card "Resultados Alcançados" |
-| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Tabela de 4 colunas usando `analise_ia` já salvo |
+| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Adicionar sheets "Metas" e "Monitoramento" com dados calculados e formatação para Word |
 
