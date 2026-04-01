@@ -128,9 +128,14 @@ export default function DashboardAdminTab() {
                   {uploading === t.key ? "Enviando..." : uploadedTemplates[t.key] ? "Substituir" : "Enviar"}
                 </Button>
                 {uploadedTemplates[t.key] && (
-                  <Button variant="ghost" size="sm" className="text-xs text-destructive" onClick={() => handleRemove(t.key)}>
-                    Remover
-                  </Button>
+                  <>
+                    <Button variant="outline" size="sm" className="text-xs gap-1" onClick={() => setMapperOpen(t.key)}>
+                      <Tags className="h-3 w-3" /> Mapear Tags
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-xs text-destructive" onClick={() => handleRemove(t.key)}>
+                      Remover
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
