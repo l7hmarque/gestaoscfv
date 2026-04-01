@@ -20,11 +20,11 @@ Deno.serve(async (req) => {
     const {
       nome_completo, data_nascimento, genero, cor_raca,
       escola, serie, periodo, endereco_rua, endereco_numero,
-      endereco_bairro, bairro_id, ponto_transporte_id,
+      endereco_bairro, bairro_nome, ponto_transporte_id,
       responsavel1_nome, responsavel1_cpf, responsavel1_whatsapp,
       responsavel2_nome, responsavel2_whatsapp,
       restricao_alimentar, laudo,
-      documentos, // array of { base64: string, categoria: string, fileName: string, contentType: string }
+      documentos,
     } = body;
 
     // Validate required fields
