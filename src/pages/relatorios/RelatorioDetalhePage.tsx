@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Printer, FileText, FileSpreadsheet, Instagram, Copy, Share2, Download, X } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, Printer, FileText, FileSpreadsheet, Instagram, Copy, Share2, Download, X, Trash2 } from "lucide-react";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,9 +9,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { exportRelatorioDocx, exportRelatorioPdf } from "@/hooks/useDocumentExport";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 const LIKERT_LABELS = ["", "Muito Baixo", "Baixo", "Moderado", "Alto", "Excepcional"];
 const OBJ_LABELS: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
@@ -35,6 +37,8 @@ function LikertDisplay({ label, value }: { label: string; value: number | null }
 
 const RelatorioDetalhePage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [item, setItem] = useState<any>(null);
   const [turmaNames, setTurmaNames] = useState<string[]>([]);
   const [fotos, setFotos] = useState<any[]>([]);
@@ -45,6 +49,16 @@ const RelatorioDetalhePage = () => {
   const [instaOpen, setInstaOpen] = useState(false);
   const [instaText, setInstaText] = useState("");
   const [instaLoading, setInstaLoading] = useState(false);
+  const [isCoordenacao, setIsCoordenacao] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "coordenacao").then(({ data }) => {
+        setIsCoordenacao((data?.length || 0) > 0);
+      });
+    }
+  }, [user]);
 
   useEffect(() => {
     const fetch = async () => {
@@ -126,7 +140,27 @@ const RelatorioDetalhePage = () => {
     }
   };
 
-  if (loading) return <div className="text-sm text-muted-foreground py-8 text-center">Carregando...</div>;
+  const handleDelete = async () => {
+    if (!id) return;
+    setDeleting(true);
+    try {
+      await Promise.all([
+        supabase.from("relatorio_presenca").delete().eq("relatorio_id", id),
+        supabase.from("relatorio_fotos").delete().eq("relatorio_id", id),
+        supabase.from("relatorio_turmas").delete().eq("relatorio_id", id),
+      ]);
+      const { error } = await supabase.from("relatorios_atividade").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Relatório excluído com sucesso");
+      navigate("/relatorios");
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao excluir relatório");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+
   if (!item) return <div className="text-sm text-muted-foreground py-8 text-center">Não encontrado</div>;
 
   return (
@@ -137,6 +171,30 @@ const RelatorioDetalhePage = () => {
           <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate">{item.nome_atividade || "Relatório"}</h1>
         </div>
         <div className="flex gap-1 flex-wrap">
+          {isCoordenacao && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="gap-1 text-xs" disabled={deleting}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Excluir</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir relatório?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação não pode ser desfeita. Todos os dados vinculados (presença, fotos, turmas) serão removidos.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           {fotos.length > 0 && (
             <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={generateInstagramPost}>
               <Instagram className="h-3.5 w-3.5" />
