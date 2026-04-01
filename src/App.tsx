@@ -30,6 +30,7 @@ import BancoDadosPage from "./pages/banco-dados/BancoDadosPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
 import ProfissionalPerfilPage from "./pages/profissional/ProfissionalPerfilPage";
 import DevPage from "./pages/dev/DevPage";
+import MatriculaPublicaPage from "./pages/matricula/MatriculaPublicaPage";
 
 const queryClient = new QueryClient();
 
