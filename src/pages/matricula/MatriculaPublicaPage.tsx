@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,7 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Upload, X, MapPin, FileDown } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CheckCircle, Upload, X, MapPin, FileDown, AlertTriangle, MessageCircle } from "lucide-react";
 import { BAIRROS_SCFV } from "@/lib/constants";
 
 const DOC_CATEGORIES = [
@@ -31,6 +32,12 @@ interface PontoTransporte {
 
 const MAPS_LINK = "https://www.google.com/maps/d/edit?mid=16Zj-8IkR-08tLtP1LxhQouLxCmuDxYg&usp=sharing";
 
+const WHATSAPP_LINKS: Record<string, string> = {
+  "ALVORADA": "https://chat.whatsapp.com/CMqGlJdUmRW0YKsGWdEZJK",
+  "JARDIM IRENE": "https://chat.whatsapp.com/FTpkWJLY6TzIT25VgdmDft",
+  "PARQUE INDEPENDENCIA": "https://chat.whatsapp.com/FTpkWJLY6TzIT25VgdmDft",
+};
+
 const MatriculaPublicaPage = () => {
   const [form, setForm] = useState<Record<string, string>>({});
   const [docs, setDocs] = useState<PendingDoc[]>([]);
@@ -38,10 +45,94 @@ const MatriculaPublicaPage = () => {
   const [loadingPontos, setLoadingPontos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedBairro, setSubmittedBairro] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploadCategoria, setUploadCategoria] = useState("");
 
+  // Re-enrollment state
+  const [existingId, setExistingId] = useState<string | null>(null);
+  const [isRematricula, setIsRematricula] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const set = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+
+  // Check for existing participant
+  const checkExisting = useCallback(async (nome: string, dataNasc: string) => {
+    if (!nome.trim() || !dataNasc) return;
+    setChecking(true);
+    try {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/public-check-participante`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nome_completo: nome, data_nascimento: dataNasc }),
+        }
+      );
+      const data = await res.json();
+      if (data.found && data.participante) {
+        const p = data.participante;
+        setExistingId(p.id);
+        setIsRematricula(true);
+        // Pre-fill form with existing data
+        setForm((prev) => ({
+          ...prev,
+          nome_completo: p.nome_completo || prev.nome_completo || "",
+          data_nascimento: p.data_nascimento || prev.data_nascimento || "",
+          genero: p.genero || "",
+          cor_raca: p.cor_raca || "",
+          escola: p.escola || "",
+          serie: p.serie || "",
+          periodo: p.periodo || "",
+          endereco_rua: p.endereco_rua || "",
+          endereco_numero: p.endereco_numero || "",
+          endereco_bairro: p.endereco_bairro || "",
+          bairro_scfv: p.bairro_nome || "",
+          ponto_transporte_id: p.ponto_transporte_id || "",
+          responsavel1_nome: p.responsavel1_nome || "",
+          responsavel1_cpf: p.responsavel1_cpf || "",
+          responsavel1_whatsapp: p.responsavel1_whatsapp || "",
+          responsavel2_nome: p.responsavel2_nome || "",
+          responsavel2_whatsapp: p.responsavel2_whatsapp || "",
+          restricao_alimentar: p.restricao_alimentar || "",
+          laudo: p.laudo || "",
+        }));
+        // Load pontos if bairro exists
+        if (p.bairro_nome) {
+          loadPontos(p.bairro_nome);
+        }
+      } else {
+        setExistingId(null);
+        setIsRematricula(false);
+      }
+    } catch {
+      // silently fail
+    }
+    setChecking(false);
+  }, []);
+
+  // Debounced check when name+dob change
+  const triggerCheck = useCallback((nome: string, dataNasc: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => checkExisting(nome, dataNasc), 800);
+  }, [checkExisting]);
+
+  const handleNameBlur = () => {
+    if (form.nome_completo) {
+      const padronizado = form.nome_completo.trim().toUpperCase();
+      set("nome_completo", padronizado);
+      if (form.data_nascimento) triggerCheck(padronizado, form.data_nascimento);
+    }
+  };
+
+  const handleDobChange = (val: string) => {
+    set("data_nascimento", val);
+    if (form.nome_completo?.trim() && val) {
+      triggerCheck(form.nome_completo.trim().toUpperCase(), val);
+    }
+  };
 
   const loadPontos = async (bairroNome: string) => {
     setLoadingPontos(true);
@@ -105,7 +196,6 @@ const MatriculaPublicaPage = () => {
 
     setSubmitting(true);
     try {
-      // Prepare documents as base64
       const docsPayload = [];
       for (const doc of docs) {
         const base64 = await fileToBase64(doc.file);
@@ -118,20 +208,7 @@ const MatriculaPublicaPage = () => {
         });
       }
 
-      // Resolve bairro_id from name via the pontos function context
-      // We need to find the bairro_id — we'll let the edge function handle bairro_id lookup
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-
-      // First get bairro_id
-      let bairro_id = null;
-      if (form.bairro_scfv) {
-        const bairroRes = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/public-pontos?bairro_nome=${encodeURIComponent(form.bairro_scfv)}`,
-          { headers: { "Content-Type": "application/json" } }
-        );
-        // We need to get bairro_id separately — let's add it to the edge function
-        // For now, we pass bairro_scfv and edge function will resolve
-      }
 
       const res = await fetch(
         `https://${projectId}.supabase.co/functions/v1/public-matricula`,
@@ -159,6 +236,7 @@ const MatriculaPublicaPage = () => {
             restricao_alimentar: form.restricao_alimentar || null,
             laudo: form.laudo || null,
             documentos: docsPayload,
+            existing_id: existingId,
           }),
         }
       );
@@ -166,6 +244,7 @@ const MatriculaPublicaPage = () => {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Erro ao enviar matrícula");
 
+      setSubmittedBairro(form.bairro_scfv || "");
       setSubmitted(true);
     } catch (err: any) {
       alert("Erro ao enviar: " + (err.message || "Tente novamente"));
@@ -174,16 +253,48 @@ const MatriculaPublicaPage = () => {
   };
 
   if (submitted) {
+    const whatsappLink = WHATSAPP_LINKS[submittedBairro] || "";
     return (
       <div className="min-h-screen bg-[hsl(40,20%,97%)] flex items-center justify-center p-4">
         <Card className="max-w-md w-full text-center">
-          <CardContent className="pt-8 pb-8 space-y-4">
+          <CardContent className="pt-8 pb-8 space-y-5">
             <CheckCircle className="h-16 w-16 text-green-600 mx-auto" />
-            <h2 className="text-xl font-semibold text-foreground">Matrícula Enviada!</h2>
+            <h2 className="text-xl font-semibold text-foreground">
+              {isRematricula ? "Rematrícula Enviada!" : "Matrícula Enviada!"}
+            </h2>
             <p className="text-sm text-muted-foreground">
-              Sua solicitação de matrícula foi enviada com sucesso. A equipe do CAIA irá analisar os dados e entrar em contato pelo WhatsApp informado.
+              Agradecemos por confiar no nosso trabalho! A equipe do <strong>CAIA 🌍 Medianeira</strong> irá analisar os dados e entrar em contato pelo WhatsApp informado.
             </p>
-            <Button onClick={() => { setSubmitted(false); setForm({}); setDocs([]); }} variant="outline">
+
+            {whatsappLink && (
+              <div className="space-y-2 pt-2">
+                <p className="text-sm font-medium text-foreground">
+                  Entre no grupo do WhatsApp do seu bairro para receber informações e novidades:
+                </p>
+                <Button
+                  className="w-full h-12 text-base font-semibold gap-2"
+                  style={{ backgroundColor: "#25D366", color: "#fff" }}
+                  asChild
+                >
+                  <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
+                    <MessageCircle className="h-5 w-5" />
+                    Entrar no Grupo do WhatsApp
+                  </a>
+                </Button>
+              </div>
+            )}
+
+            <Button
+              onClick={() => {
+                setSubmitted(false);
+                setForm({});
+                setDocs([]);
+                setExistingId(null);
+                setIsRematricula(false);
+                setSubmittedBairro("");
+              }}
+              variant="outline"
+            >
               Fazer outra matrícula
             </Button>
           </CardContent>
@@ -192,10 +303,17 @@ const MatriculaPublicaPage = () => {
     );
   }
 
-  const Field = ({ label, field, required, type = "text", placeholder }: { label: string; field: string; required?: boolean; type?: string; placeholder?: string }) => (
+  const Field = ({ label, field, required, type = "text", placeholder, onBlur }: { label: string; field: string; required?: boolean; type?: string; placeholder?: string; onBlur?: () => void }) => (
     <div>
       <Label className="text-sm font-medium">{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
-      <Input type={type} value={form[field] || ""} onChange={(e) => set(field, e.target.value)} className="mt-1" placeholder={placeholder} />
+      <Input
+        type={type}
+        value={form[field] || ""}
+        onChange={(e) => set(field, e.target.value)}
+        onBlur={onBlur}
+        className="mt-1"
+        placeholder={placeholder}
+      />
     </div>
   );
 
@@ -225,13 +343,37 @@ const MatriculaPublicaPage = () => {
           </CardContent>
         </Card>
 
+        {/* Re-enrollment alert */}
+        {isRematricula && (
+          <Alert className="border-yellow-400 bg-yellow-50">
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-800 text-sm">
+              Este participante já possui cadastro! Confira e atualize os dados abaixo.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {checking && (
+          <p className="text-xs text-muted-foreground text-center animate-pulse">Verificando cadastro existente...</p>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Dados da Criança */}
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Dados da Criança / Adolescente</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2"><Field label="Nome Completo" field="nome_completo" required /></div>
-              <Field label="Data de Nascimento" field="data_nascimento" required type="date" />
+              <div className="sm:col-span-2">
+                <Field label="Nome Completo" field="nome_completo" required onBlur={handleNameBlur} />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Data de Nascimento<span className="text-destructive ml-0.5">*</span></Label>
+                <Input
+                  type="date"
+                  value={form.data_nascimento || ""}
+                  onChange={(e) => handleDobChange(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
               <div>
                 <Label className="text-sm font-medium">Gênero</Label>
                 <Select value={form.genero || ""} onValueChange={(v) => set("genero", v)}>
@@ -402,7 +544,7 @@ const MatriculaPublicaPage = () => {
 
           {/* Submit */}
           <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={submitting}>
-            {submitting ? "Enviando matrícula..." : "Enviar Matrícula"}
+            {submitting ? "Enviando matrícula..." : isRematricula ? "Enviar Rematrícula" : "Enviar Matrícula"}
           </Button>
         </form>
 
