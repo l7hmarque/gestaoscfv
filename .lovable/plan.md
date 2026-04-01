@@ -1,39 +1,18 @@
 
 
-## Plano: Exclusão de Relatórios de Atividade (individual e em lote)
+## Plano: Corrigir scroll na janela de mapeamento de tags
 
-### Resumo
-Adicionar funcionalidade para coordenadores excluírem relatórios de atividade — individualmente na página de detalhe e em lote por intervalo de datas na listagem. As RLS policies já permitem delete para coordenação e autor.
+**Problema:** O `DialogContent` usa `max-h-[85vh]` e `flex flex-col`, e o `ScrollArea` usa `max-h-[55vh]`, mas o scroll do Radix `ScrollArea` pode não funcionar corretamente dentro de um Dialog com essas restrições. O `overflow-hidden` do `ScrollArea.Root` combinado com o layout flex pode impedir o scroll visível.
 
----
+**Correção em `src/components/TemplateTagMapper.tsx` (linha 270 e 290):**
 
-### 1. Botão "Excluir" na página de detalhe (`RelatorioDetalhePage.tsx`)
+1. No `DialogContent`, manter `max-h-[85vh] flex flex-col` mas adicionar `overflow-hidden`
+2. No `ScrollArea`, trocar `max-h-[55vh]` por `flex-1 min-h-0` — isso permite que o flex container calcule corretamente a altura disponível e o ScrollArea ocupe o espaço restante
+3. Adicionar `overflow-y-auto` como fallback no container interno caso o Radix ScrollArea falhe
 
-- Adicionar botão vermelho "Excluir" no header (ao lado de Imprimir/Exportar), visível para coordenação
-- Ao clicar, AlertDialog de confirmação
-- Na exclusão: deletar registros vinculados (`relatorio_presenca`, `relatorio_fotos`, `relatorio_turmas`) e depois `relatorios_atividade`
-- Redirecionar para `/relatorios` após sucesso
+Mudança concreta:
+- Linha 270: `className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"`
+- Linha 290: `<ScrollArea className="flex-1 min-h-0 pr-2">`
 
-### 2. Exclusão em lote na listagem (`RelatoriosPage.tsx`)
-
-- Botão "Excluir em Lote" no header, visível para coordenação (verificar role via `user_roles`)
-- Abre Dialog com dois campos de data (De / Até) e botão "Buscar"
-- Lista os relatórios encontrados com checkboxes (selecionar todos / individual)
-- Botão "Excluir Selecionados" com AlertDialog de confirmação
-- Cascata: deletar `relatorio_presenca`, `relatorio_fotos`, `relatorio_turmas` dos IDs selecionados, depois `relatorios_atividade`
-- Recarregar a lista após exclusão
-
-### 3. Verificação de role
-
-- Buscar `user_roles` do usuário logado para checar se tem role `coordenacao`
-- Usar o `useAuth()` + query rápida em `user_roles` ou reutilizar padrão existente no projeto
-
----
-
-### Arquivos modificados
-
-| Arquivo | Mudança |
-|---|---|
-| `src/pages/relatorios/RelatorioDetalhePage.tsx` | Botão excluir individual com confirmação |
-| `src/pages/relatorios/RelatoriosPage.tsx` | Botão excluir em lote com filtro por datas |
+Isso garante que o flex layout dê ao ScrollArea uma altura calculada real (em vez de "auto"), permitindo o scroll interno funcionar.
 
