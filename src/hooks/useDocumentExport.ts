@@ -56,6 +56,64 @@ function cleanXmlRuns(zip: PizZip): void {
   }
 }
 
+// Cache for tag mappings from DB
+const mappingsCache: Record<string, Record<string, string>> = {};
+
+async function loadTagMappings(templateKey: string): Promise<Record<string, string>> {
+  if (mappingsCache[templateKey]) return mappingsCache[templateKey];
+  try {
+    const { data } = await supabase
+      .from("template_tag_mappings")
+      .select("tag_name, data_field")
+      .eq("template_key", templateKey);
+    const map: Record<string, string> = {};
+    data?.forEach((r: any) => { map[r.tag_name] = r.data_field; });
+    mappingsCache[templateKey] = map;
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+// Invalidate cache when templates are re-uploaded
+export function invalidateMappingsCache(templateKey?: string) {
+  if (templateKey) delete mappingsCache[templateKey];
+  else Object.keys(mappingsCache).forEach(k => delete mappingsCache[k]);
+}
+
+/**
+ * Remap data using DB tag mappings.
+ * For each tag in the mappings, find the corresponding value in allData
+ * and add it to the output keyed by the tag name.
+ * Unmapped tags pass through from the original data.
+ */
+function remapDataWithMappings(
+  originalData: Record<string, any>,
+  tagMappings: Record<string, string>,
+  allData: Record<string, any>
+): Record<string, any> {
+  if (Object.keys(tagMappings).length === 0) return originalData;
+
+  const result: Record<string, any> = { ...originalData };
+
+  for (const [tagName, fieldKey] of Object.entries(tagMappings)) {
+    // The fieldKey maps to a key in allData
+    // Check if the original data already has a value with the fieldKey as key
+    const upperTag = tagName.toUpperCase();
+    if (allData[upperTag] !== undefined) {
+      result[tagName] = allData[upperTag];
+    } else if (allData[tagName] !== undefined) {
+      result[tagName] = allData[tagName];
+    }
+    // Also ensure the tag exists in result keyed exactly as written in template
+    if (result[tagName] === undefined && result[upperTag] !== undefined) {
+      result[tagName] = result[upperTag];
+    }
+  }
+
+  return result;
+}
+
 function fillTemplate(templateBuffer: ArrayBuffer, data: Record<string, any>): Blob {
   const zip = new PizZip(templateBuffer);
 
