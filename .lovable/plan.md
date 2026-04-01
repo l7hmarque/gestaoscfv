@@ -1,41 +1,25 @@
 
 
-## Plano: Frequência por participante na turma + PDF profissional de Busca Ativa
+## Plano: Remover bairros duplicados no filtro de participantes
 
----
+### Problema
+O banco de dados contém bairros com nomes em caixa mista (ex: "Jardim Irene") e em maiúscula ("JARDIM IRENE"). A função `isBairroSCFV` usa comparação case-insensitive, então ambos passam no filtro — gerando duplicatas no dropdown.
 
-### 1. Mostrar % de frequência e última presença de cada participante na tabela da turma
+### Correção em `src/pages/participantes/ParticipantesPage.tsx` (linha 99)
 
-**Arquivo:** `src/pages/turmas/TurmaDetalhePage.tsx`
+Adicionar um filtro extra que aceita **apenas bairros cujo nome é exatamente igual a um dos `BAIRROS_SCFV`** (comparação exata, case-sensitive):
 
-Os dados já são carregados na `fetchAll` (linha 88-89: `presData` com `participante_id, data, presente`). Basta calcular para TODOS os membros (não só alertas):
+```typescript
+{bairros
+  .filter((b) => BAIRROS_SCFV.includes(b.nome))
+  .map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}
+```
 
-- Criar um estado `memberStats: Record<string, { pctFreq: number; lastDate: string | null }>` 
-- No `fetchAll`, para cada membro, calcular:
-  - `pctFreq = (presentes / total) * 100` (ou "—" se sem registros)
-  - `lastDate` = data mais recente onde `presente === true`
-- Adicionar duas colunas na tabela de participantes (linhas 380-419):
-  - **Frequência** (ex: `78.5%`)
-  - **Última Presença** (ex: `28/03/2026`)
+Isso garante que só os registros em caixa alta ("JARDIM IRENE", "PARQUE INDEPENDENCIA", "ALVORADA") apareçam, eliminando as versões em caixa mista.
 
-### 2. Exportar Busca Ativa como PDF profissional
-
-**Arquivo:** `src/pages/turmas/TurmaDetalhePage.tsx`
-
-Trocar o export DOCX atual (linhas 185-239) por um PDF usando `jsPDF` + `jspdf-autotable`:
-
-- Cabeçalho institucional com título "RELATÓRIO DE BUSCA ATIVA — SCFV"
-- Dados da turma: nome, bairro, período, educador, data de emissão
-- Texto: "Participantes em alerta: X"
-- Tabela com colunas: Nº, Nome, Idade, Responsável 1, Telefone 1, Responsável 2, Telefone 2, Endereço, Última Presença, Motivo do Alerta
-- Rodapé com "Documento gerado pelo SysELO" e data
-- Fonte técnica, bordas, cabeçalhos em negrito com fundo cinza
-
----
-
-### Arquivos modificados
+Será necessário importar `BAIRROS_SCFV` diretamente de `@/lib/constants`.
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/turmas/TurmaDetalhePage.tsx` | Colunas % frequência e última presença na tabela; PDF de Busca Ativa |
+| `src/pages/participantes/ParticipantesPage.tsx` | Trocar `isBairroSCFV` por `BAIRROS_SCFV.includes` no filtro de bairros |
 
