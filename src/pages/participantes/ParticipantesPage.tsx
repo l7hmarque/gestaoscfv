@@ -52,8 +52,35 @@ const ParticipantesPage = () => {
     return Math.floor(diff / 31557600000) + " anos";
   };
 
+  const pendentes = participantes.filter((p) => (p as any).status === "pendente");
+  const pendentesNaoVistos = pendentes.filter((p) => !(p as any).visualizado_em);
+
   return (
     <div className="space-y-4">
+      {/* Banner de pendentes */}
+      {pendentes.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setStatusFilter("pendente")}
+          className="w-full flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-left hover:bg-blue-100 transition-colors"
+        >
+          <div className="relative">
+            <Bell className="h-5 w-5 text-blue-600" />
+            {pendentesNaoVistos.length > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                {pendentesNaoVistos.length}
+              </span>
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-medium text-blue-800">{pendentes.length} matrícula{pendentes.length !== 1 ? "s" : ""} online aguardando aprovação</p>
+            {pendentesNaoVistos.length > 0 && (
+              <p className="text-xs text-blue-600">{pendentesNaoVistos.length} ainda não visualizada{pendentesNaoVistos.length !== 1 ? "s" : ""}</p>
+            )}
+          </div>
+        </button>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Participantes</h1>
