@@ -120,18 +120,41 @@ export default function DashboardRelatorioMensalTab() {
       wsResumo["!cols"] = [{ wch: 40 }, { wch: 15 }];
       XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
 
-      // --- Sheet 2: Atividades Planejadas x Relatadas ---
+      // --- Sheet 2: Atividades Propostas x Desenvolvidas (4 colunas) ---
+      const relByPlan = new Map<string, any>();
+      relatorios.forEach((r: any) => { if (r.planejamento_id) relByPlan.set(r.planejamento_id, r); });
+
+      const atividadesRows: any[][] = [];
+      // Planejamentos matched with relatórios
+      planejamentos.forEach((p: any) => {
+        const rel = relByPlan.get(p.id);
+        atividadesRows.push([
+          p.titulo + (p.tema ? ` — ${p.tema}` : ""),
+          rel ? (rel.nome_atividade || "") : "",
+          rel ? (rel.analise_ia || "") : "",
+          rel ? "" : "Atividade não realizada no período",
+        ]);
+        if (rel) relByPlan.delete(p.id);
+      });
+      // Relatórios without linked planejamento
+      relatorios.filter((r: any) => !r.planejamento_id).forEach((r: any) => {
+        atividadesRows.push([
+          "",
+          r.nome_atividade || "",
+          r.analise_ia || "",
+          "",
+        ]);
+      });
+
       const atividadesData = [
-        ["ATIVIDADES PLANEJADAS x RELATADAS"],
+        ["ATIVIDADES PROPOSTAS x DESENVOLVIDAS"],
+        [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
         [],
-        ["Planejamentos", "Título", "Tema", "Data"],
-        ...planejamentos.map((p: any) => ["Planejamento", p.titulo, p.tema || "", p.data_aplicacao || ""]),
-        [],
-        ["Relatórios", "Atividade", "Tipo", "Data"],
-        ...relatorios.map((r: any) => ["Relatório", r.nome_atividade || "", r.tipo_atividade || "", r.data]),
+        ["Atividades Propostas", "Atividades Desenvolvidas", "Resultados Alcançados", "Justificativas"],
+        ...atividadesRows,
       ];
       const wsAtiv = XLSX.utils.aoa_to_sheet(atividadesData);
-      wsAtiv["!cols"] = [{ wch: 15 }, { wch: 35 }, { wch: 20 }, { wch: 12 }];
+      wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
       XLSX.utils.book_append_sheet(wb, wsAtiv, "Atividades");
 
       // --- Sheets 3+: Matrizes de frequência por turma ---
