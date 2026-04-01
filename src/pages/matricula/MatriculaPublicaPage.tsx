@@ -1,0 +1,417 @@
+import { useState, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle, Upload, X, MapPin, FileDown } from "lucide-react";
+import { BAIRROS_SCFV } from "@/lib/constants";
+
+const DOC_CATEGORIES = [
+  { value: "laudo", label: "Laudo Médico" },
+  { value: "receita", label: "Receita" },
+  { value: "comprovante_escolar", label: "Comprovante Escolar" },
+  { value: "outro", label: "Outro" },
+];
+
+interface PendingDoc {
+  file: File;
+  categoria: string;
+  preview?: string;
+}
+
+interface PontoTransporte {
+  id: string;
+  nome: string;
+  horario_manha: string | null;
+  horario_tarde: string | null;
+}
+
+const MAPS_LINK = "https://www.google.com/maps/d/edit?mid=16Zj-8IkR-08tLtP1LxhQouLxCmuDxYg&usp=sharing";
+
+const MatriculaPublicaPage = () => {
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [docs, setDocs] = useState<PendingDoc[]>([]);
+  const [pontos, setPontos] = useState<PontoTransporte[]>([]);
+  const [loadingPontos, setLoadingPontos] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadCategoria, setUploadCategoria] = useState("");
+
+  const set = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+
+  const loadPontos = async (bairroNome: string) => {
+    setLoadingPontos(true);
+    try {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/public-pontos?bairro_nome=${encodeURIComponent(bairroNome)}`,
+        { headers: { "Content-Type": "application/json" } }
+      );
+      const data = await res.json();
+      setPontos(data.pontos || []);
+    } catch {
+      setPontos([]);
+    }
+    setLoadingPontos(false);
+  };
+
+  const handleBairroChange = (bairroNome: string) => {
+    set("bairro_scfv", bairroNome);
+    set("ponto_transporte_id", "");
+    loadPontos(bairroNome);
+  };
+
+  const triggerUpload = (categoria: string) => {
+    setUploadCategoria(categoria);
+    fileRef.current?.click();
+  };
+
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const preview = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
+      setDocs((prev) => [...prev, { file, categoria: uploadCategoria, preview }]);
+    }
+    e.target.value = "";
+  };
+
+  const removeDoc = (index: number) => {
+    setDocs((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        resolve(result.split(",")[1]);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!form.nome_completo?.trim()) { alert("Nome completo é obrigatório"); return; }
+    if (!form.responsavel1_nome?.trim()) { alert("Nome do responsável é obrigatório"); return; }
+    if (!form.responsavel1_whatsapp?.trim()) { alert("WhatsApp do responsável é obrigatório"); return; }
+
+    setSubmitting(true);
+    try {
+      // Prepare documents as base64
+      const docsPayload = [];
+      for (const doc of docs) {
+        const base64 = await fileToBase64(doc.file);
+        const ts = new Date().toISOString().replace(/[:.]/g, "-");
+        docsPayload.push({
+          base64,
+          categoria: doc.categoria,
+          fileName: `matricula_${doc.categoria}_${ts}_${doc.file.name}`,
+          contentType: doc.file.type || "application/octet-stream",
+        });
+      }
+
+      // Resolve bairro_id from name via the pontos function context
+      // We need to find the bairro_id — we'll let the edge function handle bairro_id lookup
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+
+      // First get bairro_id
+      let bairro_id = null;
+      if (form.bairro_scfv) {
+        const bairroRes = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/public-pontos?bairro_nome=${encodeURIComponent(form.bairro_scfv)}`,
+          { headers: { "Content-Type": "application/json" } }
+        );
+        // We need to get bairro_id separately — let's add it to the edge function
+        // For now, we pass bairro_scfv and edge function will resolve
+      }
+
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/public-matricula`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nome_completo: form.nome_completo,
+            data_nascimento: form.data_nascimento || null,
+            genero: form.genero || null,
+            cor_raca: form.cor_raca || null,
+            escola: form.escola || null,
+            serie: form.serie || null,
+            periodo: form.periodo || null,
+            endereco_rua: form.endereco_rua || null,
+            endereco_numero: form.endereco_numero || null,
+            endereco_bairro: form.endereco_bairro || null,
+            bairro_nome: form.bairro_scfv || null,
+            ponto_transporte_id: form.ponto_transporte_id || null,
+            responsavel1_nome: form.responsavel1_nome,
+            responsavel1_cpf: form.responsavel1_cpf || null,
+            responsavel1_whatsapp: form.responsavel1_whatsapp,
+            responsavel2_nome: form.responsavel2_nome || null,
+            responsavel2_whatsapp: form.responsavel2_whatsapp || null,
+            restricao_alimentar: form.restricao_alimentar || null,
+            laudo: form.laudo || null,
+            documentos: docsPayload,
+          }),
+        }
+      );
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Erro ao enviar matrícula");
+
+      setSubmitted(true);
+    } catch (err: any) {
+      alert("Erro ao enviar: " + (err.message || "Tente novamente"));
+    }
+    setSubmitting(false);
+  };
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-[hsl(40,20%,97%)] flex items-center justify-center p-4">
+        <Card className="max-w-md w-full text-center">
+          <CardContent className="pt-8 pb-8 space-y-4">
+            <CheckCircle className="h-16 w-16 text-green-600 mx-auto" />
+            <h2 className="text-xl font-semibold text-foreground">Matrícula Enviada!</h2>
+            <p className="text-sm text-muted-foreground">
+              Sua solicitação de matrícula foi enviada com sucesso. A equipe do CAIA irá analisar os dados e entrar em contato pelo WhatsApp informado.
+            </p>
+            <Button onClick={() => { setSubmitted(false); setForm({}); setDocs([]); }} variant="outline">
+              Fazer outra matrícula
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const Field = ({ label, field, required, type = "text", placeholder }: { label: string; field: string; required?: boolean; type?: string; placeholder?: string }) => (
+    <div>
+      <Label className="text-sm font-medium">{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
+      <Input type={type} value={form[field] || ""} onChange={(e) => set(field, e.target.value)} className="mt-1" placeholder={placeholder} />
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-[hsl(40,20%,97%)]">
+      {/* Header */}
+      <div className="bg-[hsl(0,65%,67%)] text-white py-6 px-4">
+        <div className="max-w-2xl mx-auto text-center">
+          <h1 className="text-2xl font-bold">Matrícula Online — CAIA</h1>
+          <p className="text-sm mt-2 opacity-90">Centro de Atividades para Infância e Adolescência</p>
+        </div>
+      </div>
+
+      <div className="max-w-2xl mx-auto p-4 space-y-4">
+        {/* Subtitle / Term download */}
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <p className="text-sm text-muted-foreground">
+              Após realizar a matrícula, é necessário assinar e nos enviar o <strong>Termo de Autorização de Uso de Imagem</strong>.
+            </p>
+            <Button variant="outline" size="sm" className="mt-2 gap-2" asChild>
+              <a href="/termo-uso-imagem.pdf" download>
+                <FileDown className="h-4 w-4" />
+                Baixar Termo de Uso de Imagem
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Dados da Criança */}
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Dados da Criança / Adolescente</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2"><Field label="Nome Completo" field="nome_completo" required /></div>
+              <Field label="Data de Nascimento" field="data_nascimento" required type="date" />
+              <div>
+                <Label className="text-sm font-medium">Gênero</Label>
+                <Select value={form.genero || ""} onValueChange={(v) => set("genero", v)}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="masculino">Masculino</SelectItem>
+                    <SelectItem value="feminino">Feminino</SelectItem>
+                    <SelectItem value="outro">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Cor/Raça</Label>
+                <Select value={form.cor_raca || ""} onValueChange={(v) => set("cor_raca", v)}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="branca">Branca</SelectItem>
+                    <SelectItem value="preta">Preta</SelectItem>
+                    <SelectItem value="parda">Parda</SelectItem>
+                    <SelectItem value="amarela">Amarela</SelectItem>
+                    <SelectItem value="indigena">Indígena</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Field label="Escola" field="escola" />
+              <Field label="Série / Ano" field="serie" />
+            </CardContent>
+          </Card>
+
+          {/* Período e Local */}
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Período e Local</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-sm font-medium">Período Desejado</Label>
+                <Select value={form.periodo || ""} onValueChange={(v) => set("periodo", v)}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manha">Manhã</SelectItem>
+                    <SelectItem value="tarde">Tarde</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Bairro SCFV</Label>
+                <Select value={form.bairro_scfv || ""} onValueChange={handleBairroChange}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione o bairro" /></SelectTrigger>
+                  <SelectContent>
+                    {BAIRROS_SCFV.map((b) => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {form.bairro_scfv && (
+                <div className="sm:col-span-2">
+                  <Label className="text-sm font-medium">Ponto de Transporte</Label>
+                  {loadingPontos ? (
+                    <p className="text-xs text-muted-foreground mt-1">Carregando pontos...</p>
+                  ) : pontos.length === 0 ? (
+                    <p className="text-xs text-muted-foreground mt-1">Nenhum ponto disponível para este bairro.</p>
+                  ) : (
+                    <Select value={form.ponto_transporte_id || ""} onValueChange={(v) => set("ponto_transporte_id", v)}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione o ponto" /></SelectTrigger>
+                      <SelectContent>
+                        {pontos.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.nome}{p.horario_manha ? ` (M: ${p.horario_manha})` : ""}{p.horario_tarde ? ` (T: ${p.horario_tarde})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <a
+                    href={MAPS_LINK}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1.5"
+                  >
+                    <MapPin className="h-3 w-3" />
+                    Confira a localização dos pontos no mapa
+                  </a>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Endereço */}
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Endereço</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2"><Field label="Rua" field="endereco_rua" /></div>
+              <Field label="Número" field="endereco_numero" />
+              <Field label="Bairro" field="endereco_bairro" />
+            </CardContent>
+          </Card>
+
+          {/* Responsáveis */}
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Responsável</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Field label="Nome do Responsável" field="responsavel1_nome" required />
+                <Field label="CPF" field="responsavel1_cpf" placeholder="000.000.000-00" />
+                <Field label="WhatsApp" field="responsavel1_whatsapp" required placeholder="(00) 00000-0000" />
+              </div>
+              <div className="border-t pt-3">
+                <p className="text-xs text-muted-foreground mb-2">Responsável 2 (opcional)</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Nome" field="responsavel2_nome" />
+                  <Field label="WhatsApp" field="responsavel2_whatsapp" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Saúde */}
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Informações de Saúde</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <Label className="text-sm font-medium">Restrição Alimentar</Label>
+                <Textarea value={form.restricao_alimentar || ""} onChange={(e) => set("restricao_alimentar", e.target.value)} className="mt-1 min-h-[60px]" placeholder="Ex: alergia a glúten, intolerância a lactose..." />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Observações de Saúde / Laudo</Label>
+                <Textarea value={form.laudo || ""} onChange={(e) => set("laudo", e.target.value)} className="mt-1 min-h-[60px]" placeholder="Informe se a criança possui algum laudo ou condição de saúde relevante..." />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Documentos */}
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Documentos</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">Envie fotos ou PDFs dos documentos. Você pode enviar mais de um arquivo por categoria.</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {DOC_CATEGORIES.map((cat) => {
+                  const count = docs.filter((d) => d.categoria === cat.value).length;
+                  return (
+                    <Button key={cat.value} type="button" variant="outline" size="sm" className="text-xs h-auto py-2 flex-col gap-1 relative" onClick={() => triggerUpload(cat.value)}>
+                      <Upload className="h-4 w-4" />
+                      {cat.label}
+                      {count > 0 && <Badge variant="secondary" className="absolute -top-1.5 -right-1.5 text-[10px] h-5 w-5 p-0 flex items-center justify-center">{count}</Badge>}
+                    </Button>
+                  );
+                })}
+              </div>
+
+              {docs.length > 0 && (
+                <div className="space-y-1.5">
+                  {docs.map((doc, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-muted/50 rounded p-2 text-xs">
+                      <span className="font-medium">{DOC_CATEGORIES.find((c) => c.value === doc.categoria)?.label}:</span>
+                      <span className="truncate flex-1">{doc.file.name}</span>
+                      <button type="button" onClick={() => removeDoc(i)} className="text-destructive hover:text-destructive/80">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleFileSelected} multiple />
+            </CardContent>
+          </Card>
+
+          {/* Submit */}
+          <Button type="submit" className="w-full h-12 text-base font-semibold" disabled={submitting}>
+            {submitting ? "Enviando matrícula..." : "Enviar Matrícula"}
+          </Button>
+        </form>
+
+        <p className="text-center text-xs text-muted-foreground pb-6">
+          SysELO — Sistema de Gestão SCFV
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default MatriculaPublicaPage;
