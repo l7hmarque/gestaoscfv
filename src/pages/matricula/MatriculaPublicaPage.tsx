@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, Upload, X, MapPin, FileDown, AlertTriangle, MessageCircle } from "lucide-react";
 import { BAIRROS_SCFV } from "@/lib/constants";
+import termoUsoImagemUrl from "../../assets/termo-uso-imagem.pdf?url";
 
 const DOC_CATEGORIES = [
   { value: "laudo", label: "Laudo Médico" },
@@ -335,7 +336,7 @@ const MatriculaPublicaPage = () => {
               Após realizar a matrícula, é necessário assinar e nos enviar o <strong>Termo de Autorização de Uso de Imagem</strong>.
             </p>
             <Button variant="outline" size="sm" className="mt-2 gap-2" asChild>
-              <a href="https://txyyncubqdsqbdnozwjz.supabase.co/storage/v1/object/public/documentos-publicos/termo-uso-imagem.pdf" target="_blank" rel="noopener noreferrer">
+              <a href={termoUsoImagemUrl} target="_blank" rel="noopener noreferrer" type="application/pdf">
                 <FileDown className="h-4 w-4" />
                 Abrir Termo de Uso de Imagem
               </a>
