@@ -143,7 +143,13 @@ export default function DashboardRelatorioMensalTab() {
         const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean) as any[];
         const tPresencas = presencas.filter((p: any) => p.turma_id === t.id);
 
-        const datas = [...new Set(tPresencas.map((p: any) => p.data))].sort();
+        // Generate all activity dates from dias_semana instead of only recorded dates
+        const diasSemana = t.dias_semana || [];
+        const datasAtividade = getDatasAtividade(parseInt(ano), mesNum, diasSemana);
+        // Fallback: if no dias_semana configured, use recorded dates
+        const datas = datasAtividade.length > 0
+          ? datasAtividade
+          : [...new Set(tPresencas.map((p: any) => p.data))].sort();
         if (!datas.length && !tParts.length) continue;
 
         const bairroNome = bairroMap.get(t.bairro_id) || "N/I";
