@@ -18,7 +18,7 @@ import { useDocumentScanner, CATEGORIES } from "@/hooks/useDocumentScanner";
 import type { Tables } from "@/integrations/supabase/types";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
-const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto" };
+const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto", pendente: "Pendente" };
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 
 function calcFaixaEtaria(dataNasc: string | null): string {
@@ -79,6 +79,11 @@ const ParticipantePerfilPage = () => {
       const f: Record<string, string> = {};
       Object.entries(p).forEach(([k, v]) => { f[k] = v == null ? "" : String(v); });
       setForm(f);
+
+      // Mark as visualized if pendente and not yet seen
+      if ((p as any).status === "pendente" && !(p as any).visualizado_em) {
+        supabase.from("participantes").update({ visualizado_em: new Date().toISOString() } as any).eq("id", id!).then(() => {});
+      }
     }
     setLoading(false);
   };
@@ -119,6 +124,23 @@ const ParticipantePerfilPage = () => {
       }
     }
 
+    // Automação 2: Pendente → Ativo = vincular a turmas compatíveis
+    if (newStatus === "ativo" && oldStatus === "pendente") {
+      const newFaixa = calcFaixaFromDate(newDataNasc);
+      if (newBairro && newPeriodo && newFaixa) {
+        let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", newBairro).eq("faixa_etaria", newFaixa as any);
+        if (newPeriodo !== "integral") query = query.eq("periodo", newPeriodo as any);
+        const { data: turmasCompativeis } = await query;
+        if (turmasCompativeis && turmasCompativeis.length > 0) {
+          const newLinks = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: id! }));
+          await supabase.from("turma_participantes").insert(newLinks);
+          toast.info(`Vinculado a ${turmasCompativeis.length} turma(s) automaticamente`);
+        } else {
+          toast.warning("Nenhuma turma compatível encontrada para vinculação automática");
+        }
+      }
+    }
+
     // Automação 3: Realocar turmas se bairro/período/idade mudaram e está ativo
     if (newStatus === "ativo" && oldStatus === "ativo") {
       const oldFaixa = calcFaixaFromDate(oldDataNasc);
@@ -126,13 +148,9 @@ const ParticipantePerfilPage = () => {
       const changed = oldBairro !== newBairro || oldPeriodo !== newPeriodo || oldFaixa !== newFaixa;
 
       if (changed && newBairro && newPeriodo && newFaixa) {
-        // Remover vínculos antigos
         await supabase.from("turma_participantes").delete().eq("participante_id", id!);
-
-        // Buscar turmas compatíveis
         let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", newBairro).eq("faixa_etaria", newFaixa as any);
         if (newPeriodo !== "integral") query = query.eq("periodo", newPeriodo as any);
-
         const { data: turmasCompativeis } = await query;
         if (turmasCompativeis && turmasCompativeis.length > 0) {
           const newLinks = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: id! }));
@@ -307,7 +325,7 @@ const ParticipantePerfilPage = () => {
                 <div><Label className="text-xs">Status</Label>
                   <Select value={form.status || "ativo"} onValueChange={(v) => set("status", v)}>
                     <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="ativo">Ativo</SelectItem><SelectItem value="desligado">Desligado</SelectItem><SelectItem value="incompleto">Incompleto</SelectItem></SelectContent>
+                    <SelectContent><SelectItem value="ativo">Ativo</SelectItem><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="desligado">Desligado</SelectItem><SelectItem value="incompleto">Incompleto</SelectItem></SelectContent>
                   </Select>
                 </div>
               </>

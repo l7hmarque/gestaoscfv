@@ -97,6 +97,7 @@ export type Database = {
           status: Database["public"]["Enums"]["status_participante"] | null
           uf_origem: string | null
           updated_at: string | null
+          visualizado_em: string | null
         }
         Insert: {
           bairro_id?: string | null
@@ -130,6 +131,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["status_participante"] | null
           uf_origem?: string | null
           updated_at?: string | null
+          visualizado_em?: string | null
         }
         Update: {
           bairro_id?: string | null
@@ -163,6 +165,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["status_participante"] | null
           uf_origem?: string | null
           updated_at?: string | null
+          visualizado_em?: string | null
         }
         Relationships: [
           {
@@ -782,7 +785,7 @@ export type Database = {
       faixa_etaria_enum: "6-8" | "9-11" | "12-17" | "idosos"
       objetivo_resultado: "alcancado" | "parcial" | "nao_alcancado"
       periodo_enum: "manha" | "tarde" | "integral"
-      status_participante: "ativo" | "desligado" | "incompleto"
+      status_participante: "ativo" | "desligado" | "incompleto" | "pendente"
       tipo_turma: "ordinaria" | "extraordinaria"
     }
     CompositeTypes: {
@@ -922,7 +925,7 @@ export const Constants = {
       faixa_etaria_enum: ["6-8", "9-11", "12-17", "idosos"],
       objetivo_resultado: ["alcancado", "parcial", "nao_alcancado"],
       periodo_enum: ["manha", "tarde", "integral"],
-      status_participante: ["ativo", "desligado", "incompleto"],
+      status_participante: ["ativo", "desligado", "incompleto", "pendente"],
       tipo_turma: ["ordinaria", "extraordinaria"],
     },
   },
