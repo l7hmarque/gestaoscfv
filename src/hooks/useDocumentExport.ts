@@ -577,7 +577,9 @@ export async function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
   const template = await loadTemplate("planejamento.docx");
   if (template) {
     try {
-      const data = buildPlanejamentoTemplateData(item, turmaNames);
+      const baseData = buildPlanejamentoTemplateData(item, turmaNames);
+      const tagMappings = await loadTagMappings("planejamento.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_Planejamento_${fileTimestamp()}.docx`);
       toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
