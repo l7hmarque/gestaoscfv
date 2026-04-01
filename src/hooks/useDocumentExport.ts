@@ -272,7 +272,9 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
   
   if (template) {
     try {
-      const data = buildRelatorioTemplateData(item, turmaNames, presenca);
+      const baseData = buildRelatorioTemplateData(item, turmaNames, presenca);
+      const tagMappings = await loadTagMappings("relatorio.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_Relatorio_${fileTimestamp()}.docx`);
       return;
