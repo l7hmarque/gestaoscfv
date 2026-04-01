@@ -56,6 +56,7 @@ const TurmaDetalhePage = () => {
   const [addSearch, setAddSearch] = useState("");
   const [form, setForm] = useState<Record<string, any>>({});
   const [alerts, setAlerts] = useState<Record<string, AlertInfo>>({});
+  const [memberStats, setMemberStats] = useState<Record<string, { pctFreq: number; lastDate: string | null }>>({});
   const [participantesData, setParticipantesData] = useState<Record<string, any>>({});
   const [dashboard, setDashboard] = useState<TurmaDashboard>({ taxaAdesao: 0, totalPresencas: 0, totalRegistros: 0, medianElo: 0, stdElo: 0, eloCount: 0 });
   const [linkedPlans, setLinkedPlans] = useState<LinkedPlan[]>([]);
