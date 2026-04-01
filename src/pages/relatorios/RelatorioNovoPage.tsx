@@ -219,6 +219,38 @@ const RelatorioNovoPage = () => {
       }
 
       toast.success("Relatório salvo!");
+
+      // Fire-and-forget: generate AI results
+      (async () => {
+        try {
+          let planData = null;
+          if (form.planejamento_id) {
+            const { data: p } = await supabase.from("planejamentos").select("titulo, tema, objetivos").eq("id", form.planejamento_id).single();
+            planData = p;
+          }
+          const { data: aiData, error: aiErr } = await supabase.functions.invoke("generate-resultados-alcancados", {
+            body: {
+              relatorio: {
+                nome_atividade: form.nome_atividade,
+                tipo_atividade: form.tipo_atividade,
+                objetivo_alcancado: form.objetivo_alcancado,
+                score_elo: scoreElo,
+                engajamento: form.engajamento,
+                intervencoes: form.intervencoes,
+                observacoes: form.observacoes,
+                situacoes_relevantes: form.situacoes_relevantes,
+              },
+              planejamento: planData,
+            },
+          });
+          if (!aiErr && aiData?.resultado) {
+            await supabase.from("relatorios_atividade").update({ analise_ia: aiData.resultado }).eq("id", relId);
+          }
+        } catch (e) {
+          console.warn("Falha ao gerar análise IA:", e);
+        }
+      })();
+
       navigate("/relatorios");
     } catch (e: any) {
       toast.error(e.message || "Erro ao salvar");

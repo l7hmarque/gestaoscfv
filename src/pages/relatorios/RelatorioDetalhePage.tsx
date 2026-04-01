@@ -274,6 +274,16 @@ const RelatorioDetalhePage = () => {
         </CardContent>
       </Card>
 
+      {/* Resultados Alcançados (IA) */}
+      {item.analise_ia && (
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Resultados Alcançados</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-sm text-foreground">{item.analise_ia}</p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Presença */}
       {presenca.length > 0 && (
         <Card>
