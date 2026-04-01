@@ -129,7 +129,7 @@ const ParticipantesPage = () => {
                   <TableRow key={p.id} className="hover:bg-muted/30">
                     <TableCell className="text-sm font-medium">{p.nome_completo}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{calcAge(p.data_nascimento)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{bairroNome && BAIRROS_SCFV.includes(bairroNome) ? bairroNome : "—"}</TableCell></invoke>
+                    <TableCell className="text-sm text-muted-foreground">{bairroNome && BAIRROS_SCFV.includes(bairroNome) ? bairroNome : "—"}</TableCell>
                     <TableCell className="text-sm">{p.periodo ? periodoLabel[p.periodo] || p.periodo : "—"}</TableCell>
                     <TableCell>
                       <Badge variant="secondary" className={`text-xs ${statusColor[p.status || "ativo"]}`}>
