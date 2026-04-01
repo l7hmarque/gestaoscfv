@@ -79,6 +79,11 @@ const ParticipantePerfilPage = () => {
       const f: Record<string, string> = {};
       Object.entries(p).forEach(([k, v]) => { f[k] = v == null ? "" : String(v); });
       setForm(f);
+
+      // Mark as visualized if pendente and not yet seen
+      if ((p as any).status === "pendente" && !(p as any).visualizado_em) {
+        supabase.from("participantes").update({ visualizado_em: new Date().toISOString() } as any).eq("id", id!).then(() => {});
+      }
     }
     setLoading(false);
   };
