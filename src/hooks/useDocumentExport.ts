@@ -537,7 +537,9 @@ export async function exportPlanejamentoDocx(item: any, turmaNames: string[]) {
 
   if (template) {
     try {
-      const data = buildPlanejamentoTemplateData(item, turmaNames);
+      const baseData = buildPlanejamentoTemplateData(item, turmaNames);
+      const tagMappings = await loadTagMappings("planejamento.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_Planejamento_${fileTimestamp()}.docx`);
       return;
