@@ -37,6 +37,17 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    // Resolve bairro_id from name
+    let bairro_id = null;
+    if (bairro_nome) {
+      const { data: bairro } = await supabaseAdmin
+        .from("bairros")
+        .select("id")
+        .eq("nome", bairro_nome)
+        .single();
+      if (bairro) bairro_id = bairro.id;
+    }
+
     // Insert participant with status pendente
     const insertPayload: Record<string, unknown> = {
       nome_completo: nome_completo.trim(),
