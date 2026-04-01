@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Printer, FileText, FileSpreadsheet, Instagram, Copy, Share2, Download, X } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, Printer, FileText, FileSpreadsheet, Instagram, Copy, Share2, Download, X, Trash2 } from "lucide-react";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,9 +9,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { exportRelatorioDocx, exportRelatorioPdf } from "@/hooks/useDocumentExport";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 const LIKERT_LABELS = ["", "Muito Baixo", "Baixo", "Moderado", "Alto", "Excepcional"];
 const OBJ_LABELS: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
