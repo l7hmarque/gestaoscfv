@@ -21,6 +21,7 @@ export default function DashboardAdminTab() {
   const [uploadedTemplates, setUploadedTemplates] = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [mapperOpen, setMapperOpen] = useState<string | null>(null);
 
   useEffect(() => {
     checkTemplates();
