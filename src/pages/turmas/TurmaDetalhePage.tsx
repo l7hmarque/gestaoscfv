@@ -96,31 +96,31 @@ const TurmaDetalhePage = () => {
       setParticipantesData(partMap);
 
       const alertMap: Record<string, AlertInfo> = {};
+      const statsMap: Record<string, { pctFreq: number; lastDate: string | null }> = {};
       pIds.forEach((pid: string) => {
         const records = (presData || []).filter((r: any) => r.participante_id === pid);
         if (records.length === 0) return;
 
-        // Count consecutive faults from most recent
         let consecutiveFaults = 0;
         for (const r of records) {
           if (!r.presente) consecutiveFaults++;
           else break;
         }
 
-        // Calculate adhesion
         const total = records.length;
         const present = records.filter((r: any) => r.presente).length;
         const adesao = total > 0 ? (present / total) * 100 : 100;
-
-        // Last present date
         const lastPresentRecord = records.find((r: any) => r.presente);
         const lastPresent = lastPresentRecord?.data || null;
+
+        statsMap[pid] = { pctFreq: Number(adesao.toFixed(1)), lastDate: lastPresent };
 
         if (consecutiveFaults >= 3 || adesao < 65) {
           alertMap[pid] = { consecutiveFaults, adesao: Number(adesao.toFixed(1)), lastPresent };
         }
       });
       setAlerts(alertMap);
+      setMemberStats(statsMap);
     }
 
     // Linked plans & reports
