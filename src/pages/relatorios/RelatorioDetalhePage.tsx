@@ -37,6 +37,8 @@ function LikertDisplay({ label, value }: { label: string; value: number | null }
 
 const RelatorioDetalhePage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [item, setItem] = useState<any>(null);
   const [turmaNames, setTurmaNames] = useState<string[]>([]);
   const [fotos, setFotos] = useState<any[]>([]);
@@ -47,6 +49,16 @@ const RelatorioDetalhePage = () => {
   const [instaOpen, setInstaOpen] = useState(false);
   const [instaText, setInstaText] = useState("");
   const [instaLoading, setInstaLoading] = useState(false);
+  const [isCoordenacao, setIsCoordenacao] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "coordenacao").then(({ data }) => {
+        setIsCoordenacao((data?.length || 0) > 0);
+      });
+    }
+  }, [user]);
 
   useEffect(() => {
     const fetch = async () => {
