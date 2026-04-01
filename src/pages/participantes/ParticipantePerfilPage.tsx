@@ -307,7 +307,7 @@ const ParticipantePerfilPage = () => {
                 <div><Label className="text-xs">Status</Label>
                   <Select value={form.status || "ativo"} onValueChange={(v) => set("status", v)}>
                     <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="ativo">Ativo</SelectItem><SelectItem value="desligado">Desligado</SelectItem><SelectItem value="incompleto">Incompleto</SelectItem></SelectContent>
+                    <SelectContent><SelectItem value="ativo">Ativo</SelectItem><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="desligado">Desligado</SelectItem><SelectItem value="incompleto">Incompleto</SelectItem></SelectContent>
                   </Select>
                 </div>
               </>
