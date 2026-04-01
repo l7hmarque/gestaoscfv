@@ -209,6 +209,14 @@ export default function DashboardAdminTab() {
           </CardContent>
         </Card>
       </div>
+
+      {mapperOpen && (
+        <TemplateTagMapper
+          templateKey={mapperOpen}
+          open={!!mapperOpen}
+          onOpenChange={(open) => { if (!open) setMapperOpen(null); }}
+        />
+      )}
     </div>
   );
 }
