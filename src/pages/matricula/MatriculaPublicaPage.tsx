@@ -337,7 +337,7 @@ const MatriculaPublicaPage = () => {
             <Button variant="outline" size="sm" className="mt-2 gap-2" asChild>
               <a href="https://txyyncubqdsqbdnozwjz.supabase.co/storage/v1/object/public/documentos-publicos/termo-uso-imagem.pdf" target="_blank" rel="noopener noreferrer">
                 <FileDown className="h-4 w-4" />
-                Baixar Termo de Uso de Imagem
+                Abrir Termo de Uso de Imagem
               </a>
             </Button>
           </CardContent>
