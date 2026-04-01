@@ -361,7 +361,7 @@ const MatriculaPublicaPage = () => {
             </p>
             <Button variant="outline" size="sm" className="mt-2 gap-2" asChild>
               <a
-                href="https://txyyncubqdsqbdnozwjz.supabase.co/storage/v1/object/public/documentos-publicos/termo-uso-imagem.pdf"
+                href="https://drive.google.com/file/d/1SOjU9Rmy9vHl85bO4cBe6WNxVdy9NrTv/view"
                 target="_blank"
                 rel="noopener noreferrer"
               >
