@@ -12,6 +12,20 @@ function respond(body: object, status = 200) {
   });
 }
 
+/** Trim + uppercase */
+function padronizar(val: string | null | undefined): string | null {
+  if (!val) return null;
+  const s = val.trim().toUpperCase();
+  return s || null;
+}
+
+/** Keep only digits */
+function apenasDigitos(val: string | null | undefined): string | null {
+  if (!val) return null;
+  const s = val.replace(/\D/g, "");
+  return s || null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -25,6 +39,7 @@ Deno.serve(async (req) => {
       responsavel2_nome, responsavel2_whatsapp,
       restricao_alimentar, laudo,
       documentos,
+      existing_id,
     } = body;
 
     // Validate required fields
@@ -48,51 +63,64 @@ Deno.serve(async (req) => {
       if (bairro) bairro_id = bairro.id;
     }
 
-    // Insert participant with status pendente
-    const insertPayload: Record<string, unknown> = {
-      nome_completo: nome_completo.trim(),
+    // Build standardized payload
+    const payload: Record<string, unknown> = {
+      nome_completo: padronizar(nome_completo)!,
       status: "pendente",
       data_nascimento: data_nascimento || null,
       genero: genero || null,
       cor_raca: cor_raca || null,
-      escola: escola || null,
+      escola: padronizar(escola),
       serie: serie || null,
       periodo: periodo || null,
-      endereco_rua: endereco_rua || null,
+      endereco_rua: padronizar(endereco_rua),
       endereco_numero: endereco_numero || null,
-      endereco_bairro: endereco_bairro || null,
+      endereco_bairro: padronizar(endereco_bairro),
       bairro_id: bairro_id || null,
       ponto_transporte_id: ponto_transporte_id || null,
-      responsavel1_nome: responsavel1_nome?.trim() || null,
-      responsavel1_cpf: responsavel1_cpf || null,
-      responsavel1_whatsapp: responsavel1_whatsapp?.trim() || null,
-      responsavel2_nome: responsavel2_nome || null,
-      responsavel2_whatsapp: responsavel2_whatsapp || null,
+      responsavel1_nome: padronizar(responsavel1_nome),
+      responsavel1_cpf: apenasDigitos(responsavel1_cpf),
+      responsavel1_whatsapp: apenasDigitos(responsavel1_whatsapp),
+      responsavel2_nome: padronizar(responsavel2_nome),
+      responsavel2_whatsapp: apenasDigitos(responsavel2_whatsapp),
       restricao_alimentar: restricao_alimentar || null,
       laudo: laudo || null,
+      visualizado_em: null,
     };
 
-    const { data: participante, error: insertError } = await supabaseAdmin
-      .from("participantes")
-      .insert(insertPayload)
-      .select("id")
-      .single();
+    let participanteId: string;
 
-    if (insertError) return respond({ error: insertError.message }, 500);
+    if (existing_id) {
+      // Re-enrollment: UPDATE existing participant
+      const { error: updateError } = await supabaseAdmin
+        .from("participantes")
+        .update(payload)
+        .eq("id", existing_id);
+      if (updateError) return respond({ error: updateError.message }, 500);
+      participanteId = existing_id;
+    } else {
+      // New enrollment: INSERT
+      const { data: participante, error: insertError } = await supabaseAdmin
+        .from("participantes")
+        .insert(payload)
+        .select("id")
+        .single();
+      if (insertError) return respond({ error: insertError.message }, 500);
+      participanteId = participante.id;
+    }
 
     // Upload documents if any
     if (documentos && Array.isArray(documentos)) {
       for (const doc of documentos) {
         if (!doc.base64 || !doc.categoria || !doc.fileName) continue;
 
-        // Decode base64
         const binaryStr = atob(doc.base64);
         const bytes = new Uint8Array(binaryStr.length);
         for (let i = 0; i < binaryStr.length; i++) {
           bytes[i] = binaryStr.charCodeAt(i);
         }
 
-        const storagePath = `${participante.id}/${doc.fileName}`;
+        const storagePath = `${participanteId}/${doc.fileName}`;
         const { error: uploadErr } = await supabaseAdmin.storage
           .from("documentos")
           .upload(storagePath, bytes.buffer, {
@@ -101,7 +129,7 @@ Deno.serve(async (req) => {
 
         if (!uploadErr) {
           await supabaseAdmin.from("participante_documentos").insert({
-            participante_id: participante.id,
+            participante_id: participanteId,
             categoria: doc.categoria,
             nome_arquivo: doc.fileName,
             arquivo_url: storagePath,
@@ -110,7 +138,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return respond({ success: true, id: participante.id });
+    return respond({ success: true, id: participanteId });
   } catch (err) {
     return respond({ error: err.message || "Erro interno" }, 500);
   }
