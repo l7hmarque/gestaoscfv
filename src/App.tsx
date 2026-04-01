@@ -67,6 +67,7 @@ const App = () => (
                 <Route path="/profissional/:id" element={<ProfissionalPerfilPage />} />
               </Route>
               <Route path="/dev" element={<DevPage />} />
+              <Route path="/matricula" element={<MatriculaPublicaPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>
