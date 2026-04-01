@@ -13,6 +13,24 @@ import { saveAs } from "file-saver";
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
+const DIAS_MAP: Record<string, number> = {
+  dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6
+};
+
+function getDatasAtividade(ano: number, mes: number, diasSemana: string[]): string[] {
+  const diasNum = diasSemana.map(d => DIAS_MAP[d.toLowerCase()]).filter(n => n !== undefined);
+  if (!diasNum.length) return [];
+  const datas: string[] = [];
+  const d = new Date(ano, mes - 1, 1);
+  while (d.getMonth() === mes - 1) {
+    if (diasNum.includes(d.getDay())) {
+      datas.push(d.toISOString().slice(0, 10));
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return datas;
+}
+
 function calcAge(dob: string): number {
   const b = new Date(dob); const now = new Date();
   let age = now.getFullYear() - b.getFullYear();
