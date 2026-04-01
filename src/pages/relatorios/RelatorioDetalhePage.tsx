@@ -140,7 +140,27 @@ const RelatorioDetalhePage = () => {
     }
   };
 
-  if (loading) return <div className="text-sm text-muted-foreground py-8 text-center">Carregando...</div>;
+  const handleDelete = async () => {
+    if (!id) return;
+    setDeleting(true);
+    try {
+      await Promise.all([
+        supabase.from("relatorio_presenca").delete().eq("relatorio_id", id),
+        supabase.from("relatorio_fotos").delete().eq("relatorio_id", id),
+        supabase.from("relatorio_turmas").delete().eq("relatorio_id", id),
+      ]);
+      const { error } = await supabase.from("relatorios_atividade").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Relatório excluído com sucesso");
+      navigate("/relatorios");
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao excluir relatório");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+
   if (!item) return <div className="text-sm text-muted-foreground py-8 text-center">Não encontrado</div>;
 
   return (
