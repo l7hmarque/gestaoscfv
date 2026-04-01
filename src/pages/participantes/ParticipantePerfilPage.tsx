@@ -124,6 +124,23 @@ const ParticipantePerfilPage = () => {
       }
     }
 
+    // Automação 2: Pendente → Ativo = vincular a turmas compatíveis
+    if (newStatus === "ativo" && oldStatus === "pendente") {
+      const newFaixa = calcFaixaFromDate(newDataNasc);
+      if (newBairro && newPeriodo && newFaixa) {
+        let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", newBairro).eq("faixa_etaria", newFaixa as any);
+        if (newPeriodo !== "integral") query = query.eq("periodo", newPeriodo as any);
+        const { data: turmasCompativeis } = await query;
+        if (turmasCompativeis && turmasCompativeis.length > 0) {
+          const newLinks = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: id! }));
+          await supabase.from("turma_participantes").insert(newLinks);
+          toast.info(`Vinculado a ${turmasCompativeis.length} turma(s) automaticamente`);
+        } else {
+          toast.warning("Nenhuma turma compatível encontrada para vinculação automática");
+        }
+      }
+    }
+
     // Automação 3: Realocar turmas se bairro/período/idade mudaram e está ativo
     if (newStatus === "ativo" && oldStatus === "ativo") {
       const oldFaixa = calcFaixaFromDate(oldDataNasc);
@@ -131,13 +148,9 @@ const ParticipantePerfilPage = () => {
       const changed = oldBairro !== newBairro || oldPeriodo !== newPeriodo || oldFaixa !== newFaixa;
 
       if (changed && newBairro && newPeriodo && newFaixa) {
-        // Remover vínculos antigos
         await supabase.from("turma_participantes").delete().eq("participante_id", id!);
-
-        // Buscar turmas compatíveis
         let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", newBairro).eq("faixa_etaria", newFaixa as any);
         if (newPeriodo !== "integral") query = query.eq("periodo", newPeriodo as any);
-
         const { data: turmasCompativeis } = await query;
         if (turmasCompativeis && turmasCompativeis.length > 0) {
           const newLinks = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: id! }));
