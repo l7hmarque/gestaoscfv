@@ -694,7 +694,9 @@ export async function exportFichaInscricaoPdf(p: any) {
   const template = await loadTemplate("ficha_inscricao.docx");
   if (template) {
     try {
-      const data = buildFichaTemplateData(p);
+      const baseData = buildFichaTemplateData(p);
+      const tagMappings = await loadTagMappings("ficha_inscricao.docx");
+      const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
       saveAs(blob, `SysELO_FichaInscricao_${fileTimestamp()}.docx`);
       toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
