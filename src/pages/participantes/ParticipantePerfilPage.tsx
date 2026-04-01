@@ -18,7 +18,7 @@ import { useDocumentScanner, CATEGORIES } from "@/hooks/useDocumentScanner";
 import type { Tables } from "@/integrations/supabase/types";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
-const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto" };
+const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto", pendente: "Pendente" };
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 
 function calcFaixaEtaria(dataNasc: string | null): string {
