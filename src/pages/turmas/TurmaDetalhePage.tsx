@@ -383,12 +383,15 @@ const TurmaDetalhePage = () => {
                     <TableRow className="bg-muted/50">
                       <TableHead className="text-xs">Nome</TableHead>
                       <TableHead className="text-xs hidden sm:table-cell">Período</TableHead>
+                      <TableHead className="text-xs hidden sm:table-cell">Frequência</TableHead>
+                      <TableHead className="text-xs hidden sm:table-cell">Última Presença</TableHead>
                       <TableHead className="text-xs w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {members.map((m) => {
                       const alert = alerts[m.participante_id];
+                      const stats = memberStats[m.participante_id];
                       return (
                         <TableRow key={m.tp_id} className={alert ? "bg-destructive/5" : ""}>
                           <TableCell className="text-xs sm:text-sm">
@@ -409,6 +412,12 @@ const TurmaDetalhePage = () => {
                             </div>
                           </TableCell>
                           <TableCell className="text-xs sm:text-sm text-muted-foreground hidden sm:table-cell">{periodoLabel[m.periodo || ""] || "—"}</TableCell>
+                          <TableCell className={`text-xs sm:text-sm hidden sm:table-cell font-medium ${stats ? (stats.pctFreq < 65 ? "text-destructive" : stats.pctFreq < 80 ? "text-amber-600" : "text-emerald-600") : "text-muted-foreground"}`}>
+                            {stats ? `${stats.pctFreq}%` : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs sm:text-sm text-muted-foreground hidden sm:table-cell">
+                            {stats?.lastDate ? format(new Date(stats.lastDate + "T12:00:00"), "dd/MM/yyyy") : "—"}
+                          </TableCell>
                           <TableCell>
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => removeParticipante(m.tp_id)}>
                               <Trash2 className="h-3.5 w-3.5" />
