@@ -1,121 +1,148 @@
 
 
-## Análise Completa — Erros de Fluxo, Conflitos e Falhas Estruturais
+## Plano: Ajustes em Participantes + Mural Coletivo + Feed Social com Conquistas
 
 ---
 
-### 1. DADOS DUPLICADOS DE BAIRROS (CRÍTICO)
+### 1. Filtros sem "Todos" na página Participantes
 
-O banco possui bairros duplicados com capitalização diferente:
-- `"Jardim Irene"` (id: `578dd974`) **e** `"JARDIM IRENE"` (id: `94f170dd`)
-- `"Parque Independência"` (id: `cd1fbd29`) **e** `"PARQUE INDEPENDENCIA"` (id: `0a4af2ab`)
-- `"Alvorada"` (id: `3837e7b8`) **e** `"ALVORADA"` (id: `85a31547`)
+**`ParticipantesPage.tsx`**: Trocar os placeholders dos Selects:
+- `"Todos status"` → `"Status"` (placeholder visual, valor `"todos"` mantido internamente)
+- `"Todos períodos"` → `"Período"`
+- `"Todos bairros"` → `"Bairro CAIA"`
 
-**Impacto**: Participantes vinculados ao bairro `"Jardim Irene"` (minúsculo) **não aparecem** nos filtros SCFV que comparam com `BAIRROS_SCFV = ["JARDIM IRENE", ...]`. A função `isBairroSCFV` usa `localeCompare` com `sensitivity: "base"` (case-insensitive), mas os filtros de turma usam `bairro_id` — participantes em bairros duplicados não são vinculados a turmas corretas.
+Usar `placeholder` do SelectTrigger em vez de um SelectItem "todos". Quando nenhum filtro está selecionado, mostrar o placeholder. Adicionar botão "Limpar filtros" quando algum filtro estiver ativo.
 
-**Correção**: Migração SQL para unificar bairros duplicados, atualizando todas as referências (`participantes.bairro_id`, `turmas.bairro_id`, `pontos_transporte.bairro_id`) para o ID canônico (MAIÚSCULO), e deletando os duplicados.
+### 2. Abrir página do participante clicando na linha
 
----
-
-### 2. RELATÓRIO MENSAL SEM PAGINAÇÃO (CRÍTICO)
-
-`DashboardRelatorioMensalTab` (linha 96-104) usa `supabase.from("presenca").select("*")` **sem** `fetchAllRows`. Está limitado a 1000 registros por tabela. Com volume real, o relatório mensal terá dados incompletos silenciosamente.
-
-Mesma falha em `RelatoriosPage.loadData()` (linha 56-66): duas queries sem paginação, limitadas a 1000 relatórios.
-
-**Correção**: Usar `fetchAllRows` em ambos os locais.
+**`ParticipantesPage.tsx`**: Tornar toda a `TableRow` clicável com `onClick={() => navigate(`/participantes/${p.id}`)}` e `cursor-pointer`. Manter os botões de ação existentes (aprovar + ver).
 
 ---
 
-### 3. PRESENÇA DUPLICADA ENTRE PRESENÇA DIGITAL E RELATÓRIO
+### 3. Mural Coletivo (Comunicação entre Profissionais)
 
-Ao salvar um relatório (`RelatorioNovoPage`, linhas 240-264), o sistema **deleta e recria** registros na tabela `presenca` para cada turma+data. Se a presença foi registrada separadamente via `PresencaPage` para a mesma turma+data, **os dados são sobrescritos** sem aviso.
+**Arquitetura proposta:**
 
-**Impacto**: Um educador registra presença às 8h. Outro cria um relatório à tarde para a mesma turma+data — a presença da manhã é apagada e substituída pela do relatório.
-
-**Sugestão**: Ao salvar relatório, verificar se já existe presença registrada para aquela turma+data e perguntar ao usuário se deseja sobrescrever ou manter a existente.
-
----
-
-### 4. FAIXAS ETÁRIAS INCONSISTENTES
-
-Três implementações diferentes de cálculo de faixa etária:
-
-| Local | Faixa 18-59 | Faixa < 6 |
-|---|---|---|
-| `useDashboardData` (linha 33-38) | Retorna `"60+"` (errado, pula 18-59) | Retorna `"6-8"` (errado, inclui < 6) |
-| `calcFaixaFromDate` em constants.ts (linha 39-46) | Retorna `""` (correto) | Retorna `""` (correto) |
-| `PresencaPage` FAIXAS (linha 19-24) | Não tem faixa | Não tem faixa |
-
-No dashboard, uma criança de 4 anos seria contada como `"6-8"`, e um adulto de 30 seria `"60+"`. Isso distorce completamente os gráficos de distribuição por faixa etária.
-
-**Correção**: Unificar para usar `calcFaixaFromDate` em todos os locais. Adicionar faixa para 18-59 se aplicável, ou filtrar participantes fora de faixa.
-
----
-
-### 5. STATUS "pendente" AUSENTE NO BANCO DE DADOS
-
-`BancoDadosPage` (linha 20) define `statusLabel` sem incluir `"pendente"`:
-```
-{ ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto" }
+```text
+┌─────────────────────────────────┐
+│         MURAL COLETIVO          │
+├─────────────────────────────────┤
+│ [Novo Aviso]                    │
+│                                 │
+│ 📌 Fixado: Reunião sexta 14h   │
+│    por Maria (Coordenação)      │
+│    há 2 dias                    │
+│                                 │
+│ 🔔 Lembrete: Entrega relatórios│
+│    por João (Educador)          │
+│    há 5 horas                   │
+│                                 │
+│ 💬 Informativo: Novo aluno...   │
+│    por Ana (Eq. Técnica)        │
+│    há 1 hora                    │
+└─────────────────────────────────┘
 ```
 
-Participantes pendentes aparecem sem badge de status na tabela do banco de dados, dificultando a identificação.
+**Tabela `mural_posts`:**
+- `id`, `autor_id` (ref profiles), `tipo` (enum: aviso, lembrete, informativo), `titulo`, `conteudo`, `fixado` (boolean, default false), `created_at`
+- RLS: authenticated SELECT/INSERT; coordenacao pode fixar/deletar qualquer; autor pode deletar/editar próprio
 
-**Correção**: Adicionar `pendente: "Pendente"` ao `statusLabel` do `BancoDadosPage`.
-
----
-
-### 6. PRESENÇA SALVA APENAS PARA PARTICIPANTES FILTRADOS
-
-`PresencaPage` (linha 109): ao salvar, usa `filteredParticipantes` em vez de `participantes`. Se o educador aplicar filtro de bairro ou período, **apenas os participantes filtrados** terão presença registrada. Os demais membros da turma ficam sem registro — nem presentes nem ausentes.
-
-Pior: a linha 119 faz `delete().eq("turma_id", selectedTurma).eq("data", dataStr)` — **apaga TODOS** os registros da turma+data, mas só reinsere os filtrados. Membros não filtrados perdem registros anteriores.
-
-**Correção**: Sempre salvar presença para TODOS os membros da turma, não apenas os filtrados. Os filtros devem ser apenas visuais.
+**Página `/mural`**: Lista de posts ordenados por fixados primeiro, depois por data. Formulário simples com tipo + título + conteúdo. Coordenação pode fixar/desafixar. Sem comentários neste módulo (comentários ficam no Feed).
 
 ---
 
-### 7. CAMPO CPF: CONFLITO SEMÂNTICO
+### 4. Feed Social Coletivo
 
-O campo `responsavel1_cpf` no banco armazena o CPF do **responsável** (evidenciado pelo nome da coluna e dados existentes). Porém, a UI foi renomeada para "CPF do Participante" nas últimas alterações. Isso cria uma inconsistência: o dado armazenado é do responsável, mas o label diz "participante".
+**Arquitetura proposta:**
 
-**Sugestão**: Se o CPF deve ser do participante, criar uma coluna `cpf` na tabela `participantes`. Se é do responsável, manter o label como "CPF do Responsável".
+```text
+┌─────────────────────────────────┐
+│          FEED SOCIAL            │
+├─────────────────────────────────┤
+│ 🏆 Conquista! João atingiu     │
+│    50 relatórios este mês!      │
+│    🎉 12 likes · 3 comentários │
+│                                 │
+│ 📸 [FOTO] Maria postou         │
+│    "Atividade incrível hoje..." │
+│    ❤️ 8 · 💬 2                  │
+│                                 │
+│ 📝 Auto-post do relatório      │
+│    "CAIA MEDIANEIRA 🌍..."      │
+│    [fotos do relatório]         │
+│    ❤️ 5 · 💬 1                  │
+└─────────────────────────────────┘
+```
+
+**Tabelas:**
+
+**`feed_posts`:**
+- `id`, `autor_id` (ref profiles), `conteudo` (text), `tipo` (enum: manual, relatorio_auto, conquista), `relatorio_id` (nullable, ref relatorios_atividade — para auto-posts), `created_at`
+- RLS: authenticated SELECT; authenticated INSERT (não visitante); autor ou coordenacao DELETE/UPDATE
+
+**`feed_fotos`:**
+- `id`, `feed_post_id`, `foto_url`, `ordem`
+
+**`feed_reacoes`:**
+- `id`, `feed_post_id`, `user_id` (ref profiles), `tipo` (enum: like, amei), `created_at`
+- Constraint UNIQUE (feed_post_id, user_id) — 1 reação por usuário por post (pode trocar tipo)
+
+**`feed_comentarios`:**
+- `id`, `feed_post_id`, `autor_id` (ref profiles), `conteudo`, `created_at`
+
+**Auto-post de relatórios:** No `RelatorioNovoPage`, após salvar com sucesso e gerar o texto IA (Instagram), criar automaticamente um `feed_post` com `tipo = 'relatorio_auto'`, vinculando `relatorio_id`, copiando as fotos para `feed_fotos`, e usando o texto IA como `conteudo`.
+
+**Sistema de Conquistas (`feed_conquistas` / lógica):**
+
+Conquistas geradas automaticamente e postadas no feed:
+
+| Conquista | Condição |
+|---|---|
+| 🎯 "Primeiro Relatório!" | Educador salva 1º relatório |
+| 📝 "Escritor Dedicado" | 10 / 25 / 50 / 100 relatórios |
+| ⭐ "ELO de Ouro" | Score ELO médio ≥ 4.0 no mês |
+| 🔥 "Sequência de Fogo" | 5 relatórios consecutivos (dias úteis) |
+| 📊 "100% Adesão" | Relatório com pct_adesao = 100% |
+| 👥 "Turma Completa" | Presença de todos os matriculados |
+| 📅 "Planejador do Mês" | 4+ planejamentos no mês |
+| 🌟 "Educador Destaque" | Maior score ELO médio do mês |
+| 📸 "Fotógrafo" | 50 fotos em relatórios |
+| 🤝 "Engajamento Total" | Todos indicadores ELO ≥ 4 em um relatório |
+
+Tabela **`conquistas`**: `id`, `perfil_id`, `tipo` (text), `nivel` (int, para progressivos), `created_at`. Check de conquistas executado ao salvar relatório.
 
 ---
 
-### 8. `PresencaHistoricoPage` NÃO IMPLEMENTADA
+### 5. Navegação
 
-A página `/presenca/historico` é apenas um placeholder sem funcionalidade. Não há como visualizar o histórico de presença registrado.
+**`AppSidebar.tsx`**: Adicionar 2 itens ao menu:
+- "Mural" → `/mural` (ícone: `MessageSquare`)
+- "Feed" → `/feed` (ícone: `Newspaper`)
 
----
-
-### 9. RELATÓRIO MENSAL: "ATENDIDOS" CONTA APENAS PRESENÇAS, NÃO PARTICIPANTES
-
-`DashboardRelatorioMensalTab` (linha 123-127) calcula "atendidos no mês" usando `endereco_bairro` (bairro do endereço pessoal), não `bairro_id` (bairro SCFV/CAIA). Isso gera distribuição por bairro incorreta — mostra onde moram, não onde são atendidos.
+**`App.tsx`**: Adicionar rotas `/mural` e `/feed`.
 
 ---
 
-### 10. DADOS ANTIGOS DE CPF COM FORMATO INCORRETO
+### Migração SQL
 
-Dados importados têm CPFs como `"12372696955.0"` (com `.0` — formato numérico do Excel). A máscara `displayCPF` não trata esse sufixo. Ex: `"12372696955.0"` → `"123.726.969-55.0"` (quebrado).
+1. Enum `tipo_mural` (aviso, lembrete, informativo)
+2. Tabela `mural_posts` com RLS
+3. Enum `tipo_feed_post` (manual, relatorio_auto, conquista)
+4. Enum `tipo_reacao` (like, amei)
+5. Tabelas `feed_posts`, `feed_fotos`, `feed_reacoes`, `feed_comentarios`, `conquistas` com RLS
+6. Realtime habilitado para `mural_posts`, `feed_posts`, `feed_comentarios`, `feed_reacoes`
 
-**Correção**: Migração SQL para limpar: `UPDATE participantes SET responsavel1_cpf = REPLACE(responsavel1_cpf, '.0', '') WHERE responsavel1_cpf LIKE '%.0'`. Mesma limpeza para `responsavel1_whatsapp`.
+### Arquivos
 
----
-
-### Priorização
-
-| Prioridade | Item | Impacto |
-|---|---|---|
-| **CRÍTICO** | 1 — Bairros duplicados | Participantes invisíveis em filtros, turmas erradas |
-| **CRÍTICO** | 2 — Relatório mensal sem paginação | Relatório com dados incompletos |
-| **CRÍTICO** | 6 — Presença apaga dados de não-filtrados | Perda de dados de presença |
-| **ALTO** | 4 — Faixas etárias inconsistentes | Dashboard com números errados |
-| **ALTO** | 10 — CPF/Telefone com ".0" | Exibição quebrada |
-| **ALTO** | 3 — Presença sobrescrita por relatório | Perda silenciosa de dados |
-| **MÉDIO** | 9 — Bairro endereço vs bairro CAIA | Relatório mensal impreciso |
-| **MÉDIO** | 7 — CPF responsável vs participante | Confusão de dados |
-| **BAIXO** | 5 — Status pendente no banco de dados | UI incompleta |
-| **BAIXO** | 8 — Histórico presença não implementado | Funcionalidade faltando |
+| Arquivo | Mudança |
+|---|---|
+| Migração SQL | 5 tabelas + enums + RLS + realtime |
+| `src/pages/participantes/ParticipantesPage.tsx` | Filtros sem "todos", linha clicável |
+| `src/pages/mural/MuralPage.tsx` | Novo — listagem + criação de avisos |
+| `src/pages/feed/FeedPage.tsx` | Novo — feed social com posts, reações, comentários |
+| `src/components/FeedPost.tsx` | Novo — card de post com reações e comentários |
+| `src/hooks/useConquistas.ts` | Novo — lógica de verificação de conquistas ao salvar relatório |
+| `src/pages/relatorios/RelatorioNovoPage.tsx` | Auto-post no feed após salvar |
+| `src/components/AppSidebar.tsx` | Itens Mural e Feed |
+| `src/App.tsx` | Rotas /mural e /feed |
 
