@@ -158,8 +158,8 @@ const EquipeTecnicaPage = () => {
   // Filtered atendimentos
   const filteredAtd = useMemo(() => {
     return atendimentos.filter(a => {
-      if (filterTipo && a.tipo !== filterTipo) return false;
-      if (filterProf && a.profissional_id !== filterProf) return false;
+      if (filterTipo && filterTipo !== "__all__" && a.tipo !== filterTipo) return false;
+      if (filterProf && filterProf !== "__all__" && a.profissional_id !== filterProf) return false;
       return true;
     });
   }, [atendimentos, filterTipo, filterProf]);
