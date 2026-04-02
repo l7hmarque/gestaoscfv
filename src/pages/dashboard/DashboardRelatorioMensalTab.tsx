@@ -200,7 +200,7 @@ export default function DashboardRelatorioMensalTab() {
       });
 
       // Map relatorios to bairros via relatorio_turmas
-      const relIdToAnalise = new Map(relatorios.map((r: any) => [r.id, r.analise_ia || ""]));
+      const relIdToAnalise = new Map(filteredRelatorios.map((r: any) => [r.id, r.analise_ia || ""]));
       const bairroRelResultados: Record<string, Set<string>> = {};
       BAIRROS_SCFV.forEach(bn => { bairroRelResultados[bn] = new Set(); });
 
