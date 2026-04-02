@@ -475,7 +475,7 @@ const MatriculaPublicaPage = () => {
                 </Select>
               </div>
               <div>
-                <Label className="text-sm font-medium">Bairro SCFV</Label>
+                <Label className="text-sm font-medium">Bairro do CAIA que vai frequentar</Label>
                 <Select value={form.bairro_scfv || ""} onValueChange={handleBairroChange}>
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Selecione o bairro" />
