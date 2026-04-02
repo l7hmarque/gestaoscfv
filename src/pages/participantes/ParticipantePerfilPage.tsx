@@ -47,6 +47,7 @@ const ParticipantePerfilPage = () => {
   const [loading, setLoading] = useState(true);
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [docs, setDocs] = useState<DocRow[]>([]);
+  const [estrangeiroCpf, setEstrangeiroCpf] = useState(false);
 
   const scanner = useDocumentScanner();
 
