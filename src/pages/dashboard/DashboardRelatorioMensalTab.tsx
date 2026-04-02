@@ -164,7 +164,7 @@ export default function DashboardRelatorioMensalTab() {
       filteredRelatorios.forEach((r: any) => { if (r.planejamento_id) relByPlan.set(r.planejamento_id, r); });
 
       const atividadesRows: any[][] = [];
-      planejamentos.forEach((p: any) => {
+      filteredPlanejamentos.forEach((p: any) => {
         const rel = relByPlan.get(p.id);
         atividadesRows.push([
           p.titulo + (p.tema ? ` — ${p.tema}` : ""),
@@ -174,7 +174,7 @@ export default function DashboardRelatorioMensalTab() {
         ]);
         if (rel) relByPlan.delete(p.id);
       });
-      relatorios.filter((r: any) => !r.planejamento_id).forEach((r: any) => {
+      filteredRelatorios.filter((r: any) => !r.planejamento_id).forEach((r: any) => {
         atividadesRows.push(["", r.nome_atividade || "", r.analise_ia || "", ""]);
       });
 
