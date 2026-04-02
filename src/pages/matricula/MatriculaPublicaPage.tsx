@@ -396,7 +396,7 @@ const MatriculaPublicaPage = () => {
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="sm:col-span-2">
-                <Field label="Nome Completo" field="nome_completo" required onBlur={handleNameBlur} />
+                <Field label="Nome Completo" value={form.nome_completo || ""} onChange={(v) => set("nome_completo", v)} required onBlur={handleNameBlur} />
               </div>
               <div>
                 <Label className="text-sm font-medium">
