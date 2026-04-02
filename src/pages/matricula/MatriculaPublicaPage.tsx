@@ -576,7 +576,15 @@ const MatriculaPublicaPage = () => {
                 <p className="text-xs text-muted-foreground mb-2">Responsável 2 (opcional)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Field label="Nome" value={form.responsavel2_nome || ""} onChange={(v) => set("responsavel2_nome", v)} />
-                  <Field label="WhatsApp" value={form.responsavel2_whatsapp || ""} onChange={(v) => set("responsavel2_whatsapp", v)} />
+                  <div>
+                    <Label className="text-sm font-medium">WhatsApp</Label>
+                    <Input
+                      value={maskPhone(form.responsavel2_whatsapp || "")}
+                      onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))}
+                      className="mt-1"
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
                 </div>
               </div>
             </CardContent>
