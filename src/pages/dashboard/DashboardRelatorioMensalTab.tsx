@@ -91,15 +91,15 @@ export default function DashboardRelatorioMensalTab() {
       const startDate = `${ano}-${mes}-01`;
       const endDate = mesNum === 12 ? `${parseInt(ano)+1}-01-01` : `${ano}-${String(mesNum+1).padStart(2,"0")}-01`;
 
-      const [presRes, partRes, turmasRes, bairrosRes, relRes, planRes, tpRes, rtRes] = await Promise.all([
-        supabase.from("presenca").select("*").gte("data", startDate).lt("data", endDate),
-        supabase.from("participantes").select("*"),
-        supabase.from("turmas").select("*"),
-        supabase.from("bairros").select("*"),
-        supabase.from("relatorios_atividade").select("*").gte("data", startDate).lt("data", endDate),
-        supabase.from("planejamentos").select("*").gte("data_aplicacao", startDate).lt("data_aplicacao", endDate),
-        supabase.from("turma_participantes").select("*"),
-        supabase.from("relatorio_turmas").select("*"),
+      const [presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas] = await Promise.all([
+        fetchAllRows("presenca", { select: "*" }),
+        fetchAllRows("participantes", { select: "*" }),
+        fetchAllRows("turmas", { select: "*" }),
+        fetchAllRows("bairros", { select: "*" }),
+        fetchAllRows("relatorios_atividade", { select: "*" }),
+        fetchAllRows("planejamentos", { select: "*" }),
+        fetchAllRows("turma_participantes", { select: "*" }),
+        fetchAllRows("relatorio_turmas", { select: "*" }),
       ]);
 
       const presencas = presRes.data || [];
