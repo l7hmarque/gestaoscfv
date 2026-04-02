@@ -263,6 +263,19 @@ const TurmaNovaPage = () => {
                   </Select>
                 </div>
                 <div className="col-span-2">
+                  <Label className="text-xs font-medium">Oficina (opcional)</Label>
+                  <Select value={oficina} onValueChange={setOficina}>
+                    <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Nenhuma</SelectItem>
+                      {OFICINAS_TURMA.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {oficina === "outra_oficina" && (
+                    <Input value={oficinaNome} onChange={e => setOficinaNome(e.target.value)} placeholder="Nome da oficina" className="h-9 text-sm mt-1" />
+                  )}
+                </div>
+                <div className="col-span-2">
                   <Label className="text-xs font-medium mb-2 block">Dias da Semana</Label>
                   <div className="flex flex-wrap gap-3">
                     {diasOptions.map((d) => (
