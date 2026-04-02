@@ -33,6 +33,7 @@ import DevPage from "./pages/dev/DevPage";
 import MatriculaPublicaPage from "./pages/matricula/MatriculaPublicaPage";
 import MuralPage from "./pages/mural/MuralPage";
 import FeedPage from "./pages/feed/FeedPage";
+import EquipeTecnicaPage from "./pages/equipe-tecnica/EquipeTecnicaPage";
 
 const queryClient = new QueryClient();
 
