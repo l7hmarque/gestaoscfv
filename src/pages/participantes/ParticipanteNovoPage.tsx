@@ -309,10 +309,23 @@ const ParticipanteNovoPage = () => {
           <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Responsáveis</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
             <Field label="Responsável 1 - Nome" field="responsavel1_nome" placeholder="Nome completo" />
-            <Field label="CPF" field="responsavel1_cpf" placeholder="000.000.000-00" half />
-            <Field label="WhatsApp" field="responsavel1_whatsapp" placeholder="(00) 00000-0000" half />
+            <div className="col-span-1">
+              <Label className="text-xs font-medium">CPF do Participante</Label>
+              <Input value={estrangeiroCpf ? form.responsavel1_cpf : maskCPF(form.responsavel1_cpf)} onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} className="h-9 text-sm mt-1" />
+              <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                <input type="checkbox" checked={estrangeiroCpf} onChange={(e) => setEstrangeiroCpf(e.target.checked)} className="h-3 w-3" />
+                <span className="text-[10px] text-muted-foreground">Estrangeiro/Sem CPF</span>
+              </label>
+            </div>
+            <div className="col-span-1">
+              <Label className="text-xs font-medium">WhatsApp</Label>
+              <Input value={maskPhone(form.responsavel1_whatsapp)} onChange={(e) => set("responsavel1_whatsapp", unmaskDigits(e.target.value))} placeholder="(00) 00000-0000" className="h-9 text-sm mt-1" />
+            </div>
             <Field label="Responsável 2 - Nome" field="responsavel2_nome" placeholder="Nome completo" />
-            <Field label="WhatsApp" field="responsavel2_whatsapp" placeholder="(00) 00000-0000" half />
+            <div className="col-span-1">
+              <Label className="text-xs font-medium">WhatsApp</Label>
+              <Input value={maskPhone(form.responsavel2_whatsapp)} onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))} placeholder="(00) 00000-0000" className="h-9 text-sm mt-1" />
+            </div>
           </CardContent>
         </Card>
 
