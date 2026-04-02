@@ -12,6 +12,7 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useBackupExport } from "@/hooks/useBackupExport";
 import { exportXLSX, exportPDF } from "@/hooks/useDataExport";
 import { Download, FileSpreadsheet, FileText, Archive, Loader2 } from "lucide-react";
+import { displayCPF, displayPhone } from "@/lib/utils";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
