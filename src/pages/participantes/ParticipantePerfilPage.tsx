@@ -394,7 +394,7 @@ const ParticipantePerfilPage = () => {
               <>
                 <EditField label="Resp. 1 Nome" field="responsavel1_nome" />
                 <div>
-                  <Label className="text-xs">CPF do Participante</Label>
+                  <Label className="text-xs">CPF do Responsável</Label>
                   <div className="flex items-center gap-2 mt-0.5">
                     <Input value={estrangeiroCpf ? (form.responsavel1_cpf || "") : maskCPF(form.responsavel1_cpf || "")} onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} className="h-8 text-sm" placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} />
                   </div>

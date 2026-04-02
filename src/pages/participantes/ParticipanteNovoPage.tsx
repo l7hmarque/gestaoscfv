@@ -310,7 +310,7 @@ const ParticipanteNovoPage = () => {
           <CardContent className="grid grid-cols-2 gap-3">
             <Field label="Responsável 1 - Nome" field="responsavel1_nome" placeholder="Nome completo" />
             <div className="col-span-1">
-              <Label className="text-xs font-medium">CPF do Participante</Label>
+              <Label className="text-xs font-medium">CPF do Responsável</Label>
               <Input value={estrangeiroCpf ? form.responsavel1_cpf : maskCPF(form.responsavel1_cpf)} onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} className="h-9 text-sm mt-1" />
               <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
                 <input type="checkbox" checked={estrangeiroCpf} onChange={(e) => setEstrangeiroCpf(e.target.checked)} className="h-3 w-3" />
