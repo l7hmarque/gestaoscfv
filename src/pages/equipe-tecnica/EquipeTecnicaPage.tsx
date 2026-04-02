@@ -52,7 +52,7 @@ const EquipeTecnicaPage = () => {
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }] = await Promise.all([
+    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }] = await Promise.all([
       supabase.from("atendimentos").select("*").order("data_atendimento", { ascending: false }),
       supabase.from("participantes").select("id, nome_completo, status, data_nascimento, bairro_id, periodo, laudo, categoria_vulnerabilidade").order("nome_completo"),
       supabase.from("profiles").select("id, nome, cargo, user_id"),
@@ -66,10 +66,9 @@ const EquipeTecnicaPage = () => {
     setPresenca(pres || []);
     setTurmas(turm || []);
 
-    // Build turma participant count map
     const tpMap: Record<string, number> = {};
-    (arguments[5]?.data || []).forEach((tp: any) => {
-      tpMap[tp.turma_id] = (tpMap[tp.turma_id] || 0) + 1;
+    (tp || []).forEach((row: any) => {
+      tpMap[row.turma_id] = (tpMap[row.turma_id] || 0) + 1;
     });
     setTpCountMap(tpMap);
 
