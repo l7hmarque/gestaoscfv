@@ -260,6 +260,26 @@ const ParticipantePerfilPage = () => {
         </div>
         {!editing ? (
           <div className="flex gap-1">
+            {participante.status === "pendente" && (
+              <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700 gap-1" onClick={async () => {
+                if (guardDemo(isDemo)) return;
+                const { error } = await supabase.from("participantes").update({ status: "ativo" } as any).eq("id", id!);
+                if (error) { toast.error("Erro: " + error.message); return; }
+                const faixa = calcFaixaFromDate(participante.data_nascimento);
+                if (participante.bairro_id && participante.periodo && faixa) {
+                  let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", participante.bairro_id).eq("faixa_etaria", faixa as any);
+                  if (participante.periodo !== "integral") query = query.eq("periodo", participante.periodo as any);
+                  const { data: tc } = await query;
+                  if (tc && tc.length > 0) {
+                    const links = tc.map(t => ({ turma_id: t.id, participante_id: id! }));
+                    await supabase.from("turma_participantes").upsert(links, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
+                    toast.info(`Vinculado a ${tc.length} turma(s)`);
+                  }
+                }
+                toast.success("Matrícula aprovada!");
+                fetchAll();
+              }}><CheckCircle className="h-3.5 w-3.5" />Aprovar</Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Pencil className="h-3.5 w-3.5 mr-1" />Editar</Button>
             <Button variant="outline" size="sm" className="gap-1" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" />Imprimir</Button>
             <DropdownMenu>
