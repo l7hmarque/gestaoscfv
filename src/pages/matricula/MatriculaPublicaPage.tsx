@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, Upload, X, MapPin, FileDown, AlertTriangle, MessageCircle } from "lucide-react";
 import { BAIRROS_SCFV } from "@/lib/constants";
+import { maskCPF, maskPhone, unmaskDigits } from "@/lib/utils";
 
 const DOC_CATEGORIES = [
   { value: "laudo", label: "Laudo Médico" },
