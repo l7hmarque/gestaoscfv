@@ -1,148 +1,115 @@
+## Plano: Módulo da Equipe Técnica
 
+### Resumo
 
-## Plano: Ajustes em Participantes + Mural Coletivo + Feed Social com Conquistas
-
----
-
-### 1. Filtros sem "Todos" na página Participantes
-
-**`ParticipantesPage.tsx`**: Trocar os placeholders dos Selects:
-- `"Todos status"` → `"Status"` (placeholder visual, valor `"todos"` mantido internamente)
-- `"Todos períodos"` → `"Período"`
-- `"Todos bairros"` → `"Bairro CAIA"`
-
-Usar `placeholder` do SelectTrigger em vez de um SelectItem "todos". Quando nenhum filtro está selecionado, mostrar o placeholder. Adicionar botão "Limpar filtros" quando algum filtro estiver ativo.
-
-### 2. Abrir página do participante clicando na linha
-
-**`ParticipantesPage.tsx`**: Tornar toda a `TableRow` clicável com `onClick={() => navigate(`/participantes/${p.id}`)}` e `cursor-pointer`. Manter os botões de ação existentes (aprovar + ver).
+Criar um módulo dedicado para Assistentes Sociais e Psicólogas com: prontuário de atendimentos por participante, dashboard técnico com indicadores relevantes, e alertas compartilhados (frequência + matrículas pendentes). O prontuário fica vinculado ao perfil do participante e é exportável em PDF profissional.
 
 ---
 
-### 3. Mural Coletivo (Comunicação entre Profissionais)
+### 1. Migração SQL — Tabela `atendimentos`
 
-**Arquitetura proposta:**
+Nova tabela para registrar atendimentos técnicos:
 
-```text
-┌─────────────────────────────────┐
-│         MURAL COLETIVO          │
-├─────────────────────────────────┤
-│ [Novo Aviso]                    │
-│                                 │
-│ 📌 Fixado: Reunião sexta 14h   │
-│    por Maria (Coordenação)      │
-│    há 2 dias                    │
-│                                 │
-│ 🔔 Lembrete: Entrega relatórios│
-│    por João (Educador)          │
-│    há 5 horas                   │
-│                                 │
-│ 💬 Informativo: Novo aluno...   │
-│    por Ana (Eq. Técnica)        │
-│    há 1 hora                    │
-└─────────────────────────────────┘
-```
 
-**Tabela `mural_posts`:**
-- `id`, `autor_id` (ref profiles), `tipo` (enum: aviso, lembrete, informativo), `titulo`, `conteudo`, `fixado` (boolean, default false), `created_at`
-- RLS: authenticated SELECT/INSERT; coordenacao pode fixar/deletar qualquer; autor pode deletar/editar próprio
+| Coluna             | Tipo                      | Descrição                                                                                                                   |
+| ------------------ | ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `id`               | uuid PK                   | &nbsp;                                                                                                                      |
+| `participante_id`  | uuid NOT NULL             | Ref participante                                                                                                            |
+| `profissional_id`  | uuid NOT NULL             | Ref profiles (quem atendeu)                                                                                                 |
+| `data_atendimento` | date NOT NULL             | &nbsp;                                                                                                                      |
+| `tipo`             | text NOT NULL             | visita_domiciliar, atendimento_individual, atendimento_familiar, encaminhamento, busca_ativa, acolhida, desligamento, outro |
+| `descricao`        | text NOT NULL             | Relato do atendimento                                                                                                       |
+| `encaminhamento`   | text                      | Encaminhamento realizado (se houver)                                                                                        |
+| `sigiloso`         | boolean DEFAULT true      | Visível apenas para técnicos e coordenação                                                                                  |
+| `created_at`       | timestamptz DEFAULT now() | &nbsp;                                                                                                                      |
 
-**Página `/mural`**: Lista de posts ordenados por fixados primeiro, depois por data. Formulário simples com tipo + título + conteúdo. Coordenação pode fixar/desafixar. Sem comentários neste módulo (comentários ficam no Feed).
+
+**RLS**: SELECT/INSERT/UPDATE/DELETE somente para roles `tecnico` e `coordenacao`. Visitante e educador não acessam.
 
 ---
 
-### 4. Feed Social Coletivo
+### 2. Página `/equipe-tecnica` — Painel Técnico
 
-**Arquitetura proposta:**
+Nova página `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx` com abas:
 
-```text
-┌─────────────────────────────────┐
-│          FEED SOCIAL            │
-├─────────────────────────────────┤
-│ 🏆 Conquista! João atingiu     │
-│    50 relatórios este mês!      │
-│    🎉 12 likes · 3 comentários │
-│                                 │
-│ 📸 [FOTO] Maria postou         │
-│    "Atividade incrível hoje..." │
-│    ❤️ 8 · 💬 2                  │
-│                                 │
-│ 📝 Auto-post do relatório      │
-│    "CAIA MEDIANEIRA 🌍..."      │
-│    [fotos do relatório]         │
-│    ❤️ 5 · 💬 1                  │
-└─────────────────────────────────┘
-```
+**Aba "Dashboard":**
 
-**Tabelas:**
+- KPIs: Total atendimentos (mês), atendimentos por tipo (pie chart), participantes atendidos (unique count), encaminhamentos pendentes
+- Alertas de frequência (mesma lógica da TurmaDetalhePage: 3+ faltas ou adesão < 65%)
+- Banner de matrículas pendentes (count + link para `/participantes?status=pendente`)
+- Gráfico: atendimentos por mês (line chart)
+- Indicadores sugeridos: % participantes com laudo, distribuição por vulnerabilidade, participantes sem atendimento há 30+ dias
 
-**`feed_posts`:**
-- `id`, `autor_id` (ref profiles), `conteudo` (text), `tipo` (enum: manual, relatorio_auto, conquista), `relatorio_id` (nullable, ref relatorios_atividade — para auto-posts), `created_at`
-- RLS: authenticated SELECT; authenticated INSERT (não visitante); autor ou coordenacao DELETE/UPDATE
+**Aba "Atendimentos":**
 
-**`feed_fotos`:**
-- `id`, `feed_post_id`, `foto_url`, `ordem`
+- Lista de todos os atendimentos com filtros (período, tipo, profissional)
+- Botão "Novo Atendimento" que abre formulário com select de participante + campos
+- Cada registro mostra: participante, data, tipo, resumo, profissional
 
-**`feed_reacoes`:**
-- `id`, `feed_post_id`, `user_id` (ref profiles), `tipo` (enum: like, amei), `created_at`
-- Constraint UNIQUE (feed_post_id, user_id) — 1 reação por usuário por post (pode trocar tipo)
+**Aba "Alertas":**
 
-**`feed_comentarios`:**
-- `id`, `feed_post_id`, `autor_id` (ref profiles), `conteudo`, `created_at`
-
-**Auto-post de relatórios:** No `RelatorioNovoPage`, após salvar com sucesso e gerar o texto IA (Instagram), criar automaticamente um `feed_post` com `tipo = 'relatorio_auto'`, vinculando `relatorio_id`, copiando as fotos para `feed_fotos`, e usando o texto IA como `conteudo`.
-
-**Sistema de Conquistas (`feed_conquistas` / lógica):**
-
-Conquistas geradas automaticamente e postadas no feed:
-
-| Conquista | Condição |
-|---|---|
-| 🎯 "Primeiro Relatório!" | Educador salva 1º relatório |
-| 📝 "Escritor Dedicado" | 10 / 25 / 50 / 100 relatórios |
-| ⭐ "ELO de Ouro" | Score ELO médio ≥ 4.0 no mês |
-| 🔥 "Sequência de Fogo" | 5 relatórios consecutivos (dias úteis) |
-| 📊 "100% Adesão" | Relatório com pct_adesao = 100% |
-| 👥 "Turma Completa" | Presença de todos os matriculados |
-| 📅 "Planejador do Mês" | 4+ planejamentos no mês |
-| 🌟 "Educador Destaque" | Maior score ELO médio do mês |
-| 📸 "Fotógrafo" | 50 fotos em relatórios |
-| 🤝 "Engajamento Total" | Todos indicadores ELO ≥ 4 em um relatório |
-
-Tabela **`conquistas`**: `id`, `perfil_id`, `tipo` (text), `nivel` (int, para progressivos), `created_at`. Check de conquistas executado ao salvar relatório.
+- Participantes com alerta de frequência (3+ faltas consecutivas ou adesão < 65%)
+- Matrículas pendentes aguardando aprovação
+- Participantes sem atendimento técnico há 30+ dias (sugestão) - revogar.
 
 ---
 
-### 5. Navegação
+### 3. Prontuário no Perfil do Participante
 
-**`AppSidebar.tsx`**: Adicionar 2 itens ao menu:
-- "Mural" → `/mural` (ícone: `MessageSquare`)
-- "Feed" → `/feed` (ícone: `Newspaper`)
+`**ParticipantePerfilPage.tsx**`: Adicionar seção "Prontuário Técnico" (visível apenas para `tecnico` e `coordenacao`), abaixo de "Observações Sigilosas":
 
-**`App.tsx`**: Adicionar rotas `/mural` e `/feed`.
+- Lista cronológica de atendimentos daquele participante
+- Botão "Novo Atendimento" inline (formulário compacto: data, tipo, descrição, encaminhamento)
+- Botão "Exportar Prontuário PDF"
 
 ---
 
-### Migração SQL
+### 4. Exportação do Prontuário em PDF
 
-1. Enum `tipo_mural` (aviso, lembrete, informativo)
-2. Tabela `mural_posts` com RLS
-3. Enum `tipo_feed_post` (manual, relatorio_auto, conquista)
-4. Enum `tipo_reacao` (like, amei)
-5. Tabelas `feed_posts`, `feed_fotos`, `feed_reacoes`, `feed_comentarios`, `conquistas` com RLS
-6. Realtime habilitado para `mural_posts`, `feed_posts`, `feed_comentarios`, `feed_reacoes`
+Função `exportProntuarioPdf(participante, atendimentos)` em `useDocumentExport.ts`:
+
+- Header institucional: "PRONTUÁRIO TÉCNICO — SCFV/CAIA"
+- Dados do participante: nome, data nascimento, faixa etária, bairro, período, responsáveis, contatos, escola, série, laudo, vulnerabilidade
+- Tabela cronológica de atendimentos: data, tipo, profissional, descrição, encaminhamento
+- Observações sigilosas (se houver)
+- Rodapé: data de emissão, profissional que exportou
+- Design técnico com cores institucionais (vermelho CAIA)
+
+---
+
+### 5. Navegação e Roteamento
+
+- `AppSidebar.tsx`: Item "Equipe Técnica" (ícone `ShieldCheck` ou `HeartHandshake`) — visível para todos mas funcionalidades restritas por RLS
+- `App.tsx`: Rota `/equipe-tecnica`
+
+---
+
+### 6. Sugestões de funcionalidades extras incluídas
+
+
+| Funcionalidade                   | Descrição                                                                                      |
+| -------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Agendamento de atendimentos      | Campo `data_agendamento` futuro, aparece como lembrete na aba Alertas                          |
+| Indicador "sem atendimento 30d"  | Participantes ativos que não têm nenhum registro de atendimento nos últimos 30 dias - revogar. |
+| % com laudo                      | KPI mostrando quantos participantes ativos possuem laudo registrado                            |
+| Distribuição por vulnerabilidade | Gráfico com categorias de vulnerabilidade dos participantes                                    |
+| Encaminhamentos ativos           | Contador de atendimentos tipo "encaminhamento" sem resolução                                   |
+
+
+---
+
+Funcionalidade: com base nos dias de atendimento das turmas e informacoes necessarias, mostrar mapa de calor de dias da semana com probabilidade de maior volume de usuarios.  
+Funcionalidade: enviar recado a educador/profissional = seleciona pra quem e o recado e sobre qual participante é (opcional), o recado vai aparecer no mural somente pro educador/profissional marcado. Profissional marcado vai receber um alerta em um menu de notificacoes (que sempre fica no header de todas as paginas) -> educador pode checar "Ciente!" e técnico sabe que ele viu o recado.  
+Funcionalidade: educador pode apertar botao no header da pagina para enviar recado aos tecnicos, podendo vincular a um participante tambem. tecnicos sao notificados tambem em sessao de notificacoes, e tambem vai aparecer em mural apenas visivel pros tecnicos.
 
 ### Arquivos
 
-| Arquivo | Mudança |
-|---|---|
-| Migração SQL | 5 tabelas + enums + RLS + realtime |
-| `src/pages/participantes/ParticipantesPage.tsx` | Filtros sem "todos", linha clicável |
-| `src/pages/mural/MuralPage.tsx` | Novo — listagem + criação de avisos |
-| `src/pages/feed/FeedPage.tsx` | Novo — feed social com posts, reações, comentários |
-| `src/components/FeedPost.tsx` | Novo — card de post com reações e comentários |
-| `src/hooks/useConquistas.ts` | Novo — lógica de verificação de conquistas ao salvar relatório |
-| `src/pages/relatorios/RelatorioNovoPage.tsx` | Auto-post no feed após salvar |
-| `src/components/AppSidebar.tsx` | Itens Mural e Feed |
-| `src/App.tsx` | Rotas /mural e /feed |
 
+| Arquivo                                              | Mudança                                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------ |
+| Migração SQL                                         | Tabela `atendimentos` + RLS para tecnico/coordenacao         |
+| `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx`     | Nova — dashboard + atendimentos + alertas                    |
+| `src/pages/participantes/ParticipantePerfilPage.tsx` | Seção prontuário com lista + novo atendimento + exportar PDF |
+| `src/hooks/useDocumentExport.ts`                     | Função `exportProntuarioPdf`                                 |
+| `src/components/AppSidebar.tsx`                      | Item "Equipe Técnica"                                        |
+| `src/App.tsx`                                        | Rota `/equipe-tecnica`                                       |
