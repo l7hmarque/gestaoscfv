@@ -63,6 +63,11 @@ const ParticipantePerfilPage = () => {
     supabase.from("user_roles").select("role").eq("user_id", user.id).then(({ data }) => {
       setUserRoles((data || []).map((r: any) => r.role));
     });
+    supabase.from("profiles").select("id, nome, cargo, user_id").then(({ data }) => {
+      setAllProfiles(data || []);
+      const me = (data || []).find((p: any) => p.user_id === user.id);
+      if (me) setMyProfileId(me.id);
+    });
   }, [user]);
 
   const canSeeConfidential = userRoles.includes("tecnico") || userRoles.includes("coordenacao");
