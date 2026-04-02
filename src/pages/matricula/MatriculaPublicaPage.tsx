@@ -38,6 +38,39 @@ const WHATSAPP_LINKS: Record<string, string> = {
   "PARQUE INDEPENDENCIA": "https://chat.whatsapp.com/FTpkWJLY6TzIT25VgdmDft",
 };
 
+const Field = ({
+  label,
+  value,
+  onChange,
+  required,
+  type = "text",
+  placeholder,
+  onBlur,
+}: {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  required?: boolean;
+  type?: string;
+  placeholder?: string;
+  onBlur?: () => void;
+}) => (
+  <div>
+    <Label className="text-sm font-medium">
+      {label}
+      {required && <span className="text-destructive ml-0.5">*</span>}
+    </Label>
+    <Input
+      type={type}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
+      className="mt-1"
+      placeholder={placeholder}
+    />
+  </div>
+);
+
 const MatriculaPublicaPage = () => {
   const [form, setForm] = useState<Record<string, string>>({});
   const [docs, setDocs] = useState<PendingDoc[]>([]);
@@ -310,37 +343,6 @@ const MatriculaPublicaPage = () => {
     );
   }
 
-  const Field = ({
-    label,
-    field,
-    required,
-    type = "text",
-    placeholder,
-    onBlur,
-  }: {
-    label: string;
-    field: string;
-    required?: boolean;
-    type?: string;
-    placeholder?: string;
-    onBlur?: () => void;
-  }) => (
-    <div>
-      <Label className="text-sm font-medium">
-        {label}
-        {required && <span className="text-destructive ml-0.5">*</span>}
-      </Label>
-      <Input
-        type={type}
-        value={form[field] || ""}
-        onChange={(e) => set(field, e.target.value)}
-        onBlur={onBlur}
-        className="mt-1"
-        placeholder={placeholder}
-      />
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-[hsl(40,20%,97%)]">
       {/* Header */}
@@ -394,7 +396,7 @@ const MatriculaPublicaPage = () => {
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="sm:col-span-2">
-                <Field label="Nome Completo" field="nome_completo" required onBlur={handleNameBlur} />
+                <Field label="Nome Completo" value={form.nome_completo || ""} onChange={(v) => set("nome_completo", v)} required onBlur={handleNameBlur} />
               </div>
               <div>
                 <Label className="text-sm font-medium">
@@ -435,8 +437,8 @@ const MatriculaPublicaPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Field label="Escola" field="escola" />
-              <Field label="Série / Ano" field="serie" />
+              <Field label="Escola" value={form.escola || ""} onChange={(v) => set("escola", v)} />
+              <Field label="Série / Ano" value={form.serie || ""} onChange={(v) => set("serie", v)} />
             </CardContent>
           </Card>
 
@@ -518,10 +520,10 @@ const MatriculaPublicaPage = () => {
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
-                <Field label="Rua" field="endereco_rua" />
+                <Field label="Rua" value={form.endereco_rua || ""} onChange={(v) => set("endereco_rua", v)} />
               </div>
-              <Field label="Número" field="endereco_numero" />
-              <Field label="Bairro" field="endereco_bairro" />
+              <Field label="Número" value={form.endereco_numero || ""} onChange={(v) => set("endereco_numero", v)} />
+              <Field label="Bairro" value={form.endereco_bairro || ""} onChange={(v) => set("endereco_bairro", v)} />
             </CardContent>
           </Card>
 
@@ -532,15 +534,15 @@ const MatriculaPublicaPage = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Field label="Nome do Responsável" field="responsavel1_nome" required />
-                <Field label="CPF" field="responsavel1_cpf" placeholder="000.000.000-00" />
-                <Field label="WhatsApp" field="responsavel1_whatsapp" required placeholder="(00) 00000-0000" />
+                <Field label="Nome do Responsável" value={form.responsavel1_nome || ""} onChange={(v) => set("responsavel1_nome", v)} required />
+                <Field label="CPF" value={form.responsavel1_cpf || ""} onChange={(v) => set("responsavel1_cpf", v)} placeholder="000.000.000-00" />
+                <Field label="WhatsApp" value={form.responsavel1_whatsapp || ""} onChange={(v) => set("responsavel1_whatsapp", v)} required placeholder="(00) 00000-0000" />
               </div>
               <div className="border-t pt-3">
                 <p className="text-xs text-muted-foreground mb-2">Responsável 2 (opcional)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Nome" field="responsavel2_nome" />
-                  <Field label="WhatsApp" field="responsavel2_whatsapp" />
+                  <Field label="Nome" value={form.responsavel2_nome || ""} onChange={(v) => set("responsavel2_nome", v)} />
+                  <Field label="WhatsApp" value={form.responsavel2_whatsapp || ""} onChange={(v) => set("responsavel2_whatsapp", v)} />
                 </div>
               </div>
             </CardContent>
