@@ -40,6 +40,7 @@ const EquipeTecnicaPage = () => {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [presenca, setPresenca] = useState<any[]>([]);
   const [turmas, setTurmas] = useState<any[]>([]);
+  const [tpCountMap, setTpCountMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filterTipo, setFilterTipo] = useState("");
