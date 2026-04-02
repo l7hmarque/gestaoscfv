@@ -944,3 +944,118 @@ export async function exportListaPresencaPdf(
 
   doc.save(`SysELO_Lista_Presenca_${turma.nome.replace(/\s+/g, "_")}_${meses[mes]}_${ano}.pdf`);
 }
+
+// ===== PRONTUÁRIO TÉCNICO =====
+const TIPO_ATD_LABEL: Record<string, string> = {
+  visita_domiciliar: "Visita Domiciliar",
+  atendimento_individual: "Atendimento Individual",
+  atendimento_familiar: "Atendimento Familiar",
+  encaminhamento: "Encaminhamento",
+  busca_ativa: "Busca Ativa",
+  acolhida: "Acolhida",
+  desligamento: "Desligamento",
+  outro: "Outro",
+};
+
+export async function exportProntuarioPdf(
+  participante: any,
+  atendimentos: any[],
+  profiles: any[],
+  bairros: any[]
+) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  let y = 12;
+
+  // Header institucional
+  doc.setFontSize(10); doc.setFont("helvetica", "bold");
+  doc.text("SOCIEDADE CIVIL NOSSA SENHORA APARECIDA", 105, y, { align: "center" });
+  y += 4; doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+  doc.text("Centro de Atenção Integral ao Adolescente - Medianeira", 105, y, { align: "center" });
+
+  y += 6; doc.setFontSize(13); doc.setTextColor(180, 30, 30); doc.setFont("helvetica", "bold");
+  doc.text("PRONTUÁRIO TÉCNICO — SCFV/CAIA", 105, y, { align: "center" });
+  doc.setTextColor(0); doc.setFont("helvetica", "normal"); y += 8;
+
+  // Dados do participante
+  doc.setFontSize(10); doc.setFont("helvetica", "bold");
+  doc.text("DADOS DO PARTICIPANTE", 14, y); y += 5;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+
+  const bairroNome = bairros.find((b: any) => b.id === participante.bairro_id)?.nome || "—";
+  const periodoLabel = participante.periodo === "manha" ? "Manhã" : participante.periodo === "tarde" ? "Tarde" : participante.periodo === "integral" ? "Integral" : "—";
+  const idade = participante.data_nascimento ? Math.floor((Date.now() - new Date(participante.data_nascimento).getTime()) / 31557600000) + " anos" : "—";
+
+  const dados = [
+    ["Nome", participante.nome_completo || "—"],
+    ["Data de Nascimento", `${participante.data_nascimento || "—"} (${idade})`],
+    ["Bairro CAIA", bairroNome],
+    ["Período", periodoLabel],
+    ["Escola", participante.escola || "—"],
+    ["Série", participante.serie || "—"],
+    ["Responsável 1", `${participante.responsavel1_nome || "—"} — ${participante.responsavel1_whatsapp || "—"}`],
+    ["Responsável 2", `${participante.responsavel2_nome || "—"} — ${participante.responsavel2_whatsapp || "—"}`],
+    ["Laudo", participante.laudo || "Nenhum"],
+    ["Vulnerabilidade", participante.categoria_vulnerabilidade || "Não informado"],
+    ["Origem", participante.origem_encaminhamento || "—"],
+  ];
+
+  autoTable(doc, {
+    startY: y,
+    head: [],
+    body: dados,
+    theme: "plain",
+    styles: { fontSize: 8, cellPadding: 1.5 },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 40 } },
+    margin: { left: 14, right: 14 },
+  });
+
+  y = (doc as any).lastAutoTable?.finalY + 6 || y + 60;
+
+  // Observações sigilosas
+  if (participante.observacoes_sigilosas) {
+    doc.setFontSize(10); doc.setFont("helvetica", "bold");
+    doc.text("OBSERVAÇÕES SIGILOSAS", 14, y); y += 5;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+    const lines = doc.splitTextToSize(participante.observacoes_sigilosas, 180);
+    doc.text(lines, 14, y);
+    y += lines.length * 3.5 + 4;
+  }
+
+  // Atendimentos
+  doc.setFontSize(10); doc.setFont("helvetica", "bold");
+  doc.text("REGISTRO DE ATENDIMENTOS", 14, y); y += 5;
+
+  if (atendimentos.length === 0) {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+    doc.text("Nenhum atendimento registrado.", 14, y);
+  } else {
+    const rows = atendimentos.map(a => [
+      a.data_atendimento,
+      TIPO_ATD_LABEL[a.tipo] || a.tipo,
+      profiles.find((p: any) => p.id === a.profissional_id)?.nome || "—",
+      a.descricao,
+      a.encaminhamento || "—",
+    ]);
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Data", "Tipo", "Profissional", "Descrição", "Encaminhamento"]],
+      body: rows,
+      headStyles: { fillColor: [180, 30, 30], fontSize: 7, cellPadding: 2 },
+      styles: { fontSize: 7, cellPadding: 2 },
+      columnStyles: { 0: { cellWidth: 18 }, 1: { cellWidth: 25 }, 2: { cellWidth: 25 }, 3: { cellWidth: 70 } },
+      margin: { left: 14, right: 14 },
+    });
+  }
+
+  // Rodapé
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7); doc.setTextColor(100);
+    doc.text(`Emitido em ${format(new Date(), "dd/MM/yyyy HH:mm")} — Documento sigiloso — Página ${i}/${pageCount}`, 105, 290, { align: "center" });
+    doc.setTextColor(0);
+  }
+
+  doc.save(`SysELO_Prontuario_${participante.nome_completo.replace(/\s+/g, "_")}_${fileTimestamp()}.pdf`);
+}

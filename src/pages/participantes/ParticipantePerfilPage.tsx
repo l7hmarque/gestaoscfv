@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Save, Pencil, Printer, FileText, FileSpreadsheet, Lock, Camera, Upload, X, Plus, Check, Eye, Trash2, CheckCircle } from "lucide-react";
+import { ArrowLeft, Save, Pencil, Printer, FileText, FileSpreadsheet, Lock, Camera, Upload, X, Plus, Check, Eye, Trash2, CheckCircle, ClipboardList } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { exportFichaInscricaoDocx, exportFichaInscricaoPdf } from "@/hooks/useDocumentExport";
+import { exportFichaInscricaoDocx, exportFichaInscricaoPdf, exportProntuarioPdf } from "@/hooks/useDocumentExport";
 import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDocumentScanner, CATEGORIES, compressFileForUpload } from "@/hooks/useDocumentScanner";
@@ -48,6 +48,11 @@ const ParticipantePerfilPage = () => {
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [estrangeiroCpf, setEstrangeiroCpf] = useState(false);
+  const [atendimentos, setAtendimentos] = useState<any[]>([]);
+  const [allProfiles, setAllProfiles] = useState<any[]>([]);
+  const [showAtdForm, setShowAtdForm] = useState(false);
+  const [atdForm, setAtdForm] = useState({ data_atendimento: new Date().toISOString().slice(0, 10), tipo: "atendimento_individual", descricao: "", encaminhamento: "" });
+  const [myProfileId, setMyProfileId] = useState("");
 
   const scanner = useDocumentScanner();
 
@@ -58,6 +63,11 @@ const ParticipantePerfilPage = () => {
     supabase.from("user_roles").select("role").eq("user_id", user.id).then(({ data }) => {
       setUserRoles((data || []).map((r: any) => r.role));
     });
+    supabase.from("profiles").select("id, nome, cargo, user_id").then(({ data }) => {
+      setAllProfiles(data || []);
+      const me = (data || []).find((p: any) => p.user_id === user.id);
+      if (me) setMyProfileId(me.id);
+    });
   }, [user]);
 
   const canSeeConfidential = userRoles.includes("tecnico") || userRoles.includes("coordenacao");
@@ -65,18 +75,20 @@ const ParticipantePerfilPage = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [{ data: p }, { data: b }, { data: pt }, { data: tp }, { data: docData }] = await Promise.all([
+    const [{ data: p }, { data: b }, { data: pt }, { data: tp }, { data: docData }, { data: atdData }] = await Promise.all([
       supabase.from("participantes").select("*").eq("id", id!).single(),
       supabase.from("bairros").select("*").order("nome"),
       supabase.from("pontos_transporte").select("*").order("nome"),
       supabase.from("turma_participantes").select("turma_id, turmas(nome)").eq("participante_id", id!),
       supabase.from("participante_documentos" as any).select("*").eq("participante_id", id!).order("created_at", { ascending: false }),
+      supabase.from("atendimentos").select("*").eq("participante_id", id!).order("data_atendimento", { ascending: false }),
     ]);
     setParticipante(p as any);
     setBairros(b || []);
     setPontos(pt || []);
     setTurmas((tp || []).map((t: any) => ({ turma_id: t.turma_id, turma_nome: t.turmas?.nome || "" })));
     setDocs((docData || []) as unknown as DocRow[]);
+    setAtendimentos(atdData || []);
     if (p) {
       const f: Record<string, string> = {};
       Object.entries(p).forEach(([k, v]) => { f[k] = v == null ? "" : String(v); });
@@ -509,6 +521,87 @@ const ParticipantePerfilPage = () => {
             <input ref={scanner.scanInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={scanner.handleScanCapture} />
           </CardContent>
         </Card>
+
+        {/* Prontuário Técnico */}
+        {canSeeConfidential && (
+          <Card className="border-primary/30">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 text-primary" /> Prontuário Técnico
+                </CardTitle>
+                <div className="flex gap-1">
+                  <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => exportProntuarioPdf(participante, atendimentos, allProfiles, bairros)}>
+                    <FileText className="h-3 w-3" />Exportar PDF
+                  </Button>
+                  <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => setShowAtdForm(!showAtdForm)}>
+                    <Plus className="h-3 w-3" />{showAtdForm ? "Cancelar" : "Novo Atendimento"}
+                  </Button>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Visível apenas para equipe técnica e coordenação</p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {showAtdForm && (
+                <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label className="text-xs">Data</Label><Input type="date" value={atdForm.data_atendimento} onChange={e => setAtdForm(f => ({ ...f, data_atendimento: e.target.value }))} className="h-8 text-sm mt-0.5" /></div>
+                    <div><Label className="text-xs">Tipo</Label>
+                      <Select value={atdForm.tipo} onValueChange={v => setAtdForm(f => ({ ...f, tipo: v }))}>
+                        <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="visita_domiciliar">Visita Domiciliar</SelectItem>
+                          <SelectItem value="atendimento_individual">Atend. Individual</SelectItem>
+                          <SelectItem value="atendimento_familiar">Atend. Familiar</SelectItem>
+                          <SelectItem value="encaminhamento">Encaminhamento</SelectItem>
+                          <SelectItem value="busca_ativa">Busca Ativa</SelectItem>
+                          <SelectItem value="acolhida">Acolhida</SelectItem>
+                          <SelectItem value="desligamento">Desligamento</SelectItem>
+                          <SelectItem value="outro">Outro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div><Label className="text-xs">Descrição</Label><Textarea value={atdForm.descricao} onChange={e => setAtdForm(f => ({ ...f, descricao: e.target.value }))} className="text-sm mt-0.5 min-h-[80px]" /></div>
+                  <div><Label className="text-xs">Encaminhamento (opcional)</Label><Textarea value={atdForm.encaminhamento} onChange={e => setAtdForm(f => ({ ...f, encaminhamento: e.target.value }))} className="text-sm mt-0.5 min-h-[50px]" /></div>
+                  <Button size="sm" onClick={async () => {
+                    if (guardDemo(isDemo)) return;
+                    if (!atdForm.descricao.trim()) { toast.error("Preencha a descrição"); return; }
+                    const { error } = await supabase.from("atendimentos").insert({
+                      participante_id: id,
+                      profissional_id: myProfileId,
+                      data_atendimento: atdForm.data_atendimento,
+                      tipo: atdForm.tipo,
+                      descricao: atdForm.descricao,
+                      encaminhamento: atdForm.encaminhamento || null,
+                    } as any);
+                    if (error) { toast.error("Erro: " + error.message); return; }
+                    toast.success("Atendimento registrado!");
+                    setShowAtdForm(false);
+                    setAtdForm({ data_atendimento: new Date().toISOString().slice(0, 10), tipo: "atendimento_individual", descricao: "", encaminhamento: "" });
+                    fetchAll();
+                  }}>Salvar Atendimento</Button>
+                </div>
+              )}
+
+              {atendimentos.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhum atendimento registrado</p>
+              ) : atendimentos.map(a => (
+                <div key={a.id} className="border rounded-lg p-3 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-[10px]">{a.tipo.replace(/_/g, " ")}</Badge>
+                      <span className="text-xs text-muted-foreground">{a.data_atendimento}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">{allProfiles.find(p => p.id === a.profissional_id)?.nome || "—"}</span>
+                  </div>
+                  <p className="text-sm">{a.descricao}</p>
+                  {a.encaminhamento && <p className="text-xs text-muted-foreground">📋 Encaminhamento: {a.encaminhamento}</p>}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Seção Sigilosa */}
         {canSeeConfidential && (
