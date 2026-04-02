@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Save, Pencil, Printer, FileText, FileSpreadsheet, Lock, Camera, Upload, X, Plus, Check, Eye, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Pencil, Printer, FileText, FileSpreadsheet, Lock, Camera, Upload, X, Plus, Check, Eye, Trash2, CheckCircle } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDocumentScanner, CATEGORIES, compressFileForUpload } from "@/hooks/useDocumentScanner";
 import type { Tables } from "@/integrations/supabase/types";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
+import { maskCPF, maskPhone, unmaskDigits, displayCPF, displayPhone } from "@/lib/utils";
 
 const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto", pendente: "Pendente" };
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
@@ -46,6 +47,7 @@ const ParticipantePerfilPage = () => {
   const [loading, setLoading] = useState(true);
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [docs, setDocs] = useState<DocRow[]>([]);
+  const [estrangeiroCpf, setEstrangeiroCpf] = useState(false);
 
   const scanner = useDocumentScanner();
 
@@ -258,6 +260,26 @@ const ParticipantePerfilPage = () => {
         </div>
         {!editing ? (
           <div className="flex gap-1">
+            {participante.status === "pendente" && (
+              <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700 gap-1" onClick={async () => {
+                if (guardDemo(isDemo)) return;
+                const { error } = await supabase.from("participantes").update({ status: "ativo" } as any).eq("id", id!);
+                if (error) { toast.error("Erro: " + error.message); return; }
+                const faixa = calcFaixaFromDate(participante.data_nascimento);
+                if (participante.bairro_id && participante.periodo && faixa) {
+                  let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", participante.bairro_id).eq("faixa_etaria", faixa as any);
+                  if (participante.periodo !== "integral") query = query.eq("periodo", participante.periodo as any);
+                  const { data: tc } = await query;
+                  if (tc && tc.length > 0) {
+                    const links = tc.map(t => ({ turma_id: t.id, participante_id: id! }));
+                    await supabase.from("turma_participantes").upsert(links, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
+                    toast.info(`Vinculado a ${tc.length} turma(s)`);
+                  }
+                }
+                toast.success("Matrícula aprovada!");
+                fetchAll();
+              }}><CheckCircle className="h-3.5 w-3.5" />Aprovar</Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Pencil className="h-3.5 w-3.5 mr-1" />Editar</Button>
             <Button variant="outline" size="sm" className="gap-1" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" />Imprimir</Button>
             <DropdownMenu>
@@ -318,7 +340,7 @@ const ParticipantePerfilPage = () => {
                     <SelectContent><SelectItem value="manha">Manhã</SelectItem><SelectItem value="tarde">Tarde</SelectItem><SelectItem value="integral">Integral</SelectItem></SelectContent>
                   </Select>
                 </div>
-                <div><Label className="text-xs">Bairro SCFV</Label>
+                <div><Label className="text-xs">Bairro do CAIA</Label>
                   <Select value={form.bairro_id || ""} onValueChange={(v) => {
                     set("bairro_id", v);
                     // Limpar ponto se não pertence ao novo bairro
@@ -369,9 +391,24 @@ const ParticipantePerfilPage = () => {
           <CardHeader className="pb-2"><CardTitle className="text-sm">Responsáveis</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {editing ? (
-              <><EditField label="Resp. 1 Nome" field="responsavel1_nome" /><EditField label="CPF" field="responsavel1_cpf" /><EditField label="WhatsApp" field="responsavel1_whatsapp" /><EditField label="Resp. 2 Nome" field="responsavel2_nome" /><EditField label="WhatsApp 2" field="responsavel2_whatsapp" /></>
+              <>
+                <EditField label="Resp. 1 Nome" field="responsavel1_nome" />
+                <div>
+                  <Label className="text-xs">CPF do Participante</Label>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <Input value={estrangeiroCpf ? (form.responsavel1_cpf || "") : maskCPF(form.responsavel1_cpf || "")} onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} className="h-8 text-sm" placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} />
+                  </div>
+                  <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                    <input type="checkbox" checked={estrangeiroCpf} onChange={(e) => setEstrangeiroCpf(e.target.checked)} className="h-3 w-3" />
+                    <span className="text-[10px] text-muted-foreground">Estrangeiro/Sem CPF</span>
+                  </label>
+                </div>
+                <div><Label className="text-xs">WhatsApp</Label><Input value={maskPhone(form.responsavel1_whatsapp || "")} onChange={(e) => set("responsavel1_whatsapp", unmaskDigits(e.target.value))} className="h-8 text-sm mt-0.5" placeholder="(00) 00000-0000" /></div>
+                <EditField label="Resp. 2 Nome" field="responsavel2_nome" />
+                <div><Label className="text-xs">WhatsApp 2</Label><Input value={maskPhone(form.responsavel2_whatsapp || "")} onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))} className="h-8 text-sm mt-0.5" placeholder="(00) 00000-0000" /></div>
+              </>
             ) : (
-              <><Info label="Resp. 1" value={participante.responsavel1_nome} /><Info label="CPF" value={participante.responsavel1_cpf} /><Info label="WhatsApp" value={participante.responsavel1_whatsapp} /><Info label="Resp. 2" value={participante.responsavel2_nome} /><Info label="WhatsApp 2" value={participante.responsavel2_whatsapp} /></>
+              <><Info label="Resp. 1" value={participante.responsavel1_nome} /><Info label="CPF" value={displayCPF(participante.responsavel1_cpf)} /><Info label="WhatsApp" value={displayPhone(participante.responsavel1_whatsapp)} /><Info label="Resp. 2" value={participante.responsavel2_nome} /><Info label="WhatsApp 2" value={displayPhone(participante.responsavel2_whatsapp)} /></>
             )}
           </CardContent>
         </Card>

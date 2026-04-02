@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, Upload, X, MapPin, FileDown, AlertTriangle, MessageCircle } from "lucide-react";
 import { BAIRROS_SCFV } from "@/lib/constants";
+import { maskCPF, maskPhone, unmaskDigits } from "@/lib/utils";
 
 const DOC_CATEGORIES = [
   { value: "laudo", label: "Laudo Médico" },
@@ -82,6 +83,7 @@ const MatriculaPublicaPage = () => {
   const [submittedBairro, setSubmittedBairro] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploadCategoria, setUploadCategoria] = useState("");
+  const [estrangeiroCpf, setEstrangeiroCpf] = useState(false);
 
   // Re-enrollment state
   const [existingId, setExistingId] = useState<string | null>(null);
@@ -473,7 +475,7 @@ const MatriculaPublicaPage = () => {
                 </Select>
               </div>
               <div>
-                <Label className="text-sm font-medium">Bairro SCFV</Label>
+                <Label className="text-sm font-medium">Bairro do CAIA que vai frequentar</Label>
                 <Select value={form.bairro_scfv || ""} onValueChange={handleBairroChange}>
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Selecione o bairro" />
@@ -547,14 +549,42 @@ const MatriculaPublicaPage = () => {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Field label="Nome do Responsável" value={form.responsavel1_nome || ""} onChange={(v) => set("responsavel1_nome", v)} required />
-                <Field label="CPF" value={form.responsavel1_cpf || ""} onChange={(v) => set("responsavel1_cpf", v)} placeholder="000.000.000-00" />
-                <Field label="WhatsApp" value={form.responsavel1_whatsapp || ""} onChange={(v) => set("responsavel1_whatsapp", v)} required placeholder="(00) 00000-0000" />
+                <div>
+                  <Label className="text-sm font-medium">CPF do Participante</Label>
+                  <Input
+                    value={estrangeiroCpf ? (form.responsavel1_cpf || "") : maskCPF(form.responsavel1_cpf || "")}
+                    onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))}
+                    className="mt-1"
+                    placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"}
+                  />
+                  <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                    <input type="checkbox" checked={estrangeiroCpf} onChange={(e) => setEstrangeiroCpf(e.target.checked)} className="h-3 w-3" />
+                    <span className="text-xs text-muted-foreground">Estrangeiro/Sem CPF</span>
+                  </label>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">WhatsApp<span className="text-destructive ml-0.5">*</span></Label>
+                  <Input
+                    value={maskPhone(form.responsavel1_whatsapp || "")}
+                    onChange={(e) => set("responsavel1_whatsapp", unmaskDigits(e.target.value))}
+                    className="mt-1"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
               </div>
               <div className="border-t pt-3">
                 <p className="text-xs text-muted-foreground mb-2">Responsável 2 (opcional)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Field label="Nome" value={form.responsavel2_nome || ""} onChange={(v) => set("responsavel2_nome", v)} />
-                  <Field label="WhatsApp" value={form.responsavel2_whatsapp || ""} onChange={(v) => set("responsavel2_whatsapp", v)} />
+                  <div>
+                    <Label className="text-sm font-medium">WhatsApp</Label>
+                    <Input
+                      value={maskPhone(form.responsavel2_whatsapp || "")}
+                      onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))}
+                      className="mt-1"
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
                 </div>
               </div>
             </CardContent>

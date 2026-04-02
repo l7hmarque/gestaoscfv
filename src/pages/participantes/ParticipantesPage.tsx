@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Upload, Search, Filter, Eye, Bell } from "lucide-react";
+import { Plus, Upload, Search, Filter, Eye, Bell, Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
-import { BAIRROS_SCFV } from "@/lib/constants";
+import { BAIRROS_SCFV, calcFaixaFromDate } from "@/lib/constants";
+import { displayPhone } from "@/lib/utils";
+import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto", pendente: "Pendente" };
 const statusColor: Record<string, string> = { ativo: "bg-green-100 text-green-800", desligado: "bg-red-100 text-red-800", incompleto: "bg-yellow-100 text-yellow-800", pendente: "bg-blue-100 text-blue-800" };
@@ -51,6 +54,28 @@ const ParticipantesPage = () => {
     if (!d) return "—";
     const diff = Date.now() - new Date(d).getTime();
     return Math.floor(diff / 31557600000) + " anos";
+  };
+
+  const isDemo = useIsDemo();
+
+  const handleAprovar = async (p: Tables<"participantes">) => {
+    if (guardDemo(isDemo)) return;
+    const { error } = await supabase.from("participantes").update({ status: "ativo" } as any).eq("id", p.id);
+    if (error) { toast.error("Erro: " + error.message); return; }
+    // Auto-link turmas
+    const faixa = calcFaixaFromDate(p.data_nascimento);
+    if (p.bairro_id && p.periodo && faixa) {
+      let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", p.bairro_id).eq("faixa_etaria", faixa as any);
+      if (p.periodo !== "integral") query = query.eq("periodo", p.periodo as any);
+      const { data: turmasCompativeis } = await query;
+      if (turmasCompativeis && turmasCompativeis.length > 0) {
+        const links = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: p.id }));
+        await supabase.from("turma_participantes").upsert(links, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
+        toast.info(`Vinculado a ${turmasCompativeis.length} turma(s)`);
+      }
+    }
+    toast.success("Matrícula aprovada!");
+    fetchData();
   };
 
   const pendentes = participantes.filter((p) => (p as any).status === "pendente");
@@ -143,7 +168,7 @@ const ParticipantesPage = () => {
               <TableRow className="bg-muted/50">
                 <TableHead className="text-xs font-medium">Nome</TableHead>
                 <TableHead className="text-xs font-medium">Idade</TableHead>
-                <TableHead className="text-xs font-medium">Bairro SCFV</TableHead>
+                <TableHead className="text-xs font-medium">Bairro CAIA</TableHead>
                 <TableHead className="text-xs font-medium">Período</TableHead>
                 <TableHead className="text-xs font-medium">Status</TableHead>
                 <TableHead className="text-xs font-medium">Responsável</TableHead>
@@ -166,11 +191,18 @@ const ParticipantesPage = () => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{p.responsavel1_nome || "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{p.responsavel1_whatsapp || "—"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{displayPhone(p.responsavel1_whatsapp)}</TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                        <Link to={`/participantes/${p.id}`}><Eye className="h-3.5 w-3.5" /></Link>
-                      </Button>
+                      <div className="flex gap-0.5">
+                        {p.status === "pendente" && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50" title="Aprovar" onClick={() => handleAprovar(p)}>
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                          <Link to={`/participantes/${p.id}`}><Eye className="h-3.5 w-3.5" /></Link>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

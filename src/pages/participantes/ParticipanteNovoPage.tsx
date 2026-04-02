@@ -14,6 +14,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { useDocumentScanner, CATEGORIES, compressFileForUpload } from "@/hooks/useDocumentScanner";
 import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
+import { maskCPF, maskPhone, unmaskDigits } from "@/lib/utils";
 
 interface PendingDoc {
   blob: Blob;
@@ -30,6 +31,7 @@ const ParticipanteNovoPage = () => {
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
   const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([]);
+  const [estrangeiroCpf, setEstrangeiroCpf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -277,7 +279,7 @@ const ParticipanteNovoPage = () => {
             <Field label="Número" field="endereco_numero" placeholder="Nº" half />
             <Field label="Bairro (texto)" field="endereco_bairro" placeholder="Bairro" half />
             <div>
-              <Label className="text-xs font-medium">Bairro SCFV</Label>
+              <Label className="text-xs font-medium">Bairro do CAIA que vai frequentar</Label>
               <Select value={form.bairro_id} onValueChange={(v) => {
                 set("bairro_id", v);
                 // Limpar ponto se não pertence ao novo bairro
@@ -307,10 +309,23 @@ const ParticipanteNovoPage = () => {
           <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Responsáveis</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
             <Field label="Responsável 1 - Nome" field="responsavel1_nome" placeholder="Nome completo" />
-            <Field label="CPF" field="responsavel1_cpf" placeholder="000.000.000-00" half />
-            <Field label="WhatsApp" field="responsavel1_whatsapp" placeholder="(00) 00000-0000" half />
+            <div className="col-span-1">
+              <Label className="text-xs font-medium">CPF do Participante</Label>
+              <Input value={estrangeiroCpf ? form.responsavel1_cpf : maskCPF(form.responsavel1_cpf)} onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} className="h-9 text-sm mt-1" />
+              <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                <input type="checkbox" checked={estrangeiroCpf} onChange={(e) => setEstrangeiroCpf(e.target.checked)} className="h-3 w-3" />
+                <span className="text-[10px] text-muted-foreground">Estrangeiro/Sem CPF</span>
+              </label>
+            </div>
+            <div className="col-span-1">
+              <Label className="text-xs font-medium">WhatsApp</Label>
+              <Input value={maskPhone(form.responsavel1_whatsapp)} onChange={(e) => set("responsavel1_whatsapp", unmaskDigits(e.target.value))} placeholder="(00) 00000-0000" className="h-9 text-sm mt-1" />
+            </div>
             <Field label="Responsável 2 - Nome" field="responsavel2_nome" placeholder="Nome completo" />
-            <Field label="WhatsApp" field="responsavel2_whatsapp" placeholder="(00) 00000-0000" half />
+            <div className="col-span-1">
+              <Label className="text-xs font-medium">WhatsApp</Label>
+              <Input value={maskPhone(form.responsavel2_whatsapp)} onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))} placeholder="(00) 00000-0000" className="h-9 text-sm mt-1" />
+            </div>
           </CardContent>
         </Card>
 
