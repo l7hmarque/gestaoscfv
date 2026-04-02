@@ -340,7 +340,7 @@ const ParticipantePerfilPage = () => {
                     <SelectContent><SelectItem value="manha">Manhã</SelectItem><SelectItem value="tarde">Tarde</SelectItem><SelectItem value="integral">Integral</SelectItem></SelectContent>
                   </Select>
                 </div>
-                <div><Label className="text-xs">Bairro SCFV</Label>
+                <div><Label className="text-xs">Bairro do CAIA</Label>
                   <Select value={form.bairro_id || ""} onValueChange={(v) => {
                     set("bairro_id", v);
                     // Limpar ponto se não pertence ao novo bairro
