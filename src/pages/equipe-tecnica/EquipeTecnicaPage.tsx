@@ -162,7 +162,7 @@ const EquipeTecnicaPage = () => {
       count,
       intensity: count / max,
     }));
-  }, [turmas]);
+  }, [turmas, tpCountMap]);
 
   // Filtered atendimentos
   const filteredAtd = useMemo(() => {
