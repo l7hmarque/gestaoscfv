@@ -122,7 +122,10 @@ export default function DashboardRelatorioMensalTab() {
 
       const byFaixa: Record<string, number> = {};
       atendidos.forEach((p: any) => {
-        if (p.data_nascimento) { const f = faixaFromAge(calcAge(p.data_nascimento)); byFaixa[f] = (byFaixa[f] || 0) + 1; }
+        if (p.data_nascimento) {
+          const f = calcFaixaFromDate(p.data_nascimento);
+          if (f) byFaixa[f] = (byFaixa[f] || 0) + 1;
+        }
       });
 
       const byPeriodo: Record<string, number> = {};
