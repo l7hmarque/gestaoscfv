@@ -39,9 +39,6 @@ function calcAge(dob: string): number {
   if (now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) age--;
   return age;
 }
-function faixaFromAge(age: number): string {
-  if (age <= 8) return "6-8"; if (age <= 11) return "9-11"; if (age <= 17) return "12-17"; return "60+";
-}
 
 /** Apply thin borders to all cells in a sheet */
 function applyBorders(ws: XLSX.WorkSheet) {
