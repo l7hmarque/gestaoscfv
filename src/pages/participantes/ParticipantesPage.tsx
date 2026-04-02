@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { BAIRROS_SCFV } from "@/lib/constants";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -29,8 +30,8 @@ const ParticipantesPage = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    const [{ data: p }, { data: b }] = await Promise.all([
-      supabase.from("participantes").select("*").order("nome_completo"),
+    const [p, { data: b }] = await Promise.all([
+      fetchAllRows("participantes", { select: "*", order: { column: "nome_completo" } }),
       supabase.from("bairros").select("*").order("nome"),
     ]);
     setParticipantes(p || []);

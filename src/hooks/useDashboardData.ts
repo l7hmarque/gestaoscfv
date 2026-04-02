@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 export interface DashboardData {
   totalParticipantesAtivos: number;
@@ -49,22 +50,19 @@ export function useDashboardData() {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    const [pRes, tRes, rRes, plRes, bRes, presRes] = await Promise.all([
-      supabase.from("participantes").select("*"),
-      supabase.from("turmas").select("*"),
-      supabase.from("relatorios_atividade").select("*, profiles!relatorios_atividade_educador_id_fkey(nome)").order("data"),
-      supabase.from("planejamentos").select("*"),
-      supabase.from("bairros").select("id, nome"),
-      supabase.from("presenca").select("id, presente"),
+    const [parts_raw, turmas_raw, rels, plans, bairrosData, presencaAll] = await Promise.all([
+      fetchAllRows("participantes", { select: "*" }),
+      fetchAllRows("turmas", { select: "*" }),
+      fetchAllRows("relatorios_atividade", { select: "*, profiles!relatorios_atividade_educador_id_fkey(nome)", order: { column: "data" } }),
+      fetchAllRows("planejamentos", { select: "*" }),
+      fetchAllRows("bairros", { select: "id, nome" }),
+      fetchAllRows("presenca", { select: "id, presente" }),
     ]);
 
-    const parts = (pRes.data || []).filter((p: any) => p.status === "ativo");
-    const turmas = (tRes.data || []).filter((t: any) => t.ativa);
-    const rels = rRes.data || [];
-    const plans = plRes.data || [];
-    const presencaAll = presRes.data || [];
+    const parts = (parts_raw || []).filter((p: any) => p.status === "ativo");
+    const turmas = (turmas_raw || []).filter((t: any) => t.ativa);
     const bairrosMap: Record<string, string> = {};
-    (bRes.data || []).forEach((b: any) => { bairrosMap[b.id] = b.nome; });
+    (bairrosData || []).forEach((b: any) => { bairrosMap[b.id] = b.nome; });
 
     // Faixa etária
     const faixaMap: Record<string, number> = {};
