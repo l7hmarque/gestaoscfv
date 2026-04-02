@@ -294,6 +294,9 @@ const MatriculaPublicaPage = () => {
 
       setSubmittedBairro(form.bairro_scfv || "");
       setSubmitted(true);
+      if (result.rematricula) {
+        console.info("Rematrícula automática detectada pelo backend");
+      }
     } catch (err: any) {
       alert("Erro ao enviar: " + (err.message || "Tente novamente"));
     }
