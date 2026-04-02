@@ -310,37 +310,6 @@ const MatriculaPublicaPage = () => {
     );
   }
 
-  const Field = ({
-    label,
-    field,
-    required,
-    type = "text",
-    placeholder,
-    onBlur,
-  }: {
-    label: string;
-    field: string;
-    required?: boolean;
-    type?: string;
-    placeholder?: string;
-    onBlur?: () => void;
-  }) => (
-    <div>
-      <Label className="text-sm font-medium">
-        {label}
-        {required && <span className="text-destructive ml-0.5">*</span>}
-      </Label>
-      <Input
-        type={type}
-        value={form[field] || ""}
-        onChange={(e) => set(field, e.target.value)}
-        onBlur={onBlur}
-        className="mt-1"
-        placeholder={placeholder}
-      />
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-[hsl(40,20%,97%)]">
       {/* Header */}
