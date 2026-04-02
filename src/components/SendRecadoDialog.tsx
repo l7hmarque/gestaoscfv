@@ -58,6 +58,7 @@ export function SendRecadoDialog({ toTecnicos, trigger }: Props) {
   const handleSend = async () => {
     if (guardDemo(isDemo)) return;
     if (!form.destinatario_id || !form.conteudo.trim()) { toast.error("Preencha destinatário e conteúdo"); return; }
+    const partId = form.participante_id === "__none__" ? null : (form.participante_id || null);
     const { error } = await supabase.from("recados").insert({
       remetente_id: myProfileId,
       destinatario_id: form.destinatario_id,
