@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      atendimentos: {
+        Row: {
+          created_at: string
+          data_atendimento: string
+          descricao: string
+          encaminhamento: string | null
+          id: string
+          participante_id: string
+          profissional_id: string
+          sigiloso: boolean
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          data_atendimento?: string
+          descricao?: string
+          encaminhamento?: string | null
+          id?: string
+          participante_id: string
+          profissional_id: string
+          sigiloso?: boolean
+          tipo?: string
+        }
+        Update: {
+          created_at?: string
+          data_atendimento?: string
+          descricao?: string
+          encaminhamento?: string | null
+          id?: string
+          participante_id?: string
+          profissional_id?: string
+          sigiloso?: boolean
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atendimentos_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "participantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atendimentos_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bairros: {
         Row: {
           id: string
@@ -647,6 +698,61 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      recados: {
+        Row: {
+          ciente: boolean
+          conteudo: string
+          created_at: string
+          destinatario_id: string
+          id: string
+          lido: boolean
+          participante_id: string | null
+          remetente_id: string
+        }
+        Insert: {
+          ciente?: boolean
+          conteudo: string
+          created_at?: string
+          destinatario_id: string
+          id?: string
+          lido?: boolean
+          participante_id?: string | null
+          remetente_id: string
+        }
+        Update: {
+          ciente?: boolean
+          conteudo?: string
+          created_at?: string
+          destinatario_id?: string
+          id?: string
+          lido?: boolean
+          participante_id?: string | null
+          remetente_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recados_destinatario_id_fkey"
+            columns: ["destinatario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recados_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "participantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recados_remetente_id_fkey"
+            columns: ["remetente_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       relatorio_fotos: {
         Row: {
