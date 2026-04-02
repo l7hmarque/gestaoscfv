@@ -31,13 +31,6 @@ function calcAge(dob: string): number {
   return age;
 }
 
-function faixaFromAge(age: number): string {
-  if (age <= 8) return "6-8";
-  if (age <= 11) return "9-11";
-  if (age <= 17) return "12-17";
-  return "60+";
-}
-
 function monthKey(d: string) {
   return d.slice(0, 7);
 }
