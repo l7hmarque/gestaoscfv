@@ -57,12 +57,20 @@ const EquipeTecnicaPage = () => {
       supabase.from("profiles").select("id, nome, cargo, user_id"),
       supabase.from("presenca").select("participante_id, data, presente").gte("data", format(subDays(new Date(), 90), "yyyy-MM-dd")),
       supabase.from("turmas").select("id, nome, dias_semana").eq("ativa", true),
+      supabase.from("turma_participantes").select("turma_id"),
     ]);
     setAtendimentos(atd || []);
     setParticipantes(part || []);
     setProfiles(prof || []);
     setPresenca(pres || []);
     setTurmas(turm || []);
+
+    // Build turma participant count map
+    const tpMap: Record<string, number> = {};
+    (arguments[5]?.data || []).forEach((tp: any) => {
+      tpMap[tp.turma_id] = (tpMap[tp.turma_id] || 0) + 1;
+    });
+    setTpCountMap(tpMap);
 
     if (user) {
       const me = (prof || []).find((p: any) => p.user_id === user.id);
