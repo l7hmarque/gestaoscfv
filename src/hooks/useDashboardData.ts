@@ -61,8 +61,6 @@ export function useDashboardData() {
 
     const parts = (parts_raw || []).filter((p: any) => p.status === "ativo");
     const turmas = (turmas_raw || []).filter((t: any) => t.ativa);
-    const rels_data = rels || [];
-    const plans_data = plans || [];
     const bairrosMap: Record<string, string> = {};
     (bairrosData || []).forEach((b: any) => { bairrosMap[b.id] = b.nome; });
 
