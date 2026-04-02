@@ -233,8 +233,13 @@ const MatriculaPublicaPage = () => {
 
     setSubmitting(true);
     try {
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
       const docsPayload = [];
       for (const doc of docs) {
+        if (doc.file.size > MAX_FILE_SIZE) {
+          alert(`Arquivo "${doc.file.name}" excede 5MB e será ignorado.`);
+          continue;
+        }
         const base64 = await fileToBase64(doc.file);
         const ts = new Date().toISOString().replace(/[:.]/g, "-");
         docsPayload.push({

@@ -132,8 +132,8 @@ const ParticipantePerfilPage = () => {
         if (newPeriodo !== "integral") query = query.eq("periodo", newPeriodo as any);
         const { data: turmasCompativeis } = await query;
         if (turmasCompativeis && turmasCompativeis.length > 0) {
-          const newLinks = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: id! }));
-          await supabase.from("turma_participantes").insert(newLinks);
+        const newLinks = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: id! }));
+          await supabase.from("turma_participantes").upsert(newLinks, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
           toast.info(`Vinculado a ${turmasCompativeis.length} turma(s) automaticamente`);
         } else {
           toast.warning("Nenhuma turma compatível encontrada para vinculação automática");

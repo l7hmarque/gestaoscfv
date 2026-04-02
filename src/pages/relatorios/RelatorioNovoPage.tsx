@@ -189,20 +189,31 @@ const RelatorioNovoPage = () => {
         await supabase.from("relatorio_presenca").insert(presRows);
       }
 
-      // salvar também na tabela presenca (frequência oficial) para cada turma
+      // salvar também na tabela presenca (frequência oficial) — apenas membros de cada turma
       if (form.turma_ids.length > 0) {
         const dataStr = format(form.data, "yyyy-MM-dd");
         for (const turmaId of form.turma_ids) {
+          // Buscar apenas os participantes desta turma específica
+          const { data: turmaMembers } = await supabase
+            .from("turma_participantes")
+            .select("participante_id")
+            .eq("turma_id", turmaId);
+          const memberIds = new Set((turmaMembers || []).map((m: any) => m.participante_id));
+
           await supabase.from("presenca").delete().eq("turma_id", turmaId).eq("data", dataStr);
-          const presencaRows = participantesTurma.map(p => ({
-            turma_id: turmaId,
-            participante_id: p.id,
-            data: dataStr,
-            presente: form.presenca[p.id] ?? false,
-            justificativa: !(form.presenca[p.id] ?? false) ? (form.justificativas[p.id] || null) : null,
-            registrado_por: user?.id || null,
-          }));
-          await supabase.from("presenca").insert(presencaRows);
+          const presencaRows = participantesTurma
+            .filter(p => memberIds.has(p.id))
+            .map(p => ({
+              turma_id: turmaId,
+              participante_id: p.id,
+              data: dataStr,
+              presente: form.presenca[p.id] ?? false,
+              justificativa: !(form.presenca[p.id] ?? false) ? (form.justificativas[p.id] || null) : null,
+              registrado_por: user?.id || null,
+            }));
+          if (presencaRows.length > 0) {
+            await supabase.from("presenca").insert(presencaRows);
+          }
         }
       }
 
