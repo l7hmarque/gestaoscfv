@@ -40,12 +40,12 @@ export default function BancoDadosPage() {
   const loadAll = async () => {
     setLoading(true);
     const [p, t, pr, r, pl, prof] = await Promise.all([
-      supabase.from("participantes").select("*").order("nome_completo"),
-      supabase.from("turmas").select("*, profiles!turmas_educador_id_fkey(nome)").order("nome"),
-      supabase.from("presenca").select("*, participantes(nome_completo), turmas(nome)").order("data", { ascending: false }).limit(500),
-      supabase.from("relatorios_atividade").select("*, profiles!relatorios_atividade_educador_id_fkey(nome)").order("data", { ascending: false }),
-      supabase.from("planejamentos").select("*, profiles!planejamentos_educador_id_fkey(nome)").order("created_at", { ascending: false }),
-      supabase.from("profiles").select("*").order("nome"),
+      fetchAllRows("participantes", { select: "*", order: { column: "nome_completo" } }),
+      fetchAllRows("turmas", { select: "*, profiles!turmas_educador_id_fkey(nome)", order: { column: "nome" } }),
+      fetchAllRows("presenca", { select: "*, participantes(nome_completo), turmas(nome)", order: { column: "data", ascending: false } }),
+      fetchAllRows("relatorios_atividade", { select: "*, profiles!relatorios_atividade_educador_id_fkey(nome)", order: { column: "data", ascending: false } }),
+      fetchAllRows("planejamentos", { select: "*, profiles!planejamentos_educador_id_fkey(nome)", order: { column: "created_at", ascending: false } }),
+      fetchAllRows("profiles", { select: "*", order: { column: "nome" } }),
     ]);
     // Fetch user_roles separately since FK goes to auth.users, not profiles
     const { data: roles } = await supabase.from("user_roles").select("*");
