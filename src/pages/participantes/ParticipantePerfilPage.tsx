@@ -522,6 +522,87 @@ const ParticipantePerfilPage = () => {
           </CardContent>
         </Card>
 
+        {/* Prontuário Técnico */}
+        {canSeeConfidential && (
+          <Card className="border-primary/30">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 text-primary" /> Prontuário Técnico
+                </CardTitle>
+                <div className="flex gap-1">
+                  <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => exportProntuarioPdf(participante, atendimentos, allProfiles, bairros)}>
+                    <FileText className="h-3 w-3" />Exportar PDF
+                  </Button>
+                  <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => setShowAtdForm(!showAtdForm)}>
+                    <Plus className="h-3 w-3" />{showAtdForm ? "Cancelar" : "Novo Atendimento"}
+                  </Button>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Visível apenas para equipe técnica e coordenação</p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {showAtdForm && (
+                <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label className="text-xs">Data</Label><Input type="date" value={atdForm.data_atendimento} onChange={e => setAtdForm(f => ({ ...f, data_atendimento: e.target.value }))} className="h-8 text-sm mt-0.5" /></div>
+                    <div><Label className="text-xs">Tipo</Label>
+                      <Select value={atdForm.tipo} onValueChange={v => setAtdForm(f => ({ ...f, tipo: v }))}>
+                        <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="visita_domiciliar">Visita Domiciliar</SelectItem>
+                          <SelectItem value="atendimento_individual">Atend. Individual</SelectItem>
+                          <SelectItem value="atendimento_familiar">Atend. Familiar</SelectItem>
+                          <SelectItem value="encaminhamento">Encaminhamento</SelectItem>
+                          <SelectItem value="busca_ativa">Busca Ativa</SelectItem>
+                          <SelectItem value="acolhida">Acolhida</SelectItem>
+                          <SelectItem value="desligamento">Desligamento</SelectItem>
+                          <SelectItem value="outro">Outro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div><Label className="text-xs">Descrição</Label><Textarea value={atdForm.descricao} onChange={e => setAtdForm(f => ({ ...f, descricao: e.target.value }))} className="text-sm mt-0.5 min-h-[80px]" /></div>
+                  <div><Label className="text-xs">Encaminhamento (opcional)</Label><Textarea value={atdForm.encaminhamento} onChange={e => setAtdForm(f => ({ ...f, encaminhamento: e.target.value }))} className="text-sm mt-0.5 min-h-[50px]" /></div>
+                  <Button size="sm" onClick={async () => {
+                    if (guardDemo(isDemo)) return;
+                    if (!atdForm.descricao.trim()) { toast.error("Preencha a descrição"); return; }
+                    const { error } = await supabase.from("atendimentos").insert({
+                      participante_id: id,
+                      profissional_id: myProfileId,
+                      data_atendimento: atdForm.data_atendimento,
+                      tipo: atdForm.tipo,
+                      descricao: atdForm.descricao,
+                      encaminhamento: atdForm.encaminhamento || null,
+                    } as any);
+                    if (error) { toast.error("Erro: " + error.message); return; }
+                    toast.success("Atendimento registrado!");
+                    setShowAtdForm(false);
+                    setAtdForm({ data_atendimento: new Date().toISOString().slice(0, 10), tipo: "atendimento_individual", descricao: "", encaminhamento: "" });
+                    fetchAll();
+                  }}>Salvar Atendimento</Button>
+                </div>
+              )}
+
+              {atendimentos.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhum atendimento registrado</p>
+              ) : atendimentos.map(a => (
+                <div key={a.id} className="border rounded-lg p-3 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-[10px]">{a.tipo.replace(/_/g, " ")}</Badge>
+                      <span className="text-xs text-muted-foreground">{a.data_atendimento}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">{allProfiles.find(p => p.id === a.profissional_id)?.nome || "—"}</span>
+                  </div>
+                  <p className="text-sm">{a.descricao}</p>
+                  {a.encaminhamento && <p className="text-xs text-muted-foreground">📋 Encaminhamento: {a.encaminhamento}</p>}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Seção Sigilosa */}
         {canSeeConfidential && (
           <Card className="border-destructive/50">
