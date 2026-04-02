@@ -46,6 +46,8 @@ const TurmaNovaPage = () => {
   const [bairroId, setBairroId] = useState("");
   const [educadorId, setEducadorId] = useState("");
   const [diasSemana, setDiasSemana] = useState<string[]>([]);
+  const [oficina, setOficina] = useState("");
+  const [oficinaNome, setOficinaNome] = useState("");
 
   // Batch generation state
   const [batchBairros, setBatchBairros] = useState<string[]>([]);
