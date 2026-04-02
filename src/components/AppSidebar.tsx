@@ -18,6 +18,7 @@ const menuItems = [
   { title: "Relatórios", url: "/relatorios", icon: FileText },
   { title: "Mural", url: "/mural", icon: MessageSquare },
   { title: "Feed", url: "/feed", icon: Newspaper },
+  { title: "Equipe Técnica", url: "/equipe-tecnica", icon: HeartHandshake },
   { title: "Banco de Dados", url: "/banco-de-dados", icon: Database },
 ];
 
