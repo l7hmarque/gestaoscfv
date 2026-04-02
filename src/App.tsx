@@ -31,6 +31,8 @@ import DashboardPage from "./pages/dashboard/DashboardPage";
 import ProfissionalPerfilPage from "./pages/profissional/ProfissionalPerfilPage";
 import DevPage from "./pages/dev/DevPage";
 import MatriculaPublicaPage from "./pages/matricula/MatriculaPublicaPage";
+import MuralPage from "./pages/mural/MuralPage";
+import FeedPage from "./pages/feed/FeedPage";
 
 const queryClient = new QueryClient();
 
