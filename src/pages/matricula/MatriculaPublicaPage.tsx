@@ -534,9 +534,9 @@ const MatriculaPublicaPage = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Field label="Nome do Responsável" field="responsavel1_nome" required />
-                <Field label="CPF" field="responsavel1_cpf" placeholder="000.000.000-00" />
-                <Field label="WhatsApp" field="responsavel1_whatsapp" required placeholder="(00) 00000-0000" />
+                <Field label="Nome do Responsável" value={form.responsavel1_nome || ""} onChange={(v) => set("responsavel1_nome", v)} required />
+                <Field label="CPF" value={form.responsavel1_cpf || ""} onChange={(v) => set("responsavel1_cpf", v)} placeholder="000.000.000-00" />
+                <Field label="WhatsApp" value={form.responsavel1_whatsapp || ""} onChange={(v) => set("responsavel1_whatsapp", v)} required placeholder="(00) 00000-0000" />
               </div>
               <div className="border-t pt-3">
                 <p className="text-xs text-muted-foreground mb-2">Responsável 2 (opcional)</p>
