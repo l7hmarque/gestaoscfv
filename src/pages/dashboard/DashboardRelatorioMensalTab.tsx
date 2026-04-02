@@ -102,14 +102,9 @@ export default function DashboardRelatorioMensalTab() {
         fetchAllRows("relatorio_turmas", { select: "*" }),
       ]);
 
-      const presencas = presRes.data || [];
-      const participantes = partRes.data || [];
-      const turmas = turmasRes.data || [];
-      const bairros = bairrosRes.data || [];
-      const relatorios = relRes.data || [];
-      const planejamentos = planRes.data || [];
-      const turmaParticipantes = tpRes.data || [];
-      const relatorioTurmas = rtRes.data || [];
+      const presencas = (presencas_raw || []).filter((p: any) => p.data >= startDate && p.data < endDate);
+      const filteredRelatorios = (relatorios || []).filter((r: any) => r.data >= startDate && r.data < endDate);
+      const filteredPlanejamentos = (planejamentos || []).filter((p: any) => p.data_aplicacao && p.data_aplicacao >= startDate && p.data_aplicacao < endDate);
 
       const partMap = new Map(participantes.map((p: any) => [p.id, p]));
       const bairroMap = new Map(bairros.map((b: any) => [b.id, b.nome]));
