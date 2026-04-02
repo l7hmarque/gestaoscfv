@@ -121,11 +121,6 @@ const MatriculaPublicaPage = () => {
           endereco_bairro: p.endereco_bairro || "",
           bairro_scfv: p.bairro_nome || "",
           ponto_transporte_id: p.ponto_transporte_id || "",
-          responsavel1_nome: p.responsavel1_nome || "",
-          responsavel1_cpf: p.responsavel1_cpf || "",
-          responsavel1_whatsapp: p.responsavel1_whatsapp || "",
-          responsavel2_nome: p.responsavel2_nome || "",
-          responsavel2_whatsapp: p.responsavel2_whatsapp || "",
           restricao_alimentar: p.restricao_alimentar || "",
           laudo: p.laudo || "",
         }));
