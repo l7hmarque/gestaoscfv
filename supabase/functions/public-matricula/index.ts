@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return respond({ success: true, id: participanteId });
+    return respond({ success: true, id: participanteId, rematricula: isAutoRematricula });
   } catch (err) {
     return respond({ error: err.message || "Erro interno" }, 500);
   }
