@@ -35,8 +35,6 @@ Deno.serve(async (req) => {
         id, nome_completo, data_nascimento, genero, cor_raca,
         escola, serie, periodo, endereco_rua, endereco_numero,
         endereco_bairro, bairro_id, ponto_transporte_id,
-        responsavel1_nome, responsavel1_cpf, responsavel1_whatsapp,
-        responsavel2_nome, responsavel2_whatsapp,
         restricao_alimentar, laudo, status,
         bairros:bairro_id(id, nome)
       `)
@@ -49,7 +47,7 @@ Deno.serve(async (req) => {
 
     if (!data) return respond({ found: false });
 
-    // Return participant data without sensitive fields
+    // Return participant data WITHOUT sensitive PII (no CPF, no WhatsApp, no responsável names)
     return respond({
       found: true,
       participante: {
@@ -67,11 +65,6 @@ Deno.serve(async (req) => {
         bairro_id: data.bairro_id,
         bairro_nome: (data as any).bairros?.nome || null,
         ponto_transporte_id: data.ponto_transporte_id,
-        responsavel1_nome: data.responsavel1_nome,
-        responsavel1_cpf: data.responsavel1_cpf,
-        responsavel1_whatsapp: data.responsavel1_whatsapp,
-        responsavel2_nome: data.responsavel2_nome,
-        responsavel2_whatsapp: data.responsavel2_whatsapp,
         restricao_alimentar: data.restricao_alimentar,
         laudo: data.laudo,
         status: data.status,

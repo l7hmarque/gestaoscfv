@@ -26,6 +26,8 @@ function apenasDigitos(val: string | null | undefined): string | null {
   return s || null;
 }
 
+const MAX_DOC_SIZE_BYTES = 5 * 1024 * 1024; // 5MB per document
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -47,10 +49,40 @@ Deno.serve(async (req) => {
     if (!responsavel1_nome?.trim()) return respond({ error: "Nome do responsável é obrigatório" }, 400);
     if (!responsavel1_whatsapp?.trim()) return respond({ error: "WhatsApp do responsável é obrigatório" }, 400);
 
+    // Validate birth date range (must be between 4 and 99 years old)
+    if (data_nascimento) {
+      const dob = new Date(data_nascimento);
+      const now = new Date();
+      const age = (now.getTime() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+      if (dob > now) return respond({ error: "Data de nascimento não pode ser futura" }, 400);
+      if (age < 4 || age > 99) return respond({ error: "Idade fora da faixa atendida (4-99 anos)" }, 400);
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // Validate existing_id: must match nome + data_nascimento
+    if (existing_id) {
+      const nomePadronizado = nome_completo.trim().toUpperCase();
+      const { data: existingPart, error: checkErr } = await supabaseAdmin
+        .from("participantes")
+        .select("id, nome_completo, data_nascimento")
+        .eq("id", existing_id)
+        .single();
+
+      if (checkErr || !existingPart) {
+        return respond({ error: "Participante não encontrado para rematrícula" }, 400);
+      }
+
+      if (
+        existingPart.nome_completo !== nomePadronizado ||
+        existingPart.data_nascimento !== data_nascimento
+      ) {
+        return respond({ error: "Dados não conferem com o cadastro existente" }, 403);
+      }
+    }
 
     // Resolve bairro_id from name
     let bairro_id = null;
@@ -98,6 +130,12 @@ Deno.serve(async (req) => {
         .eq("id", existing_id);
       if (updateError) return respond({ error: updateError.message }, 500);
       participanteId = existing_id;
+
+      // Remove turma links since status is now "pendente"
+      await supabaseAdmin
+        .from("turma_participantes")
+        .delete()
+        .eq("participante_id", existing_id);
     } else {
       // New enrollment: INSERT
       const { data: participante, error: insertError } = await supabaseAdmin
@@ -109,10 +147,14 @@ Deno.serve(async (req) => {
       participanteId = participante.id;
     }
 
-    // Upload documents if any
+    // Upload documents if any (with size validation)
     if (documentos && Array.isArray(documentos)) {
       for (const doc of documentos) {
         if (!doc.base64 || !doc.categoria || !doc.fileName) continue;
+
+        // Validate base64 size (~75% of base64 length = bytes)
+        const estimatedBytes = (doc.base64.length * 3) / 4;
+        if (estimatedBytes > MAX_DOC_SIZE_BYTES) continue; // skip oversized files silently
 
         const binaryStr = atob(doc.base64);
         const bytes = new Uint8Array(binaryStr.length);
