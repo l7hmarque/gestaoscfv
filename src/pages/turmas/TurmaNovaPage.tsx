@@ -92,6 +92,7 @@ const TurmaNovaPage = () => {
     if (faixaEtaria) payload.faixa_etaria = faixaEtaria;
     if (bairroId) payload.bairro_id = bairroId;
     if (educadorId) payload.educador_id = educadorId;
+    if (oficina) payload.oficina = oficina === "outra_oficina" && oficinaNome ? oficinaNome : oficina;
     const { error } = await supabase.from("turmas").insert(payload as any);
     setSaving(false);
     if (error) { toast.error("Erro: " + error.message); return; }
