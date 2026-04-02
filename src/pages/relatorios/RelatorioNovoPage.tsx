@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { TIPOS_ATIVIDADE } from "@/lib/constants";
+import { checkConquistas } from "@/hooks/useConquistas";
 
 const LIKERT_LABELS = ["Muito Baixo", "Baixo", "Moderado", "Alto", "Excepcional"];
 const ENGAJAMENTO_OPT = ["Alta participação", "Participação parcial", "Pouca interação", "Dispersão", "Resistência"];
