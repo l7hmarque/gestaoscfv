@@ -520,10 +520,10 @@ const MatriculaPublicaPage = () => {
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
-                <Field label="Rua" field="endereco_rua" />
+                <Field label="Rua" value={form.endereco_rua || ""} onChange={(v) => set("endereco_rua", v)} />
               </div>
-              <Field label="Número" field="endereco_numero" />
-              <Field label="Bairro" field="endereco_bairro" />
+              <Field label="Número" value={form.endereco_numero || ""} onChange={(v) => set("endereco_numero", v)} />
+              <Field label="Bairro" value={form.endereco_bairro || ""} onChange={(v) => set("endereco_bairro", v)} />
             </CardContent>
           </Card>
 
