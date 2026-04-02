@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
-import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
+import { isBairroSCFV, calcFaixaFromDate, OFICINAS_TURMA } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const diasOptions = [
