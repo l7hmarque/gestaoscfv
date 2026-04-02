@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { ArrowLeft, Save, Loader2, Upload, X } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
+import { TIPOS_ATIVIDADE } from "@/lib/constants";
 
 const LIKERT_LABELS = ["Muito Baixo", "Baixo", "Moderado", "Alto", "Excepcional"];
 const ENGAJAMENTO_OPT = ["Alta participação", "Participação parcial", "Pouca interação", "Dispersão", "Resistência"];
@@ -53,6 +54,7 @@ function LikertField({ label, value, onChange }: { label: string; value: number;
 
 const RelatorioNovoPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [turmas, setTurmas] = useState<any[]>([]);
@@ -65,7 +67,8 @@ const RelatorioNovoPage = () => {
     data: null as Date | null,
     dia_semana: "",
     nome_atividade: "",
-    tipo_atividade: "",
+    tipo_atividade: [] as string[],
+    tipo_atividade_detalhe: "",
     educador_id: "",
     planejamento_id: "",
     turma_ids: [] as string[],
@@ -88,20 +91,51 @@ const RelatorioNovoPage = () => {
     return s.toFixed(2);
   }, [form.iniciativa, form.autonomia, form.colaboracao, form.comunicacao, form.respeito_mutuo]);
 
+  // Load base data
   useEffect(() => {
-    const fetch = async () => {
-      const [t, e, p] = await Promise.all([
-        supabase.from("turmas").select("id, nome").eq("ativa", true).order("nome"),
+    const fetchBase = async () => {
+      const [t, e] = await Promise.all([
+        supabase.from("turmas").select("id, nome, educador_id, oficina").eq("ativa", true).order("nome"),
         supabase.from("profiles").select("id, nome"),
-        supabase.from("planejamentos").select("id, titulo").order("created_at", { ascending: false }).limit(50),
       ]);
       if (t.data) setTurmas(t.data);
       if (e.data) setEducadores(e.data);
-      if (p.data) setPlanejamentos(p.data);
-    };
-    fetch();
-  }, []);
 
+      // Pre-populate from query params (e.g. from TurmaDetalhePage)
+      const turmaId = searchParams.get("turma");
+      if (turmaId && t.data) {
+        const turma = t.data.find((x: any) => x.id === turmaId);
+        if (turma) {
+          setForm(f => ({
+            ...f,
+            turma_ids: [turmaId],
+            educador_id: turma.educador_id || f.educador_id,
+            tipo_atividade: turma.oficina ? [turma.oficina] : f.tipo_atividade,
+          }));
+        }
+      }
+    };
+    fetchBase();
+  }, [searchParams]);
+
+  // Load planejamentos filtered by educador
+  useEffect(() => {
+    const fetchPlans = async () => {
+      let query = supabase.from("planejamentos").select("id, titulo, educador_id").order("created_at", { ascending: false }).limit(50);
+      if (form.educador_id) {
+        query = query.eq("educador_id", form.educador_id);
+      }
+      const { data } = await query;
+      setPlanejamentos(data || []);
+      // Clear planejamento if educador changed and current plan doesn't belong to new educador
+      if (form.planejamento_id && data && !data.find((p: any) => p.id === form.planejamento_id)) {
+        setForm(f => ({ ...f, planejamento_id: "", nome_atividade: f.nome_atividade }));
+      }
+    };
+    fetchPlans();
+  }, [form.educador_id]);
+
+  // Load participantes when turmas change
   useEffect(() => {
     if (form.turma_ids.length === 0) { setParticipantesTurma([]); return; }
     const fetchParts = async () => {
@@ -127,6 +161,16 @@ const RelatorioNovoPage = () => {
   const toggleTurma = (id: string) => setForm(f => ({ ...f, turma_ids: f.turma_ids.includes(id) ? f.turma_ids.filter(x => x !== id) : [...f.turma_ids, id] }));
   const toggleEng = (v: string) => setForm(f => ({ ...f, engajamento: f.engajamento.includes(v) ? f.engajamento.filter(x => x !== v) : [...f.engajamento, v] }));
   const toggleSit = (v: string) => setForm(f => ({ ...f, situacoes_relevantes: f.situacoes_relevantes.includes(v) ? f.situacoes_relevantes.filter(x => x !== v) : [...f.situacoes_relevantes, v] }));
+  const toggleTipoAtividade = (v: string) => setForm(f => ({ ...f, tipo_atividade: f.tipo_atividade.includes(v) ? f.tipo_atividade.filter(x => x !== v) : [...f.tipo_atividade, v] }));
+
+  const handlePlanejamentoChange = (planId: string) => {
+    const plan = planejamentos.find((p: any) => p.id === planId);
+    setForm(f => ({
+      ...f,
+      planejamento_id: planId,
+      nome_atividade: plan?.titulo || f.nome_atividade,
+    }));
+  };
 
   const handleFotos = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -137,6 +181,8 @@ const RelatorioNovoPage = () => {
   const numParticipantes = Object.values(form.presenca).filter(Boolean).length;
   const numAusentes = participantesTurma.length - numParticipantes;
   const pctAdesao = participantesTurma.length > 0 ? ((numParticipantes / participantesTurma.length) * 100) : 0;
+
+  const needsDetail = form.tipo_atividade.some(v => TIPOS_ATIVIDADE.find(t => t.value === v && 'hasDetail' in t && t.hasDetail));
 
   const isDemo = useIsDemo();
 
@@ -150,7 +196,8 @@ const RelatorioNovoPage = () => {
         data: format(form.data, "yyyy-MM-dd"),
         dia_semana: form.dia_semana || null,
         nome_atividade: form.nome_atividade,
-        tipo_atividade: form.tipo_atividade || null,
+        tipo_atividade: form.tipo_atividade,
+        tipo_atividade_detalhe: form.tipo_atividade_detalhe || null,
         educador_id: form.educador_id || null,
         planejamento_id: form.planejamento_id || null,
         iniciativa: form.iniciativa,
@@ -168,7 +215,7 @@ const RelatorioNovoPage = () => {
         num_participantes: numParticipantes,
         num_ausentes: numAusentes,
         pct_adesao: Math.round(pctAdesao * 100) / 100,
-      }).select("id").single();
+      } as any).select("id").single();
 
       if (error) throw error;
       const relId = rel.id;
@@ -193,7 +240,6 @@ const RelatorioNovoPage = () => {
       if (form.turma_ids.length > 0) {
         const dataStr = format(form.data, "yyyy-MM-dd");
         for (const turmaId of form.turma_ids) {
-          // Buscar apenas os participantes desta turma específica
           const { data: turmaMembers } = await supabase
             .from("turma_participantes")
             .select("participante_id")
@@ -283,7 +329,7 @@ const RelatorioNovoPage = () => {
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">Informações Gerais</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Data *</Label>
               <Popover>
@@ -306,11 +352,29 @@ const RelatorioNovoPage = () => {
               <Label className="text-xs">Dia da Semana</Label>
               <Input value={form.dia_semana} readOnly className="bg-muted/50 text-sm" />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Tipo de Atividade</Label>
-              <Input value={form.tipo_atividade} onChange={e => setForm(f => ({ ...f, tipo_atividade: e.target.value }))} placeholder="Ex: Oficina, Roda..." />
-            </div>
           </div>
+
+          {/* Tipo de Atividade - multi-select */}
+          <div className="space-y-1">
+            <Label className="text-xs">Tipo de Atividade</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {TIPOS_ATIVIDADE.map(ta => (
+                <label key={ta.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox checked={form.tipo_atividade.includes(ta.value)} onCheckedChange={() => toggleTipoAtividade(ta.value)} />
+                  {ta.label}
+                </label>
+              ))}
+            </div>
+            {needsDetail && (
+              <Input
+                value={form.tipo_atividade_detalhe}
+                onChange={e => setForm(f => ({ ...f, tipo_atividade_detalhe: e.target.value }))}
+                placeholder="Especifique o nome do evento ou oficina"
+                className="mt-2 text-sm"
+              />
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Nome da Atividade *</Label>
@@ -325,8 +389,8 @@ const RelatorioNovoPage = () => {
             </div>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Planejamento Vinculado</Label>
-            <Select value={form.planejamento_id} onValueChange={v => setForm(f => ({ ...f, planejamento_id: v }))}>
+            <Label className="text-xs">Planejamento Vinculado {form.educador_id ? "" : "(selecione educador para filtrar)"}</Label>
+            <Select value={form.planejamento_id} onValueChange={handlePlanejamentoChange}>
               <SelectTrigger><SelectValue placeholder="Nenhum (opcional)" /></SelectTrigger>
               <SelectContent>{planejamentos.map(p => <SelectItem key={p.id} value={p.id}>{p.titulo}</SelectItem>)}</SelectContent>
             </Select>
