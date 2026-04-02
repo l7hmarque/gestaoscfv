@@ -48,6 +48,11 @@ const ParticipantePerfilPage = () => {
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [estrangeiroCpf, setEstrangeiroCpf] = useState(false);
+  const [atendimentos, setAtendimentos] = useState<any[]>([]);
+  const [allProfiles, setAllProfiles] = useState<any[]>([]);
+  const [showAtdForm, setShowAtdForm] = useState(false);
+  const [atdForm, setAtdForm] = useState({ data_atendimento: new Date().toISOString().slice(0, 10), tipo: "atendimento_individual", descricao: "", encaminhamento: "" });
+  const [myProfileId, setMyProfileId] = useState("");
 
   const scanner = useDocumentScanner();
 
