@@ -541,8 +541,8 @@ const MatriculaPublicaPage = () => {
               <div className="border-t pt-3">
                 <p className="text-xs text-muted-foreground mb-2">Responsável 2 (opcional)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Nome" field="responsavel2_nome" />
-                  <Field label="WhatsApp" field="responsavel2_whatsapp" />
+                  <Field label="Nome" value={form.responsavel2_nome || ""} onChange={(v) => set("responsavel2_nome", v)} />
+                  <Field label="WhatsApp" value={form.responsavel2_whatsapp || ""} onChange={(v) => set("responsavel2_whatsapp", v)} />
                 </div>
               </div>
             </CardContent>
