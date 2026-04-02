@@ -278,7 +278,7 @@ const RelatorioNovoPage = () => {
 
       toast.success("Relatório salvo!");
 
-      // Fire-and-forget: generate AI results
+      // Fire-and-forget: generate AI results + auto-post to feed + check conquistas
       (async () => {
         try {
           let planData = null;
@@ -303,6 +303,62 @@ const RelatorioNovoPage = () => {
           });
           if (!aiErr && aiData?.resultado) {
             await supabase.from("relatorios_atividade").update({ analise_ia: aiData.resultado }).eq("id", relId);
+          }
+
+          // Auto-post to feed with photos and AI Instagram text
+          if (form.educador_id) {
+            try {
+              // Generate Instagram text
+              const { data: igData } = await supabase.functions.invoke("generate-instagram-post", {
+                body: {
+                  relatorio: {
+                    nome_atividade: form.nome_atividade,
+                    tipo_atividade: form.tipo_atividade,
+                    data: format(form.data!, "dd/MM/yyyy"),
+                    observacoes: form.observacoes,
+                    engajamento: form.engajamento,
+                    score_elo: scoreElo,
+                  },
+                },
+              });
+              const feedContent = igData?.text || `📝 ${form.nome_atividade}\n\nRelatório de atividade registrado.`;
+
+              const { data: feedPost } = await supabase.from("feed_posts").insert({
+                autor_id: form.educador_id,
+                conteudo: feedContent,
+                tipo: "relatorio_auto" as any,
+                relatorio_id: relId,
+              }).select("id").single();
+
+              // Copy report photos to feed
+              if (feedPost) {
+                const { data: relFotos } = await supabase.from("relatorio_fotos").select("foto_url, ordem").eq("relatorio_id", relId);
+                if (relFotos && relFotos.length > 0) {
+                  await supabase.from("feed_fotos").insert(
+                    relFotos.map((f: any) => ({ feed_post_id: feedPost.id, foto_url: f.foto_url, ordem: f.ordem }))
+                  );
+                }
+              }
+            } catch (e) {
+              console.warn("Falha ao criar post no feed:", e);
+            }
+
+            // Check conquistas
+            try {
+              await checkConquistas({
+                educadorProfileId: form.educador_id,
+                relatorioId: relId,
+                scoreElo: parseFloat(scoreElo),
+                pctAdesao: Math.round(pctAdesao * 100) / 100,
+                iniciativa: form.iniciativa,
+                autonomia: form.autonomia,
+                colaboracao: form.colaboracao,
+                comunicacao: form.comunicacao,
+                respeito_mutuo: form.respeito_mutuo,
+              });
+            } catch (e) {
+              console.warn("Falha ao verificar conquistas:", e);
+            }
           }
         } catch (e) {
           console.warn("Falha ao gerar análise IA:", e);
