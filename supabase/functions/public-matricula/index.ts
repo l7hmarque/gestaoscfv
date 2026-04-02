@@ -63,13 +63,37 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Validate existing_id: must match nome + data_nascimento
-    if (existing_id) {
-      const nomePadronizado = nome_completo.trim().toUpperCase();
+    const nomePadronizado = nome_completo.trim().toUpperCase();
+    let resolvedExistingId = existing_id || null;
+    let isAutoRematricula = false;
+
+    // Check for duplicate by nome + data_nascimento
+    if (data_nascimento) {
+      const { data: dupCheck } = await supabaseAdmin
+        .from("participantes")
+        .select("id, nome_completo, data_nascimento")
+        .eq("nome_completo", nomePadronizado)
+        .eq("data_nascimento", data_nascimento)
+        .limit(1)
+        .maybeSingle();
+
+      if (dupCheck) {
+        if (resolvedExistingId && resolvedExistingId !== dupCheck.id) {
+          return respond({ error: "Conflito: já existe participante com esse nome e data de nascimento" }, 409);
+        }
+        if (!resolvedExistingId) {
+          resolvedExistingId = dupCheck.id;
+          isAutoRematricula = true;
+        }
+      }
+    }
+
+    // Validate existing_id if provided explicitly
+    if (resolvedExistingId && !isAutoRematricula) {
       const { data: existingPart, error: checkErr } = await supabaseAdmin
         .from("participantes")
         .select("id, nome_completo, data_nascimento")
-        .eq("id", existing_id)
+        .eq("id", resolvedExistingId)
         .single();
 
       if (checkErr || !existingPart) {
