@@ -1,5 +1,5 @@
 import {
-  Home, Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, MessageSquare, Newspaper,
+  Home, Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, MessageSquare, Newspaper, HeartHandshake,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
