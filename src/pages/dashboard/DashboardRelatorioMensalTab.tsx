@@ -106,9 +106,9 @@ export default function DashboardRelatorioMensalTab() {
       const filteredRelatorios = (relatorios || []).filter((r: any) => r.data >= startDate && r.data < endDate);
       const filteredPlanejamentos = (planejamentos || []).filter((p: any) => p.data_aplicacao && p.data_aplicacao >= startDate && p.data_aplicacao < endDate);
 
-      const partMap = new Map(participantes.map((p: any) => [p.id, p]));
-      const bairroMap = new Map(bairros.map((b: any) => [b.id, b.nome]));
-      const bairroIdByName = new Map(bairros.map((b: any) => [b.nome, b.id]));
+      const partMap = new Map((participantes || []).map((p: any) => [p.id, p]));
+      const bairroMap = new Map((bairros || []).map((b: any) => [b.id, b.nome]));
+      const bairroIdByName = new Map((bairros || []).map((b: any) => [b.nome, b.id]));
 
       const wb = XLSX.utils.book_new();
 
@@ -116,8 +116,9 @@ export default function DashboardRelatorioMensalTab() {
       const atendidosIds = new Set(presencas.filter((p: any) => p.presente).map((p: any) => p.participante_id));
       const atendidos = [...atendidosIds].map(id => partMap.get(id)).filter(Boolean);
 
+      // Use bairro_id (CAIA) instead of endereco_bairro for correct distribution
       const byBairro: Record<string, number> = {};
-      atendidos.forEach((p: any) => { const b = p.endereco_bairro || "N/I"; byBairro[b] = (byBairro[b] || 0) + 1; });
+      atendidos.forEach((p: any) => { const b = p.bairro_id ? (bairroMap.get(p.bairro_id) || "N/I") : "N/I"; byBairro[b] = (byBairro[b] || 0) + 1; });
 
       const byFaixa: Record<string, number> = {};
       atendidos.forEach((p: any) => {
