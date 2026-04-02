@@ -328,7 +328,7 @@ const EquipeTecnicaPage = () => {
 
             {/* Mapa de calor */}
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Volume por Dia da Semana</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Participantes Estimados por Dia</CardTitle></CardHeader>
               <CardContent>
                 <div className="flex gap-2 justify-center py-6">
                   {mapaCalor.map(d => (
