@@ -56,6 +56,28 @@ const ParticipantesPage = () => {
     return Math.floor(diff / 31557600000) + " anos";
   };
 
+  const isDemo = useIsDemo();
+
+  const handleAprovar = async (p: Tables<"participantes">) => {
+    if (guardDemo(isDemo)) return;
+    const { error } = await supabase.from("participantes").update({ status: "ativo" } as any).eq("id", p.id);
+    if (error) { toast.error("Erro: " + error.message); return; }
+    // Auto-link turmas
+    const faixa = calcFaixaFromDate(p.data_nascimento);
+    if (p.bairro_id && p.periodo && faixa) {
+      let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", p.bairro_id).eq("faixa_etaria", faixa as any);
+      if (p.periodo !== "integral") query = query.eq("periodo", p.periodo as any);
+      const { data: turmasCompativeis } = await query;
+      if (turmasCompativeis && turmasCompativeis.length > 0) {
+        const links = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: p.id }));
+        await supabase.from("turma_participantes").upsert(links, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
+        toast.info(`Vinculado a ${turmasCompativeis.length} turma(s)`);
+      }
+    }
+    toast.success("Matrícula aprovada!");
+    fetchData();
+  };
+
   const pendentes = participantes.filter((p) => (p as any).status === "pendente");
   const pendentesNaoVistos = pendentes.filter((p) => !(p as any).visualizado_em);
 
