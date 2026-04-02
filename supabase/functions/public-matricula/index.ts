@@ -146,20 +146,20 @@ Deno.serve(async (req) => {
 
     let participanteId: string;
 
-    if (existing_id) {
+    if (resolvedExistingId) {
       // Re-enrollment: UPDATE existing participant
       const { error: updateError } = await supabaseAdmin
         .from("participantes")
         .update(payload)
-        .eq("id", existing_id);
+        .eq("id", resolvedExistingId);
       if (updateError) return respond({ error: updateError.message }, 500);
-      participanteId = existing_id;
+      participanteId = resolvedExistingId;
 
       // Remove turma links since status is now "pendente"
       await supabaseAdmin
         .from("turma_participantes")
         .delete()
-        .eq("participante_id", existing_id);
+        .eq("participante_id", resolvedExistingId);
     } else {
       // New enrollment: INSERT
       const { data: participante, error: insertError } = await supabaseAdmin
