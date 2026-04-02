@@ -29,6 +29,225 @@ export type Database = {
         }
         Relationships: []
       }
+      conquistas: {
+        Row: {
+          created_at: string
+          id: string
+          nivel: number
+          perfil_id: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nivel?: number
+          perfil_id: string
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nivel?: number
+          perfil_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conquistas_perfil_id_fkey"
+            columns: ["perfil_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_comentarios: {
+        Row: {
+          autor_id: string
+          conteudo: string
+          created_at: string
+          feed_post_id: string
+          id: string
+        }
+        Insert: {
+          autor_id: string
+          conteudo: string
+          created_at?: string
+          feed_post_id: string
+          id?: string
+        }
+        Update: {
+          autor_id?: string
+          conteudo?: string
+          created_at?: string
+          feed_post_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_comentarios_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_comentarios_feed_post_id_fkey"
+            columns: ["feed_post_id"]
+            isOneToOne: false
+            referencedRelation: "feed_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_fotos: {
+        Row: {
+          feed_post_id: string
+          foto_url: string
+          id: string
+          ordem: number | null
+        }
+        Insert: {
+          feed_post_id: string
+          foto_url: string
+          id?: string
+          ordem?: number | null
+        }
+        Update: {
+          feed_post_id?: string
+          foto_url?: string
+          id?: string
+          ordem?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_fotos_feed_post_id_fkey"
+            columns: ["feed_post_id"]
+            isOneToOne: false
+            referencedRelation: "feed_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_posts: {
+        Row: {
+          autor_id: string
+          conteudo: string
+          created_at: string
+          id: string
+          relatorio_id: string | null
+          tipo: Database["public"]["Enums"]["tipo_feed_post"]
+        }
+        Insert: {
+          autor_id: string
+          conteudo?: string
+          created_at?: string
+          id?: string
+          relatorio_id?: string | null
+          tipo?: Database["public"]["Enums"]["tipo_feed_post"]
+        }
+        Update: {
+          autor_id?: string
+          conteudo?: string
+          created_at?: string
+          id?: string
+          relatorio_id?: string | null
+          tipo?: Database["public"]["Enums"]["tipo_feed_post"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_posts_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_posts_relatorio_id_fkey"
+            columns: ["relatorio_id"]
+            isOneToOne: false
+            referencedRelation: "relatorios_atividade"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_reacoes: {
+        Row: {
+          created_at: string
+          feed_post_id: string
+          id: string
+          tipo: Database["public"]["Enums"]["tipo_reacao"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          feed_post_id: string
+          id?: string
+          tipo?: Database["public"]["Enums"]["tipo_reacao"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          feed_post_id?: string
+          id?: string
+          tipo?: Database["public"]["Enums"]["tipo_reacao"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_reacoes_feed_post_id_fkey"
+            columns: ["feed_post_id"]
+            isOneToOne: false
+            referencedRelation: "feed_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_reacoes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mural_posts: {
+        Row: {
+          autor_id: string
+          conteudo: string
+          created_at: string
+          fixado: boolean
+          id: string
+          tipo: Database["public"]["Enums"]["tipo_mural"]
+          titulo: string
+        }
+        Insert: {
+          autor_id: string
+          conteudo?: string
+          created_at?: string
+          fixado?: boolean
+          id?: string
+          tipo?: Database["public"]["Enums"]["tipo_mural"]
+          titulo: string
+        }
+        Update: {
+          autor_id?: string
+          conteudo?: string
+          created_at?: string
+          fixado?: boolean
+          id?: string
+          tipo?: Database["public"]["Enums"]["tipo_mural"]
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mural_posts_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       participante_documentos: {
         Row: {
           arquivo_url: string
@@ -798,6 +1017,9 @@ export type Database = {
       objetivo_resultado: "alcancado" | "parcial" | "nao_alcancado"
       periodo_enum: "manha" | "tarde" | "integral"
       status_participante: "ativo" | "desligado" | "incompleto" | "pendente"
+      tipo_feed_post: "manual" | "relatorio_auto" | "conquista"
+      tipo_mural: "aviso" | "lembrete" | "informativo"
+      tipo_reacao: "like" | "amei"
       tipo_turma: "ordinaria" | "extraordinaria"
     }
     CompositeTypes: {
@@ -938,6 +1160,9 @@ export const Constants = {
       objetivo_resultado: ["alcancado", "parcial", "nao_alcancado"],
       periodo_enum: ["manha", "tarde", "integral"],
       status_participante: ["ativo", "desligado", "incompleto", "pendente"],
+      tipo_feed_post: ["manual", "relatorio_auto", "conquista"],
+      tipo_mural: ["aviso", "lembrete", "informativo"],
+      tipo_reacao: ["like", "amei"],
       tipo_turma: ["ordinaria", "extraordinaria"],
     },
   },

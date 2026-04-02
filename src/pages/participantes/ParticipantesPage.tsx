@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Plus, Upload, Search, Filter, Eye, Bell, Check } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Plus, Upload, Search, Filter, Eye, Bell, Check, X } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,13 +19,14 @@ const statusColor: Record<string, string> = { ativo: "bg-green-100 text-green-80
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 
 const ParticipantesPage = () => {
+  const navigate = useNavigate();
   const [participantes, setParticipantes] = useState<Tables<"participantes">[]>([]);
   const [bairros, setBairros] = useState<Tables<"bairros">[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("todos");
-  const [periodoFilter, setPeriodoFilter] = useState<string>("todos");
-  const [bairroFilter, setBairroFilter] = useState<string>("todos");
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [periodoFilter, setPeriodoFilter] = useState<string>("");
+  const [bairroFilter, setBairroFilter] = useState<string>("");
 
   useEffect(() => {
     fetchData();
@@ -42,11 +43,13 @@ const ParticipantesPage = () => {
     setLoading(false);
   };
 
+  const hasFilters = statusFilter || periodoFilter || bairroFilter;
+
   const filtered = participantes.filter((p) => {
     if (search && !p.nome_completo.toLowerCase().includes(search.toLowerCase())) return false;
-    if (statusFilter !== "todos" && p.status !== statusFilter) return false;
-    if (periodoFilter !== "todos" && p.periodo !== periodoFilter) return false;
-    if (bairroFilter !== "todos" && p.bairro_id !== bairroFilter) return false;
+    if (statusFilter && p.status !== statusFilter) return false;
+    if (periodoFilter && p.periodo !== periodoFilter) return false;
+    if (bairroFilter && p.bairro_id !== bairroFilter) return false;
     return true;
   });
 
@@ -62,7 +65,6 @@ const ParticipantesPage = () => {
     if (guardDemo(isDemo)) return;
     const { error } = await supabase.from("participantes").update({ status: "ativo" } as any).eq("id", p.id);
     if (error) { toast.error("Erro: " + error.message); return; }
-    // Auto-link turmas
     const faixa = calcFaixaFromDate(p.data_nascimento);
     if (p.bairro_id && p.periodo && faixa) {
       let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", p.bairro_id).eq("faixa_etaria", faixa as any);
@@ -81,9 +83,14 @@ const ParticipantesPage = () => {
   const pendentes = participantes.filter((p) => (p as any).status === "pendente");
   const pendentesNaoVistos = pendentes.filter((p) => !(p as any).visualizado_em);
 
+  const clearFilters = () => {
+    setStatusFilter("");
+    setPeriodoFilter("");
+    setBairroFilter("");
+  };
+
   return (
     <div className="space-y-4">
-      {/* Banner de pendentes */}
       {pendentes.length > 0 && (
         <button
           type="button"
@@ -122,15 +129,14 @@ const ParticipantesPage = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar por nome..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[130px] h-9 text-sm"><Filter className="h-3 w-3 mr-1" /><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[130px] h-9 text-sm"><Filter className="h-3 w-3 mr-1" /><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="todos">Todos status</SelectItem>
             <SelectItem value="ativo">Ativo</SelectItem>
             <SelectItem value="pendente">Pendente</SelectItem>
             <SelectItem value="desligado">Desligado</SelectItem>
@@ -138,21 +144,24 @@ const ParticipantesPage = () => {
           </SelectContent>
         </Select>
         <Select value={periodoFilter} onValueChange={setPeriodoFilter}>
-          <SelectTrigger className="w-[130px] h-9 text-sm"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[130px] h-9 text-sm"><SelectValue placeholder="Período" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="todos">Todos períodos</SelectItem>
             <SelectItem value="manha">Manhã</SelectItem>
             <SelectItem value="tarde">Tarde</SelectItem>
             <SelectItem value="integral">Integral</SelectItem>
           </SelectContent>
         </Select>
         <Select value={bairroFilter} onValueChange={setBairroFilter}>
-          <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue placeholder="Bairro CAIA" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="todos">Todos bairros</SelectItem>
             {bairros.filter((b) => BAIRROS_SCFV.includes(b.nome)).map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}
           </SelectContent>
         </Select>
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 text-xs text-muted-foreground">
+            <X className="h-3 w-3 mr-1" />Limpar
+          </Button>
+        )}
       </div>
 
       {loading ? (
@@ -180,7 +189,11 @@ const ParticipantesPage = () => {
               {filtered.map((p) => {
                 const bairroNome = bairros.find((b) => b.id === p.bairro_id)?.nome;
                 return (
-                  <TableRow key={p.id} className="hover:bg-muted/30">
+                  <TableRow
+                    key={p.id}
+                    className="hover:bg-muted/30 cursor-pointer"
+                    onClick={() => navigate(`/participantes/${p.id}`)}
+                  >
                     <TableCell className="text-sm font-medium">{p.nome_completo}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{calcAge(p.data_nascimento)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{bairroNome && BAIRROS_SCFV.includes(bairroNome) ? bairroNome : "—"}</TableCell>
@@ -192,7 +205,7 @@ const ParticipantesPage = () => {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{p.responsavel1_nome || "—"}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{displayPhone(p.responsavel1_whatsapp)}</TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-0.5">
                         {p.status === "pendente" && (
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50" title="Aprovar" onClick={() => handleAprovar(p)}>
