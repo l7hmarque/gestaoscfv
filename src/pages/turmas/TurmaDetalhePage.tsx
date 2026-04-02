@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
-import { isBairroSCFV } from "@/lib/constants";
+import { isBairroSCFV, OFICINAS_TURMA } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
@@ -81,7 +81,7 @@ const TurmaDetalhePage = () => {
     setAllParticipantes(ap || []);
     setBairros(b || []);
     setEducadores(e || []);
-    if (t) setForm({ nome: t.nome, periodo: t.periodo, faixa_etaria: t.faixa_etaria || "", tipo: t.tipo, bairro_id: t.bairro_id || "", educador_id: t.educador_id || "", dias_semana: t.dias_semana || [], ativa: t.ativa });
+    if (t) setForm({ nome: t.nome, periodo: t.periodo, faixa_etaria: t.faixa_etaria || "", tipo: t.tipo, bairro_id: t.bairro_id || "", educador_id: t.educador_id || "", dias_semana: t.dias_semana || [], ativa: t.ativa, oficina: t.oficina || "" });
 
     // Load attendance for alerts
     if (membersList.length > 0) {
@@ -265,6 +265,12 @@ const TurmaDetalhePage = () => {
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" className="gap-1 text-xs" asChild>
+            <Link to={`/relatorios/novo?turma=${id}`}>
+              <FileText className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Novo Relatório</span>
+            </Link>
+          </Button>
           {alertMembers.length > 0 && (
             <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={exportBuscaAtiva}>
               <FileText className="h-3.5 w-3.5" />
@@ -315,6 +321,16 @@ const TurmaDetalhePage = () => {
               <Select value={form.educador_id || ""} onValueChange={(v) => setForm({ ...form, educador_id: v })}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="—" /></SelectTrigger>
                 <SelectContent>{educadores.map((e) => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-1 sm:col-span-2">
+              <Label className="text-xs">Oficina</Label>
+              <Select value={form.oficina || ""} onValueChange={(v) => setForm({ ...form, oficina: v === "__none__" ? "" : v })}>
+                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nenhuma</SelectItem>
+                  {OFICINAS_TURMA.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
             <div className="col-span-1 sm:col-span-2">

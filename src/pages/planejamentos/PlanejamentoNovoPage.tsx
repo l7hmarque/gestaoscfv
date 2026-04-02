@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,23 +13,17 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
+import { TIPOS_ATIVIDADE } from "@/lib/constants";
 
 const FORMAS_AVALIACAO = [
-  "Ficha de Observação",
-  "Escala Likert",
-  "Portfólio",
-  "Autoavaliação",
-  "Registro Fotográfico",
-  "Roda de Conversa",
-  "Relatório Descritivo",
+  "Ficha de Observação", "Escala Likert", "Portfólio", "Autoavaliação",
+  "Registro Fotográfico", "Roda de Conversa", "Relatório Descritivo",
 ];
 
 const PlanejamentoNovoPage = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [turmas, setTurmas] = useState<any[]>([]);
   const [educadores, setEducadores] = useState<any[]>([]);
@@ -44,6 +37,8 @@ const PlanejamentoNovoPage = () => {
     materiais: "",
     apoio_tecnico: "",
     forma_avaliacao: [] as string[],
+    tipo_atividade: [] as string[],
+    tipo_atividade_detalhe: "",
     data_aplicacao: null as Date | null,
     educador_id: "",
     turma_ids: [] as string[],
@@ -62,22 +57,18 @@ const PlanejamentoNovoPage = () => {
   }, []);
 
   const toggleAvaliacao = (v: string) => {
-    setForm(f => ({
-      ...f,
-      forma_avaliacao: f.forma_avaliacao.includes(v)
-        ? f.forma_avaliacao.filter(x => x !== v)
-        : [...f.forma_avaliacao, v],
-    }));
+    setForm(f => ({ ...f, forma_avaliacao: f.forma_avaliacao.includes(v) ? f.forma_avaliacao.filter(x => x !== v) : [...f.forma_avaliacao, v] }));
   };
 
   const toggleTurma = (id: string) => {
-    setForm(f => ({
-      ...f,
-      turma_ids: f.turma_ids.includes(id)
-        ? f.turma_ids.filter(x => x !== id)
-        : [...f.turma_ids, id],
-    }));
+    setForm(f => ({ ...f, turma_ids: f.turma_ids.includes(id) ? f.turma_ids.filter(x => x !== id) : [...f.turma_ids, id] }));
   };
+
+  const toggleTipoAtividade = (v: string) => {
+    setForm(f => ({ ...f, tipo_atividade: f.tipo_atividade.includes(v) ? f.tipo_atividade.filter(x => x !== v) : [...f.tipo_atividade, v] }));
+  };
+
+  const needsDetail = form.tipo_atividade.some(v => TIPOS_ATIVIDADE.find(t => t.value === v && 'hasDetail' in t && t.hasDetail));
 
   const isDemo = useIsDemo();
 
@@ -95,9 +86,11 @@ const PlanejamentoNovoPage = () => {
         materiais: form.materiais || null,
         apoio_tecnico: form.apoio_tecnico || null,
         forma_avaliacao: form.forma_avaliacao,
+        tipo_atividade: form.tipo_atividade,
+        tipo_atividade_detalhe: form.tipo_atividade_detalhe || null,
         data_aplicacao: form.data_aplicacao ? format(form.data_aplicacao, "yyyy-MM-dd") : null,
         educador_id: form.educador_id || null,
-      }).select("id").single();
+      } as any).select("id").single();
 
       if (error) throw error;
 
@@ -125,9 +118,7 @@ const PlanejamentoNovoPage = () => {
       </div>
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Informações Gerais</CardTitle>
-        </CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Informações Gerais</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -166,10 +157,31 @@ const PlanejamentoNovoPage = () => {
         </CardContent>
       </Card>
 
+      {/* Tipo de Atividade */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Conteúdo</CardTitle>
-        </CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Tipo de Atividade</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            {TIPOS_ATIVIDADE.map(ta => (
+              <label key={ta.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox checked={form.tipo_atividade.includes(ta.value)} onCheckedChange={() => toggleTipoAtividade(ta.value)} />
+                {ta.label}
+              </label>
+            ))}
+          </div>
+          {needsDetail && (
+            <Input
+              value={form.tipo_atividade_detalhe}
+              onChange={e => setForm(f => ({ ...f, tipo_atividade_detalhe: e.target.value }))}
+              placeholder="Especifique o nome do evento ou oficina"
+              className="text-sm"
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Conteúdo</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-1">
             <Label className="text-xs">Questão Geradora</Label>
@@ -195,9 +207,7 @@ const PlanejamentoNovoPage = () => {
       </Card>
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Avaliação e Turmas</CardTitle>
-        </CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Avaliação e Turmas</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-1">
             <Label className="text-xs">Formas de Avaliação</Label>

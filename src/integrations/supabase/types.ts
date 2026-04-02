@@ -230,6 +230,8 @@ export type Database = {
           questao_geradora: string | null
           roteiro: string | null
           tema: string | null
+          tipo_atividade: string[] | null
+          tipo_atividade_detalhe: string | null
           titulo: string
           updated_at: string | null
         }
@@ -245,6 +247,8 @@ export type Database = {
           questao_geradora?: string | null
           roteiro?: string | null
           tema?: string | null
+          tipo_atividade?: string[] | null
+          tipo_atividade_detalhe?: string | null
           titulo: string
           updated_at?: string | null
         }
@@ -260,6 +264,8 @@ export type Database = {
           questao_geradora?: string | null
           roteiro?: string | null
           tema?: string | null
+          tipo_atividade?: string[] | null
+          tipo_atividade_detalhe?: string | null
           titulo?: string
           updated_at?: string | null
         }
@@ -551,7 +557,8 @@ export type Database = {
           respeito_mutuo: number | null
           score_elo: number | null
           situacoes_relevantes: string[] | null
-          tipo_atividade: string | null
+          tipo_atividade: string[] | null
+          tipo_atividade_detalhe: string | null
         }
         Insert: {
           analise_ia?: string | null
@@ -579,7 +586,8 @@ export type Database = {
           respeito_mutuo?: number | null
           score_elo?: number | null
           situacoes_relevantes?: string[] | null
-          tipo_atividade?: string | null
+          tipo_atividade?: string[] | null
+          tipo_atividade_detalhe?: string | null
         }
         Update: {
           analise_ia?: string | null
@@ -607,7 +615,8 @@ export type Database = {
           respeito_mutuo?: number | null
           score_elo?: number | null
           situacoes_relevantes?: string[] | null
-          tipo_atividade?: string | null
+          tipo_atividade?: string[] | null
+          tipo_atividade_detalhe?: string | null
         }
         Relationships: [
           {
@@ -696,6 +705,7 @@ export type Database = {
           faixa_etaria: Database["public"]["Enums"]["faixa_etaria_enum"] | null
           id: string
           nome: string
+          oficina: string | null
           periodo: Database["public"]["Enums"]["periodo_enum"] | null
           tipo: Database["public"]["Enums"]["tipo_turma"] | null
           updated_at: string | null
@@ -709,6 +719,7 @@ export type Database = {
           faixa_etaria?: Database["public"]["Enums"]["faixa_etaria_enum"] | null
           id?: string
           nome: string
+          oficina?: string | null
           periodo?: Database["public"]["Enums"]["periodo_enum"] | null
           tipo?: Database["public"]["Enums"]["tipo_turma"] | null
           updated_at?: string | null
@@ -722,6 +733,7 @@ export type Database = {
           faixa_etaria?: Database["public"]["Enums"]["faixa_etaria_enum"] | null
           id?: string
           nome?: string
+          oficina?: string | null
           periodo?: Database["public"]["Enums"]["periodo_enum"] | null
           tipo?: Database["public"]["Enums"]["tipo_turma"] | null
           updated_at?: string | null

@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
-import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
+import { isBairroSCFV, calcFaixaFromDate, OFICINAS_TURMA } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const diasOptions = [
@@ -46,6 +46,8 @@ const TurmaNovaPage = () => {
   const [bairroId, setBairroId] = useState("");
   const [educadorId, setEducadorId] = useState("");
   const [diasSemana, setDiasSemana] = useState<string[]>([]);
+  const [oficina, setOficina] = useState("");
+  const [oficinaNome, setOficinaNome] = useState("");
 
   // Batch generation state
   const [batchBairros, setBatchBairros] = useState<string[]>([]);
@@ -90,6 +92,7 @@ const TurmaNovaPage = () => {
     if (faixaEtaria) payload.faixa_etaria = faixaEtaria;
     if (bairroId) payload.bairro_id = bairroId;
     if (educadorId) payload.educador_id = educadorId;
+    if (oficina) payload.oficina = oficina === "outra_oficina" && oficinaNome ? oficinaNome : oficina;
     const { error } = await supabase.from("turmas").insert(payload as any);
     setSaving(false);
     if (error) { toast.error("Erro: " + error.message); return; }
@@ -258,6 +261,19 @@ const TurmaNovaPage = () => {
                     <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar educador" /></SelectTrigger>
                     <SelectContent>{educadores.map((e) => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}</SelectContent>
                   </Select>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs font-medium">Oficina (opcional)</Label>
+                  <Select value={oficina} onValueChange={setOficina}>
+                    <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Nenhuma</SelectItem>
+                      {OFICINAS_TURMA.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {oficina === "outra_oficina" && (
+                    <Input value={oficinaNome} onChange={e => setOficinaNome(e.target.value)} placeholder="Nome da oficina" className="h-9 text-sm mt-1" />
+                  )}
                 </div>
                 <div className="col-span-2">
                   <Label className="text-xs font-medium mb-2 block">Dias da Semana</Label>

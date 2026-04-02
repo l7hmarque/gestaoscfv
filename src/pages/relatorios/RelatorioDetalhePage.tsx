@@ -225,7 +225,26 @@ const RelatorioDetalhePage = () => {
         <span>📅 {format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy")}</span>
         {item.dia_semana && <span>({item.dia_semana})</span>}
         {item.profiles?.nome && <span>👤 {item.profiles.nome}</span>}
-        {item.tipo_atividade && <span>📋 {item.tipo_atividade}</span>}
+        {Array.isArray(item.tipo_atividade) && item.tipo_atividade.length > 0 ? (
+          item.tipo_atividade.map((v: string) => {
+            const tipos = [
+              { value: "momento_educando", label: "Momento Educando" },
+              { value: "evento", label: "Evento ou Data Comemorativa" },
+              { value: "socioeducativa_idosos", label: "Atividade Socioeducativa (Idosos)" },
+              { value: "colonia_ferias", label: "Colônia de Férias" },
+              { value: "arte_cultura", label: "Oficina de Arte e Cultura" },
+              { value: "futebol_esportes", label: "Oficina de Futebol/Esportes" },
+              { value: "karate", label: "Oficina de Karatê" },
+              { value: "outra_oficina", label: "Outra Oficina" },
+            ];
+            const found = tipos.find(t => t.value === v);
+            let label = found?.label || v;
+            if ((v === "evento" || v === "outra_oficina") && item.tipo_atividade_detalhe) label += `: ${item.tipo_atividade_detalhe}`;
+            return <Badge key={v} variant="outline" className="text-[10px]">{label}</Badge>;
+          })
+        ) : item.tipo_atividade && typeof item.tipo_atividade === "string" ? (
+          <span>📋 {item.tipo_atividade}</span>
+        ) : null}
         {turmaNames.map(n => <Badge key={n} variant="secondary" className="text-[10px]">{n}</Badge>)}
         {planejamentoLink && (
           <Link to={`/planejamentos/${planejamentoLink.id}`} className="text-primary hover:underline text-xs">
