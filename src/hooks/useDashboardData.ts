@@ -58,12 +58,12 @@ export function useDashboardData() {
     const bairrosMap: Record<string, string> = {};
     (bairrosData || []).forEach((b: any) => { bairrosMap[b.id] = b.nome; });
 
-    // Faixa etária
+    // Faixa etária — use consistent logic from constants.ts
     const faixaMap: Record<string, number> = {};
     parts.forEach((p: any) => {
       if (p.data_nascimento) {
-        const f = faixaFromAge(calcAge(p.data_nascimento));
-        faixaMap[f] = (faixaMap[f] || 0) + 1;
+        const f = calcFaixaFromDate(p.data_nascimento);
+        if (f) faixaMap[f] = (faixaMap[f] || 0) + 1;
       }
     });
 

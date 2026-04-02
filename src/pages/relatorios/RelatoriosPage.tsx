@@ -66,8 +66,7 @@ const RelatoriosPage = () => {
     const filteredElo = (relElo || []).filter((r: any) => r.score_elo != null && r.planejamento_id != null);
     setItems(data || []);
 
-    const groups: Record<string, { titulo: string; totalWeightedElo: number; totalWeight: number; totalPart: number; count: number; objs: Record<string, number> }> = {};
-    (relElo || []).forEach((r: any) => {
+    (filteredElo || []).forEach((r: any) => {
       const pid = r.planejamento_id;
       const np = r.num_participantes || 0;
       if (np < 5) return;
