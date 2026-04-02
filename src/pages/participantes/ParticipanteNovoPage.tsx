@@ -279,7 +279,7 @@ const ParticipanteNovoPage = () => {
             <Field label="Número" field="endereco_numero" placeholder="Nº" half />
             <Field label="Bairro (texto)" field="endereco_bairro" placeholder="Bairro" half />
             <div>
-              <Label className="text-xs font-medium">Bairro SCFV</Label>
+              <Label className="text-xs font-medium">Bairro do CAIA que vai frequentar</Label>
               <Select value={form.bairro_id} onValueChange={(v) => {
                 set("bairro_id", v);
                 // Limpar ponto se não pertence ao novo bairro
