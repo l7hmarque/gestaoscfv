@@ -23,6 +23,49 @@ const CATEGORIES = [
 
 export { CATEGORIES };
 
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp", "application/pdf"];
+
+export function isAllowedFileType(file: File): boolean {
+  return file.type.startsWith("image/") || file.type === "application/pdf";
+}
+
+export async function compressFileForUpload(file: File, maxDim = 1600, quality = 0.7): Promise<File> {
+  if (!isAllowedFileType(file)) {
+    throw new Error("Tipo de arquivo não permitido. Envie uma imagem ou PDF.");
+  }
+  if (file.type === "application/pdf") {
+    if (file.size > 5 * 1024 * 1024) throw new Error("PDF excede 5MB.");
+    return file;
+  }
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        const ratio = Math.min(maxDim / w, maxDim / h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { reject(new Error("Falha na compressão")); return; }
+          if (blob.size > 5 * 1024 * 1024) { reject(new Error("Imagem excede 5MB após compressão.")); return; }
+          const compressed = new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" });
+          resolve(compressed);
+        },
+        "image/jpeg",
+        quality,
+      );
+    };
+    img.onerror = () => reject(new Error("Não foi possível ler a imagem."));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 function compressImage(file: File, quality = 0.85): Promise<ScannedPage> {
   return new Promise((resolve, reject) => {
     const img = new Image();
