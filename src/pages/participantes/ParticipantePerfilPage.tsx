@@ -75,12 +75,13 @@ const ParticipantePerfilPage = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [{ data: p }, { data: b }, { data: pt }, { data: tp }, { data: docData }] = await Promise.all([
+    const [{ data: p }, { data: b }, { data: pt }, { data: tp }, { data: docData }, { data: atdData }] = await Promise.all([
       supabase.from("participantes").select("*").eq("id", id!).single(),
       supabase.from("bairros").select("*").order("nome"),
       supabase.from("pontos_transporte").select("*").order("nome"),
       supabase.from("turma_participantes").select("turma_id, turmas(nome)").eq("participante_id", id!),
       supabase.from("participante_documentos" as any).select("*").eq("participante_id", id!).order("created_at", { ascending: false }),
+      supabase.from("atendimentos").select("*").eq("participante_id", id!).order("data_atendimento", { ascending: false }),
     ]);
     setParticipante(p as any);
     setBairros(b || []);
