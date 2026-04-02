@@ -14,7 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { exportFichaInscricaoDocx, exportFichaInscricaoPdf } from "@/hooks/useDocumentExport";
 import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
-import { useDocumentScanner, CATEGORIES } from "@/hooks/useDocumentScanner";
+import { useDocumentScanner, CATEGORIES, compressFileForUpload } from "@/hooks/useDocumentScanner";
 import type { Tables } from "@/integrations/supabase/types";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
