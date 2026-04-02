@@ -437,8 +437,8 @@ const MatriculaPublicaPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Field label="Escola" field="escola" />
-              <Field label="Série / Ano" field="serie" />
+              <Field label="Escola" value={form.escola || ""} onChange={(v) => set("escola", v)} />
+              <Field label="Série / Ano" value={form.serie || ""} onChange={(v) => set("serie", v)} />
             </CardContent>
           </Card>
 
