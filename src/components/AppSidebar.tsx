@@ -1,5 +1,5 @@
 import {
-  Home, Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, MessageSquare, Newspaper, HeartHandshake,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, MessageSquare, Newspaper, HeartHandshake,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -9,17 +9,37 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 
-const menuItems = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Participantes", url: "/participantes", icon: Users },
-  { title: "Turmas", url: "/turmas", icon: GraduationCap },
-  { title: "Presença", url: "/presenca", icon: ClipboardCheck },
-  { title: "Planejamento", url: "/planejamentos", icon: BookOpen },
-  { title: "Relatórios", url: "/relatorios", icon: FileText },
-  { title: "Mural", url: "/mural", icon: MessageSquare },
-  { title: "Feed", url: "/feed", icon: Newspaper },
-  { title: "Equipe Técnica", url: "/equipe-tecnica", icon: HeartHandshake },
-  { title: "Banco de Dados", url: "/banco-de-dados", icon: Database },
+const menuGroups = [
+  {
+    label: "Principal",
+    items: [
+      { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+      { title: "Participantes", url: "/participantes", icon: Users },
+      { title: "Turmas", url: "/turmas", icon: GraduationCap },
+    ],
+  },
+  {
+    label: "Atividades",
+    items: [
+      { title: "Presença", url: "/presenca", icon: ClipboardCheck },
+      { title: "Planejamento", url: "/planejamentos", icon: BookOpen },
+      { title: "Relatórios", url: "/relatorios", icon: FileText },
+    ],
+  },
+  {
+    label: "Comunicação",
+    items: [
+      { title: "Mural", url: "/mural", icon: MessageSquare },
+      { title: "Feed", url: "/feed", icon: Newspaper },
+    ],
+  },
+  {
+    label: "Gestão",
+    items: [
+      { title: "Equipe Técnica", url: "/equipe-tecnica", icon: HeartHandshake },
+      { title: "Banco de Dados", url: "/banco-de-dados", icon: Database },
+    ],
+  },
 ];
 
 export function AppSidebar() {
@@ -49,23 +69,25 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={location.pathname === item.url || (item.url !== "/" && location.pathname.startsWith(item.url))}>
-                    <NavLink to={item.url} end={item.url === "/"} className="hover:bg-sidebar-accent/50" activeClassName="bg-sidebar-accent text-primary font-medium">
-                      <item.icon className="h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {menuGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={location.pathname === item.url || (item.url !== "/" && location.pathname.startsWith(item.url))}>
+                      <NavLink to={item.url} end={item.url === "/"} className="hover:bg-sidebar-accent/50" activeClassName="bg-sidebar-accent text-primary font-medium">
+                        <item.icon className="h-4 w-4" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-2">

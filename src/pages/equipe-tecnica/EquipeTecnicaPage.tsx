@@ -40,6 +40,7 @@ const EquipeTecnicaPage = () => {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [presenca, setPresenca] = useState<any[]>([]);
   const [turmas, setTurmas] = useState<any[]>([]);
+  const [tpCountMap, setTpCountMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filterTipo, setFilterTipo] = useState("");
@@ -51,18 +52,25 @@ const EquipeTecnicaPage = () => {
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }] = await Promise.all([
+    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }] = await Promise.all([
       supabase.from("atendimentos").select("*").order("data_atendimento", { ascending: false }),
       supabase.from("participantes").select("id, nome_completo, status, data_nascimento, bairro_id, periodo, laudo, categoria_vulnerabilidade").order("nome_completo"),
       supabase.from("profiles").select("id, nome, cargo, user_id"),
       supabase.from("presenca").select("participante_id, data, presente").gte("data", format(subDays(new Date(), 90), "yyyy-MM-dd")),
       supabase.from("turmas").select("id, nome, dias_semana").eq("ativa", true),
+      supabase.from("turma_participantes").select("turma_id"),
     ]);
     setAtendimentos(atd || []);
     setParticipantes(part || []);
     setProfiles(prof || []);
     setPresenca(pres || []);
     setTurmas(turm || []);
+
+    const tpMap: Record<string, number> = {};
+    (tp || []).forEach((row: any) => {
+      tpMap[row.turma_id] = (tpMap[row.turma_id] || 0) + 1;
+    });
+    setTpCountMap(tpMap);
 
     if (user) {
       const me = (prof || []).find((p: any) => p.user_id === user.id);
@@ -138,13 +146,14 @@ const EquipeTecnicaPage = () => {
       .filter(Boolean);
   }, [presenca, participantes]);
 
-  // Mapa de calor (dias da semana)
+  // Mapa de calor (dias da semana) — conta participantes, não turmas
   const mapaCalor = useMemo(() => {
     const diasMap: Record<string, number> = { seg: 0, ter: 0, qua: 0, qui: 0, sex: 0 };
     turmas.forEach(t => {
+      const count = tpCountMap[t.id] || 0;
       (t.dias_semana || []).forEach((d: string) => {
         const key = d.toLowerCase().slice(0, 3);
-        if (diasMap[key] !== undefined) diasMap[key]++;
+        if (diasMap[key] !== undefined) diasMap[key] += count;
       });
     });
     const max = Math.max(...Object.values(diasMap), 1);
@@ -153,7 +162,7 @@ const EquipeTecnicaPage = () => {
       count,
       intensity: count / max,
     }));
-  }, [turmas]);
+  }, [turmas, tpCountMap]);
 
   // Filtered atendimentos
   const filteredAtd = useMemo(() => {
@@ -319,7 +328,7 @@ const EquipeTecnicaPage = () => {
 
             {/* Mapa de calor */}
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Volume por Dia da Semana</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Participantes Estimados por Dia</CardTitle></CardHeader>
               <CardContent>
                 <div className="flex gap-2 justify-center py-6">
                   {mapaCalor.map(d => (
