@@ -83,6 +83,7 @@ const MatriculaPublicaPage = () => {
   const [submittedBairro, setSubmittedBairro] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploadCategoria, setUploadCategoria] = useState("");
+  const [estrangeiroCpf, setEstrangeiroCpf] = useState(false);
 
   // Re-enrollment state
   const [existingId, setExistingId] = useState<string | null>(null);
