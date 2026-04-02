@@ -62,7 +62,7 @@ export function SendRecadoDialog({ toTecnicos, trigger }: Props) {
     const { error } = await supabase.from("recados").insert({
       remetente_id: myProfileId,
       destinatario_id: form.destinatario_id,
-      participante_id: form.participante_id || null,
+      participante_id: partId,
       conteudo: form.conteudo,
     } as any);
     if (error) { toast.error("Erro: " + error.message); return; }
