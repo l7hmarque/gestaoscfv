@@ -324,6 +324,16 @@ const TurmaDetalhePage = () => {
               </Select>
             </div>
             <div className="col-span-1 sm:col-span-2">
+              <Label className="text-xs">Oficina</Label>
+              <Select value={form.oficina || ""} onValueChange={(v) => setForm({ ...form, oficina: v === "__none__" ? "" : v })}>
+                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nenhuma</SelectItem>
+                  {OFICINAS_TURMA.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-1 sm:col-span-2">
               <Label className="text-xs mb-2 block">Dias da Semana</Label>
               <div className="flex flex-wrap gap-3">
                 {diasOptions.map((d) => (

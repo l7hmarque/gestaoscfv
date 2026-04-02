@@ -222,18 +222,36 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
   const sitOptions = ["Conflito entre participantes", "Avanço significativo", "Dificuldade de concentração", "Acolhimento emocional necessário", "Destaque positivo de participante"];
   const objLabels: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
 
+  // Handle tipo_atividade as array or legacy string
+  const tipoArr: string[] = Array.isArray(item.tipo_atividade) ? item.tipo_atividade : (item.tipo_atividade ? [item.tipo_atividade] : []);
+  const tipoLabelsMap: Record<string, string> = {
+    momento_educando: "Momento Educando",
+    evento: "Evento ou Data Comemorativa",
+    socioeducativa_idosos: "Atividade Socioeducativa (Idosos)",
+    colonia_ferias: "Atividade de Colônia de Férias",
+    arte_cultura: "Oficina de Arte e Cultura",
+    futebol_esportes: "Oficina de Futebol e Outros Esportes / Recreativo",
+    karate: "Oficina de Karatê",
+    outra_oficina: "Outra Oficina",
+  };
+  const tipoDisplay = tipoArr.map(v => {
+    let label = tipoLabelsMap[v] || v;
+    if ((v === "evento" || v === "outra_oficina") && item.tipo_atividade_detalhe) label += `: ${item.tipo_atividade_detalhe}`;
+    return label;
+  }).join(", ") || "—";
+
   return {
     DATA: item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : "—",
     DIA_SEMANA: item.dia_semana || "—",
     EDUCADOR: item.profiles?.nome || "—",
     TURMAS: turmaNames.join(", ") || "—",
-    TIPO_ATIVIDADE: item.tipo_atividade || "—",
+    TIPO_ATIVIDADE: tipoDisplay,
     NOME_ATIVIDADE: item.nome_atividade || "—",
-    // Engajamento checkboxes
-    ...Object.fromEntries(engOptions.map((opt, i) => [`ENG_${i + 1}`, item.engajamento?.includes(opt) ? "☑" : "☐"])),
+    // Engajamento checkboxes — use [X]/[ ] for robust rendering
+    ...Object.fromEntries(engOptions.map((opt, i) => [`ENG_${i + 1}`, item.engajamento?.includes(opt) ? "[X]" : "[ ]"])),
     ENG_1_LABEL: engOptions[0], ENG_2_LABEL: engOptions[1], ENG_3_LABEL: engOptions[2], ENG_4_LABEL: engOptions[3], ENG_5_LABEL: engOptions[4],
     // Situações checkboxes
-    ...Object.fromEntries(sitOptions.map((opt, i) => [`SIT_${i + 1}`, item.situacoes_relevantes?.includes(opt) ? "☑" : "☐"])),
+    ...Object.fromEntries(sitOptions.map((opt, i) => [`SIT_${i + 1}`, item.situacoes_relevantes?.includes(opt) ? "[X]" : "[ ]"])),
     SIT_1_LABEL: sitOptions[0], SIT_2_LABEL: sitOptions[1], SIT_3_LABEL: sitOptions[2], SIT_4_LABEL: sitOptions[3], SIT_5_LABEL: sitOptions[4],
     // Competências
     INICIATIVA: item.iniciativa || "—",
