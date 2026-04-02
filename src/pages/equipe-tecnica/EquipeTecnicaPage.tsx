@@ -146,13 +146,14 @@ const EquipeTecnicaPage = () => {
       .filter(Boolean);
   }, [presenca, participantes]);
 
-  // Mapa de calor (dias da semana)
+  // Mapa de calor (dias da semana) — conta participantes, não turmas
   const mapaCalor = useMemo(() => {
     const diasMap: Record<string, number> = { seg: 0, ter: 0, qua: 0, qui: 0, sex: 0 };
     turmas.forEach(t => {
+      const count = tpCountMap[t.id] || 0;
       (t.dias_semana || []).forEach((d: string) => {
         const key = d.toLowerCase().slice(0, 3);
-        if (diasMap[key] !== undefined) diasMap[key]++;
+        if (diasMap[key] !== undefined) diasMap[key] += count;
       });
     });
     const max = Math.max(...Object.values(diasMap), 1);
