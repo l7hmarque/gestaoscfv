@@ -14,6 +14,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { useDocumentScanner, CATEGORIES, compressFileForUpload } from "@/hooks/useDocumentScanner";
 import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
+import { maskCPF, maskPhone, unmaskDigits } from "@/lib/utils";
 
 interface PendingDoc {
   blob: Blob;
