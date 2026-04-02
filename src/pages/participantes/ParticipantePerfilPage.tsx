@@ -14,7 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { exportFichaInscricaoDocx, exportFichaInscricaoPdf } from "@/hooks/useDocumentExport";
 import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
-import { useDocumentScanner, CATEGORIES } from "@/hooks/useDocumentScanner";
+import { useDocumentScanner, CATEGORIES, compressFileForUpload } from "@/hooks/useDocumentScanner";
 import type { Tables } from "@/integrations/supabase/types";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
@@ -174,8 +174,17 @@ const ParticipantePerfilPage = () => {
     input.onchange = async (e: any) => {
       const file = e.target.files?.[0] as File | undefined;
       if (!file) return;
-      const blob = await scanner.processUploadFile(file);
-      await uploadDocBlob(blob, categoria);
+      if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+        toast.error("Envie apenas imagem ou PDF.");
+        return;
+      }
+      try {
+        const compressed = await compressFileForUpload(file);
+        const blob = await scanner.processUploadFile(compressed);
+        await uploadDocBlob(blob, categoria);
+      } catch (err: any) {
+        toast.error(err.message || "Erro ao processar arquivo");
+      }
     };
     input.click();
   };

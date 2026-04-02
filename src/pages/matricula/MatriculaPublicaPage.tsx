@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -189,15 +190,23 @@ const MatriculaPublicaPage = () => {
     fileRef.current?.click();
   };
 
-  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const preview = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
-      setDocs((prev) => [...prev, { file, categoria: uploadCategoria, preview }]);
-    }
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     e.target.value = "";
+    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+      toast.error("Envie apenas imagem ou PDF.");
+      return;
+    }
+    try {
+      const { compressFileForUpload } = await import("@/hooks/useDocumentScanner");
+      const compressed = await compressFileForUpload(file);
+      const preview = compressed.type.startsWith("image/") ? URL.createObjectURL(compressed) : undefined;
+      // Replace existing doc of same category
+      setDocs((prev) => [...prev.filter((d) => d.categoria !== uploadCategoria), { file: compressed, categoria: uploadCategoria, preview }]);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao processar arquivo");
+    }
   };
 
   const removeDoc = (index: number) => {
@@ -637,7 +646,7 @@ const MatriculaPublicaPage = () => {
                 accept="image/*,application/pdf"
                 className="hidden"
                 onChange={handleFileSelected}
-                multiple
+                
               />
             </CardContent>
           </Card>

@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
-import { useDocumentScanner, CATEGORIES } from "@/hooks/useDocumentScanner";
+import { useDocumentScanner, CATEGORIES, compressFileForUpload } from "@/hooks/useDocumentScanner";
 import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
@@ -74,16 +74,26 @@ const ParticipanteNovoPage = () => {
     input.onchange = async (e: any) => {
       const file = e.target.files?.[0] as File | undefined;
       if (!file) return;
-      const blob = await scanner.processUploadFile(file);
-      const now = new Date();
-      const ts = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}${String(now.getSeconds()).padStart(2,"0")}`;
-      setPendingDocs(prev => [...prev, {
-        blob,
-        categoria,
-        fileName: `SysELO_Doc_${categoria}_${ts}.pdf`,
-        pageCount: 1,
-      }]);
-      toast.success("Documento adicionado!");
+      if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+        toast.error("Envie apenas imagem ou PDF.");
+        return;
+      }
+      try {
+        const compressed = await compressFileForUpload(file);
+        const blob = await scanner.processUploadFile(compressed);
+        const now = new Date();
+        const ts = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}${String(now.getSeconds()).padStart(2,"0")}`;
+        // Replace existing doc of same category
+        setPendingDocs(prev => [...prev.filter(d => d.categoria !== categoria), {
+          blob,
+          categoria,
+          fileName: `SysELO_Doc_${categoria}_${ts}.pdf`,
+          pageCount: 1,
+        }]);
+        toast.success("Documento adicionado!");
+      } catch (err: any) {
+        toast.error(err.message || "Erro ao processar arquivo");
+      }
     };
     input.click();
   };
