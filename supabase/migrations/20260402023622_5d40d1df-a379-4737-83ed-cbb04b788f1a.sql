@@ -1,0 +1,1 @@
+ALTER TABLE public.turma_participantes ADD CONSTRAINT turma_participantes_turma_participante_unique UNIQUE (turma_id, participante_id);
