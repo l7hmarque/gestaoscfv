@@ -315,7 +315,7 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
     infoRow("Dia da Semana", item.dia_semana),
     infoRow("Educador", item.profiles?.nome),
     infoRow("Turma(s)", turmaNames.join(", ")),
-    infoRow("Tipo de Atividade", item.tipo_atividade),
+    infoRow("Tipo de Atividade", Array.isArray(item.tipo_atividade) ? item.tipo_atividade.join(", ") : (item.tipo_atividade || "")),
     infoRow("Nome da Atividade", item.nome_atividade),
   ];
   children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [2800, 6560], rows }));
