@@ -106,7 +106,8 @@ const PresencaPage = () => {
     setSaving(true);
     try {
       const dataStr = format(data, "yyyy-MM-dd");
-      const rows = filteredParticipantes.map(p => ({
+      // Save ALL participants, not just filtered ones — filters are visual only
+      const rows = participantes.map(p => ({
         turma_id: selectedTurma,
         participante_id: p.id,
         data: dataStr,
@@ -119,7 +120,9 @@ const PresencaPage = () => {
       await supabase.from("presenca").delete().eq("turma_id", selectedTurma).eq("data", dataStr);
       const { error } = await supabase.from("presenca").insert(rows);
       if (error) throw error;
-      toast.success(`Presença salva! ${numPresentes} presentes, ${numAusentes} ausentes.`);
+      const allPresentes = participantes.filter(p => presenca[p.id]).length;
+      const allAusentes = participantes.length - allPresentes;
+      toast.success(`Presença salva! ${allPresentes} presentes, ${allAusentes} ausentes.`);
     } catch (e: any) {
       toast.error(e.message || "Erro ao salvar presença");
     } finally {

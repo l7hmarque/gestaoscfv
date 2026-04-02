@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,7 @@ import { FileSpreadsheet, Download } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { BAIRROS_SCFV } from "@/lib/constants";
+import { BAIRROS_SCFV, calcFaixaFromDate } from "@/lib/constants";
 
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -37,9 +38,6 @@ function calcAge(dob: string): number {
   let age = now.getFullYear() - b.getFullYear();
   if (now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) age--;
   return age;
-}
-function faixaFromAge(age: number): string {
-  if (age <= 8) return "6-8"; if (age <= 11) return "9-11"; if (age <= 17) return "12-17"; return "60+";
 }
 
 /** Apply thin borders to all cells in a sheet */
@@ -93,29 +91,24 @@ export default function DashboardRelatorioMensalTab() {
       const startDate = `${ano}-${mes}-01`;
       const endDate = mesNum === 12 ? `${parseInt(ano)+1}-01-01` : `${ano}-${String(mesNum+1).padStart(2,"0")}-01`;
 
-      const [presRes, partRes, turmasRes, bairrosRes, relRes, planRes, tpRes, rtRes] = await Promise.all([
-        supabase.from("presenca").select("*").gte("data", startDate).lt("data", endDate),
-        supabase.from("participantes").select("*"),
-        supabase.from("turmas").select("*"),
-        supabase.from("bairros").select("*"),
-        supabase.from("relatorios_atividade").select("*").gte("data", startDate).lt("data", endDate),
-        supabase.from("planejamentos").select("*").gte("data_aplicacao", startDate).lt("data_aplicacao", endDate),
-        supabase.from("turma_participantes").select("*"),
-        supabase.from("relatorio_turmas").select("*"),
+      const [presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas] = await Promise.all([
+        fetchAllRows("presenca", { select: "*" }),
+        fetchAllRows("participantes", { select: "*" }),
+        fetchAllRows("turmas", { select: "*" }),
+        fetchAllRows("bairros", { select: "*" }),
+        fetchAllRows("relatorios_atividade", { select: "*" }),
+        fetchAllRows("planejamentos", { select: "*" }),
+        fetchAllRows("turma_participantes", { select: "*" }),
+        fetchAllRows("relatorio_turmas", { select: "*" }),
       ]);
 
-      const presencas = presRes.data || [];
-      const participantes = partRes.data || [];
-      const turmas = turmasRes.data || [];
-      const bairros = bairrosRes.data || [];
-      const relatorios = relRes.data || [];
-      const planejamentos = planRes.data || [];
-      const turmaParticipantes = tpRes.data || [];
-      const relatorioTurmas = rtRes.data || [];
+      const presencas = (presencas_raw || []).filter((p: any) => p.data >= startDate && p.data < endDate);
+      const filteredRelatorios = (relatorios || []).filter((r: any) => r.data >= startDate && r.data < endDate);
+      const filteredPlanejamentos = (planejamentos || []).filter((p: any) => p.data_aplicacao && p.data_aplicacao >= startDate && p.data_aplicacao < endDate);
 
-      const partMap = new Map(participantes.map((p: any) => [p.id, p]));
-      const bairroMap = new Map(bairros.map((b: any) => [b.id, b.nome]));
-      const bairroIdByName = new Map(bairros.map((b: any) => [b.nome, b.id]));
+      const partMap = new Map((participantes || []).map((p: any) => [p.id, p]));
+      const bairroMap = new Map((bairros || []).map((b: any) => [b.id, b.nome]));
+      const bairroIdByName = new Map((bairros || []).map((b: any) => [b.nome, b.id]));
 
       const wb = XLSX.utils.book_new();
 
@@ -123,12 +116,16 @@ export default function DashboardRelatorioMensalTab() {
       const atendidosIds = new Set(presencas.filter((p: any) => p.presente).map((p: any) => p.participante_id));
       const atendidos = [...atendidosIds].map(id => partMap.get(id)).filter(Boolean);
 
+      // Use bairro_id (CAIA) instead of endereco_bairro for correct distribution
       const byBairro: Record<string, number> = {};
-      atendidos.forEach((p: any) => { const b = p.endereco_bairro || "N/I"; byBairro[b] = (byBairro[b] || 0) + 1; });
+      atendidos.forEach((p: any) => { const b = p.bairro_id ? (bairroMap.get(p.bairro_id) || "N/I") : "N/I"; byBairro[b] = (byBairro[b] || 0) + 1; });
 
       const byFaixa: Record<string, number> = {};
       atendidos.forEach((p: any) => {
-        if (p.data_nascimento) { const f = faixaFromAge(calcAge(p.data_nascimento)); byFaixa[f] = (byFaixa[f] || 0) + 1; }
+        if (p.data_nascimento) {
+          const f = calcFaixaFromDate(p.data_nascimento);
+          if (f) byFaixa[f] = (byFaixa[f] || 0) + 1;
+        }
       });
 
       const byPeriodo: Record<string, number> = {};
@@ -164,10 +161,10 @@ export default function DashboardRelatorioMensalTab() {
 
       // --- Sheet 2: Atividades Propostas x Desenvolvidas (4 colunas) ---
       const relByPlan = new Map<string, any>();
-      relatorios.forEach((r: any) => { if (r.planejamento_id) relByPlan.set(r.planejamento_id, r); });
+      filteredRelatorios.forEach((r: any) => { if (r.planejamento_id) relByPlan.set(r.planejamento_id, r); });
 
       const atividadesRows: any[][] = [];
-      planejamentos.forEach((p: any) => {
+      filteredPlanejamentos.forEach((p: any) => {
         const rel = relByPlan.get(p.id);
         atividadesRows.push([
           p.titulo + (p.tema ? ` — ${p.tema}` : ""),
@@ -177,7 +174,7 @@ export default function DashboardRelatorioMensalTab() {
         ]);
         if (rel) relByPlan.delete(p.id);
       });
-      relatorios.filter((r: any) => !r.planejamento_id).forEach((r: any) => {
+      filteredRelatorios.filter((r: any) => !r.planejamento_id).forEach((r: any) => {
         atividadesRows.push(["", r.nome_atividade || "", r.analise_ia || "", ""]);
       });
 
@@ -203,7 +200,7 @@ export default function DashboardRelatorioMensalTab() {
       });
 
       // Map relatorios to bairros via relatorio_turmas
-      const relIdToAnalise = new Map(relatorios.map((r: any) => [r.id, r.analise_ia || ""]));
+      const relIdToAnalise = new Map(filteredRelatorios.map((r: any) => [r.id, r.analise_ia || ""]));
       const bairroRelResultados: Record<string, Set<string>> = {};
       BAIRROS_SCFV.forEach(bn => { bairroRelResultados[bn] = new Set(); });
 

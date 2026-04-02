@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { calcFaixaFromDate } from "@/lib/constants";
 
 export interface DashboardData {
   totalParticipantesAtivos: number;
@@ -30,13 +31,6 @@ function calcAge(dob: string): number {
   return age;
 }
 
-function faixaFromAge(age: number): string {
-  if (age <= 8) return "6-8";
-  if (age <= 11) return "9-11";
-  if (age <= 17) return "12-17";
-  return "60+";
-}
-
 function monthKey(d: string) {
   return d.slice(0, 7);
 }
@@ -64,12 +58,12 @@ export function useDashboardData() {
     const bairrosMap: Record<string, string> = {};
     (bairrosData || []).forEach((b: any) => { bairrosMap[b.id] = b.nome; });
 
-    // Faixa etária
+    // Faixa etária — use consistent logic from constants.ts
     const faixaMap: Record<string, number> = {};
     parts.forEach((p: any) => {
       if (p.data_nascimento) {
-        const f = faixaFromAge(calcAge(p.data_nascimento));
-        faixaMap[f] = (faixaMap[f] || 0) + 1;
+        const f = calcFaixaFromDate(p.data_nascimento);
+        if (f) faixaMap[f] = (faixaMap[f] || 0) + 1;
       }
     });
 

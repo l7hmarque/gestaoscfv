@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -53,21 +54,20 @@ const RelatoriosPage = () => {
   }, [user]);
 
   const loadData = async () => {
-    const [{ data }, { data: relElo }] = await Promise.all([
-      supabase
-        .from("relatorios_atividade")
-        .select("*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome), planejamentos!relatorios_atividade_planejamento_id_fkey(titulo)")
-        .order("data", { ascending: false }),
-      supabase
-        .from("relatorios_atividade")
-        .select("planejamento_id, score_elo, num_participantes, objetivo_alcancado, planejamentos!relatorios_atividade_planejamento_id_fkey(titulo)")
-        .not("score_elo", "is", null)
-        .not("planejamento_id", "is", null),
+    const [data, relElo] = await Promise.all([
+      fetchAllRows("relatorios_atividade", {
+        select: "*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome), planejamentos!relatorios_atividade_planejamento_id_fkey(titulo)",
+        order: { column: "data", ascending: false },
+      }),
+      fetchAllRows("relatorios_atividade", {
+        select: "planejamento_id, score_elo, num_participantes, objetivo_alcancado, planejamentos!relatorios_atividade_planejamento_id_fkey(titulo)",
+      }),
     ]);
+    const filteredElo = (relElo || []).filter((r: any) => r.score_elo != null && r.planejamento_id != null);
     setItems(data || []);
 
     const groups: Record<string, { titulo: string; totalWeightedElo: number; totalWeight: number; totalPart: number; count: number; objs: Record<string, number> }> = {};
-    (relElo || []).forEach((r: any) => {
+    (filteredElo || []).forEach((r: any) => {
       const pid = r.planejamento_id;
       const np = r.num_participantes || 0;
       if (np < 5) return;
