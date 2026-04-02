@@ -168,7 +168,7 @@ const ParticipantesPage = () => {
               <TableRow className="bg-muted/50">
                 <TableHead className="text-xs font-medium">Nome</TableHead>
                 <TableHead className="text-xs font-medium">Idade</TableHead>
-                <TableHead className="text-xs font-medium">Bairro SCFV</TableHead>
+                <TableHead className="text-xs font-medium">Bairro CAIA</TableHead>
                 <TableHead className="text-xs font-medium">Período</TableHead>
                 <TableHead className="text-xs font-medium">Status</TableHead>
                 <TableHead className="text-xs font-medium">Responsável</TableHead>
