@@ -30,8 +30,8 @@ const ParticipantesPage = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    const [{ data: p }, { data: b }] = await Promise.all([
-      supabase.from("participantes").select("*").order("nome_completo"),
+    const [p, { data: b }] = await Promise.all([
+      fetchAllRows("participantes", { select: "*", order: { column: "nome_completo" } }),
       supabase.from("bairros").select("*").order("nome"),
     ]);
     setParticipantes(p || []);

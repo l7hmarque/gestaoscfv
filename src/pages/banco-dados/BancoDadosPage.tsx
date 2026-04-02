@@ -56,12 +56,12 @@ export default function BancoDadosPage() {
       roleMap.set(r.user_id, arr);
     });
 
-    setParticipantes(p.data || []);
-    setTurmas(t.data || []);
-    setPresenca((pr.data || []).map((x: any) => ({ ...x, participante_nome: x.participantes?.nome_completo || "", turma_nome: x.turmas?.nome || "", presente_str: x.presente ? "Sim" : "Não" })));
-    setRelatorios((r.data || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "" })));
-    setPlanejamentos((pl.data || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "", avaliacao_str: x.forma_avaliacao?.join(", ") || "" })));
-    setProfissionais((prof.data || []).map((x: any) => ({ ...x, roles_str: (roleMap.get(x.user_id) || []).join(", "), ativo_str: x.ativo ? "Sim" : "Não" })));
+    setParticipantes(p || []);
+    setTurmas(t || []);
+    setPresenca((pr || []).map((x: any) => ({ ...x, participante_nome: x.participantes?.nome_completo || "", turma_nome: x.turmas?.nome || "", presente_str: x.presente ? "Sim" : "Não" })));
+    setRelatorios((r || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "" })));
+    setPlanejamentos((pl || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "", avaliacao_str: x.forma_avaliacao?.join(", ") || "" })));
+    setProfissionais((prof || []).map((x: any) => ({ ...x, roles_str: (roleMap.get(x.user_id) || []).join(", "), ativo_str: x.ativo ? "Sim" : "Não" })));
     setLoading(false);
   };
 
