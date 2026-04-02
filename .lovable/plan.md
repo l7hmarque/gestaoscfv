@@ -1,99 +1,55 @@
-## Plano: Tipo de Atividade estruturado + Oficina na Turma + Pré-população
 
-### Resumo
 
-Transformar "Tipo de Atividade" de campo texto livre para seleção múltipla com opções fixas (com subcampo para nomear quando necessário). Aplicar em relatórios e planejamentos. Vincular turmas a oficinas. Adicionar botão "Novo Relatório" na página da turma. Corrigir checkboxes no DOCX exportado.
+## Plano: Aprovar pendência inline + Máscaras CPF/Telefone + Renomear "Bairro SCFV"
 
----
+### 1. Botão "Aprovar" na listagem de pendentes (`ParticipantesPage.tsx`)
 
-### 1. Migração SQL
+- Na tabela, quando `status === "pendente"`, adicionar botão "Aprovar" (ícone Check) na coluna de ações, ao lado do botão "Ver"
+- Ao clicar, atualizar `status` para `"ativo"` diretamente + executar a mesma automação de vínculo a turmas que já existe no `ParticipantePerfilPage` (linhas 128-141)
+- Extrair a lógica de aprovação para uma função reutilizável ou duplicar inline
 
-- Adicionar coluna `tipo_atividade text[]` na tabela `planejamentos` (array, nullable)
-- Adicionar coluna `oficina text` na tabela `turmas` (nullable, para vincular a uma oficina)
-- Alterar `relatorios_atividade.tipo_atividade` de `text` para `text[]` (migração: converter valores existentes para array de 1 elemento)
-- Adicionar coluna `tipo_atividade_detalhe text` em `relatorios_atividade` (para "Evento: nome" e "Outra Oficina: nome")
-- Adicionar coluna `tipo_atividade_detalhe text` em `planejamentos`
+### 2. Botão "Aprovar" no perfil do participante (`ParticipantePerfilPage.tsx`)
 
-### 2. Constante compartilhada
+- Quando `participante.status === "pendente"` e não está editando, exibir botão "Aprovar Matrícula" no header (ao lado de Editar/Imprimir)
+- Ao clicar, chamar a mesma lógica: update status → ativo + vínculo automático a turmas + recarregar
 
-Criar em `src/lib/constants.ts`:
+### 3. Máscaras de CPF e Telefone
 
-```
-TIPOS_ATIVIDADE = [
-  { value: "momento_educando", label: "Momento Educando" },
-  { value: "evento", label: "Evento ou Data Comemorativa", hasDetail: true },
-  { value: "socioeducativa_idosos", label: "Atividade Socioeducativa (Idosos)" },
-  { value: "colonia_ferias", label: "Atividade de Colônia de Férias" },
-  { value: "arte_cultura", label: "Oficina de Arte e Cultura" },
-  { value: "futebol_esportes", label: "Oficina de Futebol e Outros Esportes / Recreativo" },
-  { value: "karate", label: "Oficina de Karatê" },
-  { value: "outra_oficina", label: "Outra Oficina", hasDetail: true },
-]
-```
+Criar funções utilitárias em `src/lib/utils.ts`:
+- `maskCPF(value: string): string` — formata como `000.000.000-00` (aplica máscara durante digitação)
+- `maskPhone(value: string): string` — formata como `(00) 00000-0000`
+- `unmaskDigits(value: string): string` — remove não-dígitos para armazenamento
 
-### 3. `RelatorioNovoPage.tsx`
+**Onde aplicar:**
 
-- Trocar `tipo_atividade: ""` (string) por `tipo_atividade: [] as string[]` (array)
-- Adicionar `tipo_atividade_detalhe: ""`
-- Renderizar checkboxes com as opções de `TIPOS_ATIVIDADE`
-- Para itens com `hasDetail: true`, exibir campo Input ao lado quando selecionado
-- Filtrar planejamentos por `educador_id` selecionado (quando educador muda, recarregar lista)
-- Ao vincular planejamento, popular `nome_atividade` com o título do planejamento
-- Salvar `tipo_atividade` como array e `tipo_atividade_detalhe` como texto
+| Página | Campo CPF | Campo Telefone |
+|---|---|---|
+| `MatriculaPublicaPage.tsx` | `responsavel1_cpf` — com checkbox "Estrangeiro/Sem CPF" que desativa máscara | `responsavel1_whatsapp`, `responsavel2_whatsapp` |
+| `ParticipanteNovoPage.tsx` | `responsavel1_cpf` — com checkbox "Estrangeiro/Sem CPF" | `responsavel1_whatsapp`, `responsavel2_whatsapp` |
+| `ParticipantePerfilPage.tsx` | `responsavel1_cpf` no modo edição — com checkbox | `responsavel1_whatsapp`, `responsavel2_whatsapp` no modo edição |
+| `BancoDadosPage.tsx` | Exibir CPF e WhatsApp já formatados com máscara na renderização da coluna |
 
-### 4. `PlanejamentoNovoPage.tsx`
+**Nota sobre o CPF**: O campo `responsavel1_cpf` no banco armazena o CPF do responsável. Conforme solicitado, será renomeado no label para "CPF do Participante" onde aplicável, e a máscara será aplicada. A opção "Estrangeiro/Sem CPF" permite texto livre sem máscara.
 
-- Adicionar campo `tipo_atividade: [] as string[]` e `tipo_atividade_detalhe: ""`
-- Renderizar mesmas checkboxes de tipo de atividade
-- Salvar no insert
+**Armazenamento**: Continuar armazenando apenas dígitos no banco (padronização existente). A máscara é apenas visual no input.
 
-### 5. `PlanejamentoDetalhePage.tsx`
+### 4. Renomear "Bairro SCFV" → "Bairro do CAIA que vai frequentar"
 
-- Exibir tipos de atividade como badges (como já faz com `forma_avaliacao`)
-- Incluir no form de edição
-
-### 6. `TurmaNovaPage.tsx` e `TurmaDetalhePage.tsx`
-
-- Adicionar campo Select "Oficina" com opções filtradas dos tipos que são oficinas:
-  - Arte e Cultura, Futebol/Esportes/Recreativo, Karatê, Outra Oficina (com campo para nome)
-- Salvar na coluna `turmas.oficina`
-
-### 7. `TurmaDetalhePage.tsx` — Botão "Novo Relatório"
-
-- Adicionar botão que navega para `/relatorios/novo?turma={id}` 
-- Em `RelatorioNovoPage`, ler query param `turma`, pré-selecionar a turma, e carregar educador/oficina da turma
-
-### 8. DOCX — Checkboxes marcadas
-
-O problema: no DOCX, tags `{ENG_1}` são substituídas por `☑` ou `☐` (caracteres Unicode), mas dentro de checkboxes nativas do Word (content controls) isso não funciona.
-
-**Solução**: No fallback DOCX gerado pelo código, já usa `checkbox()` com `☑`/`☐` em fonte "Segoe UI Symbol" — isso funciona. Para templates DOCX customizados: as tags `{ENG_1}` etc. já geram `☑`/`☐`. Se o template usa **content controls** (checkboxes do Word), não é possível marcá-las via docxtemplater. A solução é:
-
-- Instruir que o template use `{TAG}` como texto simples (não dentro de content control)
-- Atualizar a documentação/tooltip no mapeamento de tags para explicar isso
-- No `buildRelatorioTemplateData`, trocar `☑`/`☐` por texto descritivo alternativo (`[X]`/`[ ]`) que é mais robusto em diferentes fontes, sendo que [X] com preenchimento/cor de destaque preto, fonte tam. 9
-- Adicionar nota na UI de admin sobre como configurar checkboxes no template
-
-### 9. Páginas de detalhe e exportação
-
-- `RelatorioDetalhePage.tsx`: exibir `tipo_atividade` como array de badges
-- `useDocumentExport.ts`: atualizar `TIPO_ATIVIDADE` para juntar labels do array com vírgula, incluindo detalhe quando houver
-- `TemplateTagMapper.tsx`: manter campo `tipo_atividade` com label atualizada
-
----
+| Arquivo | Local |
+|---|---|
+| `MatriculaPublicaPage.tsx` | Label do Select (linha 476) |
+| `ParticipanteNovoPage.tsx` | Label do Select (linha 280) |
+| `ParticipantePerfilPage.tsx` | Label no modo edição (linha 321) |
+| `ParticipantesPage.tsx` | Cabeçalho da tabela (linha 146) → "Bairro CAIA" (versão curta para caber) |
 
 ### Arquivos modificados
 
+| Arquivo | Mudança |
+|---|---|
+| `src/lib/utils.ts` | Funções `maskCPF`, `maskPhone`, `unmaskDigits` |
+| `src/pages/participantes/ParticipantesPage.tsx` | Botão aprovar inline + renomear coluna + máscara telefone na exibição |
+| `src/pages/participantes/ParticipantePerfilPage.tsx` | Botão aprovar no header + máscara CPF/telefone nos campos de edição + renomear label |
+| `src/pages/participantes/ParticipanteNovoPage.tsx` | Máscara CPF/telefone + checkbox estrangeiro + renomear label |
+| `src/pages/matricula/MatriculaPublicaPage.tsx` | Máscara CPF/telefone + checkbox estrangeiro + renomear label bairro |
+| `src/pages/banco-dados/BancoDadosPage.tsx` | Renderizar CPF e telefone com máscara nas colunas |
 
-| Arquivo                                               | Mudança                                                                                                                                                            |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Migração SQL                                          | `tipo_atividade text[]` em planejamentos, `oficina text` em turmas, converter `relatorios_atividade.tipo_atividade` para array, adicionar `tipo_atividade_detalhe` |
-| `src/lib/constants.ts`                                | Exportar `TIPOS_ATIVIDADE`                                                                                                                                         |
-| `src/pages/relatorios/RelatorioNovoPage.tsx`          | Checkboxes tipo atividade, filtrar planejamentos por educador, popular nome ao vincular                                                                            |
-| `src/pages/planejamentos/PlanejamentoNovoPage.tsx`    | Adicionar tipo de atividade                                                                                                                                        |
-| `src/pages/planejamentos/PlanejamentoDetalhePage.tsx` | Exibir/editar tipo de atividade                                                                                                                                    |
-| `src/pages/turmas/TurmaNovaPage.tsx`                  | Campo oficina                                                                                                                                                      |
-| `src/pages/turmas/TurmaDetalhePage.tsx`               | Campo oficina + botão novo relatório                                                                                                                               |
-| `src/pages/relatorios/RelatorioDetalhePage.tsx`       | Exibir array de tipos                                                                                                                                              |
-| `src/hooks/useDocumentExport.ts`                      | Ajustar para array + detalhe                                                                                                                                       |
-| `src/components/TemplateTagMapper.tsx`                | Manter compatibilidade                                                                                                                                             |
