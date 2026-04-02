@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DataTable, Column } from "@/components/DataTable";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useBackupExport } from "@/hooks/useBackupExport";
 import { exportXLSX, exportPDF } from "@/hooks/useDataExport";
 import { Download, FileSpreadsheet, FileText, Archive, Loader2 } from "lucide-react";
