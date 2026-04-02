@@ -38,6 +38,39 @@ const WHATSAPP_LINKS: Record<string, string> = {
   "PARQUE INDEPENDENCIA": "https://chat.whatsapp.com/FTpkWJLY6TzIT25VgdmDft",
 };
 
+const Field = ({
+  label,
+  value,
+  onChange,
+  required,
+  type = "text",
+  placeholder,
+  onBlur,
+}: {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  required?: boolean;
+  type?: string;
+  placeholder?: string;
+  onBlur?: () => void;
+}) => (
+  <div>
+    <Label className="text-sm font-medium">
+      {label}
+      {required && <span className="text-destructive ml-0.5">*</span>}
+    </Label>
+    <Input
+      type={type}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
+      className="mt-1"
+      placeholder={placeholder}
+    />
+  </div>
+);
+
 const MatriculaPublicaPage = () => {
   const [form, setForm] = useState<Record<string, string>>({});
   const [docs, setDocs] = useState<PendingDoc[]>([]);
