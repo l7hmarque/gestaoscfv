@@ -391,9 +391,24 @@ const ParticipantePerfilPage = () => {
           <CardHeader className="pb-2"><CardTitle className="text-sm">Responsáveis</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {editing ? (
-              <><EditField label="Resp. 1 Nome" field="responsavel1_nome" /><EditField label="CPF" field="responsavel1_cpf" /><EditField label="WhatsApp" field="responsavel1_whatsapp" /><EditField label="Resp. 2 Nome" field="responsavel2_nome" /><EditField label="WhatsApp 2" field="responsavel2_whatsapp" /></>
+              <>
+                <EditField label="Resp. 1 Nome" field="responsavel1_nome" />
+                <div>
+                  <Label className="text-xs">CPF do Participante</Label>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <Input value={estrangeiroCpf ? (form.responsavel1_cpf || "") : maskCPF(form.responsavel1_cpf || "")} onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} className="h-8 text-sm" placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} />
+                  </div>
+                  <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                    <input type="checkbox" checked={estrangeiroCpf} onChange={(e) => setEstrangeiroCpf(e.target.checked)} className="h-3 w-3" />
+                    <span className="text-[10px] text-muted-foreground">Estrangeiro/Sem CPF</span>
+                  </label>
+                </div>
+                <div><Label className="text-xs">WhatsApp</Label><Input value={maskPhone(form.responsavel1_whatsapp || "")} onChange={(e) => set("responsavel1_whatsapp", unmaskDigits(e.target.value))} className="h-8 text-sm mt-0.5" placeholder="(00) 00000-0000" /></div>
+                <EditField label="Resp. 2 Nome" field="responsavel2_nome" />
+                <div><Label className="text-xs">WhatsApp 2</Label><Input value={maskPhone(form.responsavel2_whatsapp || "")} onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))} className="h-8 text-sm mt-0.5" placeholder="(00) 00000-0000" /></div>
+              </>
             ) : (
-              <><Info label="Resp. 1" value={participante.responsavel1_nome} /><Info label="CPF" value={participante.responsavel1_cpf} /><Info label="WhatsApp" value={participante.responsavel1_whatsapp} /><Info label="Resp. 2" value={participante.responsavel2_nome} /><Info label="WhatsApp 2" value={participante.responsavel2_whatsapp} /></>
+              <><Info label="Resp. 1" value={participante.responsavel1_nome} /><Info label="CPF" value={displayCPF(participante.responsavel1_cpf)} /><Info label="WhatsApp" value={displayPhone(participante.responsavel1_whatsapp)} /><Info label="Resp. 2" value={participante.responsavel2_nome} /><Info label="WhatsApp 2" value={displayPhone(participante.responsavel2_whatsapp)} /></>
             )}
           </CardContent>
         </Card>
