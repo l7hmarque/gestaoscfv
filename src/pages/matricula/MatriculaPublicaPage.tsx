@@ -645,7 +645,7 @@ const MatriculaPublicaPage = () => {
                 accept="image/*,application/pdf"
                 className="hidden"
                 onChange={handleFileSelected}
-                multiple
+                
               />
             </CardContent>
           </Card>

@@ -174,8 +174,17 @@ const ParticipantePerfilPage = () => {
     input.onchange = async (e: any) => {
       const file = e.target.files?.[0] as File | undefined;
       if (!file) return;
-      const blob = await scanner.processUploadFile(file);
-      await uploadDocBlob(blob, categoria);
+      if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+        toast.error("Envie apenas imagem ou PDF.");
+        return;
+      }
+      try {
+        const compressed = await compressFileForUpload(file);
+        const blob = await scanner.processUploadFile(compressed);
+        await uploadDocBlob(blob, categoria);
+      } catch (err: any) {
+        toast.error(err.message || "Erro ao processar arquivo");
+      }
     };
     input.click();
   };
