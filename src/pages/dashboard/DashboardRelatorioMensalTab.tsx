@@ -161,7 +161,7 @@ export default function DashboardRelatorioMensalTab() {
 
       // --- Sheet 2: Atividades Propostas x Desenvolvidas (4 colunas) ---
       const relByPlan = new Map<string, any>();
-      relatorios.forEach((r: any) => { if (r.planejamento_id) relByPlan.set(r.planejamento_id, r); });
+      filteredRelatorios.forEach((r: any) => { if (r.planejamento_id) relByPlan.set(r.planejamento_id, r); });
 
       const atividadesRows: any[][] = [];
       planejamentos.forEach((p: any) => {
