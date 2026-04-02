@@ -191,11 +191,18 @@ const ParticipantesPage = () => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{p.responsavel1_nome || "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{p.responsavel1_whatsapp || "—"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{displayPhone(p.responsavel1_whatsapp)}</TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                        <Link to={`/participantes/${p.id}`}><Eye className="h-3.5 w-3.5" /></Link>
-                      </Button>
+                      <div className="flex gap-0.5">
+                        {p.status === "pendente" && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50" title="Aprovar" onClick={() => handleAprovar(p)}>
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                          <Link to={`/participantes/${p.id}`}><Eye className="h-3.5 w-3.5" /></Link>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
