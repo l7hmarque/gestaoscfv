@@ -119,6 +119,7 @@ export type Database = {
           created_at: string
           feed_post_id: string
           id: string
+          mencoes: string[] | null
         }
         Insert: {
           autor_id: string
@@ -126,6 +127,7 @@ export type Database = {
           created_at?: string
           feed_post_id: string
           id?: string
+          mencoes?: string[] | null
         }
         Update: {
           autor_id?: string
@@ -133,6 +135,7 @@ export type Database = {
           created_at?: string
           feed_post_id?: string
           id?: string
+          mencoes?: string[] | null
         }
         Relationships: [
           {
@@ -186,6 +189,7 @@ export type Database = {
           conteudo: string
           created_at: string
           id: string
+          mencoes: string[] | null
           relatorio_id: string | null
           tipo: Database["public"]["Enums"]["tipo_feed_post"]
         }
@@ -194,6 +198,7 @@ export type Database = {
           conteudo?: string
           created_at?: string
           id?: string
+          mencoes?: string[] | null
           relatorio_id?: string | null
           tipo?: Database["public"]["Enums"]["tipo_feed_post"]
         }
@@ -202,6 +207,7 @@ export type Database = {
           conteudo?: string
           created_at?: string
           id?: string
+          mencoes?: string[] | null
           relatorio_id?: string | null
           tipo?: Database["public"]["Enums"]["tipo_feed_post"]
         }
