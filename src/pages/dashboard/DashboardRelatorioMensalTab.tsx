@@ -94,6 +94,7 @@ export default function DashboardRelatorioMensalTab() {
   const [generating, setGenerating] = useState(false);
   const [generatingLocal, setGeneratingLocal] = useState(false);
   const [generatingReo, setGeneratingReo] = useState(false);
+  const [generatingFull, setGeneratingFull] = useState(false);
 
   const generateReo = async () => {
     setGeneratingReo(true);
@@ -471,9 +472,7 @@ export default function DashboardRelatorioMensalTab() {
         const datasAtividade = getDatasAtividade(parseInt(ano), mesNum, diasSemana);
         const fallbackDates = [...new Set(relPresFallback.map(f => f.data))];
         const allDatesSet = new Set([...datasAtividade, ...tPresencas.map((p: any) => p.data), ...fallbackDates]);
-        const datas = datasAtividade.length > 0
-          ? datasAtividade
-          : [...allDatesSet].sort();
+        const datas = [...allDatesSet].sort();
         if (!datas.length && !tParts.length) continue;
 
         const bairroNome = bairroMap.get(t.bairro_id) || "N/I";
@@ -540,13 +539,34 @@ export default function DashboardRelatorioMensalTab() {
     }
   };
 
+  const generateFullReport = async () => {
+    setGeneratingFull(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-relatorio-mensal", {
+        body: { completo: true },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, "_blank");
+        toast.success("Relatório completo gerado com sucesso!");
+      } else {
+        throw new Error("URL não retornada");
+      }
+    } catch (err: any) {
+      console.error("Erro:", err);
+      toast.error("Erro ao gerar relatório completo: " + (err?.message || "Erro desconhecido"));
+    } finally {
+      setGeneratingFull(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-foreground">Relatório Mensal</h2>
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4" /> Gerar Relatório Mensal Completo
+            <FileSpreadsheet className="h-4 w-4" /> Gerar Relatório Mensal
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -575,6 +595,26 @@ export default function DashboardRelatorioMensalTab() {
           </div>
           <p className="text-[10px] text-muted-foreground">
             Use "servidor" para celular/tablet (gera em segundo plano). Use "local" para desktop (mais rápido, gera no navegador).
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileSpreadsheet className="h-4 w-4" /> Relatório Completo (todo o período)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Gera um único XLSX com todas as abas (resumo, atividades, metas, frequência) para cada mês que contenha dados —
+            desde o primeiro registro até o mais recente. Inclui aba "Consolidado" com totais gerais.
+          </p>
+          <Button onClick={generateFullReport} disabled={generatingFull}>
+            <FileSpreadsheet className="h-4 w-4 mr-1" /> {generatingFull ? "Gerando relatório completo..." : "Gerar Relatório Completo"}
+          </Button>
+          <p className="text-[10px] text-muted-foreground">
+            O período é detectado automaticamente. A geração pode levar mais tempo dependendo da quantidade de dados.
           </p>
         </CardContent>
       </Card>
