@@ -142,6 +142,8 @@ Deno.serve(async (req) => {
       cpf: apenasDigitos(cpf),
       responsavel2_nome: padronizar(responsavel2_nome),
       responsavel2_whatsapp: apenasDigitos(responsavel2_whatsapp),
+      vinculo_resp1: vinculo_resp1 || null,
+      vinculo_resp2: vinculo_resp2 || null,
       restricao_alimentar: restricao_alimentar || null,
       laudo: laudo || null,
       visualizado_em: null,
