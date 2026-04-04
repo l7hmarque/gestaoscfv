@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
     const startDate = `${anoNum}-${mesStr}-01`;
     const endDate = mesNum === 12 ? `${anoNum + 1}-01-01` : `${anoNum}-${String(mesNum + 1).padStart(2, "0")}-01`;
 
-    const [presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData] = await Promise.all([
+    const [presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData, relatorioPresencas] = await Promise.all([
       fetchAll(supabaseAdmin, "presenca"),
       fetchAll(supabaseAdmin, "participantes"),
       fetchAll(supabaseAdmin, "turmas"),
@@ -125,6 +125,7 @@ Deno.serve(async (req: Request) => {
       fetchAll(supabaseAdmin, "relatorio_turmas"),
       fetchAll(supabaseAdmin, "atendimentos"),
       fetchAll(supabaseAdmin, "profiles"),
+      fetchAll(supabaseAdmin, "relatorio_presenca"),
     ]);
 
     const presencas = presencas_raw.filter((p: any) => p.data >= startDate && p.data < endDate);
