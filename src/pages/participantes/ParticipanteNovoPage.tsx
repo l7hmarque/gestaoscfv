@@ -43,10 +43,13 @@ const ParticipanteNovoPage = () => {
     endereco_rua: "", endereco_numero: "", endereco_bairro: "",
     bairro_id: "", ponto_transporte_id: "",
     responsavel1_nome: "", responsavel1_cpf: "", responsavel1_whatsapp: "",
+    vinculo_resp1: "",
     responsavel2_nome: "", responsavel2_whatsapp: "",
+    vinculo_resp2: "",
     origem_encaminhamento: "", responsavel_tecnico: "",
     categoria_vulnerabilidade: "", situacao_moradia: "", uf_origem: "",
     restricao_alimentar: "", laudo: "", iniciou_em: "",
+    remedio_continuo: "", outras_condicoes: "",
   });
 
   useEffect(() => {
