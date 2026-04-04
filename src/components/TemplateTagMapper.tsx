@@ -50,7 +50,9 @@ const SYSTEM_FIELDS: Record<string, { value: string; label: string }[]> = {
     { value: "obj_3", label: "Objetivo: Não alcançado" },
     { value: "presenca_loop", label: "Lista de presença (loop)" },
     { value: "analise_ia", label: "Análise IA" },
-    { value: "fotos", label: "Fotos (URLs)" },
+    { value: "fotos", label: "Fotos (imagens embutidas)" },
+    { value: "nome_grupo", label: "Nome do grupo (turma)" },
+    { value: "periodo_scfv", label: "Período SCFV (inverso)" },
   ],
   "planejamento.docx": [
     { value: "titulo", label: "Título" },
