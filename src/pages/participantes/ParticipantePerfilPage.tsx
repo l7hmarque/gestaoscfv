@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -18,6 +19,17 @@ import { useDocumentScanner, CATEGORIES, compressFileForUpload } from "@/hooks/u
 import type { Tables } from "@/integrations/supabase/types";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { maskCPF, maskPhone, unmaskDigits, displayCPF, displayPhone } from "@/lib/utils";
+
+const MOTIVOS_DESLIGAMENTO = [
+  "Mudança de município",
+  "Mudança de bairro",
+  "Idade fora da faixa",
+  "Desistência voluntária",
+  "Evasão / Infrequência",
+  "Encaminhamento para outro serviço",
+  "Situação familiar",
+  "Outro",
+];
 
 const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto", pendente: "Pendente" };
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
