@@ -867,7 +867,7 @@ export async function exportFichaInscricaoPdf(p: any) {
 
 // ===== MATRIZ DE FREQUÊNCIA =====
 export async function exportMatrizFrequenciaDocx(
-  turma: any, participantes: { nome: string; presencas: Record<string, boolean> }[], datas: string[], preenchida: boolean
+  turma: any, participantes: { nome: string; presencas: Record<string, boolean | string> }[], datas: string[], preenchida: boolean
 ) {
   const template = await loadTemplate("matriz_frequencia.docx");
 
