@@ -554,7 +554,7 @@ export default function DashboardRelatorioMensalTab() {
 
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
       saveAs(new Blob([buf], { type: "application/octet-stream" }),
-        `SysELO_RelatorioMensal_${ano}-${mes}_${new Date().toISOString().replace(/[-:T]/g, "").slice(0, 15)}.xlsx`);
+        sysEloFileName("RelatorioMensal", "xlsx", `${ano}-${mes}`));
 
       toast.success("Relatório mensal gerado com sucesso!");
     } catch (err: any) {
