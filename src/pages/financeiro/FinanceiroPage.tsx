@@ -119,7 +119,7 @@ export default function FinanceiroPage() {
   };
 
   const deleteRow = async (table: string, id: string) => {
-    await supabase.from(table).delete().eq("id", id);
+    await (supabase.from as any)(table).delete().eq("id", id);
     toast.success("Removido");
     load();
   };
