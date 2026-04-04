@@ -316,7 +316,10 @@ function generateMonthSheets(
     const header3 = [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum} | Exportado em: ${new Date().toLocaleString("pt-BR")}`];
     const colHeaders = ["Nº", "Nome do Participante", ...datas.map(d => d.slice(5))];
     const rows = tParts.map((p: any, idx: number) => {
-      const row: any[] = [idx + 1, p.nome_completo];
+      const isDesligado = p.status === "desligado";
+      const dataDeslig = p.data_desligamento || null;
+      const nameSuffix = isDesligado && dataDeslig ? ` (D ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})` : "";
+      const row: any[] = [idx + 1, p.nome_completo + nameSuffix];
       datas.forEach(() => row.push(""));
       return row;
     });
@@ -329,6 +332,8 @@ function generateMonthSheets(
     const dataStartRow = 5;
     tParts.forEach((p: any, pIdx: number) => {
       const excelRow = dataStartRow + pIdx;
+      const isDesligado = p.status === "desligado";
+      const dataDeslig = p.data_desligamento || null;
       for (let c = 0; c < 2; c++) {
         const addr = XLSX.utils.encode_cell({ r: excelRow, c });
         if (!ws[addr]) ws[addr] = { v: "", t: "s" };
@@ -338,12 +343,18 @@ function generateMonthSheets(
         const col = 2 + dIdx;
         const addr = XLSX.utils.encode_cell({ r: excelRow, c: col });
         if (!ws[addr]) ws[addr] = { v: "", t: "s" };
-        const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
-        const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
-        if ((rec && rec.presente) || (fallbackRec && fallbackRec.presente)) {
-          ws[addr].s = { fill: { fgColor: { rgb: "000000" } }, border: borderObj };
+        // If desligado and date is after data_desligamento, mark with grey "D"
+        if (isDesligado && dataDeslig && d > dataDeslig) {
+          ws[addr].v = "D";
+          ws[addr].s = { fill: { fgColor: { rgb: "CCCCCC" } }, font: { color: { rgb: "666666" } }, border: borderObj };
         } else {
-          ws[addr].s = { border: borderObj };
+          const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
+          const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
+          if ((rec && rec.presente) || (fallbackRec && fallbackRec.presente)) {
+            ws[addr].s = { fill: { fgColor: { rgb: "000000" } }, border: borderObj };
+          } else {
+            ws[addr].s = { border: borderObj };
+          }
         }
       });
     });
@@ -351,7 +362,7 @@ function generateMonthSheets(
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   }
 
-  return { atendidosIds: atendidosIds.size, atividades: filteredRelatorios.length, atendimentos: filteredAtendimentos.length };
+  return { atendidosIds: atendidosFiltered.length, atividades: filteredRelatorios.length, atendimentos: filteredAtendimentos.length };
 }
 
 function truncSheet(name: string, used: Set<string>): string {
