@@ -1,156 +1,137 @@
 
 
-## Plano: Inserir fotos no DOCX + Novas tags + Nome do grupo + Desligamento com motivo + Alerta de transferência
+## Plano: Corrigir mapeamento de tags + Módulo de Orçamentos/Mapa Comparativo + Upload de novos templates
 
 ---
 
-### Parte 1 — Inserir imagens reais no DOCX do relatório (plano anterior aprovado)
+### Parte 1 — Corrigir mapeamento automático de tags (AUTO_MATCH)
 
-**Arquivo:** `src/hooks/useDocumentExport.ts`
+Os templates enviados usam tags com casing/nomes diferentes do que o `AUTO_MATCH` espera. Problemas encontrados:
 
-- Adicionar `ImageRun` ao import do `docx`
-- Criar helper `fetchPhotosAsBuffers(fotos)`: para cada `foto_url`, faz `fetch` → blob → `createImageBitmap` para obter dimensões → escala para largura máx 450px mantendo proporção
-- Na função `exportRelatorioDocx`, tanto no template quanto no fallback, após presença: seção "Registro Fotográfico" com `ImageRun` + legenda
-- Legenda: `{DATA} - {NOME_ATIVIDADE} - Grupos: {TURMAS}` (ex: "04/03/26 - Oficina de Karatê - Grupos: 6-11 anos, Jardim Irene, Manhã")
-- Fotos que falhem no fetch são silenciosamente ignoradas
+| Tag no template | AUTO_MATCH atual | Problema |
+|---|---|---|
+| `{nomegrupo}` | `NOME_GRUPO` | Lowercase, não bate |
+| `{JUST_DESLIG}` | `JUST_DESLG` | Nome diferente |
+| `{responsavel2}` | `RESPONSAVEL2_NOME` | Lowercase |
+| `{VINCULO_RESP1}` | — | Não existe |
+| `{VINCULO_RESP2}` | — | Não existe |
+| `{REMEDIO}` | — | Não existe |
+| `{outras_cond}` | — | Não existe |
+| `{EDUCADOR}` | `profiles.nome` | Já funciona via AUTO_MATCH |
 
----
+**Correções em `TemplateTagMapper.tsx`:**
+- Adicionar variantes lowercase ao `AUTO_MATCH`: `nomegrupo`, `responsavel2`, `outras_cond`
+- Adicionar novas tags: `JUST_DESLIG`, `VINCULO_RESP1`, `VINCULO_RESP2`, `REMEDIO`, `outras_cond`
+- Adicionar novos campos em `SYSTEM_FIELDS["ficha_inscricao.docx"]`
 
-### Parte 2 — Novas tags de exportação
+**Correções em `useDocumentExport.ts` (`buildFichaTemplateData`):**
+- Adicionar `JUST_DESLIG` (alias de `JUST_DESLG`), `VINCULO_RESP1`, `VINCULO_RESP2`, `REMEDIO`, `outras_cond`, `nomegrupo`, `responsavel2`
 
-#### `{PONTO_TRANSPORTE}` — Ponto de transporte do participante
+**Migração SQL:**
+- Adicionar colunas na tabela `participantes`: `vinculo_resp1 text`, `vinculo_resp2 text`, `remedio_continuo text`, `outras_condicoes text`
 
-**Arquivo:** `src/hooks/useDocumentExport.ts` (em `buildFichaTemplateData`)
-- Receber o nome do ponto de transporte (já resolvido no perfil via join com `pontos_transporte`)
-- Adicionar `PONTO_TRANSPORTE: p._ponto_transporte || "—"` ao template data
+**UI — `ParticipantePerfilPage.tsx` e `ParticipanteNovoPage.tsx`:**
+- Adicionar campos no formulário: "Vínculo Resp. 1", "Vínculo Resp. 2", "Remédio Contínuo", "Outras Condições"
 
-**Arquivo:** `src/pages/participantes/ParticipantePerfilPage.tsx`
-- Na chamada `exportFichaInscricaoDocx(p)`, injetar `_ponto_transporte` no objeto passado (já tem `pontos` carregados)
-
-**Arquivo:** `src/components/TemplateTagMapper.tsx`
-- Adicionar `{ value: "ponto_transporte", label: "Ponto de transporte" }` em `SYSTEM_FIELDS["ficha_inscricao.docx"]`
-- Adicionar `PONTO_TRANSPORTE: "ponto_transporte"` em `AUTO_MATCH`
-
-#### `{PERIODO_SCFV}` — Período inverso (manhã→tarde, tarde→manhã)
-
-**Arquivo:** `src/hooks/useDocumentExport.ts`
-- Em `buildFichaTemplateData`: `PERIODO_SCFV: p.periodo === "manha" ? "Tarde" : p.periodo === "tarde" ? "Manhã" : "—"`
-- Em `buildRelatorioTemplateData`: idem, usar o período da turma principal
-
-**Arquivo:** `src/components/TemplateTagMapper.tsx`
-- Adicionar em ambos os SYSTEM_FIELDS e AUTO_MATCH
-
-#### `{NOME_GRUPO}` — Nome customizado do grupo da turma
-
-**Migração SQL:** Adicionar coluna `nome_grupo text` na tabela `turmas`
-
-**Arquivo:** `src/pages/turmas/TurmaDetalhePage.tsx`
-- No formulário de edição, adicionar campo "Nome do Grupo" (Input texto)
-- Salvar em `turmas.nome_grupo`
-- Na exibição do detalhe, mostrar o nome do grupo como info se preenchido
-- **Manter** o nome técnico "Bairro - Faixa - Período" em menus/listagens
-
-**Arquivo:** `src/hooks/useDocumentExport.ts`
-- Em `buildRelatorioTemplateData`: `NOME_GRUPO: turmaData?.nome_grupo || turmaNames.join(", ")`
-
-**Arquivo:** `src/components/TemplateTagMapper.tsx`
-- Adicionar campo e auto-match
+**UI — `MatriculaPublicaPage.tsx`:**
+- Adicionar campo "Vínculo" junto ao responsável
 
 ---
 
-### Parte 3 — Desligamento com justificativa e motivo padrão
+### Parte 2 — Módulo de Orçamentos e Mapa Comparativo (dentro do Financeiro)
 
-#### Migração SQL
+#### Arquitetura de dados
+
+**Tabela `orcamentos`:**
 ```sql
-ALTER TABLE participantes ADD COLUMN justificativa_desligamento text;
-ALTER TABLE participantes ADD COLUMN motivo_desligamento text;
-```
-
-#### Motivos padrão de desligamento
-```
-"Mudança de município"
-"Mudança de bairro"
-"Idade fora da faixa"
-"Desistência voluntária"
-"Evasão / Infrequência"
-"Encaminhamento para outro serviço"
-"Situação familiar"
-"Outro"
-```
-
-#### `src/pages/participantes/ParticipantePerfilPage.tsx`
-- Ao alterar status para "desligado": abrir dialog solicitando:
-  - `data_desligamento` (obrigatório)
-  - `motivo_desligamento` (select com opções padrão, obrigatório)
-  - `justificativa_desligamento` (textarea, opcional)
-- **Mudança crítica:** NÃO remover participante das turmas. Manter o vínculo mas marcar como desligado
-- Após desligamento, nos indicadores (presença, adesão, ELO): desconsiderar presenças registradas após a `data_desligamento`
-
-#### Tag `{JUST_DESLG}` na ficha de inscrição
-**Arquivo:** `src/hooks/useDocumentExport.ts`
-- `JUST_DESLG: p.justificativa_desligamento || "—"`
-- `MOTIVO_DESLG: p.motivo_desligamento || "—"`
-
----
-
-### Parte 4 — Desligado permanece na turma mas não contabiliza
-
-#### `src/pages/turmas/TurmaDetalhePage.tsx`
-- Na listagem de membros: mostrar badge "Desligado" + data para participantes desligados
-- Nos cálculos de alertas e stats: filtrar registros de presença após `data_desligamento`
-- No dashboard da turma: excluir desligados da contagem de matriculados ativos
-
-#### `src/pages/presenca/PresencaExportarPage.tsx` e relatório mensal
-- Na matriz de frequência: mostrar presenças do participante até a data de desligamento
-- Após desligamento: marcar com "D" (ou célula vazia) nas datas seguintes
-- Na lista de chamada impressa: indicar "(Desligado em DD/MM)" ao lado do nome
-
-#### `supabase/functions/generate-relatorio-mensal/index.ts` e `DashboardRelatorioMensalTab.tsx`
-- Excluir participantes desligados da contagem de matriculados do mês (se `data_desligamento < início_do_mês`)
-- Para desligados no meio do mês: contar até a data de desligamento
-
----
-
-### Parte 5 — Alerta de transferência de turma
-
-#### Trigger no `ParticipantePerfilPage.tsx` (automação 3 existente)
-- Quando bairro/período/faixa etária muda e participante está ativo: em vez de transferir automaticamente, **solicitar aprovação**
-- Mostrar dialog: "Dados alterados. Deseja transferir [Nome] da turma [Anterior] para [Nova]?"
-- Ao aprovar:
-  - Manter o histórico de presença na turma anterior intacto
-  - Criar novo vínculo na turma compatível
-  - Registrar a transferência (data, turma_origem, turma_destino) — pode ser feito via recado/notificação
-
-#### Notificação ao educador
-- Ao confirmar transferência: inserir recado automático para o `educador_id` da turma de destino
-- Conteúdo: "[Nome] foi transferido para sua turma [Turma] em [Data]"
-- Usar tabela `recados` existente (remetente = coordenação/sistema profile)
-
-#### Migração SQL (opcional — log de transferências)
-```sql
-CREATE TABLE participante_transferencias (
+CREATE TABLE orcamentos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  participante_id uuid NOT NULL,
-  turma_origem_id uuid,
-  turma_destino_id uuid,
-  data_transferencia date NOT NULL DEFAULT CURRENT_DATE,
-  motivo text,
+  titulo text NOT NULL,
+  objeto text,
+  mes_referencia text NOT NULL,
+  status text NOT NULL DEFAULT 'rascunho', -- rascunho, cotacao, aprovado, cancelado
+  fornecedor_vencedor text,
+  cnpj_vencedor text,
+  data_aprovacao date,
+  categoria_id uuid,
+  observacoes text,
   created_at timestamptz DEFAULT now()
 );
-ALTER TABLE participante_transferencias ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Authenticated read transferencias" ON participante_transferencias FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Non-visitante manage transferencias" ON participante_transferencias FOR ALL TO authenticated USING (NOT has_role(auth.uid(), 'visitante'::app_role));
 ```
 
-#### Listas de chamada e relatórios
-- Na lista de chamada impressa/exportada: participantes transferidos aparecem até a data de transferência com indicação "(Transferido em DD/MM)"
-- % de frequência individual é preservado e contínuo entre turmas (não reseta)
+**Tabela `orcamento_itens`:**
+```sql
+CREATE TABLE orcamento_itens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  orcamento_id uuid NOT NULL REFERENCES orcamentos(id) ON DELETE CASCADE,
+  item_num integer NOT NULL,
+  descricao text NOT NULL,
+  unidade_medida text DEFAULT 'UNID',
+  quantidade numeric NOT NULL DEFAULT 1,
+  created_at timestamptz DEFAULT now()
+);
+```
+
+**Tabela `orcamento_cotacoes`** (3 fornecedores por orçamento):
+```sql
+CREATE TABLE orcamento_cotacoes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  orcamento_id uuid NOT NULL REFERENCES orcamentos(id) ON DELETE CASCADE,
+  fornecedor_nome text NOT NULL,
+  cnpj text,
+  data_emissao date,
+  data_validade date,
+  created_at timestamptz DEFAULT now()
+);
+```
+
+**Tabela `orcamento_precos`** (preço de cada item por cotação):
+```sql
+CREATE TABLE orcamento_precos (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  cotacao_id uuid NOT NULL REFERENCES orcamento_cotacoes(id) ON DELETE CASCADE,
+  item_id uuid NOT NULL REFERENCES orcamento_itens(id) ON DELETE CASCADE,
+  preco_unitario numeric NOT NULL DEFAULT 0,
+  observacao text,
+  created_at timestamptz DEFAULT now()
+);
+```
+
+RLS: SELECT para authenticated, INSERT/UPDATE/DELETE para coordenacao + tecnico.
+
+#### Fluxo na UI (nova aba "Orçamentos" no FinanceiroPage)
+
+1. **Lista de orçamentos** com status (badge colorido), filtro por mês
+2. **Criar orçamento**: título, objeto, categoria financeira, mês de referência
+3. **Adicionar itens**: nº, descrição detalhada, unidade, quantidade
+4. **Adicionar 3 cotações** (fornecedores): razão social, CNPJ, datas
+5. **Preencher preços** por item para cada fornecedor
+6. **Mapa Comparativo automático**: tabela que calcula menor preço por item e indica fornecedor vencedor
+7. **Botão "Aprovar Orçamento"**: 
+   - Marca status = `aprovado`
+   - Lança automaticamente uma despesa na tabela `despesas` com os dados do fornecedor vencedor (valor total, fornecedor, CNPJ, categoria, mês)
+   - Vincula via `lote_id` ou campo `orcamento_id` (adicionar coluna `orcamento_id uuid` na tabela `despesas`)
+8. **Exportar**: 
+   - "Exportar Orçamento (XLSX)" — formato do modelo `modelo_orcamento_padrao_3.xlsx` (cabeçalho institucional, 1 fornecedor por folha)
+   - "Exportar Mapa Comparativo (XLSX)" — formato do modelo `Mapa_Comparativo_de_Preços_1.xlsx` (3 fornecedores lado a lado, cálculo de menor preço)
+   - Ambos disponíveis em PDF também
+
+#### Exportação XLSX (usando xlsx-js-style)
+
+- Reproduzir layout institucional: cabeçalho com dados da entidade, tabela com bordas, totais, assinaturas
+- Orçamento: 1 aba por fornecedor cotado (preenchido com dados)
+- Mapa Comparativo: tabela comparativa com colunas lado a lado, fórmulas de menor preço, fornecedor ganhador
 
 ---
 
-### Parte 6 — Alinhamento ENG/SIT (plano anterior já aprovado e implementado)
+### Parte 3 — Upload automático dos novos templates
 
-Já aplicado. Tags ENG_1-4, SIT_1-5, OBJ_1-3 alinhadas com template institucional.
+**Ação:** Copiar os 3 DOCX enviados para o bucket `templates` do Storage via código, substituindo os modelos antigos:
+- `SysELO_v1.0_Modelo_Relatorio_de_Atividades_Padrao_1.docx` → `relatorio.docx`
+- `SysELO_v1.0_Ficha_de_Inscricao_e_Cadastro_1.docx` → `ficha_inscricao.docx`
+- `SysELO_v1.0_Modelo_de_Planejamento_Padrao_1.docx` → `planejamento.docx`
+
+Após upload, invalidar cache de mapeamentos para forçar releitura das tags.
 
 ---
 
@@ -158,24 +139,13 @@ Já aplicado. Tags ENG_1-4, SIT_1-5, OBJ_1-3 alinhadas com template instituciona
 
 | Arquivo | Mudança |
 |---|---|
-| Migração SQL | ADD `nome_grupo` em turmas, ADD `justificativa_desligamento`/`motivo_desligamento` em participantes, CREATE `participante_transferencias` |
-| `src/hooks/useDocumentExport.ts` | ImageRun para fotos, novas tags (PONTO_TRANSPORTE, PERIODO_SCFV, NOME_GRUPO, JUST_DESLG, MOTIVO_DESLG), legenda nas fotos |
-| `src/components/TemplateTagMapper.tsx` | Novos campos em SYSTEM_FIELDS e AUTO_MATCH |
-| `src/pages/participantes/ParticipantePerfilPage.tsx` | Dialog de desligamento com motivo/justificativa, aprovação de transferência com dialog, injetar _ponto_transporte na exportação |
-| `src/pages/turmas/TurmaDetalhePage.tsx` | Campo nome_grupo, badge desligado nos membros, filtrar indicadores por data_desligamento |
-| `src/pages/presenca/PresencaExportarPage.tsx` | Marcar desligados/transferidos na matriz |
-| `supabase/functions/generate-relatorio-mensal/index.ts` | Excluir desligados dos indicadores a partir da data |
-| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Mesma lógica de exclusão de desligados |
-| `src/components/NotificationBell.tsx` | Nenhuma mudança (já suporta recados) |
-
-### Novas tags completas adicionadas
-
-| Tag | Doc | Descrição |
-|---|---|---|
-| `{PONTO_TRANSPORTE}` | ficha_inscricao.docx | Ponto de transporte do participante |
-| `{PERIODO_SCFV}` | ficha/relatório | Período inverso (manhã→tarde) |
-| `{NOME_GRUPO}` | relatório/ficha | Nome customizado do grupo da turma |
-| `{JUST_DESLG}` | ficha_inscricao.docx | Justificativa de desligamento |
-| `{MOTIVO_DESLG}` | ficha_inscricao.docx | Motivo padrão de desligamento |
-| `{FOTOS}` | relatório (imagens) | Fotos embutidas com legenda |
+| Migração SQL | ADD colunas `vinculo_resp1`, `vinculo_resp2`, `remedio_continuo`, `outras_condicoes` em participantes. CREATE tabelas `orcamentos`, `orcamento_itens`, `orcamento_cotacoes`, `orcamento_precos` com RLS. ADD `orcamento_id` em `despesas`. |
+| `src/components/TemplateTagMapper.tsx` | Novas entradas em SYSTEM_FIELDS e AUTO_MATCH (vinculo, remedio, outras_cond, nomegrupo, JUST_DESLIG) |
+| `src/hooks/useDocumentExport.ts` | Novos campos em `buildFichaTemplateData` |
+| `src/pages/participantes/ParticipantePerfilPage.tsx` | Campos: Vínculo Resp 1/2, Remédio, Outras Condições |
+| `src/pages/participantes/ParticipanteNovoPage.tsx` | Mesmos campos novos |
+| `src/pages/matricula/MatriculaPublicaPage.tsx` | Campo vínculo do responsável |
+| `supabase/functions/public-matricula/index.ts` | Aceitar campo vínculo |
+| `src/pages/financeiro/FinanceiroPage.tsx` | Nova aba "Orçamentos" com CRUD completo, mapa comparativo, aprovação, exportação XLSX/PDF |
+| `src/hooks/useDataExport.ts` | Funções de exportação XLSX institucional para orçamento e mapa comparativo |
 
