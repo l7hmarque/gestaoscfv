@@ -140,7 +140,7 @@ const AUTO_MATCH: Record<string, string> = {
   GENERO: "genero", COR_RACA: "cor_raca", COR: "cor_raca",
   ESCOLA: "escola", SERIE: "serie", PERIODO: "periodo",
   RESPONSAVEL1: "responsavel1_nome", RESPONSAVEL1_NOME: "responsavel1_nome",
-  RESPONSAVEL1_CPF: "responsavel1_cpf", RESPONSAVEL1_WHATSAPP: "responsavel1_whatsapp",
+  CPF: "cpf", RESPONSAVEL1_WHATSAPP: "responsavel1_whatsapp",
   RESPONSAVEL2: "responsavel2_nome", RESPONSAVEL2_NOME: "responsavel2_nome",
   RESPONSAVEL2_WHATSAPP: "responsavel2_whatsapp",
   RUA: "endereco_rua", ENDERECO_RUA: "endereco_rua",
