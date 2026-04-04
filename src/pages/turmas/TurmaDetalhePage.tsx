@@ -414,6 +414,9 @@ const TurmaDetalhePage = () => {
                           <TableCell className="text-xs sm:text-sm">
                             <div className="flex items-center gap-1.5">
                               <Link to={`/participantes/${m.participante_id}`} className="hover:underline text-foreground">{m.nome}</Link>
+                              {m.status === "desligado" && (
+                                <Badge variant="secondary" className="text-[9px] bg-muted text-muted-foreground">Desligado{m.data_desligamento ? ` ${m.data_desligamento}` : ""}</Badge>
+                              )}
                               {alert && (
                                 <Tooltip>
                                   <TooltipTrigger>
