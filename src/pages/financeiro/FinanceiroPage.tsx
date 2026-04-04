@@ -830,6 +830,10 @@ if __name__ == "__main__":
             </CardContent>
           </Card>
         </TabsContent>
+        {/* =================== ORÇAMENTOS =================== */}
+        <TabsContent value="orcamentos">
+          <OrcamentosTab mesRef={mesRef} categorias={categorias} />
+        </TabsContent>
       </Tabs>
     </div>
   );
