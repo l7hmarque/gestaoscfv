@@ -21,7 +21,6 @@ const menuGroups = [
   {
     label: "Atividades",
     items: [
-      { title: "Presença", url: "/presenca", icon: ClipboardCheck },
       { title: "Planejamento", url: "/planejamentos", icon: BookOpen },
       { title: "Relatórios", url: "/relatorios", icon: FileText },
     ],

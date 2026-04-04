@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Users, GraduationCap, ClipboardCheck, BookOpen, FileText, Pin, Bell, AlertTriangle } from "lucide-react";
+import { Users, GraduationCap, BookOpen, FileText, Pin, Bell, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,6 @@ import { ptBR } from "date-fns/locale";
 const shortcuts = [
   { title: "Participantes", description: "Cadastrar e gerenciar", icon: Users, url: "/participantes", color: "text-primary" },
   { title: "Turmas", description: "Organizar turmas", icon: GraduationCap, url: "/turmas", color: "text-secondary" },
-  { title: "Presença", description: "Registrar frequência", icon: ClipboardCheck, url: "/presenca", color: "text-primary" },
   { title: "Planejamento", description: "Planejar atividades", icon: BookOpen, url: "/planejamentos", color: "text-secondary" },
   { title: "Relatórios", description: "Registrar atividades", icon: FileText, url: "/relatorios", color: "text-primary" },
 ];

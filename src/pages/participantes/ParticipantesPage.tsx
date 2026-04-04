@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, Upload, Search, Filter, Eye, Bell, Check, X } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -194,7 +195,15 @@ const ParticipantesPage = () => {
                     className="hover:bg-muted/30 cursor-pointer"
                     onClick={() => navigate(`/participantes/${p.id}`)}
                   >
-                    <TableCell className="text-sm font-medium">{p.nome_completo}</TableCell>
+                    <TableCell className="text-sm font-medium">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-7 w-7 shrink-0">
+                          <AvatarImage src={p.foto_url || undefined} />
+                          <AvatarFallback className="bg-primary/10 text-primary text-[10px]">{p.nome_completo?.slice(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <span>{p.nome_completo}</span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{calcAge(p.data_nascimento)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{bairroNome && BAIRROS_SCFV.includes(bairroNome) ? bairroNome : "—"}</TableCell>
                     <TableCell className="text-sm">{p.periodo ? periodoLabel[p.periodo] || p.periodo : "—"}</TableCell>

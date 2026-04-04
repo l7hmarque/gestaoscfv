@@ -145,7 +145,7 @@ export default function DashboardRelatorioMensalTab() {
       const startDate = `${ano}-${mes}-01`;
       const endDate = mesNum === 12 ? `${parseInt(ano)+1}-01-01` : `${ano}-${String(mesNum+1).padStart(2,"0")}-01`;
 
-      const [presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData] = await Promise.all([
+      const [presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData, relatorioPresencas] = await Promise.all([
         fetchAllRows("presenca", { select: "*" }),
         fetchAllRows("participantes", { select: "*" }),
         fetchAllRows("turmas", { select: "*" }),
@@ -156,12 +156,29 @@ export default function DashboardRelatorioMensalTab() {
         fetchAllRows("relatorio_turmas", { select: "*" }),
         fetchAllRows("atendimentos", { select: "*" }),
         fetchAllRows("profiles", { select: "*" }),
+        fetchAllRows("relatorio_presenca", { select: "*" }),
       ]);
 
       const presencas = (presencas_raw || []).filter((p: any) => p.data >= startDate && p.data < endDate);
       const filteredRelatorios = (relatorios || []).filter((r: any) => r.data >= startDate && r.data < endDate);
       const filteredPlanejamentos = (planejamentos || []).filter((p: any) => p.data_aplicacao && p.data_aplicacao >= startDate && p.data_aplicacao < endDate);
       const filteredAtendimentos = (atendimentos_raw || []).filter((a: any) => a.data_atendimento >= startDate && a.data_atendimento < endDate);
+
+      // Enrich presencas with relatorio_presenca fallback
+      const presencaKeys = new Set(presencas.map((p: any) => `${p.participante_id}_${p.data}_${p.turma_id}`));
+      filteredRelatorios.forEach((r: any) => {
+        const rTurmas = (relatorioTurmas || []).filter((rt: any) => rt.relatorio_id === r.id);
+        const rPres = (relatorioPresencas || []).filter((rp: any) => rp.relatorio_id === r.id);
+        rTurmas.forEach((rt: any) => {
+          rPres.forEach((rp: any) => {
+            const key = `${rp.participante_id}_${r.data}_${rt.turma_id}`;
+            if (!presencaKeys.has(key)) {
+              presencas.push({ participante_id: rp.participante_id, data: r.data, turma_id: rt.turma_id, presente: rp.presente, id: rp.id });
+              presencaKeys.add(key);
+            }
+          });
+        });
+      });
 
       const partMap = new Map((participantes || []).map((p: any) => [p.id, p]));
       const bairroMap = new Map((bairros || []).map((b: any) => [b.id, b.nome]));
@@ -224,24 +241,17 @@ export default function DashboardRelatorioMensalTab() {
       wsResumo["!cols"] = [{ wch: 40 }, { wch: 15 }];
       XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
 
-      // --- Sheet 2: Atividades ---
-      const relByPlan = new Map<string, any>();
-      filteredRelatorios.forEach((r: any) => { if (r.planejamento_id) relByPlan.set(r.planejamento_id, r); });
-
+      // --- Sheet 2: Atividades (driven by relatórios) ---
+      const planMap = new Map((planejamentos || []).map((p: any) => [p.id, p]));
       const atividadesRows: any[][] = [];
-      filteredPlanejamentos.forEach((p: any) => {
-        const rel = relByPlan.get(p.id);
-        atividadesRows.push([
-          p.titulo + (p.tema ? ` — ${p.tema}` : ""),
-          rel ? (rel.nome_atividade || "") : "",
-          rel ? (rel.analise_ia || "") : "",
-          rel ? "" : "Atividade não realizada no período",
-        ]);
-        if (rel) relByPlan.delete(p.id);
+      filteredRelatorios.forEach((r: any) => {
+        const plan = r.planejamento_id ? planMap.get(r.planejamento_id) : null;
+        const proposta = plan ? (plan.titulo + (plan.tema ? ` — ${plan.tema}` : "")) : "Não planejada";
+        atividadesRows.push([proposta, r.nome_atividade || "", r.analise_ia || "", ""]);
       });
-      filteredRelatorios.filter((r: any) => !r.planejamento_id).forEach((r: any) => {
-        atividadesRows.push(["", r.nome_atividade || "", r.analise_ia || "", ""]);
-      });
+      if (atividadesRows.length === 0) {
+        atividadesRows.push(["Nenhuma atividade registrada no período", "", "", ""]);
+      }
 
       const atividadesData = [
         ["ATIVIDADES PROPOSTAS x DESENVOLVIDAS"],
@@ -252,6 +262,8 @@ export default function DashboardRelatorioMensalTab() {
       ];
       const wsAtiv = XLSX.utils.aoa_to_sheet(atividadesData);
       wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
+      applyHeaderStyle(wsAtiv, 3, 4);
+      applyBorders(wsAtiv);
       XLSX.utils.book_append_sheet(wb, wsAtiv, "Atividades");
 
       // --- Sheet 3: Metas ---
@@ -444,11 +456,24 @@ export default function DashboardRelatorioMensalTab() {
         const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean) as any[];
         const tPresencas = presencas.filter((p: any) => p.turma_id === t.id);
 
+        // Build relatorio_presenca fallback
+        const relIdsForTurma = relatorioTurmas.filter((rt: any) => rt.turma_id === t.id).map((rt: any) => rt.relatorio_id);
+        const relsForTurma = filteredRelatorios.filter((r: any) => relIdsForTurma.includes(r.id));
+        const relPresFallback: { participante_id: string; data: string; presente: boolean }[] = [];
+        relsForTurma.forEach((r: any) => {
+          const rps = (relatorioPresencas || []).filter((rp: any) => rp.relatorio_id === r.id);
+          rps.forEach((rp: any) => {
+            relPresFallback.push({ participante_id: rp.participante_id, data: r.data, presente: rp.presente });
+          });
+        });
+
         const diasSemana = t.dias_semana || [];
         const datasAtividade = getDatasAtividade(parseInt(ano), mesNum, diasSemana);
+        const fallbackDates = [...new Set(relPresFallback.map(f => f.data))];
+        const allDatesSet = new Set([...datasAtividade, ...tPresencas.map((p: any) => p.data), ...fallbackDates]);
         const datas = datasAtividade.length > 0
           ? datasAtividade
-          : [...new Set(tPresencas.map((p: any) => p.data))].sort();
+          : [...allDatesSet].sort();
         if (!datas.length && !tParts.length) continue;
 
         const bairroNome = bairroMap.get(t.bairro_id) || "N/I";
@@ -487,7 +512,8 @@ export default function DashboardRelatorioMensalTab() {
             const addr = XLSX.utils.encode_cell({ r: excelRow, c: col });
             if (!ws[addr]) ws[addr] = { v: "", t: "s" };
             const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
-            if (rec && rec.presente) {
+            const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
+            if ((rec && rec.presente) || (fallbackRec && fallbackRec.presente)) {
               ws[addr].s = {
                 fill: { fgColor: { rgb: "000000" } },
                 border: borderObj,
