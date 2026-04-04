@@ -50,7 +50,8 @@ serve(async (req) => {
     const csv = [header, ...rows].join("\n");
     const csvBytes = new TextEncoder().encode(csv);
 
-    const filename = `rca_${mesRef}.csv`;
+    const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+    const filename = `SysELO_RCA_${mesRef}_${ts}.csv`;
     const { error: uploadError } = await sb.storage
       .from("documentos")
       .upload(`rca/${filename}`, csvBytes, {
