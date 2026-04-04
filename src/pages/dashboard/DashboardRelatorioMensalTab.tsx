@@ -97,6 +97,7 @@ export default function DashboardRelatorioMensalTab() {
   const [generatingLocal, setGeneratingLocal] = useState(false);
   const [generatingReo, setGeneratingReo] = useState(false);
   const [generatingFull, setGeneratingFull] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const generateReo = async () => {
     setGeneratingReo(true);
