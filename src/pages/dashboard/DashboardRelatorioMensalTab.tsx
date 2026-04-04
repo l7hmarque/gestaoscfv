@@ -587,20 +587,299 @@ export default function DashboardRelatorioMensalTab() {
     }
   };
 
+  // Professional PDF generation
+  const generatePdf = async () => {
+    setGeneratingPdf(true);
+    try {
+      const mesNum = parseInt(mes);
+      const startDate = `${ano}-${mes}-01`;
+      const endDate = mesNum === 12 ? `${parseInt(ano)+1}-01-01` : `${ano}-${String(mesNum+1).padStart(2,"0")}-01`;
+
+      const [presencas_raw, participantes, turmas, bairros, relatorios, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData, relatorioPresencas] = await Promise.all([
+        fetchAllRows("presenca", { select: "*" }),
+        fetchAllRows("participantes", { select: "*" }),
+        fetchAllRows("turmas", { select: "*" }),
+        fetchAllRows("bairros", { select: "*" }),
+        fetchAllRows("relatorios_atividade", { select: "*" }),
+        fetchAllRows("turma_participantes", { select: "*" }),
+        fetchAllRows("relatorio_turmas", { select: "*" }),
+        fetchAllRows("atendimentos", { select: "*" }),
+        fetchAllRows("profiles", { select: "*" }),
+        fetchAllRows("relatorio_presenca", { select: "*" }),
+      ]);
+
+      const presencas = (presencas_raw || []).filter((p: any) => p.data >= startDate && p.data < endDate);
+      const filteredRelatorios = (relatorios || []).filter((r: any) => r.data >= startDate && r.data < endDate);
+      const filteredAtendimentos = (atendimentos_raw || []).filter((a: any) => a.data_atendimento >= startDate && a.data_atendimento < endDate);
+
+      // Enrich presencas with relatorio_presenca
+      const presencaKeys = new Set(presencas.map((p: any) => `${p.participante_id}_${p.data}_${p.turma_id}`));
+      filteredRelatorios.forEach((r: any) => {
+        const rTurmas = (relatorioTurmas || []).filter((rt: any) => rt.relatorio_id === r.id);
+        const rPres = (relatorioPresencas || []).filter((rp: any) => rp.relatorio_id === r.id);
+        rTurmas.forEach((rt: any) => {
+          rPres.forEach((rp: any) => {
+            const key = `${rp.participante_id}_${r.data}_${rt.turma_id}`;
+            if (!presencaKeys.has(key)) {
+              presencas.push({ participante_id: rp.participante_id, data: r.data, turma_id: rt.turma_id, presente: rp.presente, id: rp.id });
+              presencaKeys.add(key);
+            }
+          });
+        });
+      });
+
+      const partMap = new Map((participantes || []).map((p: any) => [p.id, p]));
+      const bairroMap = new Map((bairros || []).map((b: any) => [b.id, b.nome]));
+      const profileMap = new Map((profilesData || []).map((p: any) => [p.id, p]));
+
+      const activePresencas = presencas.filter((p: any) => {
+        const part = partMap.get(p.participante_id);
+        if (!part) return true;
+        if (part.status === "desligado" && part.data_desligamento && p.data > part.data_desligamento) return false;
+        return true;
+      });
+
+      const atendidosIds = new Set(activePresencas.filter((p: any) => p.presente).map((p: any) => p.participante_id));
+      const atendidos = [...atendidosIds].map(id => partMap.get(id)).filter(Boolean);
+      const atendidosFiltered = atendidos.filter((p: any) => {
+        if (p.status === "desligado" && p.data_desligamento && p.data_desligamento < startDate) return false;
+        return true;
+      });
+
+      // Stats
+      const byBairro: Record<string, number> = {};
+      atendidosFiltered.forEach((p: any) => { const b = p.bairro_id ? (bairroMap.get(p.bairro_id) || "N/I") : "N/I"; byBairro[b] = (byBairro[b] || 0) + 1; });
+      const byFaixa: Record<string, number> = {};
+      atendidosFiltered.forEach((p: any) => { if (p.data_nascimento) { const f = calcFaixaFromDate(p.data_nascimento); if (f) byFaixa[f] = (byFaixa[f] || 0) + 1; } });
+
+      const totalPresencasRegistros = activePresencas.length;
+      const totalPresentes = activePresencas.filter((p: any) => p.presente).length;
+      const pctPresencaGeral = totalPresencasRegistros > 0 ? Math.round((totalPresentes / totalPresencasRegistros) * 100) : 0;
+
+      // Metas
+      const turmaMap = new Map(turmas.map((t: any) => [t.id, t]));
+      const bairroStats: Record<string, { criancasManha: Set<string>; criancasTarde: Set<string>; idosos: Set<string> }> = {};
+      BAIRROS_SCFV.forEach(bn => { bairroStats[bn] = { criancasManha: new Set(), criancasTarde: new Set(), idosos: new Set() }; });
+      activePresencas.filter((p: any) => p.presente).forEach((pres: any) => {
+        const turma = turmaMap.get(pres.turma_id);
+        if (!turma) return;
+        const bairroNome = bairroMap.get(turma.bairro_id) || "";
+        if (!BAIRROS_SCFV.includes(bairroNome)) return;
+        const part = partMap.get(pres.participante_id);
+        if (!part || (part.status === "desligado" && part.data_desligamento && part.data_desligamento < startDate)) return;
+        const age = part.data_nascimento ? calcAge(part.data_nascimento) : 0;
+        if (age >= 60) { bairroStats[bairroNome].idosos.add(pres.participante_id); }
+        else {
+          const periodo = turma.periodo || "manha";
+          if (periodo === "manha" || periodo === "integral") bairroStats[bairroNome].criancasManha.add(pres.participante_id);
+          if (periodo === "tarde" || periodo === "integral") bairroStats[bairroNome].criancasTarde.add(pres.participante_id);
+        }
+      });
+
+      // Build PDF
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 15;
+      const contentW = pageW - margin * 2;
+
+      // Colors
+      const VERMELHO = [198, 40, 40] as [number, number, number]; // #C62828
+      const AZUL = [21, 101, 192] as [number, number, number]; // #1565C0
+      const VERMELHO_CLARO = [255, 235, 238] as [number, number, number]; // #FFEBEE
+      const AZUL_CLARO = [227, 242, 253] as [number, number, number]; // #E3F2FD
+      const BRANCO = [255, 255, 255] as [number, number, number];
+
+      const addHeader = (pageDoc: jsPDF) => {
+        // Red bar top
+        pageDoc.setFillColor(...VERMELHO);
+        pageDoc.rect(0, 0, pageW, 3, "F");
+        // Blue bar below
+        pageDoc.setFillColor(...AZUL);
+        pageDoc.rect(0, 3, pageW, 1, "F");
+
+        pageDoc.setFont("helvetica", "bold");
+        pageDoc.setFontSize(8);
+        pageDoc.setTextColor(...VERMELHO);
+        pageDoc.text("PREFEITURA MUNICIPAL DE MEDIANEIRA", margin, 12);
+        pageDoc.setTextColor(...AZUL);
+        pageDoc.text("SECRETARIA DE ASSISTÊNCIA SOCIAL", margin, 16);
+        pageDoc.setFont("helvetica", "normal");
+        pageDoc.setFontSize(7);
+        pageDoc.setTextColor(100, 100, 100);
+        pageDoc.text("Centro de Atendimento Integrado ao Adolescente — CAIA", margin, 20);
+        pageDoc.text("Serviço de Convivência e Fortalecimento de Vínculos — SCFV", margin, 24);
+
+        // Divider
+        pageDoc.setDrawColor(...VERMELHO);
+        pageDoc.setLineWidth(0.5);
+        pageDoc.line(margin, 27, pageW - margin, 27);
+        return 32;
+      };
+
+      const addFooter = (pageDoc: jsPDF, pageNum: number) => {
+        const h = pageDoc.internal.pageSize.getHeight();
+        pageDoc.setDrawColor(...AZUL);
+        pageDoc.setLineWidth(0.3);
+        pageDoc.line(margin, h - 12, pageW - margin, h - 12);
+        pageDoc.setFontSize(6);
+        pageDoc.setTextColor(120, 120, 120);
+        pageDoc.text(`SysELO — Gerado em ${new Date().toLocaleString("pt-BR")}`, margin, h - 8);
+        pageDoc.text(`Página ${pageNum}`, pageW - margin, h - 8, { align: "right" });
+      };
+
+      const sectionTitle = (pageDoc: jsPDF, title: string, y: number, color: [number, number, number] = VERMELHO) => {
+        pageDoc.setFillColor(...color);
+        pageDoc.roundedRect(margin, y, contentW, 8, 1, 1, "F");
+        pageDoc.setFont("helvetica", "bold");
+        pageDoc.setFontSize(10);
+        pageDoc.setTextColor(...BRANCO);
+        pageDoc.text(title, margin + 3, y + 5.5);
+        return y + 12;
+      };
+
+      let pageNum = 1;
+
+      // Page 1: Cover / Summary
+      let y = addHeader(doc);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.setTextColor(...VERMELHO);
+      doc.text("RELATÓRIO MENSAL", pageW / 2, y + 5, { align: "center" });
+      doc.setFontSize(12);
+      doc.setTextColor(...AZUL);
+      doc.text(`${MESES_NOMES[mesNum - 1].toUpperCase()} / ${ano}`, pageW / 2, y + 12, { align: "center" });
+      y += 22;
+
+      y = sectionTitle(doc, "RESUMO GERAL", y);
+
+      // Summary cards
+      const cardData = [
+        { label: "Total de Atendidos", value: String(atendidosFiltered.length), color: AZUL_CLARO },
+        { label: "Frequência Geral", value: `${pctPresencaGeral}%`, color: VERMELHO_CLARO },
+        { label: "Relatórios de Atividade", value: String(filteredRelatorios.length), color: AZUL_CLARO },
+        { label: "Atendimentos Técnicos", value: String(filteredAtendimentos.length), color: VERMELHO_CLARO },
+      ];
+      const cardW = (contentW - 6) / 4;
+      cardData.forEach((cd, i) => {
+        const cx = margin + i * (cardW + 2);
+        doc.setFillColor(...cd.color);
+        doc.roundedRect(cx, y, cardW, 18, 2, 2, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(14);
+        doc.setTextColor(...AZUL);
+        doc.text(cd.value, cx + cardW / 2, y + 9, { align: "center" });
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6);
+        doc.setTextColor(80, 80, 80);
+        doc.text(cd.label, cx + cardW / 2, y + 15, { align: "center" });
+      });
+      y += 24;
+
+      // By bairro table
+      y = sectionTitle(doc, "ATENDIDOS POR BAIRRO", y, AZUL);
+      autoTable(doc, {
+        startY: y,
+        head: [["Bairro", "Qtd."]],
+        body: Object.entries(byBairro).sort((a, b) => b[1] - a[1]).map(([b, c]) => [b, String(c)]),
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: AZUL, textColor: BRANCO, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: AZUL_CLARO },
+        theme: "grid",
+      });
+      y = (doc as any).lastAutoTable.finalY + 6;
+
+      // By faixa
+      y = sectionTitle(doc, "ATENDIDOS POR FAIXA ETÁRIA", y, AZUL);
+      autoTable(doc, {
+        startY: y,
+        head: [["Faixa Etária", "Qtd."]],
+        body: Object.entries(byFaixa).map(([f, c]) => [f, String(c)]),
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: VERMELHO, textColor: BRANCO, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: VERMELHO_CLARO },
+        theme: "grid",
+      });
+      y = (doc as any).lastAutoTable.finalY + 6;
+
+      // Metas by bairro
+      if (y > 220) { doc.addPage(); pageNum++; y = addHeader(doc); }
+      y = sectionTitle(doc, "METAS POR BAIRRO — SCFV", y);
+      const metasBody: string[][] = [];
+      BAIRROS_SCFV.forEach(bn => {
+        const meta = METAS_BAIRRO[bn];
+        if (!meta) return;
+        const stats = bairroStats[bn];
+        const cm = stats.criancasManha.size;
+        const ct = stats.criancasTarde.size;
+        const totalB = cm + ct;
+        const metaB = meta.criancasManha + meta.criancasTarde;
+        const pct = metaB > 0 ? Math.round((totalB / metaB) * 100) : 0;
+        metasBody.push([bn, `${cm}`, `${ct}`, `${totalB}/${metaB}`, `${pct}%`]);
+        if (meta.idosos !== null) {
+          const idC = stats.idosos.size;
+          const pctId = meta.idosos > 0 ? Math.round((idC / meta.idosos) * 100) : 0;
+          metasBody.push([`  └ Idosos`, `${idC}`, "—", `${idC}/${meta.idosos}`, `${pctId}%`]);
+        }
+      });
+      autoTable(doc, {
+        startY: y,
+        head: [["Bairro / Público", "Manhã", "Tarde", "Atend./Meta", "% Meta"]],
+        body: metasBody,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: VERMELHO, textColor: BRANCO, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: VERMELHO_CLARO },
+        theme: "grid",
+      });
+      y = (doc as any).lastAutoTable.finalY + 6;
+
+      // Atendimentos técnicos
+      if (filteredAtendimentos.length > 0) {
+        if (y > 200) { doc.addPage(); pageNum++; y = addHeader(doc); }
+        y = sectionTitle(doc, "ATENDIMENTOS TÉCNICOS", y, AZUL);
+        const atendByTipo: Record<string, number> = {};
+        filteredAtendimentos.forEach((a: any) => { const t = a.tipo || "atendimento_individual"; atendByTipo[t] = (atendByTipo[t] || 0) + 1; });
+        autoTable(doc, {
+          startY: y,
+          head: [["Tipo", "Quantidade"]],
+          body: Object.entries(atendByTipo).map(([t, c]) => [TIPO_ATENDIMENTO_LABELS[t] || t, String(c)]),
+          margin: { left: margin, right: margin },
+          styles: { fontSize: 8, cellPadding: 2 },
+          headStyles: { fillColor: AZUL, textColor: BRANCO, fontStyle: "bold" },
+          alternateRowStyles: { fillColor: AZUL_CLARO },
+          theme: "grid",
+        });
+        y = (doc as any).lastAutoTable.finalY + 6;
+      }
+
+      // Add footers to all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        addFooter(doc, i);
+      }
+
+      doc.save(sysEloFileName("RelatorioMensal_PDF", "pdf", `${ano}-${mes}`));
+      toast.success("PDF profissional gerado com sucesso!");
+    } catch (err: any) {
+      console.error("Erro ao gerar PDF:", err);
+      toast.error("Erro ao gerar PDF: " + (err?.message || "Erro desconhecido"));
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  const anyGenerating = generating || generatingLocal || generatingFull || generatingReo || generatingPdf;
+
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-foreground">Relatório Mensal</h2>
+      <h2 className="text-lg font-semibold text-foreground">Relatórios Mensais</h2>
+
+      {/* Month/Year selector */}
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4" /> Gerar Relatório Mensal
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-xs text-muted-foreground">
-            Inclui: atendidos por bairro/faixa/período, novas inserções, atividades planejadas × relatadas,
-            metas por bairro, monitoramento SCFV, atendimentos técnicos e matrizes de frequência por turma.
-          </p>
+        <CardContent className="pt-4">
           <div className="flex gap-3 items-end flex-wrap">
             <div>
               <Label className="text-xs">Mês</Label>
@@ -613,58 +892,99 @@ export default function DashboardRelatorioMensalTab() {
               <Label className="text-xs">Ano</Label>
               <Input className="w-[100px]" value={ano} onChange={e => setAno(e.target.value)} />
             </div>
-            <Button onClick={generateBackground} disabled={generating || generatingLocal}>
-              <Download className="h-4 w-4 mr-1" /> {generating ? "Gerando..." : "Gerar XLSX (servidor)"}
-            </Button>
-            <Button variant="outline" onClick={generateLocal} disabled={generating || generatingLocal} className="text-xs">
-              <Download className="h-4 w-4 mr-1" /> {generatingLocal ? "Gerando..." : "Gerar local (desktop)"}
-            </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground">
-            Use "servidor" para celular/tablet (gera em segundo plano). Use "local" para desktop (mais rápido, gera no navegador).
-          </p>
         </CardContent>
       </Card>
 
+      {/* Local XLSX — primary */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileSpreadsheet className="h-4 w-4" /> Relatório Mensal — XLSX (local)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Gera planilha completa no navegador com: resumo, atividades propostas × desenvolvidas, metas por bairro,
+            monitoramento, atendimentos técnicos e matrizes de frequência por turma.
+            <strong> Recomendado para desktop.</strong>
+          </p>
+          <Button onClick={generateLocal} disabled={anyGenerating}>
+            {generatingLocal ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando...</> : <><Download className="h-4 w-4 mr-1" />Gerar XLSX (local)</>}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Professional PDF */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileText className="h-4 w-4" /> Relatório Mensal — PDF Profissional
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Relatório em PDF com design institucional, cabeçalho com dados da Prefeitura/CAIA,
+            tabelas estilizadas e linguagem técnica. Ideal para <strong>impressão e prestação de contas</strong>.
+          </p>
+          <Button onClick={generatePdf} disabled={anyGenerating} variant="outline">
+            {generatingPdf ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando PDF...</> : <><FileText className="h-4 w-4 mr-1" />Gerar PDF Profissional</>}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Server XLSX — for mobile */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileSpreadsheet className="h-4 w-4" /> Relatório Mensal — XLSX (servidor)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Mesmos dados do XLSX local, mas gerado no servidor em segundo plano.
+            <strong> Use em celular/tablet</strong> ou se a geração local apresentar problemas.
+          </p>
+          <Button onClick={generateBackground} disabled={anyGenerating} variant="outline" size="sm">
+            {generating ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando...</> : <><Download className="h-4 w-4 mr-1" />Gerar XLSX (servidor)</>}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Full report */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
             <FileSpreadsheet className="h-4 w-4" /> Relatório Completo (todo o período)
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Gera um único XLSX com todas as abas (resumo, atividades, metas, frequência) para cada mês que contenha dados —
-            desde o primeiro registro até o mais recente. Inclui aba "Consolidado" com totais gerais.
+            XLSX com todos os meses que contêm dados — do primeiro registro ao mais recente.
+            Inclui aba "Consolidado" com totais gerais. <strong>Gerado no servidor.</strong>
           </p>
-          <Button onClick={generateFullReport} disabled={generatingFull}>
-            <FileSpreadsheet className="h-4 w-4 mr-1" /> {generatingFull ? "Gerando relatório completo..." : "Gerar Relatório Completo"}
+          <Button onClick={generateFullReport} disabled={anyGenerating} variant="outline" size="sm">
+            {generatingFull ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando...</> : <><FileSpreadsheet className="h-4 w-4 mr-1" />Gerar Relatório Completo</>}
           </Button>
-          <p className="text-[10px] text-muted-foreground">
-            O período é detectado automaticamente. A geração pode levar mais tempo dependendo da quantidade de dados.
-          </p>
         </CardContent>
       </Card>
 
+      {/* REO */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
             <FileText className="h-4 w-4" /> Relatório de Execução do Objeto (REO)
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Gera o REO completo em DOCX com: atividades propostas × desenvolvidas, serviços da equipe técnica,
-            comparativo de metas por bairro, recursos humanos, monitoramento, execução financeira e anexos fotográficos.
+            DOCX institucional com atividades propostas × desenvolvidas, equipe técnica,
+            metas, recursos humanos, monitoramento, execução financeira e anexos fotográficos.
+            <strong> Gerado no servidor.</strong>
           </p>
-          <div className="flex gap-3 items-end flex-wrap">
-            <Button onClick={generateReo} disabled={generatingReo}>
-              <FileText className="h-4 w-4 mr-1" /> {generatingReo ? "Gerando REO..." : "Gerar REO (DOCX)"}
-            </Button>
-          </div>
-          <p className="text-[10px] text-muted-foreground">
-            Usa o mesmo mês/ano selecionado acima. O documento é gerado em segundo plano no servidor.
-          </p>
+          <Button onClick={generateReo} disabled={anyGenerating} variant="outline" size="sm">
+            {generatingReo ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando REO...</> : <><FileText className="h-4 w-4 mr-1" />Gerar REO (DOCX)</>}
+          </Button>
         </CardContent>
       </Card>
     </div>
