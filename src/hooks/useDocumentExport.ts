@@ -312,7 +312,7 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
   children.push(new Paragraph({ spacing: { after: 200 }, children: [] }));
 
   if (item.engajamento?.length > 0) {
-    const engOptions = ["Participaram ativamente", "Demonstraram interesse", "Houve resistência inicial", "Precisaram de estímulo constante", "Interagiram entre si"];
+    const engOptions = ["Grupo participativo", "Grupo disperso", "Boa interação entre participantes", "Necessitou intervenção do educador"];
     children.push(new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: "Engajamento:", bold: true, size: 20, font: "Arial" })] }));
     children.push(new Paragraph({ spacing: { after: 200 }, children: engOptions.flatMap(opt => checkbox(item.engajamento.includes(opt), opt)) }));
   }
