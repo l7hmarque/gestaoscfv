@@ -71,7 +71,7 @@ const SYSTEM_FIELDS: Record<string, { value: string; label: string }[]> = {
     { value: "serie", label: "Série" },
     { value: "periodo", label: "Período" },
     { value: "responsavel1_nome", label: "Responsável 1 - Nome" },
-    { value: "responsavel1_cpf", label: "Responsável 1 - CPF" },
+    { value: "cpf", label: "CPF do participante" },
     { value: "responsavel1_whatsapp", label: "Responsável 1 - WhatsApp" },
     { value: "responsavel2_nome", label: "Responsável 2 - Nome" },
     { value: "responsavel2_whatsapp", label: "Responsável 2 - WhatsApp" },
