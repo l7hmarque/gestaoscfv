@@ -440,11 +440,24 @@ export default function DashboardRelatorioMensalTab() {
         const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean) as any[];
         const tPresencas = presencas.filter((p: any) => p.turma_id === t.id);
 
+        // Build relatorio_presenca fallback
+        const relIdsForTurma = relatorioTurmas.filter((rt: any) => rt.turma_id === t.id).map((rt: any) => rt.relatorio_id);
+        const relsForTurma = filteredRelatorios.filter((r: any) => relIdsForTurma.includes(r.id));
+        const relPresFallback: { participante_id: string; data: string; presente: boolean }[] = [];
+        relsForTurma.forEach((r: any) => {
+          const rps = (relatorioPresencas || []).filter((rp: any) => rp.relatorio_id === r.id);
+          rps.forEach((rp: any) => {
+            relPresFallback.push({ participante_id: rp.participante_id, data: r.data, presente: rp.presente });
+          });
+        });
+
         const diasSemana = t.dias_semana || [];
         const datasAtividade = getDatasAtividade(parseInt(ano), mesNum, diasSemana);
+        const fallbackDates = [...new Set(relPresFallback.map(f => f.data))];
+        const allDatesSet = new Set([...datasAtividade, ...tPresencas.map((p: any) => p.data), ...fallbackDates]);
         const datas = datasAtividade.length > 0
           ? datasAtividade
-          : [...new Set(tPresencas.map((p: any) => p.data))].sort();
+          : [...allDatesSet].sort();
         if (!datas.length && !tParts.length) continue;
 
         const bairroNome = bairroMap.get(t.bairro_id) || "N/I";
@@ -483,7 +496,8 @@ export default function DashboardRelatorioMensalTab() {
             const addr = XLSX.utils.encode_cell({ r: excelRow, c: col });
             if (!ws[addr]) ws[addr] = { v: "", t: "s" };
             const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
-            if (rec && rec.presente) {
+            const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
+            if ((rec && rec.presente) || (fallbackRec && fallbackRec.presente)) {
               ws[addr].s = {
                 fill: { fgColor: { rgb: "000000" } },
                 border: borderObj,
