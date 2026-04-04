@@ -242,12 +242,12 @@ function generateMonthSheets(
   applyBorders(wsMetas);
   XLSX.utils.book_append_sheet(wb, wsMetas, sn3);
 
-  // Sheet: Monitoramento
-  const totalPresencasRegistros = presencas.length;
-  const totalPresentes = presencas.filter((p: any) => p.presente).length;
+  // Sheet: Monitoramento (use activePresencas to exclude post-desligamento)
+  const totalPresencasRegistros = activePresencas.length;
+  const totalPresentes = activePresencas.filter((p: any) => p.presente).length;
   const pctPresencaGeral = totalPresencasRegistros > 0 ? Math.round((totalPresentes / totalPresencasRegistros) * 100) : 0;
   const partFreq: Record<string, { total: number; presentes: number }> = {};
-  presencas.forEach((p: any) => { if (!partFreq[p.participante_id]) partFreq[p.participante_id] = { total: 0, presentes: 0 }; partFreq[p.participante_id].total++; if (p.presente) partFreq[p.participante_id].presentes++; });
+  activePresencas.forEach((p: any) => { if (!partFreq[p.participante_id]) partFreq[p.participante_id] = { total: 0, presentes: 0 }; partFreq[p.participante_id].total++; if (p.presente) partFreq[p.participante_id].presentes++; });
   const partComFreq = Object.values(partFreq);
   const partBomFreq = partComFreq.filter(pf => pf.total > 0 && (pf.presentes / pf.total) >= 0.75).length;
   const pctBomFreq = partComFreq.length > 0 ? Math.round((partBomFreq / partComFreq.length) * 100) : 0;
