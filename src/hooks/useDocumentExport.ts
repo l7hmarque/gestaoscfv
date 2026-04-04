@@ -867,7 +867,7 @@ export async function exportFichaInscricaoPdf(p: any) {
 
 // ===== MATRIZ DE FREQUÊNCIA =====
 export async function exportMatrizFrequenciaDocx(
-  turma: any, participantes: { nome: string; presencas: Record<string, boolean> }[], datas: string[], preenchida: boolean
+  turma: any, participantes: { nome: string; presencas: Record<string, boolean | string> }[], datas: string[], preenchida: boolean
 ) {
   const template = await loadTemplate("matriz_frequencia.docx");
 
@@ -882,7 +882,7 @@ export async function exportMatrizFrequenciaDocx(
         PARTICIPANTES: participantes.map((p, i) => ({
           NUM: i + 1,
           NOME: p.nome,
-          ...Object.fromEntries(datas.map((d, di) => [`D${di + 1}`, preenchida ? (p.presencas[d] ? "✓" : "") : ""])),
+          ...Object.fromEntries(datas.map((d, di) => [`D${di + 1}`, preenchida ? (p.presencas[d] === "D" ? "D" : p.presencas[d] ? "✓" : "") : ""])),
         })),
         DATAS: dateHeaders.map((d, i) => ({ HEADER: d, INDEX: i + 1 })),
       };
@@ -913,7 +913,7 @@ export async function exportMatrizFrequenciaDocx(
   const dataRows = participantes.map((p, i) => new TableRow({ children: [
     new TableCell({ width: { size: numColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 14, font: "Arial" })] })] }),
     new TableCell({ width: { size: nameColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.nome, size: 14, font: "Arial" })] })] }),
-    ...datas.map(d => new TableCell({ width: { size: dateColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: preenchida ? (p.presencas[d] ? "✓" : "") : "", size: 14, font: "Arial" })] })] })),
+    ...datas.map(d => new TableCell({ width: { size: dateColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: preenchida ? (p.presencas[d] === "D" ? "D" : p.presencas[d] ? "✓" : "") : "", size: 14, font: "Arial", color: p.presencas[d] === "D" ? "999999" : undefined })] })] })),
   ]}));
 
   const children = [
@@ -936,7 +936,7 @@ export async function exportMatrizFrequenciaDocx(
 }
 
 export async function exportMatrizFrequenciaPdf(
-  turma: any, participantes: { nome: string; presencas: Record<string, boolean> }[], datas: string[], preenchida: boolean
+  turma: any, participantes: { nome: string; presencas: Record<string, boolean | string> }[], datas: string[], preenchida: boolean
 ) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   let y = 8;
@@ -955,7 +955,7 @@ export async function exportMatrizFrequenciaPdf(
   autoTable(doc, {
     startY: y,
     head: [["Nº", "Nome", ...dateHeaders]],
-    body: participantes.map((p, i) => [i + 1, p.nome, ...datas.map(d => preenchida ? (p.presencas[d] ? "✓" : "") : "")]),
+    body: participantes.map((p, i) => [i + 1, p.nome, ...datas.map(d => preenchida ? (p.presencas[d] === "D" ? "D" : p.presencas[d] ? "✓" : "") : "")]),
     headStyles: { fillColor: [26, 82, 118], fontSize: 6, cellPadding: 1.5 },
     styles: { fontSize: 6, cellPadding: 1.5 },
     columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 40 } },

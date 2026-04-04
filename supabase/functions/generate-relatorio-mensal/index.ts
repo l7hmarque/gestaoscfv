@@ -119,17 +119,31 @@ function generateMonthSheets(
   const turmaMap = new Map(turmas.map((t: any) => [t.id, t]));
   const planMap = new Map(planejamentos.map((p: any) => [p.id, p]));
 
-  const atendidosIds = new Set(presencas.filter((p: any) => p.presente).map((p: any) => p.participante_id));
+  // Filter out presencas from desligados after their data_desligamento
+  const activePresencas = presencas.filter((p: any) => {
+    const part = partMap.get(p.participante_id);
+    if (!part) return true;
+    if (part.status === "desligado" && part.data_desligamento && p.data > part.data_desligamento) return false;
+    return true;
+  });
+
+  const atendidosIds = new Set(activePresencas.filter((p: any) => p.presente).map((p: any) => p.participante_id));
   const atendidos = [...atendidosIds].map(id => partMap.get(id)).filter(Boolean);
 
+  // Exclude participants desligados before start of month
+  const atendidosFiltered = atendidos.filter((p: any) => {
+    if (p.status === "desligado" && p.data_desligamento && p.data_desligamento < startDate) return false;
+    return true;
+  });
+
   const byBairro: Record<string, number> = {};
-  atendidos.forEach((p: any) => { const b = p.bairro_id ? (bairroMap.get(p.bairro_id) || "N/I") : "N/I"; byBairro[b] = (byBairro[b] || 0) + 1; });
+  atendidosFiltered.forEach((p: any) => { const b = p.bairro_id ? (bairroMap.get(p.bairro_id) || "N/I") : "N/I"; byBairro[b] = (byBairro[b] || 0) + 1; });
 
   const byFaixa: Record<string, number> = {};
-  atendidos.forEach((p: any) => { if (p.data_nascimento) { const f = calcFaixaFromDate(p.data_nascimento); if (f) byFaixa[f] = (byFaixa[f] || 0) + 1; } });
+  atendidosFiltered.forEach((p: any) => { if (p.data_nascimento) { const f = calcFaixaFromDate(p.data_nascimento); if (f) byFaixa[f] = (byFaixa[f] || 0) + 1; } });
 
   const byPeriodo: Record<string, number> = {};
-  atendidos.forEach((p: any) => { const per = p.periodo || "N/I"; byPeriodo[per] = (byPeriodo[per] || 0) + 1; });
+  atendidosFiltered.forEach((p: any) => { const per = p.periodo || "N/I"; byPeriodo[per] = (byPeriodo[per] || 0) + 1; });
 
   const novasInsercoes = participantes.filter((p: any) => p.iniciou_em && p.iniciou_em >= startDate && p.iniciou_em < endDate);
 
@@ -142,7 +156,7 @@ function generateMonthSheets(
     [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum}`],
     [`Data de geração: ${new Date().toLocaleString("pt-BR")}`],
     [],
-    ["ATENDIDOS NO MÊS", atendidosIds.size],
+    ["ATENDIDOS NO MÊS", atendidosFiltered.length],
     [], ["POR BAIRRO"],
     ...Object.entries(byBairro).sort((a, b) => b[1] - a[1]).map(([b, c]) => [b, c]),
     [], ["POR FAIXA ETÁRIA"],
@@ -187,13 +201,16 @@ function generateMonthSheets(
     const bairroNome = bairroMap.get(turma.bairro_id) || "";
     if (BAIRROS_SCFV.includes(bairroNome)) { const analise = relIdToAnalise.get(rt.relatorio_id); if (analise) bairroRelResultados[bairroNome].add(analise); }
   });
-  presencas.filter((p: any) => p.presente).forEach((pres: any) => {
+  // Use activePresencas for metas (excludes post-desligamento records)
+  activePresencas.filter((p: any) => p.presente).forEach((pres: any) => {
     const turma = turmaMap.get(pres.turma_id);
     if (!turma) return;
     const bairroNome = bairroMap.get(turma.bairro_id) || "";
     if (!BAIRROS_SCFV.includes(bairroNome)) return;
     const part = partMap.get(pres.participante_id);
     if (!part) return;
+    // Skip desligados before start of month
+    if (part.status === "desligado" && part.data_desligamento && part.data_desligamento < startDate) return;
     const age = part.data_nascimento ? calcAge(part.data_nascimento) : 0;
     const isIdoso = age >= 60;
     const periodo = turma.periodo || "manha";
@@ -225,12 +242,12 @@ function generateMonthSheets(
   applyBorders(wsMetas);
   XLSX.utils.book_append_sheet(wb, wsMetas, sn3);
 
-  // Sheet: Monitoramento
-  const totalPresencasRegistros = presencas.length;
-  const totalPresentes = presencas.filter((p: any) => p.presente).length;
+  // Sheet: Monitoramento (use activePresencas to exclude post-desligamento)
+  const totalPresencasRegistros = activePresencas.length;
+  const totalPresentes = activePresencas.filter((p: any) => p.presente).length;
   const pctPresencaGeral = totalPresencasRegistros > 0 ? Math.round((totalPresentes / totalPresencasRegistros) * 100) : 0;
   const partFreq: Record<string, { total: number; presentes: number }> = {};
-  presencas.forEach((p: any) => { if (!partFreq[p.participante_id]) partFreq[p.participante_id] = { total: 0, presentes: 0 }; partFreq[p.participante_id].total++; if (p.presente) partFreq[p.participante_id].presentes++; });
+  activePresencas.forEach((p: any) => { if (!partFreq[p.participante_id]) partFreq[p.participante_id] = { total: 0, presentes: 0 }; partFreq[p.participante_id].total++; if (p.presente) partFreq[p.participante_id].presentes++; });
   const partComFreq = Object.values(partFreq);
   const partBomFreq = partComFreq.filter(pf => pf.total > 0 && (pf.presentes / pf.total) >= 0.75).length;
   const pctBomFreq = partComFreq.length > 0 ? Math.round((partBomFreq / partComFreq.length) * 100) : 0;
@@ -299,7 +316,10 @@ function generateMonthSheets(
     const header3 = [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum} | Exportado em: ${new Date().toLocaleString("pt-BR")}`];
     const colHeaders = ["Nº", "Nome do Participante", ...datas.map(d => d.slice(5))];
     const rows = tParts.map((p: any, idx: number) => {
-      const row: any[] = [idx + 1, p.nome_completo];
+      const isDesligado = p.status === "desligado";
+      const dataDeslig = p.data_desligamento || null;
+      const nameSuffix = isDesligado && dataDeslig ? ` (D ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})` : "";
+      const row: any[] = [idx + 1, p.nome_completo + nameSuffix];
       datas.forEach(() => row.push(""));
       return row;
     });
@@ -312,6 +332,8 @@ function generateMonthSheets(
     const dataStartRow = 5;
     tParts.forEach((p: any, pIdx: number) => {
       const excelRow = dataStartRow + pIdx;
+      const isDesligado = p.status === "desligado";
+      const dataDeslig = p.data_desligamento || null;
       for (let c = 0; c < 2; c++) {
         const addr = XLSX.utils.encode_cell({ r: excelRow, c });
         if (!ws[addr]) ws[addr] = { v: "", t: "s" };
@@ -321,12 +343,18 @@ function generateMonthSheets(
         const col = 2 + dIdx;
         const addr = XLSX.utils.encode_cell({ r: excelRow, c: col });
         if (!ws[addr]) ws[addr] = { v: "", t: "s" };
-        const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
-        const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
-        if ((rec && rec.presente) || (fallbackRec && fallbackRec.presente)) {
-          ws[addr].s = { fill: { fgColor: { rgb: "000000" } }, border: borderObj };
+        // If desligado and date is after data_desligamento, mark with grey "D"
+        if (isDesligado && dataDeslig && d > dataDeslig) {
+          ws[addr].v = "D";
+          ws[addr].s = { fill: { fgColor: { rgb: "CCCCCC" } }, font: { color: { rgb: "666666" } }, border: borderObj };
         } else {
-          ws[addr].s = { border: borderObj };
+          const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
+          const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
+          if ((rec && rec.presente) || (fallbackRec && fallbackRec.presente)) {
+            ws[addr].s = { fill: { fgColor: { rgb: "000000" } }, border: borderObj };
+          } else {
+            ws[addr].s = { border: borderObj };
+          }
         }
       });
     });
@@ -334,7 +362,7 @@ function generateMonthSheets(
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   }
 
-  return { atendidosIds: atendidosIds.size, atividades: filteredRelatorios.length, atendimentos: filteredAtendimentos.length };
+  return { atendidosIds: atendidosFiltered.length, atividades: filteredRelatorios.length, atendimentos: filteredAtendimentos.length };
 }
 
 function truncSheet(name: string, used: Set<string>): string {

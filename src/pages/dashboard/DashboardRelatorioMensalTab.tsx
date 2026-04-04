@@ -185,17 +185,30 @@ export default function DashboardRelatorioMensalTab() {
       const bairroMap = new Map((bairros || []).map((b: any) => [b.id, b.nome]));
       const profileMap = new Map((profilesData || []).map((p: any) => [p.id, p]));
 
+      // Filter out presencas from desligados after their data_desligamento
+      const activePresencas = presencas.filter((p: any) => {
+        const part = partMap.get(p.participante_id);
+        if (!part) return true;
+        if (part.status === "desligado" && part.data_desligamento && p.data > part.data_desligamento) return false;
+        return true;
+      });
+
       const wb = XLSX.utils.book_new();
 
       // --- Sheet 1: Resumo ---
-      const atendidosIds = new Set(presencas.filter((p: any) => p.presente).map((p: any) => p.participante_id));
+      const atendidosIds = new Set(activePresencas.filter((p: any) => p.presente).map((p: any) => p.participante_id));
       const atendidos = [...atendidosIds].map(id => partMap.get(id)).filter(Boolean);
+      // Exclude participants desligados before start of month
+      const atendidosFiltered = atendidos.filter((p: any) => {
+        if (p.status === "desligado" && p.data_desligamento && p.data_desligamento < startDate) return false;
+        return true;
+      });
 
       const byBairro: Record<string, number> = {};
-      atendidos.forEach((p: any) => { const b = p.bairro_id ? (bairroMap.get(p.bairro_id) || "N/I") : "N/I"; byBairro[b] = (byBairro[b] || 0) + 1; });
+      atendidosFiltered.forEach((p: any) => { const b = p.bairro_id ? (bairroMap.get(p.bairro_id) || "N/I") : "N/I"; byBairro[b] = (byBairro[b] || 0) + 1; });
 
       const byFaixa: Record<string, number> = {};
-      atendidos.forEach((p: any) => {
+      atendidosFiltered.forEach((p: any) => {
         if (p.data_nascimento) {
           const f = calcFaixaFromDate(p.data_nascimento);
           if (f) byFaixa[f] = (byFaixa[f] || 0) + 1;
@@ -203,7 +216,7 @@ export default function DashboardRelatorioMensalTab() {
       });
 
       const byPeriodo: Record<string, number> = {};
-      atendidos.forEach((p: any) => { const per = p.periodo || "N/I"; byPeriodo[per] = (byPeriodo[per] || 0) + 1; });
+      atendidosFiltered.forEach((p: any) => { const per = p.periodo || "N/I"; byPeriodo[per] = (byPeriodo[per] || 0) + 1; });
 
       const novasInsercoes = participantes.filter((p: any) => {
         if (!p.iniciou_em) return false;
@@ -221,7 +234,7 @@ export default function DashboardRelatorioMensalTab() {
         [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
         [`Data de geração: ${new Date().toLocaleString("pt-BR")}`],
         [],
-        ["ATENDIDOS NO MÊS", atendidosIds.size],
+        ["ATENDIDOS NO MÊS", atendidosFiltered.length],
         [],
         ["POR BAIRRO"],
         ...Object.entries(byBairro).sort((a, b) => b[1] - a[1]).map(([b, c]) => [b, c]),
@@ -289,13 +302,15 @@ export default function DashboardRelatorioMensalTab() {
         }
       });
 
-      presencas.filter((p: any) => p.presente).forEach((pres: any) => {
+      // Use activePresencas for metas
+      activePresencas.filter((p: any) => p.presente).forEach((pres: any) => {
         const turma = turmaMap.get(pres.turma_id);
         if (!turma) return;
         const bairroNome = bairroMap.get(turma.bairro_id) || "";
         if (!BAIRROS_SCFV.includes(bairroNome)) return;
         const part = partMap.get(pres.participante_id);
         if (!part) return;
+        if (part.status === "desligado" && part.data_desligamento && part.data_desligamento < startDate) return;
         const age = part.data_nascimento ? calcAge(part.data_nascimento) : 0;
         const isIdoso = age >= 60;
         const periodo = turma.periodo || "manha";
@@ -362,12 +377,13 @@ export default function DashboardRelatorioMensalTab() {
       XLSX.utils.book_append_sheet(wb, wsMetas, "Metas");
 
       // --- Sheet 4: Monitoramento ---
-      const totalPresencasRegistros = presencas.length;
-      const totalPresentes = presencas.filter((p: any) => p.presente).length;
+      // Use activePresencas for monitoramento
+      const totalPresencasRegistros = activePresencas.length;
+      const totalPresentes = activePresencas.filter((p: any) => p.presente).length;
       const pctPresencaGeral = totalPresencasRegistros > 0 ? Math.round((totalPresentes / totalPresencasRegistros) * 100) : 0;
 
       const partFreq: Record<string, { total: number; presentes: number }> = {};
-      presencas.forEach((p: any) => {
+      activePresencas.forEach((p: any) => {
         if (!partFreq[p.participante_id]) partFreq[p.participante_id] = { total: 0, presentes: 0 };
         partFreq[p.participante_id].total++;
         if (p.presente) partFreq[p.participante_id].presentes++;
@@ -487,7 +503,10 @@ export default function DashboardRelatorioMensalTab() {
 
         const colHeaders = ["Nº", "Nome do Participante", ...datas.map(d => d.slice(5))];
         const rows = tParts.map((p: any, idx: number) => {
-          const row: any[] = [idx + 1, p.nome_completo];
+          const isDesligado = p.status === "desligado";
+          const dataDeslig = p.data_desligamento || null;
+          const nameSuffix = isDesligado && dataDeslig ? ` (D ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})` : "";
+          const row: any[] = [idx + 1, p.nome_completo + nameSuffix];
           datas.forEach(() => row.push(""));
           return row;
         });
@@ -501,6 +520,8 @@ export default function DashboardRelatorioMensalTab() {
         const dataStartRow = 5;
         tParts.forEach((p: any, pIdx: number) => {
           const excelRow = dataStartRow + pIdx;
+          const isDesligado = p.status === "desligado";
+          const dataDeslig = p.data_desligamento || null;
           for (let c = 0; c < 2; c++) {
             const addr = XLSX.utils.encode_cell({ r: excelRow, c });
             if (!ws[addr]) ws[addr] = { v: "", t: "s" };
@@ -510,15 +531,17 @@ export default function DashboardRelatorioMensalTab() {
             const col = 2 + dIdx;
             const addr = XLSX.utils.encode_cell({ r: excelRow, c: col });
             if (!ws[addr]) ws[addr] = { v: "", t: "s" };
-            const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
-            const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
-            if ((rec && rec.presente) || (fallbackRec && fallbackRec.presente)) {
-              ws[addr].s = {
-                fill: { fgColor: { rgb: "000000" } },
-                border: borderObj,
-              };
+            if (isDesligado && dataDeslig && d > dataDeslig) {
+              ws[addr].v = "D";
+              ws[addr].s = { fill: { fgColor: { rgb: "CCCCCC" } }, font: { color: { rgb: "666666" } }, border: borderObj };
             } else {
-              ws[addr].s = { border: borderObj };
+              const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
+              const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
+              if ((rec && rec.presente) || (fallbackRec && fallbackRec.presente)) {
+                ws[addr].s = { fill: { fgColor: { rgb: "000000" } }, border: borderObj };
+              } else {
+                ws[addr].s = { border: borderObj };
+              }
             }
           });
         });
