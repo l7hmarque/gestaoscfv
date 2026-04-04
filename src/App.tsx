@@ -35,6 +35,13 @@ import MuralPage from "./pages/mural/MuralPage";
 import FeedPage from "./pages/feed/FeedPage";
 import EquipeTecnicaPage from "./pages/equipe-tecnica/EquipeTecnicaPage";
 import FinanceiroPage from "./pages/financeiro/FinanceiroPage";
+import SiteLayout from "./components/SiteLayout";
+import SiteHomePage from "./pages/site/SiteHomePage";
+import SiteIndicadoresPage from "./pages/site/SiteIndicadoresPage";
+import SiteNoticiasPage from "./pages/site/SiteNoticiasPage";
+import SiteConteudosPage from "./pages/site/SiteConteudosPage";
+import SiteContatoPage from "./pages/site/SiteContatoPage";
+import SiteAdminPage from "./pages/site-admin/SiteAdminPage";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +55,15 @@ const App = () => (
           <AuthProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              {/* Site público */}
+              <Route path="/site" element={<SiteLayout />}>
+                <Route index element={<SiteHomePage />} />
+                <Route path="indicadores" element={<SiteIndicadoresPage />} />
+                <Route path="noticias" element={<SiteNoticiasPage />} />
+                <Route path="conteudos" element={<SiteConteudosPage />} />
+                <Route path="contato" element={<SiteContatoPage />} />
+              </Route>
+              {/* Sistema interno */}
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/" element={<Index />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
@@ -73,6 +89,7 @@ const App = () => (
                 <Route path="/feed" element={<FeedPage />} />
                 <Route path="/equipe-tecnica" element={<EquipeTecnicaPage />} />
                 <Route path="/financeiro" element={<FinanceiroPage />} />
+                <Route path="/site-admin" element={<SiteAdminPage />} />
               </Route>
               <Route path="/dev" element={<DevPage />} />
               <Route path="/matricula" element={<MatriculaPublicaPage />} />

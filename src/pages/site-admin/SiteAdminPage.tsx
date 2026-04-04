@@ -122,7 +122,8 @@ function NoticiaForm({ open, onClose, item, onSaved }: { open: boolean; onClose:
     if (item) {
       await supabase.from("site_noticias" as any).update({ titulo, subtitulo, conteudo }).eq("id", item.id);
     } else {
-      await supabase.from("site_noticias" as any).insert({ titulo, subtitulo, conteudo, autor_id: profile?.id, status: "rascunho" });
+      const { data: prof } = await supabase.from("profiles").select("id").eq("user_id", user?.id).single();
+      await supabase.from("site_noticias" as any).insert({ titulo, subtitulo, conteudo, autor_id: prof?.id, status: "rascunho" });
     }
     setSaving(false);
     onSaved();
