@@ -89,6 +89,10 @@ const SYSTEM_FIELDS: Record<string, { value: string; label: string }[]> = {
     { value: "status", label: "Status" },
     { value: "iniciou_em", label: "Iniciou em" },
     { value: "foto_url", label: "URL da foto" },
+    { value: "data_desligamento", label: "Data de desligamento" },
+    { value: "dias_contraturno", label: "Dias de contraturno" },
+    { value: "turmas", label: "Turmas vinculadas" },
+    { value: "documentos", label: "Documentos anexos (lista)" },
   ],
   "matriz_frequencia.docx": [
     { value: "turma_nome", label: "Nome da turma" },
