@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       const { data: dupCheck } = await supabaseAdmin
         .from("participantes")
         .select("id, nome_completo, data_nascimento")
-        .eq("nome_completo", nomePadronizado)
+        .ilike("nome_completo", nomePadronizado)
         .eq("data_nascimento", data_nascimento)
         .limit(1)
         .maybeSingle();
