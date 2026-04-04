@@ -164,6 +164,22 @@ export default function DashboardRelatorioMensalTab() {
       const filteredPlanejamentos = (planejamentos || []).filter((p: any) => p.data_aplicacao && p.data_aplicacao >= startDate && p.data_aplicacao < endDate);
       const filteredAtendimentos = (atendimentos_raw || []).filter((a: any) => a.data_atendimento >= startDate && a.data_atendimento < endDate);
 
+      // Enrich presencas with relatorio_presenca fallback
+      const presencaKeys = new Set(presencas.map((p: any) => `${p.participante_id}_${p.data}_${p.turma_id}`));
+      filteredRelatorios.forEach((r: any) => {
+        const rTurmas = (relatorioTurmas || []).filter((rt: any) => rt.relatorio_id === r.id);
+        const rPres = (relatorioPresencas || []).filter((rp: any) => rp.relatorio_id === r.id);
+        rTurmas.forEach((rt: any) => {
+          rPres.forEach((rp: any) => {
+            const key = `${rp.participante_id}_${r.data}_${rt.turma_id}`;
+            if (!presencaKeys.has(key)) {
+              presencas.push({ participante_id: rp.participante_id, data: r.data, turma_id: rt.turma_id, presente: rp.presente, id: rp.id });
+              presencaKeys.add(key);
+            }
+          });
+        });
+      });
+
       const partMap = new Map((participantes || []).map((p: any) => [p.id, p]));
       const bairroMap = new Map((bairros || []).map((b: any) => [b.id, b.nome]));
       const profileMap = new Map((profilesData || []).map((p: any) => [p.id, p]));
