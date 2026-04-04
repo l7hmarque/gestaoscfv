@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileSpreadsheet, Download } from "lucide-react";
+import { FileSpreadsheet, Download, FileText } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
@@ -93,6 +93,27 @@ export default function DashboardRelatorioMensalTab() {
   const [mes, setMes] = useState(String(now.getMonth() + 1).padStart(2, "0"));
   const [generating, setGenerating] = useState(false);
   const [generatingLocal, setGeneratingLocal] = useState(false);
+  const [generatingReo, setGeneratingReo] = useState(false);
+
+  const generateReo = async () => {
+    setGeneratingReo(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-reo", {
+        body: { mes, ano },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, "_blank");
+        toast.success("REO gerado com sucesso!");
+      } else {
+        throw new Error("URL não retornada");
+      }
+    } catch (err: any) {
+      toast.error("Erro ao gerar REO: " + (err.message || "Erro desconhecido"));
+    } finally {
+      setGeneratingReo(false);
+    }
+  };
 
   // Background generation via edge function (works on mobile)
   const generateBackground = async () => {
@@ -528,6 +549,28 @@ export default function DashboardRelatorioMensalTab() {
           </div>
           <p className="text-[10px] text-muted-foreground">
             Use "servidor" para celular/tablet (gera em segundo plano). Use "local" para desktop (mais rápido, gera no navegador).
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileText className="h-4 w-4" /> Relatório de Execução do Objeto (REO)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Gera o REO completo em DOCX com: atividades propostas × desenvolvidas, serviços da equipe técnica,
+            comparativo de metas por bairro, recursos humanos, monitoramento, execução financeira e anexos fotográficos.
+          </p>
+          <div className="flex gap-3 items-end flex-wrap">
+            <Button onClick={generateReo} disabled={generatingReo}>
+              <FileText className="h-4 w-4 mr-1" /> {generatingReo ? "Gerando REO..." : "Gerar REO (DOCX)"}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Usa o mesmo mês/ano selecionado acima. O documento é gerado em segundo plano no servidor.
           </p>
         </CardContent>
       </Card>

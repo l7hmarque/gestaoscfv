@@ -769,6 +769,7 @@ export type Database = {
       profiles: {
         Row: {
           ativo: boolean | null
+          carga_horaria: string | null
           cargo: string | null
           cpf: string | null
           created_at: string | null
@@ -788,6 +789,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean | null
+          carga_horaria?: string | null
           cargo?: string | null
           cpf?: string | null
           created_at?: string | null
@@ -807,6 +809,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean | null
+          carga_horaria?: string | null
           cargo?: string | null
           cpf?: string | null
           created_at?: string | null
