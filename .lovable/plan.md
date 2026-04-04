@@ -1,79 +1,159 @@
-## Análise: Tags faltantes no DOCX do REO
-
-Analisei o documento completo e mapeei todas as tabelas. Aqui está o status de cada seção:
-
----
-
-### Tabelas que JÁ TÊM tags no DOCX
 
 
-| Seção                  | Tags encontradas                                                                                                                                                                                                                                                                                                                                         |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1.1 Atividades**     | `{tabela_atividades_reo}` (apenas referência, a tabela de dados está vazia)                                                                                                                                                                                                                                                                              |
-| **1.2 Equipe Técnica** | `{MES_ANO}`, `{COUNT_ATENDIMENTOS_COMUNIDADE}`, `{COUNT_ATENDIMENTOS_FAMILIARES}`, `{COUNT_ATENDIMENTOS_PARTICIPANTES}`, `{COUNT_ATENDIMENTOS_EDUCADORES}`, `{COUNT_ACOES_SOCIAIS}`, `{COUNT_ESTUDO_DE_CASO_REUNIAO REDE}`, `{COUNT_VISITAS_DOMICILIARES}`, `{COUNT_VISITAS_ESCOLARES}`, `{COUNT_APLICACAO_GRUPOS}`, `{COUNT_TOTAL_SERVICOS_EQ_TECNICA}` |
-
+## Plano: Módulo Financeiro Avançado — MROSC/SIT + Detecção de documentos + Auditoria + RPA
 
 ---
 
-### Tabelas que NÃO TÊM tags (precisam ser adicionadas ao DOCX)
+### Resumo
 
-
-| Seção                                | O que falta                                                               | Tags sugeridas                                                                                                                                                                                                                                           |
-| ------------------------------------ | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1.1 Atividades** (corpo da tabela) | As linhas de dados estão vazias — sem tags para preencher automaticamente | Precisa de um loop ou tag de tabela dinâmica                                                                                                                                                                                                             |
-| **1.3 Comparativo de Metas**         | Colunas "Quant.", "Resultados Alcançados" e "Justificativa" estão vazias  | Tags por bairro: `{QUANT_JI_MANHA}`, `{QUANT_JI_TARDE}`, `{QUANT_JI_IDOSOS}`, `{QUANT_PI_MANHA}`, `{QUANT_PI_TARDE}`, `{QUANT_PI_IDOSOS}`, `{QUANT_ALV_MANHA}`, `{QUANT_ALV_TARDE}`, `{QUANT_TOTAL_GERAL}`, `{RESULT_JI}`, `{RESULT_PI}`, `{RESULT_ALV}` |
-| **1.4 Recursos Humanos**             | Nomes estão fixos/hardcoded — sem tags                                    | Tags: `{tabela_recursos_humanos}` ou linhas com `{RH_NOME_1}`, `{RH_FUNCAO_1}`, `{RH_CH_1}` etc.                                                                                                                                                         |
-| **1.5 Monitoramento e Avaliação**    | Colunas "Meta atingida" estão vazias ou fixas                             | Tags: `{META_ATINGIDA_1}`, `{META_ATINGIDA_2}`, `{META_ATINGIDA_3}`, `{META_ATINGIDA_4}`                                                                                                                                                                 |
-| **2.1 Valores Transferidos**         | Dados fixos, sem tags                                                     | Tags: `{tabela_parcelas}` ou linhas individuais                                                                                                                                                                                                          |
-| **2.2 Despesas Efetuadas**           | Dados fixos, sem tags                                                     | Tag: `{tabela_despesas}`                                                                                                                                                                                                                                 |
-| **2.3 Resumo Financeiro**            | Valores fixos, sem tags                                                   | Tags: `{SALDO_ANTERIOR}`, `{VALORES_TRANSFERIDOS}`, `{RENDIMENTOS}`, `{VALORES_ESTORNADOS}`, `{VALOR_EXECUTADO}`, `{SALDO_MES_SEGUINTE}`                                                                                                                 |
-| **2.4 Saldo por Categoria**          | Valores fixos, sem tags                                                   | Tag: `{tabela_saldo_categorias}`                                                                                                                                                                                                                         |
-| **Anexos Fotográficos**              | Fotos fixas, sem tags                                                     | Tag: `{anexos_fotos}`                                                                                                                                                                                                                                    |
-
+Expandir o módulo financeiro com: rubricas pré-cadastradas do SCFV, lançamento em lote, upload de boletos/notas/comprovantes com detecção automática via IA, conformidade MROSC/SIT, geração de arquivo RCA, automação RPA para lançamento no SIT, e auditoria inteligente.
 
 ---
 
-### Resumo: o que precisa ser feito
+### 1. Rubricas pré-cadastradas do Plano de Trabalho
 
-O DOCX modelo atual tem tags apenas na seção **1.2 (Equipe Técnica)**. Todas as outras tabelas estão com dados fixos/exemplo e precisam receber tags para automação.
+**Migração SQL** — inserir as rubricas padrão do SCFV na tabela `categorias_financeiras`:
 
-**Há duas abordagens possíveis:**
+| Código | Descrição |
+|---|---|
+| 3.1.90.04 | Contratação por tempo determinado |
+| 3.1.90.11 | Vencimentos e vantagens fixas |
+| 3.1.90.13 | Obrigações patronais |
+| 3.3.90.14 | Diárias |
+| 3.3.90.30 | Material de Consumo |
+| 3.3.90.33 | Passagens e despesas com locomoção |
+| 3.3.90.36 | Serviços de Terceiros — Pessoa Física |
+| 3.3.90.39 | Serviços de Terceiros — Pessoa Jurídica |
+| 3.3.90.47 | Obrigações tributárias e contributivas |
+| 4.4.90.52 | Equipamentos e material permanente |
 
-1. **Você insere as tags manualmente no DOCX** — eu forneço a lista exata de tags para cada célula, você edita o modelo no Word e faz upload na aba Admin. Depois o sistema preenche via `docxtemplater`.
-2. **O sistema gera o REO inteiro programaticamente** (sem template DOCX) — usando a biblioteca `docx-js`, o app monta o documento do zero com os dados corretos, replicando o layout do modelo. Não precisa de tags no DOCX.
+Usar INSERT via supabase insert tool (não migração, pois são dados). A tabela já existe com estrutura correta.
 
-A **opção 2 é mais confiável** porque:
+---
 
-- Tabelas dinâmicas (1.1 Atividades, 2.2 Despesas, 2.4 Categorias) têm número variável de linhas — `docxtemplater` com loops em tabelas é frágil
-- Os anexos fotográficos precisam de inserção de imagens dinâmicas
-- O layout é padronizado e raramente muda
+### 2. Campos adicionais na tabela `despesas` (MROSC/SIT)
 
-### Plano de implementação (opção 2 — geração programática)
+**Migração SQL** para adequar ao formato exigido:
 
-1. **Nova edge function `generate-reo**` que:
-  - Recebe `{ mes, ano }`
-  - Busca todos os dados necessários (planejamentos, relatórios, atendimentos, presença, financeiro, profiles, fotos)
-  - Gera o DOCX completo usando `docx-js` (npm:docx) replicando o layout exato do modelo
-  - Salva no Storage e retorna URL assinada
-2. **Seções geradas automaticamente:**
-  - 1.1: Tabela de atividades propostas × desenvolvidas (planejamentos + relatórios)
-  - 1.2: Contagens de atendimentos por tipo (tabela `atendimentos`)
-  - 1.3: Metas por bairro com quantitativos (presença + participantes)
-  - 1.4: Recursos Humanos (tabela `profiles` com cargo e carga horária)
-  - 1.5: Monitoramento com metas atingidas (indicadores de presença)
-  - 2.1: Parcelas (tabela `parcelas_financeiras`)
-  - 2.2: Despesas do mês (tabela `despesas`)
-  - 2.3: Resumo financeiro (calculado)
-  - 2.4: Saldo por categoria (tabela `categorias_financeiras` + `despesas` + `estornos`)
-  - Anexos: Fotos dos relatórios do período
-3. **UI no Dashboard** — Botão "Gerar REO (DOCX)" na aba Relatório Mensal
-4. **Campo faltante no banco**: `profiles` não tem `carga_horaria` — adicionar via migração
+```sql
+ALTER TABLE despesas ADD COLUMN IF NOT EXISTS
+  fornecedor text,
+  cnpj_cpf text,
+  numero_documento text,
+  tipo_documento text DEFAULT 'nota_fiscal',
+  comprovante_url text,
+  nota_url text,
+  boleto_url text,
+  status_sit text DEFAULT 'pendente',
+  lote_id uuid;
+```
+
+Campos `tipo_documento`: `nota_fiscal`, `recibo`, `cupom_fiscal`, `boleto`, `darf`, `gps`, `outro`.
+Campo `status_sit`: `pendente`, `lancado`, `erro`.
+
+---
+
+### 3. Lançamento em lote de despesas
+
+**`FinanceiroPage.tsx`** — Novo dialog "Lançar em Lote":
+- Formulário com N linhas editáveis (adicionar/remover)
+- Cada linha: Descrição, Valor, Data, Categoria (select), Fornecedor, CNPJ/CPF, Nº Documento
+- Botão "Salvar Todas" insere todas de uma vez com `supabase.from("despesas").insert([...array])`
+- Gerar um `lote_id` compartilhado para rastreabilidade
+
+---
+
+### 4. Upload de documentos com detecção automática via IA
+
+**Nova edge function `detect-despesa-from-doc`**:
+- Recebe imagem/PDF (base64 ou URL do Storage)
+- Usa Lovable AI (gemini-2.5-flash) com prompt para extrair: valor, data, fornecedor, CNPJ/CPF, nº documento, descrição, tipo
+- Retorna JSON estruturado via tool calling
+
+**UI em `FinanceiroPage.tsx`**:
+- Botão "Importar Documentos" abre dialog
+- Upload de múltiplos arquivos (boleto, nota fiscal, comprovante)
+- Para cada arquivo: upload ao bucket `documentos`, chamar edge function, mostrar preview dos dados extraídos
+- Usuário revisa/edita cada campo antes de confirmar
+- Botão "Lançar Todas" salva as despesas com links para os documentos
+
+---
+
+### 5. Geração de arquivo RCA
+
+**Nova edge function `generate-rca`**:
+- Recebe `{ mes, ano }`
+- Busca despesas do mês com todos os campos (fornecedor, CNPJ, nº documento, etc.)
+- Gera arquivo CSV/XLSX no formato exigido pelo SIT (colunas: Nº Ordem, Data, Nº Documento, Fornecedor, CNPJ/CPF, Descrição, Valor, Categoria)
+- Salva no Storage e retorna URL
+
+**UI**: Botão "Gerar RCA" na página Financeiro.
+
+---
+
+### 6. Automação RPA para lançamento no SIT
+
+**Abordagem**: O SIT é um sistema web governamental sem API. A automação via robô (browser automation) requer:
+
+- **Nova edge function `sit-automation`** que recebe as credenciais (armazenadas como secret) e os dados das despesas
+- Usa Puppeteer/Playwright em ambiente externo (não roda dentro de edge functions Deno)
+- **Alternativa viável**: Gerar um script `.py` de automação com Selenium/Playwright que o usuário executa localmente, ou integrar com um serviço de RPA externo (n8n, Make, etc.)
+
+**Implementação realista**:
+1. Armazenar credenciais SIT como secrets (`SIT_USERNAME`, `SIT_PASSWORD`)
+2. Gerar script Python de automação que:
+   - Loga no SIT com as credenciais
+   - Navega até a tela de lançamento
+   - Preenche cada despesa do mês
+   - Marca como `status_sit = 'lancado'`
+3. Botão "Gerar Script RPA" na página Financeiro que baixa o `.py` pronto para executar
+4. Alternativamente, sugerir integração com n8n (MCP connector disponível) para automação cloud
+
+> **Nota**: Automação direta via edge function não é possível pois o SIT não tem API e edge functions não rodam browsers. A solução mais robusta é gerar o script + integrar com n8n para execução cloud.
+
+---
+
+### 7. Auditoria financeira inteligente
+
+**Nova edge function `audit-financeiro`**:
+- Recebe `{ mes, ano }` ou `{ periodo_inicio, periodo_fim }`
+- Busca todas as despesas, parcelas, categorias, estornos
+- Usa Lovable AI para analisar e detectar:
+  - Despesas sem comprovante anexo
+  - Despesas sem fornecedor ou CNPJ
+  - Valores acima do previsto por categoria
+  - Duplicidades (mesmo valor + data + fornecedor)
+  - Gaps de numeração de documentos
+  - Categorias com saldo negativo
+  - Despesas fora do período de vigência
+  - Inconsistências entre nota fiscal e valor lançado
+- Retorna relatório estruturado com severidade (erro/alerta/sugestão)
+
+**UI em `FinanceiroPage.tsx`**:
+- Nova aba "Auditoria" ou botão no header
+- Card com resultado da auditoria: lista de achados com ícones (erro vermelho, alerta amarelo, ok verde)
+- Para cada achado: descrição do problema + ação sugerida + botão de correção automática quando aplicável
+- Botão "Corrigir Automaticamente" para itens que podem ser resolvidos (ex: preencher categoria faltante baseado no código)
+
+---
 
 ### Arquivos
 
+| Arquivo | Mudança |
+|---|---|
+| Supabase insert tool | Rubricas pré-cadastradas |
+| Migração SQL | Campos MROSC na tabela `despesas` |
+| `src/pages/financeiro/FinanceiroPage.tsx` | Lote, import docs, RCA, auditoria, script RPA |
+| `supabase/functions/detect-despesa-from-doc/index.ts` | IA para extrair dados de documentos |
+| `supabase/functions/generate-rca/index.ts` | Geração de arquivo RCA |
+| `supabase/functions/audit-financeiro/index.ts` | Auditoria inteligente com IA |
 
-| Arquivo                                               | Mudança                                              |
-| ----------------------------------------------------- | ---------------------------------------------------- |
-| Migração SQL                                          | `ALTER TABLE profiles ADD COLUMN carga_horaria text` |
-| `supabase/functions/generate-reo/index.ts`            | Nova edge function                                   |
-| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Botão "Gerar REO"                                    |
+### Ordem de implementação
+
+1. Migração SQL (campos + rubricas)
+2. Lançamento em lote
+3. Edge function de detecção de documentos + UI de upload
+4. Geração de RCA
+5. Auditoria financeira
+6. Script RPA / integração n8n
+
