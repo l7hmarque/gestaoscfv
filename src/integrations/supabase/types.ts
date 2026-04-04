@@ -214,6 +214,48 @@ export type Database = {
           },
         ]
       }
+      documentos_prestacao_contas: {
+        Row: {
+          arquivo_url: string
+          categoria: string
+          created_at: string | null
+          descricao: string | null
+          id: string
+          nome_arquivo: string
+          titulo: string
+          uploaded_by: string | null
+          versao: number
+          vigencia_fim: string | null
+          vigencia_inicio: string | null
+        }
+        Insert: {
+          arquivo_url: string
+          categoria: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome_arquivo: string
+          titulo: string
+          uploaded_by?: string | null
+          versao?: number
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
+        }
+        Update: {
+          arquivo_url?: string
+          categoria?: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome_arquivo?: string
+          titulo?: string
+          uploaded_by?: string | null
+          versao?: number
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
+        }
+        Relationships: []
+      }
       estornos: {
         Row: {
           categoria_id: string | null
