@@ -152,7 +152,10 @@ const AUTO_MATCH: Record<string, string> = {
   VULNERABILIDADE: "categoria_vulnerabilidade", CATEGORIA_VULNERABILIDADE: "categoria_vulnerabilidade",
   ENCAMINHAMENTO: "origem_encaminhamento", ORIGEM_ENCAMINHAMENTO: "origem_encaminhamento",
   RESPONSAVEL_TECNICO: "responsavel_tecnico", STATUS: "status",
-  INICIOU: "iniciou_em", INICIOU_EM: "iniciou_em", FOTO: "foto_url",
+  INICIOU: "iniciou_em", INICIOU_EM: "iniciou_em", FOTO: "foto_url", FOTO_URL: "foto_url",
+  DESLIGAMENTO: "data_desligamento", DATA_DESLIGAMENTO: "data_desligamento",
+  CONTRATURNO: "dias_contraturno", DIAS_CONTRATURNO: "dias_contraturno",
+  DOCUMENTOS: "documentos", TURMAS_VINCULADAS: "turmas",
   // Matriz
   TURMA_NOME: "turma_nome", MES_ANO: "mes_ano", FAIXA_ETARIA: "faixa_etaria",
 };
