@@ -446,7 +446,7 @@ if __name__ == "__main__":
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card><CardContent className="pt-4 text-center">
           <p className="text-xs text-muted-foreground">Total Recebido</p>
           <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fmt(totalRecebido)}</p>
@@ -454,6 +454,11 @@ if __name__ == "__main__":
         <Card><CardContent className="pt-4 text-center">
           <p className="text-xs text-muted-foreground">Despesas ({mesRef})</p>
           <p className="text-lg font-bold text-destructive">{fmt(totalDespesas)}</p>
+        </CardContent></Card>
+        <Card><CardContent className="pt-4 text-center">
+          <p className="text-xs text-muted-foreground">Gastos Previstos</p>
+          <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{fmt(gastosPrevistos)}</p>
+          <p className="text-[9px] text-muted-foreground">Orçamentos sem comprovante</p>
         </CardContent></Card>
         <Card><CardContent className="pt-4 text-center">
           <p className="text-xs text-muted-foreground">Estornos ({mesRef})</p>
