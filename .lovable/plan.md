@@ -1,83 +1,126 @@
 
 
-## Plano Atualizado: Plano anterior + Padronização de nomenclatura de arquivos
-
-Mantidas todas as partes anteriores (quadrado presença, relatórios mensais, PDF profissional, fix bug orçamentos, gastos previstos, documentos institucionais). Abaixo a nova parte adicionada.
+## Plano: Site Público da OSC "Sociedade Civil Nossa Senhora Aparecida"
 
 ---
 
-### Nova Parte — Padronização de nomenclatura de todos os arquivos
+### Visão Geral
 
-**Padrão obrigatório:** `SysELO_{Categoria}_{YYYY-MM-DD}_{HHmmss}.{ext}`
+Criar um mini-site público (rotas `/site/*`) separado do sistema interno, com layout próprio, paleta institucional (laranja #E5541B da logo SCNSA + azul #3B8FC2 do CAIA), fundo branco/offwhite. As logos enviadas serão copiadas para `src/assets/`.
 
-#### Arquivos fora do padrão encontrados
+---
 
-| Arquivo atual | Onde é gerado | Problema |
+### Estrutura de Páginas
+
+| Rota | Página | Conteúdo |
 |---|---|---|
-| `rca_2026-03.csv` | `generate-rca/index.ts` | Falta prefixo `SysELO_`, falta timestamp completo |
-| `relatorios-mensais/completo_1743...xlsx` | `generate-relatorio-mensal/index.ts` | Usa `Date.now()` em vez do formato padrão, sem prefixo |
-| `relatorios-mensais/2026-03_1743...xlsx` | `generate-relatorio-mensal/index.ts` | Idem |
-| `SysELO_REO_2026-03_20260304...docx` | `generate-reo/index.ts` | Formato quase correto, mas timestamp usa `YYYYMMDD` condensado sem separadores |
-| `SysELO_Orcamento_2026-03-04 14:30.xlsx` | `useOrcamentoExport.ts` | Timestamp usa `YYYY-MM-DD HH:mm` em vez de `YYYY-MM-DD_HHmmss` |
-| `SysELO_MapaComparativo_...xlsx` | `useOrcamentoExport.ts` | Idem |
-| `SysELO_Lista_Presenca_Turma_Marco_2026.pdf` | `useDocumentExport.ts` | Usa nome da turma e mês por extenso, sem timestamp padrão |
-| `SysELO_BuscaAtiva_...pdf` | `TurmaDetalhePage.tsx` | Já segue o padrão (OK) |
-| Documentos importados (upload) | `ParticipantePerfilPage`, `ParticipanteNovoPage`, `public-matricula` | Já usam `SysELO_Doc_{categoria}_{ts}.pdf` (OK, mas garantir consistência) |
-
-#### Solução: Helper centralizado `formatFileName`
-
-Criar em `src/lib/fileNaming.ts` uma função utilitária reutilizável:
-
-```typescript
-export function sysEloFileName(categoria: string, ext: string, sufixo?: string): string {
-  const d = new Date();
-  const ts = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-  return `SysELO_${categoria}${sufixo ? '_' + sufixo : ''}_${ts}.${ext}`;
-}
-```
-
-E uma versão Deno equivalente inline para as Edge Functions (que não importam do `src/`).
-
-#### Arquivos a corrigir
-
-| Arquivo | Mudança |
-|---|---|
-| `src/lib/fileNaming.ts` (novo) | Helper centralizado `sysEloFileName()` |
-| `src/hooks/useDataExport.ts` | Substituir `exportFileName` por `sysEloFileName` |
-| `src/hooks/useOrcamentoExport.ts` | Usar `sysEloFileName("Orcamento", "xlsx")` e `sysEloFileName("MapaComparativo", "xlsx")` |
-| `src/hooks/useDocumentExport.ts` | Padronizar `Lista_Presenca` para usar timestamp padrão em vez de `mês_ano` |
-| `src/hooks/useBackupExport.ts` | Já usa padrão similar, ajustar para usar helper central |
-| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Usar helper para nome do XLSX local |
-| `supabase/functions/generate-rca/index.ts` | `rca_${mesRef}.csv` → `SysELO_RCA_${ano}-${mes}_${ts}.csv` |
-| `supabase/functions/generate-relatorio-mensal/index.ts` | `completo_${Date.now()}.xlsx` → `SysELO_RelatorioMensal_Completo_${ts}.xlsx`; mensal → `SysELO_RelatorioMensal_${ano}-${mes}_${ts}.xlsx` |
-| `supabase/functions/generate-reo/index.ts` | Ajustar timestamp para `YYYY-MM-DD_HHmmss` |
-| `src/pages/participantes/ParticipanteNovoPage.tsx` | Já usa padrão, ajustar para helper |
-| `src/pages/participantes/ParticipantePerfilPage.tsx` | Idem |
-
-#### Storage paths
-
-Os paths dentro dos buckets também serão padronizados:
-- `rca/SysELO_RCA_...csv` (já usa pasta `rca/`)
-- `relatorios-mensais/SysELO_RelatorioMensal_...xlsx`
-- `reo/SysELO_REO_...docx`
+| `/site` | Home | Hero com logos, slogan, histórico, diretoria/comissão, projeto CAIA |
+| `/site/indicadores` | Painel de Indicadores | Dados públicos agregados do SCFV, exportação PDF, captura de lead (email) |
+| `/site/noticias` | Feed de Notícias | Manchetes/notícias publicadas (aprovadas pelo admin) |
+| `/site/conteudos` | Conteúdos | E-books, vídeos, podcasts, guias sobre OSC/SCFV/Prestação de Contas |
+| `/site/contato` | Contato | Formulário institucional + agendamento de reunião Google Meet |
 
 ---
 
-### Resumo completo de mudanças (todas as partes)
+### Parte 1 — Infraestrutura (Banco + Roles)
 
-| Arquivo | Mudança |
+**Migração SQL:**
+- `ALTER TYPE app_role ADD VALUE 'marketing'` — nova role de Assistente de Marketing
+- Tabela `site_noticias` — id, titulo, subtitulo, conteudo, imagem_url, status (rascunho/pendente/publicado), autor_id, relatorio_id (nullable), created_at, published_at
+- Tabela `site_conteudos` — id, tipo (ebook/video/podcast/guia), titulo, descricao, arquivo_url, thumbnail_url, created_at
+- Tabela `site_reunioes` — id, nome, email, telefone, assunto, data_hora, status (pendente/confirmado/cancelado), google_meet_link, created_at
+- Tabela `site_leads` — id, nome, email, interesse, created_at
+- Tabela `site_horarios_disponiveis` — id, dia_semana (0-6), hora_inicio, hora_fim, ativo
+- RLS: noticias/conteudos publicados = SELECT anon; CRUD = marketing/coordenacao
+- RLS: reunioes/leads = INSERT anon; SELECT/UPDATE = coordenacao/marketing
+
+---
+
+### Parte 2 — Layout Público
+
+**Novo arquivo:** `src/components/SiteLayout.tsx`
+- Header com logos (SCNSA + CAIA), navegação horizontal (Início, Indicadores, Notícias, Conteúdos, Contato)
+- Footer institucional (endereço, CNPJ, redes sociais)
+- Paleta: laranja (#E5541B), azul (#3B8FC2), branco, cinza escuro para texto
+- Fonte Inter, design limpo e institucional
+
+---
+
+### Parte 3 — Páginas Públicas
+
+**`src/pages/site/SiteHomePage.tsx`**
+- Hero com slogan "Olhando o passado, vivendo o presente e projetando o futuro."
+- Seção Histórico (texto estático editável via admin futuramente)
+- Seção Diretoria e Comissão (dados estáticos inicialmente: nomes, cargos, fotos)
+- Seção Projetos: card do CAIA Medianeira com logo e descrição
+
+**`src/pages/site/SiteIndicadoresPage.tsx`**
+- Consulta dados agregados do Supabase (total participantes ativos, turmas, frequência geral, etc.) via Edge Function pública (sem expor dados individuais)
+- Cards visuais com gráficos simples (barras/donuts)
+- Botão "Exportar Relatório Sintético" → gera PDF com jsPDF
+- Modal de captura de lead: nome + email antes de baixar
+
+**`src/pages/site/SiteNoticiasPage.tsx`**
+- Lista de notícias publicadas (status='publicado'), com imagem, título, data
+- Página de detalhe ao clicar
+
+**`src/pages/site/SiteConteudosPage.tsx`**
+- Grid filtrado por tipo (ebook/video/podcast/guia)
+- Cards com thumbnail, título, descrição, botão de download/assistir
+
+**`src/pages/site/SiteContatoPage.tsx`**
+- Formulário de contato (nome, email, telefone, assunto, mensagem) → insere em `site_leads`
+- Seção de agendamento: calendário mostrando horários disponíveis → insere em `site_reunioes`
+
+---
+
+### Parte 4 — Geração de Notícias por IA
+
+**Edge Function:** `supabase/functions/generate-noticia/index.ts`
+- Recebe dados do relatório de atividade
+- Usa Lovable AI para gerar título + corpo de notícia com tom jornalístico/institucional
+- Salva em `site_noticias` com status='pendente'
+
+**Integração no RelatorioDetalhePage:** Botão "Gerar Notícia para o Site" (ao lado do botão Instagram existente)
+
+---
+
+### Parte 5 — Painel Admin de Notícias e Conteúdos
+
+**Novo na área protegida:** Adicionar aba ou página de gestão:
+- `/site-admin` (rota protegida) com tabs: Notícias, Conteúdos, Reuniões, Horários
+- Notícias: listar, aprovar (pendente→publicado), editar, criar manualmente
+- Conteúdos: upload de e-books/vídeos/guias com metadados
+- Reuniões: ver agendamentos, confirmar, adicionar link Google Meet
+- Horários: configurar dias/horários disponíveis para reunião
+- Acessível por: coordenacao, marketing
+
+---
+
+### Parte 6 — Role Marketing
+
+- Adicionar role `marketing` ao enum
+- Sidebar: mostrar item "Site Admin" para marketing/coordenacao
+- Permissões: mesmas de coordenação para gerenciamento do site público
+
+---
+
+### Resumo de Arquivos
+
+| Arquivo | Ação |
 |---|---|
-| `src/lib/fileNaming.ts` (novo) | Helper centralizado de nomenclatura |
-| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Quadrado ■, reordenar botões, PDF profissional, nomenclatura |
-| `supabase/functions/generate-relatorio-mensal/index.ts` | Quadrado ■, nomenclatura |
-| `supabase/functions/generate-rca/index.ts` | Nomenclatura |
-| `supabase/functions/generate-reo/index.ts` | Nomenclatura |
-| `src/pages/financeiro/OrcamentosTab.tsx` | Fix inputs com estado local + onBlur |
-| `src/pages/financeiro/FinanceiroPage.tsx` | KPI "Gastos Previstos", aba "Documentos", upload inline |
-| `src/pages/financeiro/DocumentosPrestacaoTab.tsx` (novo) | Documentos institucionais com versionamento |
-| Migração SQL | CREATE `documentos_prestacao_contas` com RLS |
-| `src/hooks/useDataExport.ts` | Usar helper de nomenclatura |
-| `src/hooks/useOrcamentoExport.ts` | Usar helper de nomenclatura |
-| `src/hooks/useDocumentExport.ts` | Nomenclatura lista presença |
-| `src/hooks/useBackupExport.ts` | Usar helper de nomenclatura |
+| `src/assets/scnsa-logo.png` | Copiar logo SCNSA |
+| `src/assets/caia-logo.png` | Copiar logo CAIA |
+| Migração SQL | Tabelas site_*, role marketing |
+| `src/components/SiteLayout.tsx` | Layout público com header/footer |
+| `src/pages/site/SiteHomePage.tsx` | Home institucional |
+| `src/pages/site/SiteIndicadoresPage.tsx` | Painel de indicadores público |
+| `src/pages/site/SiteNoticiasPage.tsx` | Feed de notícias |
+| `src/pages/site/SiteConteudosPage.tsx` | Biblioteca de conteúdos |
+| `src/pages/site/SiteContatoPage.tsx` | Contato + agendamento |
+| `supabase/functions/generate-noticia/index.ts` | IA para gerar notícias |
+| `supabase/functions/public-indicadores/index.ts` | Dados agregados públicos |
+| `src/pages/site-admin/SiteAdminPage.tsx` | Gestão de notícias/conteúdos/reuniões |
+| `src/App.tsx` | Novas rotas `/site/*` e `/site-admin` |
+| `src/components/AppSidebar.tsx` | Item "Site Admin" para marketing/coord |
 
