@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, Upload, Search, Filter, Eye, Bell, Check, X } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
