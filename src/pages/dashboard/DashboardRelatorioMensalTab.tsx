@@ -377,12 +377,13 @@ export default function DashboardRelatorioMensalTab() {
       XLSX.utils.book_append_sheet(wb, wsMetas, "Metas");
 
       // --- Sheet 4: Monitoramento ---
-      const totalPresencasRegistros = presencas.length;
-      const totalPresentes = presencas.filter((p: any) => p.presente).length;
+      // Use activePresencas for monitoramento
+      const totalPresencasRegistros = activePresencas.length;
+      const totalPresentes = activePresencas.filter((p: any) => p.presente).length;
       const pctPresencaGeral = totalPresencasRegistros > 0 ? Math.round((totalPresentes / totalPresencasRegistros) * 100) : 0;
 
       const partFreq: Record<string, { total: number; presentes: number }> = {};
-      presencas.forEach((p: any) => {
+      activePresencas.forEach((p: any) => {
         if (!partFreq[p.participante_id]) partFreq[p.participante_id] = { total: 0, presentes: 0 };
         partFreq[p.participante_id].total++;
         if (p.presente) partFreq[p.participante_id].presentes++;
