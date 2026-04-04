@@ -76,7 +76,7 @@ const TurmaDetalhePage = () => {
       supabase.from("relatorio_turmas").select("relatorio_id, relatorios_atividade(id, nome_atividade, data, score_elo)").eq("turma_id", id!),
     ]);
     setTurma(t);
-    const membersList = (tp || []).map((r: any) => ({ tp_id: r.id, participante_id: r.participante_id, nome: r.participantes?.nome_completo || "", periodo: r.participantes?.periodo }));
+    const membersList = (tp || []).map((r: any) => ({ tp_id: r.id, participante_id: r.participante_id, nome: r.participantes?.nome_completo || "", periodo: r.participantes?.periodo, status: r.participantes?.status, data_desligamento: r.participantes?.data_desligamento }));
     setMembers(membersList);
     setAllParticipantes(ap || []);
     setBairros(b || []);
