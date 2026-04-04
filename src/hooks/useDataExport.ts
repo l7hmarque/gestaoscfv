@@ -2,15 +2,9 @@ import * as XLSX from "xlsx-js-style";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { saveAs } from "file-saver";
+import { sysEloFileName } from "@/lib/fileNaming";
 
-function timestamp() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}_${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}${String(d.getSeconds()).padStart(2,"0")}`;
-}
-
-export function exportFileName(category: string, ext: string) {
-  return `SysELO_${category}_${timestamp()}.${ext}`;
-}
+export { sysEloFileName as exportFileName };
 
 export function exportXLSX(data: Record<string, any>[], headers: { key: string; label: string }[], category: string) {
   const rows = data.map(r => {
@@ -22,7 +16,7 @@ export function exportXLSX(data: Record<string, any>[], headers: { key: string; 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, category);
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf], { type: "application/octet-stream" }), exportFileName(category, "xlsx"));
+  saveAs(new Blob([buf], { type: "application/octet-stream" }), sysEloFileName(category, "xlsx"));
 }
 
 export function exportPDF(data: Record<string, any>[], headers: { key: string; label: string }[], category: string) {
@@ -41,7 +35,7 @@ export function exportPDF(data: Record<string, any>[], headers: { key: string; l
     alternateRowStyles: { fillColor: [245, 245, 245] },
   });
 
-  doc.save(exportFileName(category, "pdf"));
+  doc.save(sysEloFileName(category, "pdf"));
 }
 
 export function generateXLSXBuffer(data: Record<string, any>[], headers: { key: string; label: string }[], sheetName: string): Uint8Array {

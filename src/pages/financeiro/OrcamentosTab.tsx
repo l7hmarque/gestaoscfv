@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,22 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   rascunho: "Rascunho", cotacao: "Em Cotação", aprovado: "Aprovado", cancelado: "Cancelado",
 };
+
+// Debounced input that only calls onSave on blur
+function DebouncedInput({ value: externalValue, onSave, ...props }: { value: string | number; onSave: (v: string) => void } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange" | "onBlur" | "value">) {
+  const [val, setVal] = useState(String(externalValue ?? ""));
+  const mounted = useRef(true);
+  useEffect(() => { setVal(String(externalValue ?? "")); }, [externalValue]);
+  useEffect(() => { return () => { mounted.current = false; }; }, []);
+  return (
+    <Input
+      {...props}
+      value={val}
+      onChange={e => setVal(e.target.value)}
+      onBlur={() => { if (String(externalValue) !== val) onSave(val); }}
+    />
+  );
+}
 
 export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; categorias: Categoria[] }) {
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
@@ -95,12 +111,13 @@ export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; 
 
   const updateItem = async (id: string, field: string, value: any) => {
     await supabase.from("orcamento_itens").update({ [field]: value } as any).eq("id", id);
-    loadDetail(selectedId!);
+    // Update local state without reloading
+    setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i));
   };
 
   const deleteItem = async (id: string) => {
     await supabase.from("orcamento_itens").delete().eq("id", id);
-    loadDetail(selectedId!);
+    setItems(prev => prev.filter(i => i.id !== id));
   };
 
   const addCotacao = async () => {
@@ -109,7 +126,6 @@ export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; 
       orcamento_id: selectedId, fornecedor_nome: "Fornecedor",
     } as any);
     if (error) { toast.error(error.message); return; }
-    // Update status to cotacao
     await supabase.from("orcamentos").update({ status: "cotacao" } as any).eq("id", selectedId);
     loadDetail(selectedId);
     load();
@@ -117,24 +133,26 @@ export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; 
 
   const updateCotacao = async (id: string, field: string, value: any) => {
     await supabase.from("orcamento_cotacoes").update({ [field]: value } as any).eq("id", id);
-    loadDetail(selectedId!);
+    setCotacoes(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
   };
 
   const deleteCotacao = async (id: string) => {
     await supabase.from("orcamento_cotacoes").delete().eq("id", id);
-    loadDetail(selectedId!);
+    setCotacoes(prev => prev.filter(c => c.id !== id));
+    setPrecos(prev => prev.filter(p => p.cotacao_id !== id));
   };
 
-  const setPreco = async (cotacaoId: string, itemId: string, valor: number) => {
+  const setPrecoVal = async (cotacaoId: string, itemId: string, valor: number) => {
     const existing = precos.find(p => p.cotacao_id === cotacaoId && p.item_id === itemId);
     if (existing) {
       await supabase.from("orcamento_precos").update({ preco_unitario: valor } as any).eq("id", existing.id);
+      setPrecos(prev => prev.map(p => p.id === existing.id ? { ...p, preco_unitario: valor } : p));
     } else {
-      await supabase.from("orcamento_precos").insert({
+      const { data } = await supabase.from("orcamento_precos").insert({
         cotacao_id: cotacaoId, item_id: itemId, preco_unitario: valor,
-      } as any);
+      } as any).select().single();
+      if (data) setPrecos(prev => [...prev, data as unknown as Preco]);
     }
-    loadDetail(selectedId!);
   };
 
   const getPreco = (cotacaoId: string, itemId: string): number => {
@@ -182,7 +200,6 @@ export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; 
       data_aprovacao: new Date().toISOString().slice(0, 10),
     } as any).eq("id", selectedId);
 
-    // Auto-launch despesa
     await supabase.from("despesas").insert({
       descricao: `Orçamento: ${orc?.titulo || ""}`,
       valor: totalVencedor,
@@ -212,6 +229,7 @@ export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; 
 
   // Detail view
   if (selectedId && selected) {
+    const isApproved = selected.status === "aprovado";
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -234,7 +252,7 @@ export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; 
                 <Download className="h-3 w-3" />Mapa Comparativo
               </Button>
             )}
-            {selected.status !== "aprovado" && (
+            {!isApproved && (
               <Button size="sm" className="gap-1 text-xs" onClick={aprovarOrcamento} disabled={cotacoes.length === 0 || items.length === 0}>
                 <CheckCircle2 className="h-3 w-3" />Aprovar
               </Button>
@@ -246,7 +264,7 @@ export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm">Itens</CardTitle>
-            {selected.status !== "aprovado" && <Button size="sm" variant="outline" onClick={addItem} className="gap-1 text-xs"><Plus className="h-3 w-3" />Item</Button>}
+            {!isApproved && <Button size="sm" variant="outline" onClick={addItem} className="gap-1 text-xs"><Plus className="h-3 w-3" />Item</Button>}
           </CardHeader>
           <CardContent>
             <Table><TableHeader><TableRow>
@@ -260,10 +278,16 @@ export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; 
               {items.map(item => (
                 <TableRow key={item.id}>
                   <TableCell className="text-xs">{item.item_num}</TableCell>
-                  <TableCell><Input className="h-7 text-xs" value={item.descricao} onChange={e => updateItem(item.id, "descricao", e.target.value)} disabled={selected.status === "aprovado"} /></TableCell>
-                  <TableCell><Input className="h-7 text-xs" value={item.unidade_medida} onChange={e => updateItem(item.id, "unidade_medida", e.target.value)} disabled={selected.status === "aprovado"} /></TableCell>
-                  <TableCell><Input className="h-7 text-xs" type="number" value={item.quantidade} onChange={e => updateItem(item.id, "quantidade", Number(e.target.value))} disabled={selected.status === "aprovado"} /></TableCell>
-                  <TableCell>{selected.status !== "aprovado" && <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteItem(item.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>}</TableCell>
+                  <TableCell>
+                    <DebouncedInput className="h-7 text-xs" value={item.descricao} onSave={v => updateItem(item.id, "descricao", v)} disabled={isApproved} />
+                  </TableCell>
+                  <TableCell>
+                    <DebouncedInput className="h-7 text-xs" value={item.unidade_medida} onSave={v => updateItem(item.id, "unidade_medida", v)} disabled={isApproved} />
+                  </TableCell>
+                  <TableCell>
+                    <DebouncedInput className="h-7 text-xs" type="number" value={item.quantidade} onSave={v => updateItem(item.id, "quantidade", Number(v))} disabled={isApproved} />
+                  </TableCell>
+                  <TableCell>{!isApproved && <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteItem(item.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>}</TableCell>
                 </TableRow>
               ))}
               {items.length === 0 && <TableRow><TableCell colSpan={5} className="text-xs text-center text-muted-foreground py-4">Nenhum item. Clique em "+ Item".</TableCell></TableRow>}
@@ -275,7 +299,7 @@ export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm">Cotações ({cotacoes.length}/3)</CardTitle>
-            {selected.status !== "aprovado" && cotacoes.length < 3 && <Button size="sm" variant="outline" onClick={addCotacao} className="gap-1 text-xs"><Plus className="h-3 w-3" />Fornecedor</Button>}
+            {!isApproved && cotacoes.length < 3 && <Button size="sm" variant="outline" onClick={addCotacao} className="gap-1 text-xs"><Plus className="h-3 w-3" />Fornecedor</Button>}
           </CardHeader>
           <CardContent className="space-y-4">
             {cotacoes.map((cot, ci) => (
@@ -284,14 +308,22 @@ export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; 
                   <span className="text-xs font-semibold">Fornecedor {ci + 1}</span>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium">Total: {fmt(getTotalCotacao(cot.id))}</span>
-                    {selected.status !== "aprovado" && <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteCotacao(cot.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>}
+                    {!isApproved && <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteCotacao(cot.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  <div><Label className="text-[10px]">Razão Social</Label><Input className="h-7 text-xs" value={cot.fornecedor_nome} onChange={e => updateCotacao(cot.id, "fornecedor_nome", e.target.value)} disabled={selected.status === "aprovado"} /></div>
-                  <div><Label className="text-[10px]">CNPJ</Label><Input className="h-7 text-xs" value={cot.cnpj || ""} onChange={e => updateCotacao(cot.id, "cnpj", e.target.value)} disabled={selected.status === "aprovado"} /></div>
-                  <div><Label className="text-[10px]">Data Emissão</Label><Input className="h-7 text-xs" type="date" value={cot.data_emissao || ""} onChange={e => updateCotacao(cot.id, "data_emissao", e.target.value)} disabled={selected.status === "aprovado"} /></div>
-                  <div><Label className="text-[10px]">Validade</Label><Input className="h-7 text-xs" type="date" value={cot.data_validade || ""} onChange={e => updateCotacao(cot.id, "data_validade", e.target.value)} disabled={selected.status === "aprovado"} /></div>
+                  <div><Label className="text-[10px]">Razão Social</Label>
+                    <DebouncedInput className="h-7 text-xs" value={cot.fornecedor_nome} onSave={v => updateCotacao(cot.id, "fornecedor_nome", v)} disabled={isApproved} />
+                  </div>
+                  <div><Label className="text-[10px]">CNPJ</Label>
+                    <DebouncedInput className="h-7 text-xs" value={cot.cnpj || ""} onSave={v => updateCotacao(cot.id, "cnpj", v)} disabled={isApproved} />
+                  </div>
+                  <div><Label className="text-[10px]">Data Emissão</Label>
+                    <DebouncedInput className="h-7 text-xs" type="date" value={cot.data_emissao || ""} onSave={v => updateCotacao(cot.id, "data_emissao", v)} disabled={isApproved} />
+                  </div>
+                  <div><Label className="text-[10px]">Validade</Label>
+                    <DebouncedInput className="h-7 text-xs" type="date" value={cot.data_validade || ""} onSave={v => updateCotacao(cot.id, "data_validade", v)} disabled={isApproved} />
+                  </div>
                 </div>
                 {/* Preços por item */}
                 {items.length > 0 && (
@@ -300,7 +332,7 @@ export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; 
                       <div key={item.id} className="flex items-center gap-2">
                         <span className="text-[10px] w-8 text-right shrink-0">{item.item_num}.</span>
                         <span className="text-[10px] flex-1 truncate">{item.descricao}</span>
-                        <Input className="h-6 text-xs w-24" type="number" step="0.01" placeholder="R$ unit." value={getPreco(cot.id, item.id) || ""} onChange={e => setPreco(cot.id, item.id, Number(e.target.value))} disabled={selected.status === "aprovado"} />
+                        <DebouncedInput className="h-6 text-xs w-24" type="number" step="0.01" placeholder="R$ unit." value={getPreco(cot.id, item.id) || ""} onSave={v => setPrecoVal(cot.id, item.id, Number(v))} disabled={isApproved} />
                         <span className="text-[10px] w-20 text-right">{fmt(getPreco(cot.id, item.id) * item.quantidade)}</span>
                       </div>
                     ))}
