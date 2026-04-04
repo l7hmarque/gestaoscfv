@@ -201,13 +201,16 @@ function generateMonthSheets(
     const bairroNome = bairroMap.get(turma.bairro_id) || "";
     if (BAIRROS_SCFV.includes(bairroNome)) { const analise = relIdToAnalise.get(rt.relatorio_id); if (analise) bairroRelResultados[bairroNome].add(analise); }
   });
-  presencas.filter((p: any) => p.presente).forEach((pres: any) => {
+  // Use activePresencas for metas (excludes post-desligamento records)
+  activePresencas.filter((p: any) => p.presente).forEach((pres: any) => {
     const turma = turmaMap.get(pres.turma_id);
     if (!turma) return;
     const bairroNome = bairroMap.get(turma.bairro_id) || "";
     if (!BAIRROS_SCFV.includes(bairroNome)) return;
     const part = partMap.get(pres.participante_id);
     if (!part) return;
+    // Skip desligados before start of month
+    if (part.status === "desligado" && part.data_desligamento && part.data_desligamento < startDate) return;
     const age = part.data_nascimento ? calcAge(part.data_nascimento) : 0;
     const isIdoso = age >= 60;
     const periodo = turma.periodo || "manha";
