@@ -293,9 +293,24 @@ Deno.serve(async (req: Request) => {
       const tpIds = turmaParticipantes.filter((tp: any) => tp.turma_id === t.id).map((tp: any) => tp.participante_id);
       const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean) as any[];
       const tPresencas = presencas.filter((p: any) => p.turma_id === t.id);
+
+      // Build relatorio_presenca fallback: for relatórios linked to this turma in the month
+      const relIdsForTurma = relatorioTurmas.filter((rt: any) => rt.turma_id === t.id).map((rt: any) => rt.relatorio_id);
+      const relsForTurma = filteredRelatorios.filter((r: any) => relIdsForTurma.includes(r.id));
+      const relPresFallback: { participante_id: string; data: string; presente: boolean }[] = [];
+      relsForTurma.forEach((r: any) => {
+        const rps = relatorioPresencas.filter((rp: any) => rp.relatorio_id === r.id);
+        rps.forEach((rp: any) => {
+          relPresFallback.push({ participante_id: rp.participante_id, data: r.data, presente: rp.presente });
+        });
+      });
+
       const diasSemana = t.dias_semana || [];
       const datasAtividade = getDatasAtividade(anoNum, mesNum, diasSemana);
-      const datas = datasAtividade.length > 0 ? datasAtividade : [...new Set(tPresencas.map((p: any) => p.data))].sort();
+      // Also include dates from relatorio_presenca fallback
+      const fallbackDates = [...new Set(relPresFallback.map(f => f.data))];
+      const allDatesSet = new Set([...datasAtividade, ...tPresencas.map((p: any) => p.data), ...fallbackDates]);
+      const datas = datasAtividade.length > 0 ? datasAtividade : [...allDatesSet].sort();
       if (!datas.length && !tParts.length) continue;
 
       const bairroNome = bairroMap.get(t.bairro_id) || "N/I";
