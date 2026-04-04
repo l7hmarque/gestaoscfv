@@ -98,6 +98,11 @@ const SYSTEM_FIELDS: Record<string, { value: string; label: string }[]> = {
     { value: "dias_contraturno", label: "Dias de contraturno" },
     { value: "turmas", label: "Turmas vinculadas" },
     { value: "documentos", label: "Documentos anexos (lista)" },
+    { value: "ponto_transporte", label: "Ponto de transporte" },
+    { value: "periodo_scfv", label: "Período SCFV (inverso)" },
+    { value: "nome_grupo", label: "Nome do grupo (turma)" },
+    { value: "justificativa_desligamento", label: "Justificativa de desligamento" },
+    { value: "motivo_desligamento", label: "Motivo de desligamento" },
   ],
   "matriz_frequencia.docx": [
     { value: "turma_nome", label: "Nome da turma" },
