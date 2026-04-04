@@ -111,7 +111,7 @@ const ParticipantePerfilPage = () => {
     setSaving(true);
     const payload: Record<string, unknown> = { ...form };
     delete payload.id; delete payload.created_at; delete payload.updated_at;
-    ["bairro_id", "ponto_transporte_id", "data_nascimento", "iniciou_em"].forEach((k) => { if (!payload[k]) payload[k] = null; });
+    ["bairro_id", "ponto_transporte_id", "data_nascimento", "iniciou_em", "data_desligamento"].forEach((k) => { if (!payload[k]) payload[k] = null; });
     if (!canSeeConfidential) delete payload.observacoes_sigilosas;
 
     // Detectar mudanças relevantes antes de salvar
