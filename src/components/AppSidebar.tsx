@@ -37,6 +37,7 @@ const menuGroups = [
     label: "Gestão",
     items: [
       { title: "Equipe Técnica", url: "/equipe-tecnica", icon: HeartHandshake },
+      { title: "Financeiro", url: "/financeiro", icon: DollarSign },
       { title: "Banco de Dados", url: "/banco-de-dados", icon: Database },
     ],
   },

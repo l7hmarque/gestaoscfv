@@ -155,19 +155,19 @@ export default function FinanceiroPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card><CardContent className="pt-4 text-center">
           <p className="text-xs text-muted-foreground">Total Recebido</p>
-          <p className="text-lg font-bold text-green-600">{fmt(totalRecebido)}</p>
+          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fmt(totalRecebido)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-4 text-center">
           <p className="text-xs text-muted-foreground">Despesas ({mesRef})</p>
-          <p className="text-lg font-bold text-red-600">{fmt(totalDespesas)}</p>
+          <p className="text-lg font-bold text-destructive">{fmt(totalDespesas)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-4 text-center">
           <p className="text-xs text-muted-foreground">Estornos ({mesRef})</p>
-          <p className="text-lg font-bold text-amber-600">{fmt(totalEstornos)}</p>
+          <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{fmt(totalEstornos)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-4 text-center">
           <p className="text-xs text-muted-foreground">Saldo</p>
-          <p className={`text-lg font-bold ${saldo >= 0 ? "text-green-600" : "text-red-600"}`}>{fmt(saldo)}</p>
+          <p className={`text-lg font-bold ${saldo >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>{fmt(saldo)}</p>
         </CardContent></Card>
       </div>
 
