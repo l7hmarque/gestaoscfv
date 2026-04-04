@@ -1,5 +1,5 @@
 import {
-  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, MessageSquare, Newspaper, HeartHandshake,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, MessageSquare, Newspaper, HeartHandshake, DollarSign,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -37,6 +37,7 @@ const menuGroups = [
     label: "Gestão",
     items: [
       { title: "Equipe Técnica", url: "/equipe-tecnica", icon: HeartHandshake },
+      { title: "Financeiro", url: "/financeiro", icon: DollarSign },
       { title: "Banco de Dados", url: "/banco-de-dados", icon: Database },
     ],
   },

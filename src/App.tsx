@@ -34,6 +34,7 @@ import MatriculaPublicaPage from "./pages/matricula/MatriculaPublicaPage";
 import MuralPage from "./pages/mural/MuralPage";
 import FeedPage from "./pages/feed/FeedPage";
 import EquipeTecnicaPage from "./pages/equipe-tecnica/EquipeTecnicaPage";
+import FinanceiroPage from "./pages/financeiro/FinanceiroPage";
 
 const queryClient = new QueryClient();
 
@@ -71,6 +72,7 @@ const App = () => (
                 <Route path="/mural" element={<MuralPage />} />
                 <Route path="/feed" element={<FeedPage />} />
                 <Route path="/equipe-tecnica" element={<EquipeTecnicaPage />} />
+                <Route path="/financeiro" element={<FinanceiroPage />} />
               </Route>
               <Route path="/dev" element={<DevPage />} />
               <Route path="/matricula" element={<MatriculaPublicaPage />} />

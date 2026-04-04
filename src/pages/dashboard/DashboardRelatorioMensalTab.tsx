@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileSpreadsheet, Download } from "lucide-react";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import { BAIRROS_SCFV, calcFaixaFromDate } from "@/lib/constants";
 
@@ -92,9 +92,33 @@ export default function DashboardRelatorioMensalTab() {
   const [ano, setAno] = useState(String(now.getFullYear()));
   const [mes, setMes] = useState(String(now.getMonth() + 1).padStart(2, "0"));
   const [generating, setGenerating] = useState(false);
+  const [generatingLocal, setGeneratingLocal] = useState(false);
 
-  const generate = async () => {
+  // Background generation via edge function (works on mobile)
+  const generateBackground = async () => {
     setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-relatorio-mensal", {
+        body: { mes, ano },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, "_blank");
+        toast.success("Relatório gerado! O download iniciará automaticamente.");
+      } else {
+        throw new Error("URL não retornada");
+      }
+    } catch (err: any) {
+      console.error("Erro:", err);
+      toast.error("Erro ao gerar relatório: " + (err?.message || "Erro desconhecido"));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // Local generation (fallback for quick desktop use)
+  const generateLocal = async () => {
+    setGeneratingLocal(true);
     try {
       const mesNum = parseInt(mes);
       const startDate = `${ano}-${mes}-01`;
@@ -147,7 +171,6 @@ export default function DashboardRelatorioMensalTab() {
         return p.iniciou_em >= startDate && p.iniciou_em < endDate;
       });
 
-      // Count atendimentos by type
       const atendByTipo: Record<string, number> = {};
       filteredAtendimentos.forEach((a: any) => {
         const t = a.tipo || "atendimento_individual";
@@ -420,11 +443,7 @@ export default function DashboardRelatorioMensalTab() {
         const colHeaders = ["Nº", "Nome do Participante", ...datas.map(d => d.slice(5))];
         const rows = tParts.map((p: any, idx: number) => {
           const row: any[] = [idx + 1, p.nome_completo];
-          datas.forEach(d => {
-            const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
-            // Use empty string; styling (black fill) is applied below
-            row.push(rec ? (rec.presente ? "" : "") : "");
-          });
+          datas.forEach(() => row.push(""));
           return row;
         });
 
@@ -432,20 +451,16 @@ export default function DashboardRelatorioMensalTab() {
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
         ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...datas.map(() => ({ wch: 6 }))];
 
-        // Apply header style to column headers row (row index 4)
         applyHeaderStyle(ws, 4, colHeaders.length);
 
-        // Apply black fill for present cells and borders to all data cells
-        const dataStartRow = 5; // row index where participant data starts
+        const dataStartRow = 5;
         tParts.forEach((p: any, pIdx: number) => {
           const excelRow = dataStartRow + pIdx;
-          // Nº and Nome cells get borders
           for (let c = 0; c < 2; c++) {
             const addr = XLSX.utils.encode_cell({ r: excelRow, c });
             if (!ws[addr]) ws[addr] = { v: "", t: "s" };
             ws[addr].s = { ...(ws[addr].s || {}), border: borderObj };
           }
-          // Date cells: black fill if present, just border if absent/no record
           datas.forEach((d, dIdx) => {
             const col = 2 + dIdx;
             const addr = XLSX.utils.encode_cell({ r: excelRow, c: col });
@@ -474,7 +489,7 @@ export default function DashboardRelatorioMensalTab() {
       console.error("Erro ao gerar relatório mensal:", err);
       toast.error("Erro ao gerar relatório: " + (err?.message || "Erro desconhecido"));
     } finally {
-      setGenerating(false);
+      setGeneratingLocal(false);
     }
   };
 
@@ -492,7 +507,7 @@ export default function DashboardRelatorioMensalTab() {
             Inclui: atendidos por bairro/faixa/período, novas inserções, atividades planejadas × relatadas,
             metas por bairro, monitoramento SCFV, atendimentos técnicos e matrizes de frequência por turma.
           </p>
-          <div className="flex gap-3 items-end">
+          <div className="flex gap-3 items-end flex-wrap">
             <div>
               <Label className="text-xs">Mês</Label>
               <Select value={mes} onValueChange={setMes}>
@@ -504,10 +519,16 @@ export default function DashboardRelatorioMensalTab() {
               <Label className="text-xs">Ano</Label>
               <Input className="w-[100px]" value={ano} onChange={e => setAno(e.target.value)} />
             </div>
-            <Button onClick={generate} disabled={generating}>
-              <Download className="h-4 w-4 mr-1" /> {generating ? "Gerando..." : "Gerar XLSX"}
+            <Button onClick={generateBackground} disabled={generating || generatingLocal}>
+              <Download className="h-4 w-4 mr-1" /> {generating ? "Gerando..." : "Gerar XLSX (servidor)"}
+            </Button>
+            <Button variant="outline" onClick={generateLocal} disabled={generating || generatingLocal} className="text-xs">
+              <Download className="h-4 w-4 mr-1" /> {generatingLocal ? "Gerando..." : "Gerar local (desktop)"}
             </Button>
           </div>
+          <p className="text-[10px] text-muted-foreground">
+            Use "servidor" para celular/tablet (gera em segundo plano). Use "local" para desktop (mais rápido, gera no navegador).
+          </p>
         </CardContent>
       </Card>
     </div>
