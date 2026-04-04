@@ -93,6 +93,27 @@ export default function DashboardRelatorioMensalTab() {
   const [mes, setMes] = useState(String(now.getMonth() + 1).padStart(2, "0"));
   const [generating, setGenerating] = useState(false);
   const [generatingLocal, setGeneratingLocal] = useState(false);
+  const [generatingReo, setGeneratingReo] = useState(false);
+
+  const generateReo = async () => {
+    setGeneratingReo(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-reo", {
+        body: { mes, ano },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, "_blank");
+        toast.success("REO gerado com sucesso!");
+      } else {
+        throw new Error("URL não retornada");
+      }
+    } catch (err: any) {
+      toast.error("Erro ao gerar REO: " + (err.message || "Erro desconhecido"));
+    } finally {
+      setGeneratingReo(false);
+    }
+  };
 
   // Background generation via edge function (works on mobile)
   const generateBackground = async () => {
