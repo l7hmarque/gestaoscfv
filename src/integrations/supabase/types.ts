@@ -1416,6 +1416,174 @@ export type Database = {
           },
         ]
       }
+      site_conteudos: {
+        Row: {
+          arquivo_url: string
+          created_at: string | null
+          descricao: string | null
+          id: string
+          thumbnail_url: string | null
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          arquivo_url: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          thumbnail_url?: string | null
+          tipo?: string
+          titulo: string
+        }
+        Update: {
+          arquivo_url?: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          thumbnail_url?: string | null
+          tipo?: string
+          titulo?: string
+        }
+        Relationships: []
+      }
+      site_horarios_disponiveis: {
+        Row: {
+          ativo: boolean | null
+          dia_semana: number
+          hora_fim: string
+          hora_inicio: string
+          id: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          dia_semana: number
+          hora_fim: string
+          hora_inicio: string
+          id?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          dia_semana?: number
+          hora_fim?: string
+          hora_inicio?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      site_leads: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          interesse: string | null
+          nome: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          interesse?: string | null
+          nome: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          interesse?: string | null
+          nome?: string
+        }
+        Relationships: []
+      }
+      site_noticias: {
+        Row: {
+          autor_id: string | null
+          conteudo: string
+          created_at: string | null
+          id: string
+          imagem_url: string | null
+          published_at: string | null
+          relatorio_id: string | null
+          status: string
+          subtitulo: string | null
+          titulo: string
+        }
+        Insert: {
+          autor_id?: string | null
+          conteudo?: string
+          created_at?: string | null
+          id?: string
+          imagem_url?: string | null
+          published_at?: string | null
+          relatorio_id?: string | null
+          status?: string
+          subtitulo?: string | null
+          titulo: string
+        }
+        Update: {
+          autor_id?: string | null
+          conteudo?: string
+          created_at?: string | null
+          id?: string
+          imagem_url?: string | null
+          published_at?: string | null
+          relatorio_id?: string | null
+          status?: string
+          subtitulo?: string | null
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_noticias_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_noticias_relatorio_id_fkey"
+            columns: ["relatorio_id"]
+            isOneToOne: false
+            referencedRelation: "relatorios_atividade"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_reunioes: {
+        Row: {
+          assunto: string
+          created_at: string | null
+          data_hora: string
+          email: string
+          google_meet_link: string | null
+          id: string
+          nome: string
+          status: string
+          telefone: string | null
+        }
+        Insert: {
+          assunto: string
+          created_at?: string | null
+          data_hora: string
+          email: string
+          google_meet_link?: string | null
+          id?: string
+          nome: string
+          status?: string
+          telefone?: string | null
+        }
+        Update: {
+          assunto?: string
+          created_at?: string | null
+          data_hora?: string
+          email?: string
+          google_meet_link?: string | null
+          id?: string
+          nome?: string
+          status?: string
+          telefone?: string | null
+        }
+        Relationships: []
+      }
       template_tag_mappings: {
         Row: {
           created_at: string | null
@@ -1578,6 +1746,7 @@ export type Database = {
         | "motorista"
         | "cozinheiro"
         | "visitante"
+        | "marketing"
       faixa_etaria_enum: "6-8" | "9-11" | "12-17" | "idosos"
       objetivo_resultado: "alcancado" | "parcial" | "nao_alcancado"
       periodo_enum: "manha" | "tarde" | "integral"
@@ -1720,6 +1889,7 @@ export const Constants = {
         "motorista",
         "cozinheiro",
         "visitante",
+        "marketing",
       ],
       faixa_etaria_enum: ["6-8", "9-11", "12-17", "idosos"],
       objetivo_resultado: ["alcancado", "parcial", "nao_alcancado"],
