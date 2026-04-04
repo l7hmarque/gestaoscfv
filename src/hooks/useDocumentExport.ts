@@ -229,8 +229,8 @@ function pdfTitle(doc: jsPDF, title: string, y: number): number {
 // ===== RELATÓRIO DE ATIVIDADE =====
 
 function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: any[]) {
-  const engOptions = ["Participaram ativamente", "Demonstraram interesse", "Houve resistência inicial", "Precisaram de estímulo constante", "Interagiram entre si"];
-  const sitOptions = ["Conflito entre participantes", "Avanço significativo", "Dificuldade de concentração", "Acolhimento emocional necessário", "Destaque positivo de participante"];
+  const engOptions = ["Grupo participativo", "Grupo disperso", "Boa interação entre participantes", "Necessitou intervenção do educador"];
+  const sitOptions = ["Nenhuma ocorrência", "Conflito entre participantes", "Situação de vulnerabilidade identificada", "Encaminhamento necessário", "Comunicação com família/responsável"];
   const objLabels: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
 
   // Handle tipo_atividade as array or legacy string
@@ -260,7 +260,11 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     NOME_ATIVIDADE: item.nome_atividade || "—",
     // Engajamento checkboxes — use [X]/[ ] for robust rendering
     ...Object.fromEntries(engOptions.map((opt, i) => [`ENG_${i + 1}`, item.engajamento?.includes(opt) ? "[X]" : "[ ]"])),
-    ENG_1_LABEL: engOptions[0], ENG_2_LABEL: engOptions[1], ENG_3_LABEL: engOptions[2], ENG_4_LABEL: engOptions[3], ENG_5_LABEL: engOptions[4],
+    ENG_1_LABEL: engOptions[0], ENG_2_LABEL: engOptions[1], ENG_3_LABEL: engOptions[2], ENG_4_LABEL: engOptions[3],
+    // Objetivo checkboxes
+    OBJ_1: item.objetivo_alcancado === "alcancado" ? "[X]" : "[ ]",
+    OBJ_2: item.objetivo_alcancado === "parcial" ? "[X]" : "[ ]",
+    OBJ_3: item.objetivo_alcancado === "nao_alcancado" ? "[X]" : "[ ]",
     // Situações checkboxes
     ...Object.fromEntries(sitOptions.map((opt, i) => [`SIT_${i + 1}`, item.situacoes_relevantes?.includes(opt) ? "[X]" : "[ ]"])),
     SIT_1_LABEL: sitOptions[0], SIT_2_LABEL: sitOptions[1], SIT_3_LABEL: sitOptions[2], SIT_4_LABEL: sitOptions[3], SIT_5_LABEL: sitOptions[4],
@@ -334,13 +338,13 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
   children.push(new Paragraph({ spacing: { after: 200 }, children: [] }));
 
   if (item.engajamento?.length > 0) {
-    const engOptions = ["Participaram ativamente", "Demonstraram interesse", "Houve resistência inicial", "Precisaram de estímulo constante", "Interagiram entre si"];
+    const engOptions = ["Grupo participativo", "Grupo disperso", "Boa interação entre participantes", "Necessitou intervenção do educador"];
     children.push(new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: "Engajamento:", bold: true, size: 20, font: "Arial" })] }));
     children.push(new Paragraph({ spacing: { after: 200 }, children: engOptions.flatMap(opt => checkbox(item.engajamento.includes(opt), opt)) }));
   }
 
   if (item.situacoes_relevantes?.length > 0) {
-    const sitOptions = ["Conflito entre participantes", "Avanço significativo", "Dificuldade de concentração", "Acolhimento emocional necessário", "Destaque positivo de participante"];
+    const sitOptions = ["Nenhuma ocorrência", "Conflito entre participantes", "Situação de vulnerabilidade identificada", "Encaminhamento necessário", "Comunicação com família/responsável"];
     children.push(new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: "Situações Relevantes:", bold: true, size: 20, font: "Arial" })] }));
     children.push(new Paragraph({ spacing: { after: 200 }, children: sitOptions.flatMap(opt => checkbox(item.situacoes_relevantes.includes(opt), opt)) }));
   }
@@ -453,14 +457,14 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
   y = (doc as any).lastAutoTable.finalY + 4;
 
   // Engajamento checkboxes
-  const engOptions = ["Participaram ativamente", "Demonstraram interesse", "Houve resistência inicial", "Precisaram de estímulo constante", "Interagiram entre si"];
+  const engOptions = ["Grupo participativo", "Grupo disperso", "Boa interação entre participantes", "Necessitou intervenção do educador"];
   doc.setFontSize(9); doc.setFont("helvetica", "bold");
   doc.text("Engajamento:", 14, y); y += 4; doc.setFont("helvetica", "normal"); doc.setFontSize(8);
   doc.text(engOptions.map(opt => `${item.engajamento?.includes(opt) ? "☑" : "☐"} ${opt}`).join("   "), 14, y, { maxWidth: 180 });
   y += 6;
 
   // Situações
-  const sitOptions = ["Conflito entre participantes", "Avanço significativo", "Dificuldade de concentração", "Acolhimento emocional necessário", "Destaque positivo de participante"];
+  const sitOptions = ["Nenhuma ocorrência", "Conflito entre participantes", "Situação de vulnerabilidade identificada", "Encaminhamento necessário", "Comunicação com família/responsável"];
   doc.setFontSize(9); doc.setFont("helvetica", "bold");
   doc.text("Situações Relevantes:", 14, y); y += 4; doc.setFont("helvetica", "normal"); doc.setFontSize(8);
   doc.text(sitOptions.map(opt => `${item.situacoes_relevantes?.includes(opt) ? "☑" : "☐"} ${opt}`).join("   "), 14, y, { maxWidth: 180 });
