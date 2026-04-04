@@ -1,160 +1,79 @@
+## Análise: Tags faltantes no DOCX do REO
 
-
-## Plano: Corrigir XLSX + Geração em segundo plano + Relatório de Execução do Objeto + Módulo Financeiro
-
----
-
-### Diagnóstico: Por que o XLSX não tem bordas nem preenchimento preto
-
-A biblioteca `xlsx` versão 0.18.5 (community/free) **NÃO suporta estilização de células** (propriedade `.s`). Todo o código de `applyBorders`, `applyHeaderStyle` e `fill: { fgColor: { rgb: "000000" } }` é **silenciosamente ignorado**. Os dados estão lá, mas sem formatação visual.
-
-**Solução**: Substituir `xlsx` por `xlsx-js-style` (fork compatível que suporta `.s`). A API é idêntica, bastando trocar o import. Isso corrige imediatamente bordas, headers cinza, e preenchimento preto nas matrizes.
+Analisei o documento completo e mapeei todas as tabelas. Aqui está o status de cada seção:
 
 ---
 
-### 1. Trocar biblioteca XLSX (CRÍTICO)
+### Tabelas que JÁ TÊM tags no DOCX
 
-- Remover `xlsx` do `package.json`
-- Instalar `xlsx-js-style` (drop-in replacement)
-- Em `DashboardRelatorioMensalTab.tsx` e `useDataExport.ts`: trocar `import * as XLSX from "xlsx"` para `import * as XLSX from "xlsx-js-style"`
-- Sem mais alterações necessárias — todo o código de estilização já escrito passará a funcionar
 
----
+| Seção                  | Tags encontradas                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1.1 Atividades**     | `{tabela_atividades_reo}` (apenas referência, a tabela de dados está vazia)                                                                                                                                                                                                                                                                              |
+| **1.2 Equipe Técnica** | `{MES_ANO}`, `{COUNT_ATENDIMENTOS_COMUNIDADE}`, `{COUNT_ATENDIMENTOS_FAMILIARES}`, `{COUNT_ATENDIMENTOS_PARTICIPANTES}`, `{COUNT_ATENDIMENTOS_EDUCADORES}`, `{COUNT_ACOES_SOCIAIS}`, `{COUNT_ESTUDO_DE_CASO_REUNIAO REDE}`, `{COUNT_VISITAS_DOMICILIARES}`, `{COUNT_VISITAS_ESCOLARES}`, `{COUNT_APLICACAO_GRUPOS}`, `{COUNT_TOTAL_SERVICOS_EQ_TECNICA}` |
 
-### 2. Geração em segundo plano (mobile)
-
-O celular trava porque o browser precisa: buscar 10+ tabelas inteiras via fetchAllRows, processar tudo em memória, e gerar o XLSX — tudo síncrono no main thread.
-
-**Arquitetura**:
-
-```text
-[Usuário clica Gerar] 
-  → POST edge function "generate-relatorio-mensal" (mes, ano)
-  → Edge function busca dados com service_role, gera XLSX, salva no Storage
-  → Retorna URL do arquivo
-[Cliente baixa o arquivo pronto]
-```
-
-**Implementação**:
-- Nova edge function `generate-relatorio-mensal/index.ts` que recebe `{ mes, ano }` e faz toda a lógica que hoje está em `DashboardRelatorioMensalTab.tsx`
-- Usa `npm:xlsx-js-style` no Deno para gerar o XLSX com estilos
-- Salva o resultado no bucket `documentos` (privado) com path `relatorios-mensais/{ano}-{mes}_{timestamp}.xlsx`
-- Retorna `{ url: signedUrl }` com URL temporária de download
-- No frontend, o botão "Gerar XLSX" chama `supabase.functions.invoke(...)`, mostra spinner, e faz download da URL retornada
-- Funciona em qualquer dispositivo sem travar o browser
 
 ---
 
-### 3. Relatório de Execução do Objeto (REO) — automação via template DOCX
+### Tabelas que NÃO TÊM tags (precisam ser adicionadas ao DOCX)
 
-O documento analisado tem esta estrutura, e cada seção mapeia para dados já existentes no app:
 
-| Seção do REO | Fonte de dados no SysELO |
-|---|---|
-| 1.1 Atividades propostas × desenvolvidas | `planejamentos` + `relatorios_atividade` (filtrado pelo mês) |
-| 1.2 Serviços da Equipe Técnica | `atendimentos` agrupados por tipo |
-| 1.3 Comparativo de metas por bairro | `presenca` + `participantes` + `turmas` (lógica já existe em Metas) |
-| 1.4 Recursos Humanos | `profiles` com cargos |
-| 1.5 Monitoramento e Avaliação | Indicadores de presença (lógica já existe em Monitoramento) |
-| 2.1-2.4 Execução Financeira | **Novo módulo financeiro** |
-| Anexos I — Registros Fotográficos | `relatorio_fotos` do período |
+| Seção                                | O que falta                                                               | Tags sugeridas                                                                                                                                                                                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1.1 Atividades** (corpo da tabela) | As linhas de dados estão vazias — sem tags para preencher automaticamente | Precisa de um loop ou tag de tabela dinâmica                                                                                                                                                                                                             |
+| **1.3 Comparativo de Metas**         | Colunas "Quant.", "Resultados Alcançados" e "Justificativa" estão vazias  | Tags por bairro: `{QUANT_JI_MANHA}`, `{QUANT_JI_TARDE}`, `{QUANT_JI_IDOSOS}`, `{QUANT_PI_MANHA}`, `{QUANT_PI_TARDE}`, `{QUANT_PI_IDOSOS}`, `{QUANT_ALV_MANHA}`, `{QUANT_ALV_TARDE}`, `{QUANT_TOTAL_GERAL}`, `{RESULT_JI}`, `{RESULT_PI}`, `{RESULT_ALV}` |
+| **1.4 Recursos Humanos**             | Nomes estão fixos/hardcoded — sem tags                                    | Tags: `{tabela_recursos_humanos}` ou linhas com `{RH_NOME_1}`, `{RH_FUNCAO_1}`, `{RH_CH_1}` etc.                                                                                                                                                         |
+| **1.5 Monitoramento e Avaliação**    | Colunas "Meta atingida" estão vazias ou fixas                             | Tags: `{META_ATINGIDA_1}`, `{META_ATINGIDA_2}`, `{META_ATINGIDA_3}`, `{META_ATINGIDA_4}`                                                                                                                                                                 |
+| **2.1 Valores Transferidos**         | Dados fixos, sem tags                                                     | Tags: `{tabela_parcelas}` ou linhas individuais                                                                                                                                                                                                          |
+| **2.2 Despesas Efetuadas**           | Dados fixos, sem tags                                                     | Tag: `{tabela_despesas}`                                                                                                                                                                                                                                 |
+| **2.3 Resumo Financeiro**            | Valores fixos, sem tags                                                   | Tags: `{SALDO_ANTERIOR}`, `{VALORES_TRANSFERIDOS}`, `{RENDIMENTOS}`, `{VALORES_ESTORNADOS}`, `{VALOR_EXECUTADO}`, `{SALDO_MES_SEGUINTE}`                                                                                                                 |
+| **2.4 Saldo por Categoria**          | Valores fixos, sem tags                                                   | Tag: `{tabela_saldo_categorias}`                                                                                                                                                                                                                         |
+| **Anexos Fotográficos**              | Fotos fixas, sem tags                                                     | Tag: `{anexos_fotos}`                                                                                                                                                                                                                                    |
 
-**Implementação**:
-
-- Salvar o DOCX modelo no bucket `templates` como `reo.docx`
-- Inserir tags `{...}` no modelo para cada campo (ex: `{tabela_atividades}`, `{MES_ANO}`, `{COUNT_VISITAS_DOMICILIARES}`, etc.)
-- Adicionar entrada `reo.docx` no `TemplateTagMapper` com os campos disponíveis
-- Nova função `exportRelatorioPdf/Docx` em `useDocumentExport.ts` que:
-  - Busca todos os dados do período
-  - Monta os objetos de dados para cada tabela
-  - Preenche o template via `docxtemplater`
-  - Inclui fotos dos relatórios como anexos (via `ImageModule` do docxtemplater ou fallback com páginas de fotos)
-- Nova seção na aba "Relatório Mensal" do Dashboard: "Gerar REO (DOCX)" com seletor de mês/ano
-- O REO também pode ser gerado pela edge function em segundo plano
 
 ---
 
-### 4. Módulo Financeiro
+### Resumo: o que precisa ser feito
 
-**Novas tabelas (migração SQL)**:
+O DOCX modelo atual tem tags apenas na seção **1.2 (Equipe Técnica)**. Todas as outras tabelas estão com dados fixos/exemplo e precisam receber tags para automação.
 
-```sql
--- Parcelas recebidas
-CREATE TABLE public.parcelas_financeiras (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  numero_parcela integer NOT NULL,
-  valor numeric NOT NULL,
-  data_recebimento date NOT NULL,
-  created_at timestamptz DEFAULT now()
-);
+**Há duas abordagens possíveis:**
 
--- Categorias econômicas (plano de contas)
-CREATE TABLE public.categorias_financeiras (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  codigo text NOT NULL,
-  descricao text NOT NULL,
-  valor_previsto numeric DEFAULT 0,
-  created_at timestamptz DEFAULT now()
-);
+1. **Você insere as tags manualmente no DOCX** — eu forneço a lista exata de tags para cada célula, você edita o modelo no Word e faz upload na aba Admin. Depois o sistema preenche via `docxtemplater`.
+2. **O sistema gera o REO inteiro programaticamente** (sem template DOCX) — usando a biblioteca `docx-js`, o app monta o documento do zero com os dados corretos, replicando o layout do modelo. Não precisa de tags no DOCX.
 
--- Despesas mensais
-CREATE TABLE public.despesas (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  codigo_lancamento text,
-  descricao text NOT NULL,
-  valor numeric NOT NULL,
-  data_lancamento date NOT NULL,
-  categoria_id uuid REFERENCES public.categorias_financeiras(id),
-  mes_referencia text NOT NULL, -- 'YYYY-MM'
-  created_at timestamptz DEFAULT now()
-);
+A **opção 2 é mais confiável** porque:
 
--- Estornos
-CREATE TABLE public.estornos (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  categoria_id uuid REFERENCES public.categorias_financeiras(id),
-  valor numeric NOT NULL,
-  mes_referencia text NOT NULL,
-  created_at timestamptz DEFAULT now()
-);
-```
+- Tabelas dinâmicas (1.1 Atividades, 2.2 Despesas, 2.4 Categorias) têm número variável de linhas — `docxtemplater` com loops em tabelas é frágil
+- Os anexos fotográficos precisam de inserção de imagens dinâmicas
+- O layout é padronizado e raramente muda
 
-- RLS: coordenação e técnico podem CRUD; demais autenticados podem SELECT
-- **Página `/financeiro`**: CRUD de parcelas, despesas, categorias e estornos
-- Os dados alimentam automaticamente as seções 2.1-2.4 do REO
-- Item "Financeiro" no grupo GESTÃO do sidebar
+### Plano de implementação (opção 2 — geração programática)
 
----
+1. **Nova edge function `generate-reo**` que:
+  - Recebe `{ mes, ano }`
+  - Busca todos os dados necessários (planejamentos, relatórios, atendimentos, presença, financeiro, profiles, fotos)
+  - Gera o DOCX completo usando `docx-js` (npm:docx) replicando o layout exato do modelo
+  - Salva no Storage e retorna URL assinada
+2. **Seções geradas automaticamente:**
+  - 1.1: Tabela de atividades propostas × desenvolvidas (planejamentos + relatórios)
+  - 1.2: Contagens de atendimentos por tipo (tabela `atendimentos`)
+  - 1.3: Metas por bairro com quantitativos (presença + participantes)
+  - 1.4: Recursos Humanos (tabela `profiles` com cargo e carga horária)
+  - 1.5: Monitoramento com metas atingidas (indicadores de presença)
+  - 2.1: Parcelas (tabela `parcelas_financeiras`)
+  - 2.2: Despesas do mês (tabela `despesas`)
+  - 2.3: Resumo financeiro (calculado)
+  - 2.4: Saldo por categoria (tabela `categorias_financeiras` + `despesas` + `estornos`)
+  - Anexos: Fotos dos relatórios do período
+3. **UI no Dashboard** — Botão "Gerar REO (DOCX)" na aba Relatório Mensal
+4. **Campo faltante no banco**: `profiles` não tem `carga_horaria` — adicionar via migração
 
-### 5. Anexos fotográficos automáticos no REO
+### Arquivos
 
-- Buscar `relatorio_fotos` via `relatorio_turmas` filtrado pelo período
-- Para cada foto, baixar a imagem e inserir no DOCX como página de anexo
-- Se usando docxtemplater: usar módulo de imagem ou gerar páginas extras programaticamente
-- Se muitas fotos (>20), agrupar em grid (2-3 por página)
 
----
-
-### Resumo de arquivos
-
-| Arquivo | Mudança |
-|---|---|
-| `package.json` | Trocar `xlsx` por `xlsx-js-style` |
-| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Import `xlsx-js-style` + botão REO + chamada edge function |
-| `src/hooks/useDataExport.ts` | Import `xlsx-js-style` |
-| `supabase/functions/generate-relatorio-mensal/index.ts` | Nova edge function para gerar XLSX em segundo plano |
-| `src/hooks/useDocumentExport.ts` | Nova função `exportREODocx` |
-| `src/components/TemplateTagMapper.tsx` | Campos para `reo.docx` |
-| Migração SQL | Tabelas financeiras + RLS |
-| `src/pages/financeiro/FinanceiroPage.tsx` | Nova página CRUD financeiro |
-| `src/components/AppSidebar.tsx` | Item "Financeiro" |
-| `src/App.tsx` | Rota `/financeiro` |
-
-### Ordem de implementação sugerida
-
-1. Trocar `xlsx` por `xlsx-js-style` (resolve formatação imediatamente)
-2. Edge function de geração em segundo plano (resolve mobile)
-3. Módulo financeiro (tabelas + página)
-4. Automação do REO com template DOCX
-5. Anexos fotográficos
-
+| Arquivo                                               | Mudança                                              |
+| ----------------------------------------------------- | ---------------------------------------------------- |
+| Migração SQL                                          | `ALTER TABLE profiles ADD COLUMN carga_horaria text` |
+| `supabase/functions/generate-reo/index.ts`            | Nova edge function                                   |
+| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Botão "Gerar REO"                                    |
