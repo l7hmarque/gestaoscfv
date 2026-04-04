@@ -78,8 +78,10 @@ const SYSTEM_FIELDS: Record<string, { value: string; label: string }[]> = {
     { value: "responsavel1_nome", label: "Responsável 1 - Nome" },
     { value: "cpf", label: "CPF do participante" },
     { value: "responsavel1_whatsapp", label: "Responsável 1 - WhatsApp" },
+    { value: "vinculo_resp1", label: "Vínculo Resp. 1 (parentesco)" },
     { value: "responsavel2_nome", label: "Responsável 2 - Nome" },
     { value: "responsavel2_whatsapp", label: "Responsável 2 - WhatsApp" },
+    { value: "vinculo_resp2", label: "Vínculo Resp. 2 (parentesco)" },
     { value: "endereco_rua", label: "Endereço - Rua" },
     { value: "endereco_numero", label: "Endereço - Número" },
     { value: "endereco_bairro", label: "Endereço - Bairro" },
@@ -88,6 +90,8 @@ const SYSTEM_FIELDS: Record<string, { value: string; label: string }[]> = {
     { value: "situacao_moradia", label: "Situação de moradia" },
     { value: "laudo", label: "Laudo" },
     { value: "restricao_alimentar", label: "Restrição alimentar" },
+    { value: "remedio_continuo", label: "Remédio de uso contínuo" },
+    { value: "outras_condicoes", label: "Outras condições de saúde" },
     { value: "categoria_vulnerabilidade", label: "Categoria de vulnerabilidade" },
     { value: "origem_encaminhamento", label: "Origem/Encaminhamento" },
     { value: "responsavel_tecnico", label: "Responsável técnico" },
@@ -141,7 +145,9 @@ const AUTO_MATCH: Record<string, string> = {
   OBJ_1: "obj_1", OBJ_2: "obj_2", OBJ_3: "obj_3",
   NOME_GRUPO: "nome_grupo", PERIODO_SCFV: "periodo_scfv",
   PONTO_TRANSPORTE: "ponto_transporte",
-  JUST_DESLG: "justificativa_desligamento", MOTIVO_DESLG: "motivo_desligamento",
+  // Desligamento (both variants)
+  JUST_DESLG: "justificativa_desligamento", JUST_DESLIG: "justificativa_desligamento",
+  MOTIVO_DESLG: "motivo_desligamento", MOTIVO_DESLIG: "motivo_desligamento",
   // Planejamento
   TITULO: "titulo", TEMA: "tema", QUESTAO: "questao_geradora", QUESTAO_GERADORA: "questao_geradora",
   OBJETIVOS: "objetivos", ROTEIRO: "roteiro", MATERIAIS: "materiais",
@@ -157,6 +163,13 @@ const AUTO_MATCH: Record<string, string> = {
   CPF: "cpf", RESPONSAVEL1_WHATSAPP: "responsavel1_whatsapp",
   RESPONSAVEL2: "responsavel2_nome", RESPONSAVEL2_NOME: "responsavel2_nome",
   RESPONSAVEL2_WHATSAPP: "responsavel2_whatsapp",
+  // Vínculos e saúde (novas tags)
+  VINCULO_RESP1: "vinculo_resp1", VINCULO_RESP2: "vinculo_resp2",
+  REMEDIO: "remedio_continuo", REMEDIO_CONTINUO: "remedio_continuo",
+  OUTRAS_COND: "outras_condicoes", OUTRAS_CONDICOES: "outras_condicoes",
+  // Lowercase variants from templates
+  nomegrupo: "nome_grupo", responsavel2: "responsavel2_nome", outras_cond: "outras_condicoes",
+  // Endereço
   RUA: "endereco_rua", ENDERECO_RUA: "endereco_rua",
   NUMERO: "endereco_numero", ENDERECO_NUMERO: "endereco_numero",
   BAIRRO: "endereco_bairro", ENDERECO_BAIRRO: "endereco_bairro",

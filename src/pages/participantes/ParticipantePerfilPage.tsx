@@ -430,6 +430,7 @@ const ParticipantePerfilPage = () => {
             {editing ? (
               <>
                 <EditField label="Resp. 1 Nome" field="responsavel1_nome" />
+                <EditField label="Vínculo Resp. 1" field="vinculo_resp1" />
                 <div>
                   <Label className="text-xs">CPF do Participante</Label>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -442,10 +443,11 @@ const ParticipantePerfilPage = () => {
                 </div>
                 <div><Label className="text-xs">WhatsApp</Label><Input value={maskPhone(form.responsavel1_whatsapp || "")} onChange={(e) => set("responsavel1_whatsapp", unmaskDigits(e.target.value))} className="h-8 text-sm mt-0.5" placeholder="(00) 00000-0000" /></div>
                 <EditField label="Resp. 2 Nome" field="responsavel2_nome" />
+                <EditField label="Vínculo Resp. 2" field="vinculo_resp2" />
                 <div><Label className="text-xs">WhatsApp 2</Label><Input value={maskPhone(form.responsavel2_whatsapp || "")} onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))} className="h-8 text-sm mt-0.5" placeholder="(00) 00000-0000" /></div>
               </>
             ) : (
-              <><Info label="Resp. 1" value={participante.responsavel1_nome} /><Info label="CPF" value={displayCPF((participante as any).cpf)} /><Info label="WhatsApp" value={displayPhone(participante.responsavel1_whatsapp)} /><Info label="Resp. 2" value={participante.responsavel2_nome} /><Info label="WhatsApp 2" value={displayPhone(participante.responsavel2_whatsapp)} /></>
+              <><Info label="Resp. 1" value={participante.responsavel1_nome} /><Info label="Vínculo" value={(participante as any).vinculo_resp1} /><Info label="CPF" value={displayCPF((participante as any).cpf)} /><Info label="WhatsApp" value={displayPhone(participante.responsavel1_whatsapp)} /><Info label="Resp. 2" value={participante.responsavel2_nome} /><Info label="Vínculo" value={(participante as any).vinculo_resp2} /><Info label="WhatsApp 2" value={displayPhone(participante.responsavel2_whatsapp)} /></>
             )}
           </CardContent>
         </Card>
@@ -459,8 +461,10 @@ const ParticipantePerfilPage = () => {
                 <EditField label="Escola" field="escola" /><EditField label="Série" field="serie" /><EditField label="Origem" field="origem_encaminhamento" />
                 <EditField label="Resp. Técnico" field="responsavel_tecnico" /><EditField label="Vulnerabilidade" field="categoria_vulnerabilidade" /><EditField label="Início SCFV" field="iniciou_em" type="date" />
                 <EditField label="Data Desligamento" field="data_desligamento" type="date" /><EditField label="Dias Contraturno" field="dias_contraturno" />
+                <EditField label="Remédio Contínuo" field="remedio_continuo" />
                 <div className="col-span-2 sm:col-span-3"><Label className="text-xs">Restrição Alimentar</Label><Textarea value={form.restricao_alimentar || ""} onChange={(e) => set("restricao_alimentar", e.target.value)} className="text-sm mt-0.5 min-h-[50px]" /></div>
                 <div className="col-span-2 sm:col-span-3"><Label className="text-xs">Laudo</Label><Textarea value={form.laudo || ""} onChange={(e) => set("laudo", e.target.value)} className="text-sm mt-0.5 min-h-[50px]" /></div>
+                <div className="col-span-2 sm:col-span-3"><Label className="text-xs">Outras Condições de Saúde</Label><Textarea value={form.outras_condicoes || ""} onChange={(e) => set("outras_condicoes", e.target.value)} className="text-sm mt-0.5 min-h-[50px]" /></div>
               </>
             ) : (
               <>
@@ -468,6 +472,7 @@ const ParticipantePerfilPage = () => {
                 <Info label="Vulnerabilidade" value={participante.categoria_vulnerabilidade} /><Info label="Início SCFV" value={participante.iniciou_em} />
                 <Info label="Data Desligamento" value={(participante as any).data_desligamento} /><Info label="Dias Contraturno" value={(participante as any).dias_contraturno} />
                 <Info label="Restrição Alimentar" value={participante.restricao_alimentar} /><Info label="Laudo" value={participante.laudo} />
+                <Info label="Remédio Contínuo" value={(participante as any).remedio_continuo} /><Info label="Outras Condições" value={(participante as any).outras_condicoes} />
               </>
             )}
           </CardContent>

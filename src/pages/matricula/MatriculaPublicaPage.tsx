@@ -283,8 +283,10 @@ const MatriculaPublicaPage = () => {
           responsavel1_cpf: null,
           cpf: form.responsavel1_cpf || null,
           responsavel1_whatsapp: form.responsavel1_whatsapp,
+          vinculo_resp1: form.vinculo_resp1 || null,
           responsavel2_nome: form.responsavel2_nome || null,
           responsavel2_whatsapp: form.responsavel2_whatsapp || null,
+          vinculo_resp2: form.vinculo_resp2 || null,
           restricao_alimentar: form.restricao_alimentar || null,
           laudo: form.laudo || null,
           documentos: docsPayload,
@@ -550,6 +552,7 @@ const MatriculaPublicaPage = () => {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Field label="Nome do Responsável" value={form.responsavel1_nome || ""} onChange={(v) => set("responsavel1_nome", v)} required />
+                <Field label="Vínculo" value={form.vinculo_resp1 || ""} onChange={(v) => set("vinculo_resp1", v)} placeholder="Ex: Mãe, Pai, Avó" />
                 <div>
                   <Label className="text-sm font-medium">CPF do Participante</Label>
                   <Input
@@ -575,8 +578,9 @@ const MatriculaPublicaPage = () => {
               </div>
               <div className="border-t pt-3">
                 <p className="text-xs text-muted-foreground mb-2">Responsável 2 (opcional)</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <Field label="Nome" value={form.responsavel2_nome || ""} onChange={(v) => set("responsavel2_nome", v)} />
+                  <Field label="Vínculo" value={form.vinculo_resp2 || ""} onChange={(v) => set("vinculo_resp2", v)} placeholder="Ex: Mãe, Pai, Avó" />
                   <div>
                     <Label className="text-sm font-medium">WhatsApp</Label>
                     <Input
