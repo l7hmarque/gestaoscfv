@@ -842,6 +842,10 @@ if __name__ == "__main__":
         <TabsContent value="orcamentos">
           <OrcamentosTab mesRef={mesRef} categorias={categorias} />
         </TabsContent>
+        {/* =================== DOCUMENTOS INSTITUCIONAIS =================== */}
+        <TabsContent value="documentos">
+          <DocumentosPrestacaoTab />
+        </TabsContent>
       </Tabs>
     </div>
   );
