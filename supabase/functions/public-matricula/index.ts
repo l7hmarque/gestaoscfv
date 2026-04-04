@@ -39,6 +39,7 @@ Deno.serve(async (req) => {
       endereco_bairro, bairro_nome, ponto_transporte_id,
       responsavel1_nome, responsavel1_whatsapp,
       responsavel2_nome, responsavel2_whatsapp,
+      vinculo_resp1, vinculo_resp2,
       restricao_alimentar, laudo,
       documentos,
       existing_id,
