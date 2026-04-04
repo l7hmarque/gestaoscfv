@@ -261,8 +261,11 @@ const ParticipantePerfilPage = () => {
     <div className="space-y-4 max-w-4xl">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" asChild><Link to="/participantes"><ArrowLeft className="h-4 w-4" /></Link></Button>
+          {participante.foto_url && (
+            <img src={participante.foto_url} alt={participante.nome_completo} className="h-14 w-14 rounded-full object-cover object-center shrink-0 border-2 border-muted" />
+          )}
           <div>
             <h1 className="text-xl font-semibold text-foreground">{participante.nome_completo}</h1>
             <div className="flex gap-2 mt-0.5">
