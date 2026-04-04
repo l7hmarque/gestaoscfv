@@ -77,7 +77,7 @@ export default function BancoDadosPage() {
     { key: "escola", label: "Escola" },
     { key: "endereco_bairro", label: "Bairro" },
     { key: "responsavel1_nome", label: "Responsável" },
-    { key: "responsavel1_cpf", label: "CPF", render: (r: any) => displayCPF(r.responsavel1_cpf) },
+    { key: "cpf", label: "CPF", render: (r: any) => displayCPF(r.cpf) },
     { key: "responsavel1_whatsapp", label: "WhatsApp", render: (r: any) => displayPhone(r.responsavel1_whatsapp) },
   ];
   const partHeaders = partCols.map(c => ({ key: c.key, label: c.label }));

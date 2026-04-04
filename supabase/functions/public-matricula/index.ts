@@ -37,11 +37,12 @@ Deno.serve(async (req) => {
       nome_completo, data_nascimento, genero, cor_raca,
       escola, serie, periodo, endereco_rua, endereco_numero,
       endereco_bairro, bairro_nome, ponto_transporte_id,
-      responsavel1_nome, responsavel1_cpf, responsavel1_whatsapp,
+      responsavel1_nome, responsavel1_whatsapp,
       responsavel2_nome, responsavel2_whatsapp,
       restricao_alimentar, laudo,
       documentos,
       existing_id,
+      cpf,
     } = body;
 
     // Validate required fields

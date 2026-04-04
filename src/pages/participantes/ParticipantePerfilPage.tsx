@@ -423,7 +423,7 @@ const ParticipantePerfilPage = () => {
                 <div><Label className="text-xs">WhatsApp 2</Label><Input value={maskPhone(form.responsavel2_whatsapp || "")} onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))} className="h-8 text-sm mt-0.5" placeholder="(00) 00000-0000" /></div>
               </>
             ) : (
-              <><Info label="Resp. 1" value={participante.responsavel1_nome} /><Info label="CPF" value={displayCPF(participante.responsavel1_cpf)} /><Info label="WhatsApp" value={displayPhone(participante.responsavel1_whatsapp)} /><Info label="Resp. 2" value={participante.responsavel2_nome} /><Info label="WhatsApp 2" value={displayPhone(participante.responsavel2_whatsapp)} /></>
+              <><Info label="Resp. 1" value={participante.responsavel1_nome} /><Info label="CPF" value={displayCPF((participante as any).cpf)} /><Info label="WhatsApp" value={displayPhone(participante.responsavel1_whatsapp)} /><Info label="Resp. 2" value={participante.responsavel2_nome} /><Info label="WhatsApp 2" value={displayPhone(participante.responsavel2_whatsapp)} /></>
             )}
           </CardContent>
         </Card>
