@@ -129,8 +129,9 @@ const AUTO_MATCH: Record<string, string> = {
   INTERVENCOES: "intervencoes", OBSERVACOES: "observacoes",
   ANALISE: "analise_ia", ANALISE_IA: "analise_ia",
   // Engajamento/Situações
-  ENG_1: "eng_1", ENG_2: "eng_2", ENG_3: "eng_3", ENG_4: "eng_4", ENG_5: "eng_5",
+  ENG_1: "eng_1", ENG_2: "eng_2", ENG_3: "eng_3", ENG_4: "eng_4",
   SIT_1: "sit_1", SIT_2: "sit_2", SIT_3: "sit_3", SIT_4: "sit_4", SIT_5: "sit_5",
+  OBJ_1: "obj_1", OBJ_2: "obj_2", OBJ_3: "obj_3",
   // Planejamento
   TITULO: "titulo", TEMA: "tema", QUESTAO: "questao_geradora", QUESTAO_GERADORA: "questao_geradora",
   OBJETIVOS: "objetivos", ROTEIRO: "roteiro", MATERIAIS: "materiais",

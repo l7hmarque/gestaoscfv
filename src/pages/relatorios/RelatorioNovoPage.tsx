@@ -20,8 +20,8 @@ import { TIPOS_ATIVIDADE } from "@/lib/constants";
 import { checkConquistas } from "@/hooks/useConquistas";
 
 const LIKERT_LABELS = ["Muito Baixo", "Baixo", "Moderado", "Alto", "Excepcional"];
-const ENGAJAMENTO_OPT = ["Alta participação", "Participação parcial", "Pouca interação", "Dispersão", "Resistência"];
-const SITUACOES_OPT = ["Conflito entre participantes", "Dificuldade de compreensão", "Participante em crise", "Destaque positivo", "Necessidade de encaminhamento"];
+const ENGAJAMENTO_OPT = ["Grupo participativo", "Grupo disperso", "Boa interação entre participantes", "Necessitou intervenção do educador"];
+const SITUACOES_OPT = ["Nenhuma ocorrência", "Conflito entre participantes", "Situação de vulnerabilidade identificada", "Encaminhamento necessário", "Comunicação com família/responsável"];
 const DIAS_SEMANA = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
 function LikertField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {

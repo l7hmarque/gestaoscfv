@@ -431,14 +431,14 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
   y = (doc as any).lastAutoTable.finalY + 4;
 
   // Engajamento checkboxes
-  const engOptions = ["Participaram ativamente", "Demonstraram interesse", "Houve resistência inicial", "Precisaram de estímulo constante", "Interagiram entre si"];
+  const engOptions = ["Grupo participativo", "Grupo disperso", "Boa interação entre participantes", "Necessitou intervenção do educador"];
   doc.setFontSize(9); doc.setFont("helvetica", "bold");
   doc.text("Engajamento:", 14, y); y += 4; doc.setFont("helvetica", "normal"); doc.setFontSize(8);
   doc.text(engOptions.map(opt => `${item.engajamento?.includes(opt) ? "☑" : "☐"} ${opt}`).join("   "), 14, y, { maxWidth: 180 });
   y += 6;
 
   // Situações
-  const sitOptions = ["Conflito entre participantes", "Avanço significativo", "Dificuldade de concentração", "Acolhimento emocional necessário", "Destaque positivo de participante"];
+  const sitOptions = ["Nenhuma ocorrência", "Conflito entre participantes", "Situação de vulnerabilidade identificada", "Encaminhamento necessário", "Comunicação com família/responsável"];
   doc.setFontSize(9); doc.setFont("helvetica", "bold");
   doc.text("Situações Relevantes:", 14, y); y += 4; doc.setFont("helvetica", "normal"); doc.setFontSize(8);
   doc.text(sitOptions.map(opt => `${item.situacoes_relevantes?.includes(opt) ? "☑" : "☐"} ${opt}`).join("   "), 14, y, { maxWidth: 180 });
