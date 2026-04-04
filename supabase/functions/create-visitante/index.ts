@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     // Create user
     const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: "visitante@syselo.demo",
-      password: "visitantecaia",
+      password: "leoleoleo",
       email_confirm: true,
       user_metadata: { full_name: "Visitante Demo" },
     });

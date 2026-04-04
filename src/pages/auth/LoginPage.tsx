@@ -5,14 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, Loader2 } from "lucide-react";
+import { Eye, Loader2, LogIn } from "lucide-react";
 import { toast } from "sonner";
 
 const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [visitanteSenha, setVisitanteSenha] = useState("");
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
+  const [showVisitante, setShowVisitante] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
@@ -28,9 +30,14 @@ const LoginPage = () => {
     }
   };
 
-  const handleDemoLogin = async () => {
+  const handleDemoLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (visitanteSenha !== "leoleoleo") {
+      toast.error("Senha de visitante incorreta");
+      return;
+    }
     setDemoLoading(true);
-    const { error } = await signIn("visitante@syselo.demo", "visitantecaia");
+    const { error } = await signIn("visitante@syselo.demo", "leoleoleo");
     setDemoLoading(false);
     if (error) {
       toast.error("Conta de visitante não disponível. Contate o administrador.");
@@ -60,20 +67,41 @@ const LoginPage = () => {
               <Label htmlFor="password" className="text-xs">Senha</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
             </div>
-            <Button type="submit" className="w-full" disabled={loading || demoLoading}>
+            <Button type="submit" className="w-full gap-2" disabled={loading || demoLoading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
               {loading ? "Entrando..." : "Entrar"}
             </Button>
           </form>
+
           <div className="mt-3 pt-3 border-t">
-            <Button
-              variant="outline"
-              className="w-full gap-2 text-muted-foreground"
-              disabled={loading || demoLoading}
-              onClick={handleDemoLogin}
-            >
-              {demoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-              Experimentar como Visitante
-            </Button>
+            {!showVisitante ? (
+              <Button
+                variant="outline"
+                className="w-full gap-2 text-muted-foreground"
+                disabled={loading || demoLoading}
+                onClick={() => setShowVisitante(true)}
+              >
+                <Eye className="h-4 w-4" />
+                Experimentar como Visitante
+              </Button>
+            ) : (
+              <form onSubmit={handleDemoLogin} className="space-y-2">
+                <Label htmlFor="visitante-pw" className="text-xs text-muted-foreground">Senha de visitante</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="visitante-pw"
+                    type="password"
+                    value={visitanteSenha}
+                    onChange={(e) => setVisitanteSenha(e.target.value)}
+                    placeholder="Digite a senha"
+                    autoFocus
+                  />
+                  <Button type="submit" variant="outline" size="icon" disabled={demoLoading || !visitanteSenha}>
+                    {demoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </form>
+            )}
             <p className="text-[10px] text-muted-foreground text-center mt-1.5">
               Navegue pelo sistema sem alterar dados reais
             </p>
