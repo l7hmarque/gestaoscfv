@@ -654,6 +654,88 @@ const ParticipantePerfilPage = () => {
           </Card>
         )}
       </div>
+
+      {/* Discharge Dialog */}
+      <Dialog open={showDesligDialog} onOpenChange={setShowDesligDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle className="text-base">Desligamento do Participante</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label className="text-xs">Data de Desligamento *</Label><Input type="date" value={desligForm.data_desligamento} onChange={e => setDesligForm(f => ({ ...f, data_desligamento: e.target.value }))} className="h-8 text-sm mt-0.5" /></div>
+            <div><Label className="text-xs">Motivo *</Label>
+              <Select value={desligForm.motivo_desligamento} onValueChange={v => setDesligForm(f => ({ ...f, motivo_desligamento: v }))}>
+                <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue placeholder="Selecione o motivo..." /></SelectTrigger>
+                <SelectContent>{MOTIVOS_DESLIGAMENTO.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label className="text-xs">Justificativa (opcional)</Label><Textarea value={desligForm.justificativa_desligamento} onChange={e => setDesligForm(f => ({ ...f, justificativa_desligamento: e.target.value }))} className="text-sm mt-0.5 min-h-[60px]" placeholder="Detalhes adicionais..." /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowDesligDialog(false)}>Cancelar</Button>
+            <Button size="sm" disabled={!desligForm.data_desligamento || !desligForm.motivo_desligamento} onClick={async () => {
+              await supabase.from("participantes").update({
+                data_desligamento: desligForm.data_desligamento,
+                motivo_desligamento: desligForm.motivo_desligamento,
+                justificativa_desligamento: desligForm.justificativa_desligamento || null,
+              } as any).eq("id", id!);
+              toast.success("Desligamento registrado. Participante permanece na turma como desligado.");
+              setShowDesligDialog(false);
+              fetchAll();
+            }}>Confirmar Desligamento</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer Dialog */}
+      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle className="text-base">Transferência de Turma</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Os dados de bairro, período ou faixa etária foram alterados. Deseja transferir <strong>{participante?.nome_completo}</strong>?</p>
+          {transferInfo && (
+            <div className="space-y-2 text-sm">
+              <p><span className="font-medium">Turmas atuais:</span> {transferInfo.oldTurmas.join(", ") || "Nenhuma"}</p>
+              <p><span className="font-medium">Turmas compatíveis:</span> {transferInfo.newTurmas.map(t => t.nome).join(", ")}</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowTransferDialog(false)}>Manter nas turmas atuais</Button>
+            <Button size="sm" onClick={async () => {
+              if (!transferInfo) return;
+              // Record transfers
+              const oldLinks = turmas.map(t => t.turma_id);
+              for (const oldId of oldLinks) {
+                for (const newT of transferInfo.newTurmas) {
+                  await supabase.from("participante_transferencias" as any).insert({
+                    participante_id: id,
+                    turma_origem_id: oldId,
+                    turma_destino_id: newT.id,
+                    motivo: "Alteração de dados cadastrais",
+                  });
+                }
+              }
+              // Remove old links, add new
+              await supabase.from("turma_participantes").delete().eq("participante_id", id!);
+              const newLinks = transferInfo.newTurmas.map(t => ({ turma_id: t.id, participante_id: id! }));
+              await supabase.from("turma_participantes").upsert(newLinks, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
+              // Notify educators
+              for (const newT of transferInfo.newTurmas) {
+                const { data: turmaData } = await supabase.from("turmas").select("educador_id").eq("id", newT.id).single();
+                if (turmaData?.educador_id && myProfileId) {
+                  await supabase.from("recados").insert({
+                    remetente_id: myProfileId,
+                    destinatario_id: turmaData.educador_id,
+                    participante_id: id,
+                    conteudo: `${participante?.nome_completo} foi transferido para sua turma ${newT.nome} em ${new Date().toLocaleDateString("pt-BR")}.`,
+                  } as any);
+                }
+              }
+              toast.success(`Transferido para ${transferInfo.newTurmas.length} turma(s). Educadores notificados.`);
+              setShowTransferDialog(false);
+              setTransferInfo(null);
+              fetchAll();
+            }}>Aprovar Transferência</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
