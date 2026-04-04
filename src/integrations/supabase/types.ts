@@ -152,6 +152,7 @@ export type Database = {
           mes_referencia: string
           nota_url: string | null
           numero_documento: string | null
+          orcamento_id: string | null
           status_sit: string | null
           tipo_documento: string | null
           valor: number
@@ -171,6 +172,7 @@ export type Database = {
           mes_referencia: string
           nota_url?: string | null
           numero_documento?: string | null
+          orcamento_id?: string | null
           status_sit?: string | null
           tipo_documento?: string | null
           valor: number
@@ -190,6 +192,7 @@ export type Database = {
           mes_referencia?: string
           nota_url?: string | null
           numero_documento?: string | null
+          orcamento_id?: string | null
           status_sit?: string | null
           tipo_documento?: string | null
           valor?: number
@@ -200,6 +203,13 @@ export type Database = {
             columns: ["categoria_id"]
             isOneToOne: false
             referencedRelation: "categorias_financeiras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "despesas_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
             referencedColumns: ["id"]
           },
         ]
@@ -429,6 +439,174 @@ export type Database = {
           },
         ]
       }
+      orcamento_cotacoes: {
+        Row: {
+          cnpj: string | null
+          created_at: string | null
+          data_emissao: string | null
+          data_validade: string | null
+          fornecedor_nome: string
+          id: string
+          orcamento_id: string
+        }
+        Insert: {
+          cnpj?: string | null
+          created_at?: string | null
+          data_emissao?: string | null
+          data_validade?: string | null
+          fornecedor_nome: string
+          id?: string
+          orcamento_id: string
+        }
+        Update: {
+          cnpj?: string | null
+          created_at?: string | null
+          data_emissao?: string | null
+          data_validade?: string | null
+          fornecedor_nome?: string
+          id?: string
+          orcamento_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orcamento_cotacoes_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orcamento_itens: {
+        Row: {
+          created_at: string | null
+          descricao: string
+          id: string
+          item_num: number
+          orcamento_id: string
+          quantidade: number
+          unidade_medida: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          descricao: string
+          id?: string
+          item_num: number
+          orcamento_id: string
+          quantidade?: number
+          unidade_medida?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          descricao?: string
+          id?: string
+          item_num?: number
+          orcamento_id?: string
+          quantidade?: number
+          unidade_medida?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orcamento_itens_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orcamento_precos: {
+        Row: {
+          cotacao_id: string
+          created_at: string | null
+          id: string
+          item_id: string
+          observacao: string | null
+          preco_unitario: number
+        }
+        Insert: {
+          cotacao_id: string
+          created_at?: string | null
+          id?: string
+          item_id: string
+          observacao?: string | null
+          preco_unitario?: number
+        }
+        Update: {
+          cotacao_id?: string
+          created_at?: string | null
+          id?: string
+          item_id?: string
+          observacao?: string | null
+          preco_unitario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orcamento_precos_cotacao_id_fkey"
+            columns: ["cotacao_id"]
+            isOneToOne: false
+            referencedRelation: "orcamento_cotacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orcamento_precos_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "orcamento_itens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orcamentos: {
+        Row: {
+          categoria_id: string | null
+          cnpj_vencedor: string | null
+          created_at: string | null
+          data_aprovacao: string | null
+          fornecedor_vencedor: string | null
+          id: string
+          mes_referencia: string
+          objeto: string | null
+          observacoes: string | null
+          status: string
+          titulo: string
+        }
+        Insert: {
+          categoria_id?: string | null
+          cnpj_vencedor?: string | null
+          created_at?: string | null
+          data_aprovacao?: string | null
+          fornecedor_vencedor?: string | null
+          id?: string
+          mes_referencia: string
+          objeto?: string | null
+          observacoes?: string | null
+          status?: string
+          titulo: string
+        }
+        Update: {
+          categoria_id?: string | null
+          cnpj_vencedor?: string | null
+          created_at?: string | null
+          data_aprovacao?: string | null
+          fornecedor_vencedor?: string | null
+          id?: string
+          mes_referencia?: string
+          objeto?: string | null
+          observacoes?: string | null
+          status?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orcamentos_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_financeiras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       parcelas_financeiras: {
         Row: {
           created_at: string | null
@@ -564,8 +742,10 @@ export type Database = {
           nome_completo: string
           observacoes_sigilosas: string | null
           origem_encaminhamento: string | null
+          outras_condicoes: string | null
           periodo: Database["public"]["Enums"]["periodo_enum"] | null
           ponto_transporte_id: string | null
+          remedio_continuo: string | null
           responsavel_tecnico: string | null
           responsavel1_cpf: string | null
           responsavel1_nome: string | null
@@ -578,6 +758,8 @@ export type Database = {
           status: Database["public"]["Enums"]["status_participante"] | null
           uf_origem: string | null
           updated_at: string | null
+          vinculo_resp1: string | null
+          vinculo_resp2: string | null
           visualizado_em: string | null
         }
         Insert: {
@@ -603,8 +785,10 @@ export type Database = {
           nome_completo: string
           observacoes_sigilosas?: string | null
           origem_encaminhamento?: string | null
+          outras_condicoes?: string | null
           periodo?: Database["public"]["Enums"]["periodo_enum"] | null
           ponto_transporte_id?: string | null
+          remedio_continuo?: string | null
           responsavel_tecnico?: string | null
           responsavel1_cpf?: string | null
           responsavel1_nome?: string | null
@@ -617,6 +801,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["status_participante"] | null
           uf_origem?: string | null
           updated_at?: string | null
+          vinculo_resp1?: string | null
+          vinculo_resp2?: string | null
           visualizado_em?: string | null
         }
         Update: {
@@ -642,8 +828,10 @@ export type Database = {
           nome_completo?: string
           observacoes_sigilosas?: string | null
           origem_encaminhamento?: string | null
+          outras_condicoes?: string | null
           periodo?: Database["public"]["Enums"]["periodo_enum"] | null
           ponto_transporte_id?: string | null
+          remedio_continuo?: string | null
           responsavel_tecnico?: string | null
           responsavel1_cpf?: string | null
           responsavel1_nome?: string | null
@@ -656,6 +844,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["status_participante"] | null
           uf_origem?: string | null
           updated_at?: string | null
+          vinculo_resp1?: string | null
+          vinculo_resp2?: string | null
           visualizado_em?: string | null
         }
         Relationships: [
