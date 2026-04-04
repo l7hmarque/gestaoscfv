@@ -28,7 +28,7 @@ const diasOptions = [
   { value: "qui", label: "Quinta" }, { value: "sex", label: "Sexta" }, { value: "sab", label: "Sábado" },
 ];
 
-interface MemberRow { tp_id: string; participante_id: string; nome: string; periodo: string | null; }
+interface MemberRow { tp_id: string; participante_id: string; nome: string; periodo: string | null; status?: string | null; data_desligamento?: string | null; }
 interface AlertInfo { consecutiveFaults: number; adesao: number; lastPresent: string | null; }
 interface TurmaDashboard { taxaAdesao: number; totalPresencas: number; totalRegistros: number; medianElo: number; stdElo: number; eloCount: number; }
 interface LinkedPlan { id: string; titulo: string; data_aplicacao: string | null; }
