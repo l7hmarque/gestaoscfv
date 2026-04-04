@@ -128,7 +128,7 @@ const ParticipanteNovoPage = () => {
     setSaving(true);
 
     try {
-      const payload: Record<string, unknown> = { ...form };
+      const payload: Record<string, unknown> = { ...form, nome_completo: form.nome_completo.trim().toUpperCase() };
       // Map CPF field: form uses responsavel1_cpf key but it's actually the participant's CPF
       if (payload.responsavel1_cpf) {
         payload.cpf = payload.responsavel1_cpf;

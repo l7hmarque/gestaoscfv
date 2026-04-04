@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
         restricao_alimentar, laudo, status,
         bairros:bairro_id(id, nome)
       `)
-      .eq("nome_completo", nomePadronizado)
+      .ilike("nome_completo", nomePadronizado)
       .eq("data_nascimento", data_nascimento)
       .limit(1)
       .maybeSingle();
