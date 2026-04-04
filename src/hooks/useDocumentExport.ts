@@ -728,6 +728,7 @@ export async function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
 // ===== FICHA DE INSCRIÇÃO =====
 
 function buildFichaTemplateData(p: any) {
+  const periodoInverso = p.periodo === "manha" ? "Tarde" : p.periodo === "tarde" ? "Manhã" : "—";
   return {
     NOME_COMPLETO: p.nome_completo || "—",
     CPF: p.cpf || "—",
@@ -735,6 +736,7 @@ function buildFichaTemplateData(p: any) {
     GENERO: p.genero || "—",
     COR_RACA: p.cor_raca || "—",
     PERIODO: p.periodo || "—",
+    PERIODO_SCFV: periodoInverso,
     STATUS: p.status || "—",
     ESCOLA: p.escola || "—",
     SERIE: p.serie || "—",
@@ -763,6 +765,10 @@ function buildFichaTemplateData(p: any) {
     FOTO_URL: p.foto_url || "—",
     TURMAS: p._turmas_nomes || "—",
     DOCUMENTOS: p._documentos_lista || "—",
+    PONTO_TRANSPORTE: p._ponto_transporte || "—",
+    NOME_GRUPO: p._nome_grupo || "—",
+    JUST_DESLG: p.justificativa_desligamento || "—",
+    MOTIVO_DESLG: p.motivo_desligamento || "—",
   };
 }
 
