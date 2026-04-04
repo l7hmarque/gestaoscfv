@@ -316,8 +316,16 @@ const ParticipantePerfilPage = () => {
                 <Button variant="outline" size="sm" className="gap-1"><FileText className="h-3.5 w-3.5" />Ficha</Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => exportFichaInscricaoDocx(participante)} className="text-xs gap-2"><FileSpreadsheet className="h-3.5 w-3.5" /> DOCX</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportFichaInscricaoPdf(participante).catch(() => {})} className="text-xs gap-2"><FileText className="h-3.5 w-3.5" /> PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  const pontoNome = pontos.find(p => p.id === participante!.ponto_transporte_id)?.nome || "";
+                  const turmaNames = turmas.map(t => t.turma_nome).join(", ");
+                  exportFichaInscricaoDocx({ ...participante, _ponto_transporte: pontoNome, _turmas_nomes: turmaNames, _bairro_scfv: bairroNome });
+                }} className="text-xs gap-2"><FileSpreadsheet className="h-3.5 w-3.5" /> DOCX</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  const pontoNome = pontos.find(p => p.id === participante!.ponto_transporte_id)?.nome || "";
+                  const turmaNames = turmas.map(t => t.turma_nome).join(", ");
+                  exportFichaInscricaoPdf({ ...participante, _ponto_transporte: pontoNome, _turmas_nomes: turmaNames, _bairro_scfv: bairroNome }).catch(() => {});
+                }} className="text-xs gap-2"><FileText className="h-3.5 w-3.5" /> PDF</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
