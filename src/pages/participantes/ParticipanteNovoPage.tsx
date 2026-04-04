@@ -355,6 +355,11 @@ const ParticipanteNovoPage = () => {
               <Label className="text-xs font-medium">Laudo / Observações de Saúde</Label>
               <Textarea value={form.laudo} onChange={(e) => set("laudo", e.target.value)} placeholder="Informações médicas relevantes..." className="text-sm mt-1 min-h-[60px]" />
             </div>
+            <Field label="Remédio de Uso Contínuo" field="remedio_continuo" placeholder="Ex: Ritalina 10mg" />
+            <div className="col-span-2">
+              <Label className="text-xs font-medium">Outras Condições de Saúde</Label>
+              <Textarea value={form.outras_condicoes} onChange={(e) => set("outras_condicoes", e.target.value)} placeholder="Outras condições relevantes..." className="text-sm mt-1 min-h-[60px]" />
+            </div>
           </CardContent>
         </Card>
 
