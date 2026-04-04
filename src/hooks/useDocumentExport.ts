@@ -157,6 +157,70 @@ function fileTimestamp(): string {
   return format(new Date(), "yyyy-MM-dd_HHmmss");
 }
 
+// ===== PHOTO HELPERS =====
+interface PhotoBuffer {
+  buffer: ArrayBuffer;
+  width: number;
+  height: number;
+  type: "jpg" | "png";
+}
+
+async function fetchPhotosAsBuffers(fotos: any[]): Promise<PhotoBuffer[]> {
+  const results: PhotoBuffer[] = [];
+  for (const foto of fotos) {
+    try {
+      const url = foto.foto_url;
+      if (!url) continue;
+      const resp = await fetch(url);
+      if (!resp.ok) continue;
+      const blob = await resp.blob();
+      const buffer = await blob.arrayBuffer();
+      const type = blob.type.includes("png") ? "png" as const : "jpg" as const;
+      // Get dimensions
+      let width = 800, height = 600;
+      try {
+        const bitmap = await createImageBitmap(blob);
+        width = bitmap.width;
+        height = bitmap.height;
+        bitmap.close();
+      } catch { /* use defaults */ }
+      results.push({ buffer, width, height, type });
+    } catch {
+      // silently skip
+    }
+  }
+  return results;
+}
+
+function buildPhotoSection(photos: PhotoBuffer[], caption: string): Paragraph[] {
+  const paragraphs: Paragraph[] = [
+    new Paragraph({ children: [new PageBreak()] }),
+    new Paragraph({ spacing: { after: 200 }, alignment: AlignmentType.CENTER, children: [
+      new TextRun({ text: "REGISTRO FOTOGRÁFICO", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR }),
+    ]}),
+  ];
+  for (const photo of photos) {
+    const maxWidth = 450;
+    const scale = maxWidth / photo.width;
+    const scaledHeight = Math.round(photo.height * scale);
+    paragraphs.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 80 },
+      children: [new ImageRun({
+        type: photo.type,
+        data: photo.buffer,
+        transformation: { width: maxWidth, height: scaledHeight },
+      })],
+    }));
+    paragraphs.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 200 },
+      children: [new TextRun({ text: caption, size: 16, font: "Arial", italics: true, color: "555555" })],
+    }));
+  }
+  return paragraphs;
+}
+
 // ===== SHARED CONSTANTS (fallback) =====
 const HEADER_COLOR = "1A5276";
 const ACCENT_COLOR = "C62828";
