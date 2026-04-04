@@ -913,7 +913,7 @@ export async function exportMatrizFrequenciaDocx(
   const dataRows = participantes.map((p, i) => new TableRow({ children: [
     new TableCell({ width: { size: numColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 14, font: "Arial" })] })] }),
     new TableCell({ width: { size: nameColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.nome, size: 14, font: "Arial" })] })] }),
-    ...datas.map(d => new TableCell({ width: { size: dateColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: preenchida ? (p.presencas[d] ? "✓" : "") : "", size: 14, font: "Arial" })] })] })),
+    ...datas.map(d => new TableCell({ width: { size: dateColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: preenchida ? (p.presencas[d] === "D" ? "D" : p.presencas[d] ? "✓" : "") : "", size: 14, font: "Arial", color: p.presencas[d] === "D" ? "999999" : undefined })] })] })),
   ]}));
 
   const children = [
