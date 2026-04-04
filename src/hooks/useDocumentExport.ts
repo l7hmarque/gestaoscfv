@@ -882,7 +882,7 @@ export async function exportMatrizFrequenciaDocx(
         PARTICIPANTES: participantes.map((p, i) => ({
           NUM: i + 1,
           NOME: p.nome,
-          ...Object.fromEntries(datas.map((d, di) => [`D${di + 1}`, preenchida ? (p.presencas[d] ? "✓" : "") : ""])),
+          ...Object.fromEntries(datas.map((d, di) => [`D${di + 1}`, preenchida ? (p.presencas[d] === "D" ? "D" : p.presencas[d] ? "✓" : "") : ""])),
         })),
         DATAS: dateHeaders.map((d, i) => ({ HEADER: d, INDEX: i + 1 })),
       };
