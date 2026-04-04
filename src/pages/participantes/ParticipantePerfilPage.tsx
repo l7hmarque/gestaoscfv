@@ -409,9 +409,9 @@ const ParticipantePerfilPage = () => {
               <>
                 <EditField label="Resp. 1 Nome" field="responsavel1_nome" />
                 <div>
-                  <Label className="text-xs">CPF do Responsável</Label>
+                  <Label className="text-xs">CPF do Participante</Label>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <Input value={estrangeiroCpf ? (form.responsavel1_cpf || "") : maskCPF(form.responsavel1_cpf || "")} onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} className="h-8 text-sm" placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} />
+                    <Input value={estrangeiroCpf ? (form.cpf || "") : maskCPF(form.cpf || "")} onChange={(e) => set("cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} className="h-8 text-sm" placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} />
                   </div>
                   <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
                     <input type="checkbox" checked={estrangeiroCpf} onChange={(e) => setEstrangeiroCpf(e.target.checked)} className="h-3 w-3" />
