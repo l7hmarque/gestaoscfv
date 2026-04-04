@@ -538,7 +538,8 @@ export default function DashboardRelatorioMensalTab() {
               const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
               const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
               if ((rec && rec.presente) || (fallbackRec && fallbackRec.presente)) {
-                ws[addr].s = { fill: { fgColor: { rgb: "000000" } }, border: borderObj };
+                ws[addr].v = "■";
+                ws[addr].s = { font: { sz: 14, color: { rgb: "000000" } }, alignment: { horizontal: "center", vertical: "center" }, border: borderObj };
               } else {
                 ws[addr].s = { border: borderObj };
               }
@@ -551,7 +552,7 @@ export default function DashboardRelatorioMensalTab() {
 
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
       saveAs(new Blob([buf], { type: "application/octet-stream" }),
-        `SysELO_Relatorio_Mensal_${ano}-${mes}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        `SysELO_RelatorioMensal_${ano}-${mes}_${new Date().toISOString().replace(/[-:T]/g, "").slice(0, 15)}.xlsx`);
 
       toast.success("Relatório mensal gerado com sucesso!");
     } catch (err: any) {

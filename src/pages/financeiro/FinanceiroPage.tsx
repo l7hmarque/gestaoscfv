@@ -12,9 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Plus, Trash2, DollarSign, Receipt, Undo2, Layers,
-  Upload, FileText, ShieldCheck, Download, Loader2, AlertTriangle, CheckCircle2, Info, ListPlus, ClipboardList
+  Upload, FileText, ShieldCheck, Download, Loader2, AlertTriangle, CheckCircle2, Info, ListPlus, ClipboardList, FolderOpen, Paperclip
 } from "lucide-react";
 import OrcamentosTab from "./OrcamentosTab";
+import DocumentosPrestacaoTab from "./DocumentosPrestacaoTab";
 import { toast } from "sonner";
 
 type Categoria = { id: string; codigo: string; descricao: string; valor_previsto: number; created_at: string };
@@ -127,6 +128,7 @@ export default function FinanceiroPage() {
   const totalDespesas = despesas.reduce((s, d) => s + Number(d.valor), 0);
   const totalEstornos = estornos.reduce((s, e) => s + Number(e.valor), 0);
   const saldo = totalRecebido - totalDespesas + totalEstornos;
+  const gastosPrevistos = despesas.filter(d => (d as any).orcamento_id && !d.comprovante_url && !d.nota_url && !d.boleto_url).reduce((s, d) => s + Number(d.valor), 0);
 
   const addCategoria = async () => {
     if (!catForm.codigo || !catForm.descricao) return;
@@ -444,7 +446,7 @@ if __name__ == "__main__":
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card><CardContent className="pt-4 text-center">
           <p className="text-xs text-muted-foreground">Total Recebido</p>
           <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fmt(totalRecebido)}</p>
@@ -452,6 +454,11 @@ if __name__ == "__main__":
         <Card><CardContent className="pt-4 text-center">
           <p className="text-xs text-muted-foreground">Despesas ({mesRef})</p>
           <p className="text-lg font-bold text-destructive">{fmt(totalDespesas)}</p>
+        </CardContent></Card>
+        <Card><CardContent className="pt-4 text-center">
+          <p className="text-xs text-muted-foreground">Gastos Previstos</p>
+          <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{fmt(gastosPrevistos)}</p>
+          <p className="text-[9px] text-muted-foreground">Orçamentos sem comprovante</p>
         </CardContent></Card>
         <Card><CardContent className="pt-4 text-center">
           <p className="text-xs text-muted-foreground">Estornos ({mesRef})</p>
@@ -464,12 +471,13 @@ if __name__ == "__main__":
       </div>
 
       <Tabs defaultValue="despesas">
-        <TabsList className="grid grid-cols-7 w-full">
+        <TabsList className="grid grid-cols-8 w-full">
           <TabsTrigger value="despesas" className="text-xs gap-1"><Receipt className="h-3 w-3 hidden sm:block" />Despesas</TabsTrigger>
           <TabsTrigger value="parcelas" className="text-xs gap-1"><DollarSign className="h-3 w-3 hidden sm:block" />Parcelas</TabsTrigger>
           <TabsTrigger value="categorias" className="text-xs gap-1"><Layers className="h-3 w-3 hidden sm:block" />Categorias</TabsTrigger>
           <TabsTrigger value="estornos" className="text-xs gap-1"><Undo2 className="h-3 w-3 hidden sm:block" />Estornos</TabsTrigger>
           <TabsTrigger value="orcamentos" className="text-xs gap-1"><ClipboardList className="h-3 w-3 hidden sm:block" />Orçamentos</TabsTrigger>
+          <TabsTrigger value="documentos" className="text-xs gap-1"><FolderOpen className="h-3 w-3 hidden sm:block" />Documentos</TabsTrigger>
           <TabsTrigger value="importar" className="text-xs gap-1"><Upload className="h-3 w-3 hidden sm:block" />Importar</TabsTrigger>
           <TabsTrigger value="auditoria" className="text-xs gap-1"><ShieldCheck className="h-3 w-3 hidden sm:block" />Auditoria</TabsTrigger>
         </TabsList>
@@ -833,6 +841,10 @@ if __name__ == "__main__":
         {/* =================== ORÇAMENTOS =================== */}
         <TabsContent value="orcamentos">
           <OrcamentosTab mesRef={mesRef} categorias={categorias} />
+        </TabsContent>
+        {/* =================== DOCUMENTOS INSTITUCIONAIS =================== */}
+        <TabsContent value="documentos">
+          <DocumentosPrestacaoTab />
         </TabsContent>
       </Tabs>
     </div>

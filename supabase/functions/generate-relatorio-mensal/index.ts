@@ -351,7 +351,8 @@ function generateMonthSheets(
           const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
           const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
           if ((rec && rec.presente) || (fallbackRec && fallbackRec.presente)) {
-            ws[addr].s = { fill: { fgColor: { rgb: "000000" } }, border: borderObj };
+            ws[addr].v = "■";
+            ws[addr].s = { font: { sz: 14, color: { rgb: "000000" } }, alignment: { horizontal: "center", vertical: "center" }, border: borderObj };
           } else {
             ws[addr].s = { border: borderObj };
           }
@@ -460,7 +461,8 @@ Deno.serve(async (req: Request) => {
       }
 
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
-      const fileName = `relatorios-mensais/completo_${Date.now()}.xlsx`;
+      const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+      const fileName = `relatorios-mensais/SysELO_RelatorioMensal_Completo_${ts}.xlsx`;
       const { error: uploadError } = await supabaseAdmin.storage.from("documentos").upload(fileName, buf, {
         contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true,
       });
@@ -479,7 +481,8 @@ Deno.serve(async (req: Request) => {
 
     const mesStr = String(mesNum).padStart(2, "0");
     const buf = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
-    const fileName = `relatorios-mensais/${anoNum}-${mesStr}_${Date.now()}.xlsx`;
+    const ts2 = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+    const fileName = `relatorios-mensais/SysELO_RelatorioMensal_${anoNum}-${mesStr}_${ts2}.xlsx`;
     const { error: uploadError } = await supabaseAdmin.storage.from("documentos").upload(fileName, buf, {
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true,
     });

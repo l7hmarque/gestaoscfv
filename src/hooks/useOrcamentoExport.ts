@@ -1,15 +1,10 @@
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
-
-function timestamp() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}_${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}`;
-}
+import { sysEloFileName } from "@/lib/fileNaming";
 
 const headerStyle = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "C62828" } }, alignment: { horizontal: "center" as const }, border: { top: { style: "thin" as const }, bottom: { style: "thin" as const }, left: { style: "thin" as const }, right: { style: "thin" as const } } };
 const cellStyle = { font: { sz: 9 }, border: { top: { style: "thin" as const }, bottom: { style: "thin" as const }, left: { style: "thin" as const }, right: { style: "thin" as const } } };
 const boldCell = { ...cellStyle, font: { sz: 9, bold: true } };
-const currencyFmt = '#.##0,00';
 
 interface Item { id: string; item_num: number; descricao: string; unidade_medida: string; quantidade: number; }
 interface Cotacao { id: string; fornecedor_nome: string; cnpj: string | null; data_emissao: string | null; data_validade: string | null; }
@@ -19,13 +14,6 @@ interface Cat { id: string; codigo: string; descricao: string; }
 
 function getPreco(precos: Preco[], cotacaoId: string, itemId: string): number {
   return precos.find(p => p.cotacao_id === cotacaoId && p.item_id === itemId)?.preco_unitario || 0;
-}
-
-function institucionalHeader(ws: XLSX.WorkSheet, row: number) {
-  const titleStyle = { font: { bold: true, sz: 11 }, alignment: { horizontal: "center" as const } };
-  ws[XLSX.utils.encode_cell({ r: row, c: 0 })] = { v: "PREFEITURA MUNICIPAL DE MEDIANEIRA", s: titleStyle };
-  ws[XLSX.utils.encode_cell({ r: row + 1, c: 0 })] = { v: "SECRETARIA DE ASSISTÊNCIA SOCIAL", s: { font: { sz: 9 }, alignment: { horizontal: "center" as const } } };
-  ws[XLSX.utils.encode_cell({ r: row + 2, c: 0 })] = { v: "CAIA — Serviço de Convivência e Fortalecimento de Vínculos", s: { font: { sz: 9, italic: true }, alignment: { horizontal: "center" as const } } };
 }
 
 export function exportOrcamentoXLSX(orc: Orc, items: Item[], cotacoes: Cotacao[], precos: Preco[], categorias: Cat[]) {
@@ -58,13 +46,11 @@ export function exportOrcamentoXLSX(orc: Orc, items: Item[], cotacoes: Cotacao[]
     const ws = XLSX.utils.aoa_to_sheet(data);
     ws["!cols"] = [{ wch: 6 }, { wch: 40 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 14 }];
 
-    // Style header row
     const headerRow = 10;
     for (let c = 0; c < 6; c++) {
       const cell = ws[XLSX.utils.encode_cell({ r: headerRow, c })];
       if (cell) cell.s = headerStyle;
     }
-    // Style data rows
     for (let r = headerRow + 1; r < data.length; r++) {
       for (let c = 0; c < 6; c++) {
         const cell = ws[XLSX.utils.encode_cell({ r, c })];
@@ -76,7 +62,7 @@ export function exportOrcamentoXLSX(orc: Orc, items: Item[], cotacoes: Cotacao[]
   }
 
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf]), `SysELO_Orcamento_${timestamp()}.xlsx`);
+  saveAs(new Blob([buf]), sysEloFileName("Orcamento", "xlsx"));
 }
 
 export function exportMapaComparativoXLSX(orc: Orc, items: Item[], cotacoes: Cotacao[], precos: Preco[], categorias: Cat[]) {
@@ -90,7 +76,6 @@ export function exportMapaComparativoXLSX(orc: Orc, items: Item[], cotacoes: Cot
   data.push([`Orçamento: ${orc.titulo}`, "", `Categoria: ${cat ? cat.codigo : "—"}`]);
   data.push([]);
 
-  // Header
   const header = ["ITEM", "DESCRIÇÃO", "UNID.", "QTD."];
   for (const cot of cotacoes) {
     header.push(`${cot.fornecedor_nome} (Unit.)`, `${cot.fornecedor_nome} (Total)`);
@@ -111,7 +96,6 @@ export function exportMapaComparativoXLSX(orc: Orc, items: Item[], cotacoes: Cot
     data.push(row);
   }
 
-  // Totals row
   const totalsRow: any[] = ["", "", "", "TOTAL"];
   let menorGlobal = Infinity;
   let menorFornecedor = "";
@@ -133,7 +117,6 @@ export function exportMapaComparativoXLSX(orc: Orc, items: Item[], cotacoes: Cot
   const numCols = 4 + cotacoes.length * 2 + 1;
   ws["!cols"] = [{ wch: 6 }, { wch: 35 }, { wch: 7 }, { wch: 6 }, ...Array(cotacoes.length * 2).fill({ wch: 14 }), { wch: 14 }];
 
-  // Style header
   const headerRow = 6;
   for (let c = 0; c < numCols; c++) {
     const cell = ws[XLSX.utils.encode_cell({ r: headerRow, c })];
@@ -143,5 +126,5 @@ export function exportMapaComparativoXLSX(orc: Orc, items: Item[], cotacoes: Cot
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Mapa Comparativo");
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf]), `SysELO_MapaComparativo_${timestamp()}.xlsx`);
+  saveAs(new Blob([buf]), sysEloFileName("MapaComparativo", "xlsx"));
 }
