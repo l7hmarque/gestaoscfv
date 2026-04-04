@@ -80,6 +80,30 @@ export type Database = {
         }
         Relationships: []
       }
+      categorias_financeiras: {
+        Row: {
+          codigo: string
+          created_at: string | null
+          descricao: string
+          id: string
+          valor_previsto: number | null
+        }
+        Insert: {
+          codigo: string
+          created_at?: string | null
+          descricao: string
+          id?: string
+          valor_previsto?: number | null
+        }
+        Update: {
+          codigo?: string
+          created_at?: string | null
+          descricao?: string
+          id?: string
+          valor_previsto?: number | null
+        }
+        Relationships: []
+      }
       conquistas: {
         Row: {
           created_at: string
@@ -108,6 +132,79 @@ export type Database = {
             columns: ["perfil_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      despesas: {
+        Row: {
+          categoria_id: string | null
+          codigo_lancamento: string | null
+          created_at: string | null
+          data_lancamento: string
+          descricao: string
+          id: string
+          mes_referencia: string
+          valor: number
+        }
+        Insert: {
+          categoria_id?: string | null
+          codigo_lancamento?: string | null
+          created_at?: string | null
+          data_lancamento: string
+          descricao: string
+          id?: string
+          mes_referencia: string
+          valor: number
+        }
+        Update: {
+          categoria_id?: string | null
+          codigo_lancamento?: string | null
+          created_at?: string | null
+          data_lancamento?: string
+          descricao?: string
+          id?: string
+          mes_referencia?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "despesas_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_financeiras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      estornos: {
+        Row: {
+          categoria_id: string | null
+          created_at: string | null
+          id: string
+          mes_referencia: string
+          valor: number
+        }
+        Insert: {
+          categoria_id?: string | null
+          created_at?: string | null
+          id?: string
+          mes_referencia: string
+          valor: number
+        }
+        Update: {
+          categoria_id?: string | null
+          created_at?: string | null
+          id?: string
+          mes_referencia?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estornos_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_financeiras"
             referencedColumns: ["id"]
           },
         ]
@@ -304,6 +401,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      parcelas_financeiras: {
+        Row: {
+          created_at: string | null
+          data_recebimento: string
+          id: string
+          numero_parcela: number
+          valor: number
+        }
+        Insert: {
+          created_at?: string | null
+          data_recebimento: string
+          id?: string
+          numero_parcela: number
+          valor: number
+        }
+        Update: {
+          created_at?: string | null
+          data_recebimento?: string
+          id?: string
+          numero_parcela?: number
+          valor?: number
+        }
+        Relationships: []
       }
       participante_documentos: {
         Row: {
