@@ -81,7 +81,7 @@ const PresencaExportarPage = () => {
       for (const turma of filteredTurmas) {
         const { data: tpData } = await supabase
           .from("turma_participantes")
-          .select("participante_id, participantes(nome_completo)")
+          .select("participante_id, participantes(nome_completo, status, data_desligamento)")
           .eq("turma_id", turma.id);
 
         const { data: presData } = await supabase
@@ -96,11 +96,27 @@ const PresencaExportarPage = () => {
 
         const participantes = (tpData || [])
           .map((tp: any) => {
-            const presencas: Record<string, boolean> = {};
+            const isDesligado = tp.participantes?.status === "desligado";
+            const dataDeslig = tp.participantes?.data_desligamento || null;
+            const presencas: Record<string, boolean | string> = {};
             (presData || []).filter(p => p.participante_id === tp.participante_id).forEach(p => {
-              presencas[p.data] = p.presente || false;
+              // If desligado and presence date is after data_desligamento, mark as "D"
+              if (isDesligado && dataDeslig && p.data > dataDeslig) {
+                presencas[p.data] = "D";
+              } else {
+                presencas[p.data] = p.presente || false;
+              }
             });
-            return { nome: tp.participantes?.nome_completo || "", presencas };
+            // For dates after desligamento that have no record, also mark "D"
+            if (isDesligado && dataDeslig) {
+              datas.forEach(d => {
+                if (d > dataDeslig && presencas[d] === undefined) {
+                  presencas[d] = "D";
+                }
+              });
+            }
+            const suffix = isDesligado && dataDeslig ? ` (Desligado em ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})` : "";
+            return { nome: (tp.participantes?.nome_completo || "") + suffix, presencas };
           })
           .sort((a, b) => a.nome.localeCompare(b.nome));
 
