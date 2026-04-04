@@ -128,6 +128,7 @@ export default function FinanceiroPage() {
   const totalDespesas = despesas.reduce((s, d) => s + Number(d.valor), 0);
   const totalEstornos = estornos.reduce((s, e) => s + Number(e.valor), 0);
   const saldo = totalRecebido - totalDespesas + totalEstornos;
+  const gastosPrevistos = despesas.filter(d => (d as any).orcamento_id && !d.comprovante_url && !d.nota_url && !d.boleto_url).reduce((s, d) => s + Number(d.valor), 0);
 
   const addCategoria = async () => {
     if (!catForm.codigo || !catForm.descricao) return;
