@@ -48,6 +48,7 @@ const SYSTEM_FIELDS: Record<string, { value: string; label: string }[]> = {
     { value: "sit_5", label: "Situação: Destaque positivo" },
     { value: "presenca_loop", label: "Lista de presença (loop)" },
     { value: "analise_ia", label: "Análise IA" },
+    { value: "fotos", label: "Fotos (URLs)" },
   ],
   "planejamento.docx": [
     { value: "titulo", label: "Título" },
@@ -71,7 +72,7 @@ const SYSTEM_FIELDS: Record<string, { value: string; label: string }[]> = {
     { value: "serie", label: "Série" },
     { value: "periodo", label: "Período" },
     { value: "responsavel1_nome", label: "Responsável 1 - Nome" },
-    { value: "responsavel1_cpf", label: "Responsável 1 - CPF" },
+    { value: "cpf", label: "CPF do participante" },
     { value: "responsavel1_whatsapp", label: "Responsável 1 - WhatsApp" },
     { value: "responsavel2_nome", label: "Responsável 2 - Nome" },
     { value: "responsavel2_whatsapp", label: "Responsável 2 - WhatsApp" },
@@ -89,6 +90,10 @@ const SYSTEM_FIELDS: Record<string, { value: string; label: string }[]> = {
     { value: "status", label: "Status" },
     { value: "iniciou_em", label: "Iniciou em" },
     { value: "foto_url", label: "URL da foto" },
+    { value: "data_desligamento", label: "Data de desligamento" },
+    { value: "dias_contraturno", label: "Dias de contraturno" },
+    { value: "turmas", label: "Turmas vinculadas" },
+    { value: "documentos", label: "Documentos anexos (lista)" },
   ],
   "matriz_frequencia.docx": [
     { value: "turma_nome", label: "Nome da turma" },
@@ -136,7 +141,7 @@ const AUTO_MATCH: Record<string, string> = {
   GENERO: "genero", COR_RACA: "cor_raca", COR: "cor_raca",
   ESCOLA: "escola", SERIE: "serie", PERIODO: "periodo",
   RESPONSAVEL1: "responsavel1_nome", RESPONSAVEL1_NOME: "responsavel1_nome",
-  RESPONSAVEL1_CPF: "responsavel1_cpf", RESPONSAVEL1_WHATSAPP: "responsavel1_whatsapp",
+  CPF: "cpf", RESPONSAVEL1_WHATSAPP: "responsavel1_whatsapp",
   RESPONSAVEL2: "responsavel2_nome", RESPONSAVEL2_NOME: "responsavel2_nome",
   RESPONSAVEL2_WHATSAPP: "responsavel2_whatsapp",
   RUA: "endereco_rua", ENDERECO_RUA: "endereco_rua",
@@ -148,7 +153,10 @@ const AUTO_MATCH: Record<string, string> = {
   VULNERABILIDADE: "categoria_vulnerabilidade", CATEGORIA_VULNERABILIDADE: "categoria_vulnerabilidade",
   ENCAMINHAMENTO: "origem_encaminhamento", ORIGEM_ENCAMINHAMENTO: "origem_encaminhamento",
   RESPONSAVEL_TECNICO: "responsavel_tecnico", STATUS: "status",
-  INICIOU: "iniciou_em", INICIOU_EM: "iniciou_em", FOTO: "foto_url",
+  INICIOU: "iniciou_em", INICIOU_EM: "iniciou_em", FOTO: "foto_url", FOTO_URL: "foto_url",
+  DESLIGAMENTO: "data_desligamento", DATA_DESLIGAMENTO: "data_desligamento",
+  CONTRATURNO: "dias_contraturno", DIAS_CONTRATURNO: "dias_contraturno",
+  DOCUMENTOS: "documentos", TURMAS_VINCULADAS: "turmas",
   // Matriz
   TURMA_NOME: "turma_nome", MES_ANO: "mes_ano", FAIXA_ETARIA: "faixa_etaria",
 };

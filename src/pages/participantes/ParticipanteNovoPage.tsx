@@ -126,6 +126,11 @@ const ParticipanteNovoPage = () => {
 
     try {
       const payload: Record<string, unknown> = { ...form };
+      // Map CPF field: form uses responsavel1_cpf key but it's actually the participant's CPF
+      if (payload.responsavel1_cpf) {
+        payload.cpf = payload.responsavel1_cpf;
+        delete payload.responsavel1_cpf;
+      }
       if (!payload.bairro_id) delete payload.bairro_id;
       if (!payload.ponto_transporte_id) delete payload.ponto_transporte_id;
       if (!payload.data_nascimento) delete payload.data_nascimento;
@@ -310,7 +315,7 @@ const ParticipanteNovoPage = () => {
           <CardContent className="grid grid-cols-2 gap-3">
             <Field label="Responsável 1 - Nome" field="responsavel1_nome" placeholder="Nome completo" />
             <div className="col-span-1">
-              <Label className="text-xs font-medium">CPF do Responsável</Label>
+              <Label className="text-xs font-medium">CPF do Participante</Label>
               <Input value={estrangeiroCpf ? form.responsavel1_cpf : maskCPF(form.responsavel1_cpf)} onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} className="h-9 text-sm mt-1" />
               <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
                 <input type="checkbox" checked={estrangeiroCpf} onChange={(e) => setEstrangeiroCpf(e.target.checked)} className="h-3 w-3" />

@@ -111,7 +111,7 @@ const ParticipantePerfilPage = () => {
     setSaving(true);
     const payload: Record<string, unknown> = { ...form };
     delete payload.id; delete payload.created_at; delete payload.updated_at;
-    ["bairro_id", "ponto_transporte_id", "data_nascimento", "iniciou_em"].forEach((k) => { if (!payload[k]) payload[k] = null; });
+    ["bairro_id", "ponto_transporte_id", "data_nascimento", "iniciou_em", "data_desligamento"].forEach((k) => { if (!payload[k]) payload[k] = null; });
     if (!canSeeConfidential) delete payload.observacoes_sigilosas;
 
     // Detectar mudanças relevantes antes de salvar
@@ -409,9 +409,9 @@ const ParticipantePerfilPage = () => {
               <>
                 <EditField label="Resp. 1 Nome" field="responsavel1_nome" />
                 <div>
-                  <Label className="text-xs">CPF do Responsável</Label>
+                  <Label className="text-xs">CPF do Participante</Label>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <Input value={estrangeiroCpf ? (form.responsavel1_cpf || "") : maskCPF(form.responsavel1_cpf || "")} onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} className="h-8 text-sm" placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} />
+                    <Input value={estrangeiroCpf ? (form.cpf || "") : maskCPF(form.cpf || "")} onChange={(e) => set("cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} className="h-8 text-sm" placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} />
                   </div>
                   <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
                     <input type="checkbox" checked={estrangeiroCpf} onChange={(e) => setEstrangeiroCpf(e.target.checked)} className="h-3 w-3" />
@@ -423,7 +423,7 @@ const ParticipantePerfilPage = () => {
                 <div><Label className="text-xs">WhatsApp 2</Label><Input value={maskPhone(form.responsavel2_whatsapp || "")} onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))} className="h-8 text-sm mt-0.5" placeholder="(00) 00000-0000" /></div>
               </>
             ) : (
-              <><Info label="Resp. 1" value={participante.responsavel1_nome} /><Info label="CPF" value={displayCPF(participante.responsavel1_cpf)} /><Info label="WhatsApp" value={displayPhone(participante.responsavel1_whatsapp)} /><Info label="Resp. 2" value={participante.responsavel2_nome} /><Info label="WhatsApp 2" value={displayPhone(participante.responsavel2_whatsapp)} /></>
+              <><Info label="Resp. 1" value={participante.responsavel1_nome} /><Info label="CPF" value={displayCPF((participante as any).cpf)} /><Info label="WhatsApp" value={displayPhone(participante.responsavel1_whatsapp)} /><Info label="Resp. 2" value={participante.responsavel2_nome} /><Info label="WhatsApp 2" value={displayPhone(participante.responsavel2_whatsapp)} /></>
             )}
           </CardContent>
         </Card>
@@ -436,6 +436,7 @@ const ParticipantePerfilPage = () => {
               <>
                 <EditField label="Escola" field="escola" /><EditField label="Série" field="serie" /><EditField label="Origem" field="origem_encaminhamento" />
                 <EditField label="Resp. Técnico" field="responsavel_tecnico" /><EditField label="Vulnerabilidade" field="categoria_vulnerabilidade" /><EditField label="Início SCFV" field="iniciou_em" type="date" />
+                <EditField label="Data Desligamento" field="data_desligamento" type="date" /><EditField label="Dias Contraturno" field="dias_contraturno" />
                 <div className="col-span-2 sm:col-span-3"><Label className="text-xs">Restrição Alimentar</Label><Textarea value={form.restricao_alimentar || ""} onChange={(e) => set("restricao_alimentar", e.target.value)} className="text-sm mt-0.5 min-h-[50px]" /></div>
                 <div className="col-span-2 sm:col-span-3"><Label className="text-xs">Laudo</Label><Textarea value={form.laudo || ""} onChange={(e) => set("laudo", e.target.value)} className="text-sm mt-0.5 min-h-[50px]" /></div>
               </>
@@ -443,6 +444,7 @@ const ParticipantePerfilPage = () => {
               <>
                 <Info label="Origem" value={participante.origem_encaminhamento} /><Info label="Resp. Técnico" value={participante.responsavel_tecnico} />
                 <Info label="Vulnerabilidade" value={participante.categoria_vulnerabilidade} /><Info label="Início SCFV" value={participante.iniciou_em} />
+                <Info label="Data Desligamento" value={(participante as any).data_desligamento} /><Info label="Dias Contraturno" value={(participante as any).dias_contraturno} />
                 <Info label="Restrição Alimentar" value={participante.restricao_alimentar} /><Info label="Laudo" value={participante.laudo} />
               </>
             )}

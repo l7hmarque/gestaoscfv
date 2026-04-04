@@ -493,8 +493,11 @@ export type Database = {
           bairro_id: string | null
           categoria_vulnerabilidade: string | null
           cor_raca: string | null
+          cpf: string | null
           created_at: string | null
+          data_desligamento: string | null
           data_nascimento: string | null
+          dias_contraturno: string | null
           endereco_bairro: string | null
           endereco_numero: string | null
           endereco_rua: string | null
@@ -527,8 +530,11 @@ export type Database = {
           bairro_id?: string | null
           categoria_vulnerabilidade?: string | null
           cor_raca?: string | null
+          cpf?: string | null
           created_at?: string | null
+          data_desligamento?: string | null
           data_nascimento?: string | null
+          dias_contraturno?: string | null
           endereco_bairro?: string | null
           endereco_numero?: string | null
           endereco_rua?: string | null
@@ -561,8 +567,11 @@ export type Database = {
           bairro_id?: string | null
           categoria_vulnerabilidade?: string | null
           cor_raca?: string | null
+          cpf?: string | null
           created_at?: string | null
+          data_desligamento?: string | null
           data_nascimento?: string | null
+          dias_contraturno?: string | null
           endereco_bairro?: string | null
           endereco_numero?: string | null
           endereco_rua?: string | null

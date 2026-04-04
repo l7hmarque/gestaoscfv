@@ -96,18 +96,29 @@ function remapDataWithMappings(
 
   const result: Record<string, any> = { ...originalData };
 
+  // Build a lookup index: normalize all keys in allData so we can find values
+  // regardless of casing convention (SCORE_ELO, score_elo, ScoreELO, etc.)
+  const normalizedIndex: Record<string, any> = {};
+  for (const [key, value] of Object.entries(allData)) {
+    normalizedIndex[key] = value;
+    normalizedIndex[key.toUpperCase()] = value;
+    normalizedIndex[key.toLowerCase()] = value;
+    // Also store snake_case → UPPER_SNAKE: "score_elo" → "SCORE_ELO"
+    normalizedIndex[key.toUpperCase().replace(/\./g, "_")] = value;
+  }
+
   for (const [tagName, fieldKey] of Object.entries(tagMappings)) {
-    // The fieldKey maps to a key in allData
-    // Check if the original data already has a value with the fieldKey as key
-    const upperTag = tagName.toUpperCase();
-    if (allData[upperTag] !== undefined) {
-      result[tagName] = allData[upperTag];
-    } else if (allData[tagName] !== undefined) {
-      result[tagName] = allData[tagName];
-    }
-    // Also ensure the tag exists in result keyed exactly as written in template
-    if (result[tagName] === undefined && result[upperTag] !== undefined) {
-      result[tagName] = result[upperTag];
+    // Use fieldKey to resolve the value from allData
+    const fieldUpper = fieldKey.toUpperCase().replace(/\./g, "_");
+    const resolved =
+      normalizedIndex[fieldKey] ??
+      normalizedIndex[fieldUpper] ??
+      normalizedIndex[fieldKey.toLowerCase()] ??
+      allData[fieldKey] ??
+      allData[fieldUpper];
+
+    if (resolved !== undefined) {
+      result[tagName] = resolved;
     }
   }
 
@@ -267,8 +278,9 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     SCORE_ELO: item.score_elo?.toFixed(2) || "—",
     // Resumo
     NUM_PRESENTES: item.num_participantes ?? 0,
-    NUM_AUSENTES: item.num_ausentes ?? 0,
+    NUM_MATRICULADOS: item.num_matriculados ?? 0,
     PCT_ADESAO: item.pct_adesao != null ? `${Number(item.pct_adesao).toFixed(0)}%` : "—",
+    ANALISE_IA: item.analise_ia || "—",
     OBJETIVO: item.objetivo_alcancado ? (objLabels[item.objetivo_alcancado] || item.objetivo_alcancado) : "—",
     INTERVENCOES: item.intervencoes || "—",
     OBSERVACOES: item.observacoes || "—",
@@ -638,6 +650,7 @@ export async function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
 function buildFichaTemplateData(p: any) {
   return {
     NOME_COMPLETO: p.nome_completo || "—",
+    CPF: p.cpf || "—",
     DATA_NASCIMENTO: p.data_nascimento || "—",
     GENERO: p.genero || "—",
     COR_RACA: p.cor_raca || "—",
@@ -646,20 +659,30 @@ function buildFichaTemplateData(p: any) {
     ESCOLA: p.escola || "—",
     SERIE: p.serie || "—",
     ENDERECO: `${p.endereco_rua || ""} ${p.endereco_numero ? "Nº " + p.endereco_numero : ""}`.trim() || "—",
+    ENDERECO_RUA: p.endereco_rua || "—",
+    ENDERECO_NUMERO: p.endereco_numero || "—",
+    ENDERECO_BAIRRO: p.endereco_bairro || "—",
     BAIRRO: p.endereco_bairro || "—",
+    BAIRRO_SCFV: p._bairro_scfv || "—",
     UF_ORIGEM: p.uf_origem || "—",
     SITUACAO_MORADIA: p.situacao_moradia || "—",
     RESPONSAVEL1_NOME: p.responsavel1_nome || "—",
-    RESPONSAVEL1_CPF: p.responsavel1_cpf || "—",
     RESPONSAVEL1_WHATSAPP: p.responsavel1_whatsapp || "—",
     RESPONSAVEL2_NOME: p.responsavel2_nome || "—",
     RESPONSAVEL2_WHATSAPP: p.responsavel2_whatsapp || "—",
     ORIGEM_ENCAMINHAMENTO: p.origem_encaminhamento || "—",
     RESPONSAVEL_TECNICO: p.responsavel_tecnico || "—",
+    CATEGORIA_VULNERABILIDADE: p.categoria_vulnerabilidade || "—",
     VULNERABILIDADE: p.categoria_vulnerabilidade || "—",
+    INICIOU_EM: p.iniciou_em || "—",
     INICIO_SCFV: p.iniciou_em || "—",
+    DATA_DESLIGAMENTO: p.data_desligamento || "—",
+    DIAS_CONTRATURNO: p.dias_contraturno || "—",
     RESTRICAO_ALIMENTAR: p.restricao_alimentar || "—",
     LAUDO: p.laudo || "—",
+    FOTO_URL: p.foto_url || "—",
+    TURMAS: p._turmas_nomes || "—",
+    DOCUMENTOS: p._documentos_lista || "—",
   };
 }
 

@@ -280,7 +280,8 @@ const MatriculaPublicaPage = () => {
           bairro_nome: form.bairro_scfv || null,
           ponto_transporte_id: form.ponto_transporte_id || null,
           responsavel1_nome: form.responsavel1_nome,
-          responsavel1_cpf: form.responsavel1_cpf || null,
+          responsavel1_cpf: null,
+          cpf: form.responsavel1_cpf || null,
           responsavel1_whatsapp: form.responsavel1_whatsapp,
           responsavel2_nome: form.responsavel2_nome || null,
           responsavel2_whatsapp: form.responsavel2_whatsapp || null,
@@ -550,7 +551,7 @@ const MatriculaPublicaPage = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Field label="Nome do Responsável" value={form.responsavel1_nome || ""} onChange={(v) => set("responsavel1_nome", v)} required />
                 <div>
-                  <Label className="text-sm font-medium">CPF do Responsável</Label>
+                  <Label className="text-sm font-medium">CPF do Participante</Label>
                   <Input
                     value={estrangeiroCpf ? (form.responsavel1_cpf || "") : maskCPF(form.responsavel1_cpf || "")}
                     onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))}
