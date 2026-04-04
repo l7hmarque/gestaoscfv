@@ -138,33 +138,60 @@ export type Database = {
       }
       despesas: {
         Row: {
+          boleto_url: string | null
           categoria_id: string | null
+          cnpj_cpf: string | null
           codigo_lancamento: string | null
+          comprovante_url: string | null
           created_at: string | null
           data_lancamento: string
           descricao: string
+          fornecedor: string | null
           id: string
+          lote_id: string | null
           mes_referencia: string
+          nota_url: string | null
+          numero_documento: string | null
+          status_sit: string | null
+          tipo_documento: string | null
           valor: number
         }
         Insert: {
+          boleto_url?: string | null
           categoria_id?: string | null
+          cnpj_cpf?: string | null
           codigo_lancamento?: string | null
+          comprovante_url?: string | null
           created_at?: string | null
           data_lancamento: string
           descricao: string
+          fornecedor?: string | null
           id?: string
+          lote_id?: string | null
           mes_referencia: string
+          nota_url?: string | null
+          numero_documento?: string | null
+          status_sit?: string | null
+          tipo_documento?: string | null
           valor: number
         }
         Update: {
+          boleto_url?: string | null
           categoria_id?: string | null
+          cnpj_cpf?: string | null
           codigo_lancamento?: string | null
+          comprovante_url?: string | null
           created_at?: string | null
           data_lancamento?: string
           descricao?: string
+          fornecedor?: string | null
           id?: string
+          lote_id?: string | null
           mes_referencia?: string
+          nota_url?: string | null
+          numero_documento?: string | null
+          status_sit?: string | null
+          tipo_documento?: string | null
           valor?: number
         }
         Relationships: [
