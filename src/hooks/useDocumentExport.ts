@@ -955,7 +955,7 @@ export async function exportMatrizFrequenciaPdf(
   autoTable(doc, {
     startY: y,
     head: [["Nº", "Nome", ...dateHeaders]],
-    body: participantes.map((p, i) => [i + 1, p.nome, ...datas.map(d => preenchida ? (p.presencas[d] ? "✓" : "") : "")]),
+    body: participantes.map((p, i) => [i + 1, p.nome, ...datas.map(d => preenchida ? (p.presencas[d] === "D" ? "D" : p.presencas[d] ? "✓" : "") : "")]),
     headStyles: { fillColor: [26, 82, 118], fontSize: 6, cellPadding: 1.5 },
     styles: { fontSize: 6, cellPadding: 1.5 },
     columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 40 } },
