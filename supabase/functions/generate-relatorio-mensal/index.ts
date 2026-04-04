@@ -461,7 +461,8 @@ Deno.serve(async (req: Request) => {
       }
 
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
-      const fileName = `relatorios-mensais/completo_${Date.now()}.xlsx`;
+      const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+      const fileName = `relatorios-mensais/SysELO_RelatorioMensal_Completo_${ts}.xlsx`;
       const { error: uploadError } = await supabaseAdmin.storage.from("documentos").upload(fileName, buf, {
         contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true,
       });
