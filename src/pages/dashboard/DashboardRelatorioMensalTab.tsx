@@ -145,7 +145,7 @@ export default function DashboardRelatorioMensalTab() {
       const startDate = `${ano}-${mes}-01`;
       const endDate = mesNum === 12 ? `${parseInt(ano)+1}-01-01` : `${ano}-${String(mesNum+1).padStart(2,"0")}-01`;
 
-      const [presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData] = await Promise.all([
+      const [presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData, relatorioPresencas] = await Promise.all([
         fetchAllRows("presenca", { select: "*" }),
         fetchAllRows("participantes", { select: "*" }),
         fetchAllRows("turmas", { select: "*" }),
@@ -156,6 +156,7 @@ export default function DashboardRelatorioMensalTab() {
         fetchAllRows("relatorio_turmas", { select: "*" }),
         fetchAllRows("atendimentos", { select: "*" }),
         fetchAllRows("profiles", { select: "*" }),
+        fetchAllRows("relatorio_presenca", { select: "*" }),
       ]);
 
       const presencas = (presencas_raw || []).filter((p: any) => p.data >= startDate && p.data < endDate);
