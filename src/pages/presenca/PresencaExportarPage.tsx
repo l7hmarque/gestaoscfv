@@ -154,7 +154,7 @@ const PresencaExportarPage = () => {
   return (
     <div className="space-y-4 max-w-2xl">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" asChild><Link to="/presenca"><ArrowLeft className="h-4 w-4" /></Link></Button>
+        <Button variant="ghost" size="icon" asChild><Link to="/dashboard"><ArrowLeft className="h-4 w-4" /></Link></Button>
         <h1 className="text-xl font-semibold text-foreground">Exportar Presença</h1>
       </div>
 
