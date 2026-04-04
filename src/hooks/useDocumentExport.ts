@@ -352,6 +352,9 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     OBJETIVO: item.objetivo_alcancado ? (objLabels[item.objetivo_alcancado] || item.objetivo_alcancado) : "—",
     INTERVENCOES: item.intervencoes || "—",
     OBSERVACOES: item.observacoes || "—",
+    // New tags
+    NOME_GRUPO: item._nome_grupo || turmaNames.join(", ") || "—",
+    PERIODO_SCFV: item._periodo_scfv || "—",
     // Presença loop
     PRESENCA: presenca.map((p, i) => ({
       NUM: i + 1,
