@@ -12,9 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Plus, Trash2, DollarSign, Receipt, Undo2, Layers,
-  Upload, FileText, ShieldCheck, Download, Loader2, AlertTriangle, CheckCircle2, Info, ListPlus, ClipboardList
+  Upload, FileText, ShieldCheck, Download, Loader2, AlertTriangle, CheckCircle2, Info, ListPlus, ClipboardList, FolderOpen, Paperclip
 } from "lucide-react";
 import OrcamentosTab from "./OrcamentosTab";
+import DocumentosPrestacaoTab from "./DocumentosPrestacaoTab";
 import { toast } from "sonner";
 
 type Categoria = { id: string; codigo: string; descricao: string; valor_previsto: number; created_at: string };
