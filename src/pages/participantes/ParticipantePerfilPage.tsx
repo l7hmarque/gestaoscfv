@@ -444,6 +444,7 @@ const ParticipantePerfilPage = () => {
               <>
                 <Info label="Origem" value={participante.origem_encaminhamento} /><Info label="Resp. Técnico" value={participante.responsavel_tecnico} />
                 <Info label="Vulnerabilidade" value={participante.categoria_vulnerabilidade} /><Info label="Início SCFV" value={participante.iniciou_em} />
+                <Info label="Data Desligamento" value={(participante as any).data_desligamento} /><Info label="Dias Contraturno" value={(participante as any).dias_contraturno} />
                 <Info label="Restrição Alimentar" value={participante.restricao_alimentar} /><Info label="Laudo" value={participante.laudo} />
               </>
             )}
