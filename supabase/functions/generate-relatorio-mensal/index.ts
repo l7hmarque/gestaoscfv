@@ -347,7 +347,8 @@ Deno.serve(async (req: Request) => {
           const addr = XLSX.utils.encode_cell({ r: excelRow, c: col });
           if (!ws[addr]) ws[addr] = { v: "", t: "s" };
           const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
-          if (rec && rec.presente) {
+          const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
+          if ((rec && rec.presente) || (fallbackRec && fallbackRec.presente)) {
             ws[addr].s = { fill: { fgColor: { rgb: "000000" } }, border: borderObj };
           } else {
             ws[addr].s = { border: borderObj };
