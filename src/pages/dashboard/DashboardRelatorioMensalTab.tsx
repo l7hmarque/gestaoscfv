@@ -234,7 +234,7 @@ export default function DashboardRelatorioMensalTab() {
         [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
         [`Data de geração: ${new Date().toLocaleString("pt-BR")}`],
         [],
-        ["ATENDIDOS NO MÊS", atendidosIds.size],
+        ["ATENDIDOS NO MÊS", atendidosFiltered.length],
         [],
         ["POR BAIRRO"],
         ...Object.entries(byBairro).sort((a, b) => b[1] - a[1]).map(([b, c]) => [b, c]),
