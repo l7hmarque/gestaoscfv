@@ -180,21 +180,21 @@ Deno.serve(async (req: Request) => {
     wsResumo["!cols"] = [{ wch: 40 }, { wch: 15 }];
     XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
 
-    // --- Sheet 2: Atividades ---
-    const relByPlan = new Map();
-    filteredRelatorios.forEach((r: any) => { if (r.planejamento_id) relByPlan.set(r.planejamento_id, r); });
+    // --- Sheet 2: Atividades (driven by relatórios, not planejamentos) ---
     const atividadesRows: any[][] = [];
-    filteredPlanejamentos.forEach((p: any) => {
-      const rel = relByPlan.get(p.id);
-      atividadesRows.push([p.titulo + (p.tema ? ` — ${p.tema}` : ""), rel ? (rel.nome_atividade || "") : "", rel ? (rel.analise_ia || "") : "", rel ? "" : "Atividade não realizada no período"]);
-      if (rel) relByPlan.delete(p.id);
+    filteredRelatorios.forEach((r: any) => {
+      const plan = r.planejamento_id ? planMap.get(r.planejamento_id) : null;
+      const proposta = plan ? (plan.titulo + (plan.tema ? ` — ${plan.tema}` : "")) : "Não planejada";
+      atividadesRows.push([proposta, r.nome_atividade || "", r.analise_ia || "", ""]);
     });
-    filteredRelatorios.filter((r: any) => !r.planejamento_id).forEach((r: any) => {
-      atividadesRows.push(["", r.nome_atividade || "", r.analise_ia || "", ""]);
-    });
+    if (atividadesRows.length === 0) {
+      atividadesRows.push(["Nenhuma atividade registrada no período", "", "", ""]);
+    }
     const atividadesData = [["ATIVIDADES PROPOSTAS x DESENVOLVIDAS"], [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum}`], [], ["Atividades Propostas", "Atividades Desenvolvidas", "Resultados Alcançados", "Justificativas"], ...atividadesRows];
     const wsAtiv = XLSX.utils.aoa_to_sheet(atividadesData);
     wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
+    applyHeaderStyle(wsAtiv, 3, 4);
+    applyBorders(wsAtiv);
     XLSX.utils.book_append_sheet(wb, wsAtiv, "Atividades");
 
     // --- Sheet 3: Metas ---
