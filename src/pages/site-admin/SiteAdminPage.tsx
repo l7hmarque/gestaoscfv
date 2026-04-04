@@ -105,7 +105,7 @@ function NoticiasTab() {
 }
 
 function NoticiaForm({ open, onClose, item, onSaved }: { open: boolean; onClose: () => void; item: any; onSaved: () => void }) {
-  const { profile } = useAuth();
+  const { user } = useAuth();
   const [titulo, setTitulo] = useState("");
   const [subtitulo, setSubtitulo] = useState("");
   const [conteudo, setConteudo] = useState("");
