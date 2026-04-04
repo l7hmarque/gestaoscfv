@@ -126,6 +126,11 @@ const ParticipanteNovoPage = () => {
 
     try {
       const payload: Record<string, unknown> = { ...form };
+      // Map CPF field: form uses responsavel1_cpf key but it's actually the participant's CPF
+      if (payload.responsavel1_cpf) {
+        payload.cpf = payload.responsavel1_cpf;
+        delete payload.responsavel1_cpf;
+      }
       if (!payload.bairro_id) delete payload.bairro_id;
       if (!payload.ponto_transporte_id) delete payload.ponto_transporte_id;
       if (!payload.data_nascimento) delete payload.data_nascimento;
