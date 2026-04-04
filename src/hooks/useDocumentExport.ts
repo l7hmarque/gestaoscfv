@@ -318,7 +318,7 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
   }
 
   if (item.situacoes_relevantes?.length > 0) {
-    const sitOptions = ["Conflito entre participantes", "Avanço significativo", "Dificuldade de concentração", "Acolhimento emocional necessário", "Destaque positivo de participante"];
+    const sitOptions = ["Nenhuma ocorrência", "Conflito entre participantes", "Situação de vulnerabilidade identificada", "Encaminhamento necessário", "Comunicação com família/responsável"];
     children.push(new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: "Situações Relevantes:", bold: true, size: 20, font: "Arial" })] }));
     children.push(new Paragraph({ spacing: { after: 200 }, children: sitOptions.flatMap(opt => checkbox(item.situacoes_relevantes.includes(opt), opt)) }));
   }
