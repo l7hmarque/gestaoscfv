@@ -436,6 +436,7 @@ const ParticipantePerfilPage = () => {
               <>
                 <EditField label="Escola" field="escola" /><EditField label="Série" field="serie" /><EditField label="Origem" field="origem_encaminhamento" />
                 <EditField label="Resp. Técnico" field="responsavel_tecnico" /><EditField label="Vulnerabilidade" field="categoria_vulnerabilidade" /><EditField label="Início SCFV" field="iniciou_em" type="date" />
+                <EditField label="Data Desligamento" field="data_desligamento" type="date" /><EditField label="Dias Contraturno" field="dias_contraturno" />
                 <div className="col-span-2 sm:col-span-3"><Label className="text-xs">Restrição Alimentar</Label><Textarea value={form.restricao_alimentar || ""} onChange={(e) => set("restricao_alimentar", e.target.value)} className="text-sm mt-0.5 min-h-[50px]" /></div>
                 <div className="col-span-2 sm:col-span-3"><Label className="text-xs">Laudo</Label><Textarea value={form.laudo || ""} onChange={(e) => set("laudo", e.target.value)} className="text-sm mt-0.5 min-h-[50px]" /></div>
               </>
