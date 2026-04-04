@@ -152,7 +152,12 @@ const PresencaExportarPage = () => {
           .eq("turma_id", turma.id);
 
         const participantes = (tpData || [])
-          .map((tp: any) => ({ nome: tp.participantes?.nome_completo || "" }))
+          .map((tp: any) => {
+            const isDesligado = tp.participantes?.status === "desligado";
+            const dataDeslig = tp.participantes?.data_desligamento || null;
+            const suffix = isDesligado && dataDeslig ? ` (Desligado em ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})` : "";
+            return { nome: (tp.participantes?.nome_completo || "") + suffix };
+          })
           .sort((a, b) => a.nome.localeCompare(b.nome));
 
         await exportListaPresencaPdf(turma, participantes, Number(anoSel), Number(mesSel));
