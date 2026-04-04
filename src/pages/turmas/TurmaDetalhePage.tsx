@@ -293,6 +293,7 @@ const TurmaDetalhePage = () => {
           <CardHeader className="pb-3"><CardTitle className="text-sm">Editar Turma</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="col-span-1 sm:col-span-2"><Label className="text-xs">Nome</Label><Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="h-9 text-sm mt-1" /></div>
+            <div className="col-span-1 sm:col-span-2"><Label className="text-xs">Nome do Grupo (opcional)</Label><Input value={form.nome_grupo || ""} onChange={(e) => setForm({ ...form, nome_grupo: e.target.value })} className="h-9 text-sm mt-1" placeholder="Ex: Turma Esperança" /></div>
             <div><Label className="text-xs">Período</Label>
               <Select value={form.periodo || ""} onValueChange={(v) => setForm({ ...form, periodo: v })}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
