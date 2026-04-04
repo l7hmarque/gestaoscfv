@@ -16,6 +16,7 @@ export function NotificationBell() {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [myProfileId, setMyProfileId] = useState("");
+  const [isCoord, setIsCoord] = useState(false);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -32,18 +33,25 @@ export function NotificationBell() {
 
   const loadData = async () => {
     if (!user) return;
-    const [{ data: prof }, { data: rec }, { data: parts }] = await Promise.all([
+    const [{ data: prof }, { data: rec }, { data: parts }, { data: roles }] = await Promise.all([
       supabase.from("profiles").select("id, nome, user_id"),
       supabase.from("recados").select("*").order("created_at", { ascending: false }).limit(50),
       supabase.from("participantes").select("id, nome_completo"),
+      supabase.from("user_roles").select("role").eq("user_id", user.id),
     ]);
     setProfiles(prof || []);
     setParticipantes(parts || []);
+    const coordRole = (roles || []).some((r: any) => r.role === "coordenacao");
+    setIsCoord(coordRole);
     const me = (prof || []).find((p: any) => p.user_id === user.id);
     if (me) {
       setMyProfileId(me.id);
-      // Filter only recados where I'm the destinatario
-      setRecados((rec || []).filter((r: any) => r.destinatario_id === me.id));
+      // Coord sees ALL recados; others see only their own
+      if (coordRole) {
+        setRecados(rec || []);
+      } else {
+        setRecados((rec || []).filter((r: any) => r.destinatario_id === me.id));
+      }
     }
   };
 
@@ -88,6 +96,9 @@ export function NotificationBell() {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-muted-foreground">
                       De: <span className="font-medium text-foreground">{profName(r.remetente_id)}</span>
+                      {isCoord && r.destinatario_id !== myProfileId && (
+                        <span className="text-muted-foreground"> → Para: <span className="font-medium text-foreground">{profName(r.destinatario_id)}</span></span>
+                      )}
                       {" · "}
                       {formatDistanceToNow(new Date(r.created_at), { addSuffix: true, locale: ptBR })}
                     </p>

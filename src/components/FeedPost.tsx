@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { renderMentionText } from "@/components/MentionInput";
+import { Link } from "react-router-dom";
 
 interface FeedPostProps {
   post: any;
@@ -26,6 +28,28 @@ const tipoLabel: Record<string, { icon: string; label: string }> = {
   conquista: { icon: "🏆", label: "Conquista" },
   manual: { icon: "", label: "" },
 };
+
+function RenderContent({ text, profiles }: { text: string; profiles: Record<string, any> }) {
+  const parts = renderMentionText(text, profiles);
+  if (typeof parts === "string") return <>{parts}</>;
+  return (
+    <>
+      {(parts as any[]).map((part, i) =>
+        typeof part === "string" ? (
+          <span key={i}>{part}</span>
+        ) : (
+          <Link
+            key={i}
+            to={`/profissional/${part.id}`}
+            className="text-primary font-medium hover:underline"
+          >
+            @{part.name}
+          </Link>
+        )
+      )}
+    </>
+  );
+}
 
 export function FeedPost({ post, fotos, reacoes, comentarios, profiles, myProfileId, isCoord, onRefresh }: FeedPostProps) {
   const [showComments, setShowComments] = useState(false);
@@ -54,7 +78,35 @@ export function FeedPost({ post, fotos, reacoes, comentarios, profiles, myProfil
 
   const handleComment = async () => {
     if (!newComment.trim() || !myProfileId) return;
-    await supabase.from("feed_comentarios").insert({ feed_post_id: post.id, autor_id: myProfileId, conteudo: newComment.trim() });
+
+    // Extract @mentions from comment
+    const profNames = Object.values(profiles).map((p: any) => p.nome).filter(Boolean);
+    const mentionIds: string[] = [];
+    profNames.forEach((name: string) => {
+      if (newComment.includes(`@${name}`)) {
+        const prof = Object.values(profiles).find((p: any) => p.nome === name);
+        if (prof) mentionIds.push(prof.id);
+      }
+    });
+
+    await supabase.from("feed_comentarios").insert({
+      feed_post_id: post.id,
+      autor_id: myProfileId,
+      conteudo: newComment.trim(),
+      mencoes: mentionIds,
+    } as any);
+
+    // Send notification for each mentioned person
+    for (const mid of mentionIds) {
+      if (mid !== myProfileId) {
+        await supabase.from("recados").insert({
+          remetente_id: myProfileId,
+          destinatario_id: mid,
+          conteudo: `Você foi mencionado em um comentário no Feed por ${profiles[myProfileId]?.nome || "alguém"}`,
+        });
+      }
+    }
+
     setNewComment("");
     onRefresh();
   };
@@ -100,9 +152,11 @@ export function FeedPost({ post, fotos, reacoes, comentarios, profiles, myProfil
           </div>
         </div>
 
-        {/* Content */}
+        {/* Content with @mentions */}
         {post.conteudo && (
-          <p className="text-sm text-foreground whitespace-pre-wrap mb-3">{post.conteudo}</p>
+          <p className="text-sm text-foreground whitespace-pre-wrap mb-3">
+            <RenderContent text={post.conteudo} profiles={profiles} />
+          </p>
         )}
 
         {/* Photos */}
@@ -153,7 +207,9 @@ export function FeedPost({ post, fotos, reacoes, comentarios, profiles, myProfil
                   <div className="flex-1 min-w-0">
                     <p className="text-xs">
                       <span className="font-medium">{cAutor?.nome || "—"}</span>{" "}
-                      <span className="text-muted-foreground">{c.conteudo}</span>
+                      <span className="text-muted-foreground">
+                        <RenderContent text={c.conteudo} profiles={profiles} />
+                      </span>
                     </p>
                     <p className="text-[10px] text-muted-foreground">
                       {formatDistanceToNow(new Date(c.created_at), { addSuffix: true, locale: ptBR })}
@@ -171,7 +227,7 @@ export function FeedPost({ post, fotos, reacoes, comentarios, profiles, myProfil
               <Input
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Comentar..."
+                placeholder="Comentar... use @ para mencionar"
                 className="h-8 text-xs"
                 onKeyDown={(e) => e.key === "Enter" && handleComment()}
               />

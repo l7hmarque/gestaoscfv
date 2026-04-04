@@ -78,6 +78,15 @@ const METAS_BAIRRO: Record<string, { criancasManha: number; criancasTarde: numbe
   "ALVORADA": { criancasManha: 60, criancasTarde: 60, idosos: null },
 };
 
+const TIPO_ATENDIMENTO_LABELS: Record<string, string> = {
+  atendimento_individual: "Atendimento Individual",
+  visita_domiciliar: "Visita Domiciliar",
+  encaminhamento: "Encaminhamento",
+  busca_ativa: "Busca Ativa",
+  acolhida: "Acolhida",
+  desligamento: "Desligamento",
+};
+
 export default function DashboardRelatorioMensalTab() {
   const now = new Date();
   const [ano, setAno] = useState(String(now.getFullYear()));
@@ -91,7 +100,7 @@ export default function DashboardRelatorioMensalTab() {
       const startDate = `${ano}-${mes}-01`;
       const endDate = mesNum === 12 ? `${parseInt(ano)+1}-01-01` : `${ano}-${String(mesNum+1).padStart(2,"0")}-01`;
 
-      const [presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas] = await Promise.all([
+      const [presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData] = await Promise.all([
         fetchAllRows("presenca", { select: "*" }),
         fetchAllRows("participantes", { select: "*" }),
         fetchAllRows("turmas", { select: "*" }),
@@ -100,15 +109,18 @@ export default function DashboardRelatorioMensalTab() {
         fetchAllRows("planejamentos", { select: "*" }),
         fetchAllRows("turma_participantes", { select: "*" }),
         fetchAllRows("relatorio_turmas", { select: "*" }),
+        fetchAllRows("atendimentos", { select: "*" }),
+        fetchAllRows("profiles", { select: "*" }),
       ]);
 
       const presencas = (presencas_raw || []).filter((p: any) => p.data >= startDate && p.data < endDate);
       const filteredRelatorios = (relatorios || []).filter((r: any) => r.data >= startDate && r.data < endDate);
       const filteredPlanejamentos = (planejamentos || []).filter((p: any) => p.data_aplicacao && p.data_aplicacao >= startDate && p.data_aplicacao < endDate);
+      const filteredAtendimentos = (atendimentos_raw || []).filter((a: any) => a.data_atendimento >= startDate && a.data_atendimento < endDate);
 
       const partMap = new Map((participantes || []).map((p: any) => [p.id, p]));
       const bairroMap = new Map((bairros || []).map((b: any) => [b.id, b.nome]));
-      const bairroIdByName = new Map((bairros || []).map((b: any) => [b.nome, b.id]));
+      const profileMap = new Map((profilesData || []).map((p: any) => [p.id, p]));
 
       const wb = XLSX.utils.book_new();
 
@@ -116,7 +128,6 @@ export default function DashboardRelatorioMensalTab() {
       const atendidosIds = new Set(presencas.filter((p: any) => p.presente).map((p: any) => p.participante_id));
       const atendidos = [...atendidosIds].map(id => partMap.get(id)).filter(Boolean);
 
-      // Use bairro_id (CAIA) instead of endereco_bairro for correct distribution
       const byBairro: Record<string, number> = {};
       atendidos.forEach((p: any) => { const b = p.bairro_id ? (bairroMap.get(p.bairro_id) || "N/I") : "N/I"; byBairro[b] = (byBairro[b] || 0) + 1; });
 
@@ -134,6 +145,13 @@ export default function DashboardRelatorioMensalTab() {
       const novasInsercoes = participantes.filter((p: any) => {
         if (!p.iniciou_em) return false;
         return p.iniciou_em >= startDate && p.iniciou_em < endDate;
+      });
+
+      // Count atendimentos by type
+      const atendByTipo: Record<string, number> = {};
+      filteredAtendimentos.forEach((a: any) => {
+        const t = a.tipo || "atendimento_individual";
+        atendByTipo[t] = (atendByTipo[t] || 0) + 1;
       });
 
       const resumoData = [
@@ -154,12 +172,15 @@ export default function DashboardRelatorioMensalTab() {
         [],
         ["NOVAS INSERÇÕES NO MÊS (por data de início)", novasInsercoes.length],
         ...novasInsercoes.map((p: any) => [p.nome_completo, p.iniciou_em]),
+        [],
+        ["ATENDIMENTOS TÉCNICOS NO MÊS", filteredAtendimentos.length],
+        ...Object.entries(atendByTipo).map(([t, c]) => [TIPO_ATENDIMENTO_LABELS[t] || t, c]),
       ];
       const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
       wsResumo["!cols"] = [{ wch: 40 }, { wch: 15 }];
       XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
 
-      // --- Sheet 2: Atividades Propostas x Desenvolvidas (4 colunas) ---
+      // --- Sheet 2: Atividades ---
       const relByPlan = new Map<string, any>();
       filteredRelatorios.forEach((r: any) => { if (r.planejamento_id) relByPlan.set(r.planejamento_id, r); });
 
@@ -189,17 +210,14 @@ export default function DashboardRelatorioMensalTab() {
       wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
       XLSX.utils.book_append_sheet(wb, wsAtiv, "Atividades");
 
-      // --- Sheet 3: Metas Propostas ---
-      // Build turma-to-bairroName map
+      // --- Sheet 3: Metas ---
       const turmaMap = new Map(turmas.map((t: any) => [t.id, t]));
 
-      // For each bairro SCFV, calculate attendance by period
-      const bairroStats: Record<string, { criancasManha: Set<string>; criancasTarde: Set<string>; idosos: Set<string>; resultados: string[] }> = {};
+      const bairroStats: Record<string, { criancasManha: Set<string>; criancasTarde: Set<string>; idosos: Set<string> }> = {};
       BAIRROS_SCFV.forEach(bn => {
-        bairroStats[bn] = { criancasManha: new Set(), criancasTarde: new Set(), idosos: new Set(), resultados: [] };
+        bairroStats[bn] = { criancasManha: new Set(), criancasTarde: new Set(), idosos: new Set() };
       });
 
-      // Map relatorios to bairros via relatorio_turmas
       const relIdToAnalise = new Map(filteredRelatorios.map((r: any) => [r.id, r.analise_ia || ""]));
       const bairroRelResultados: Record<string, Set<string>> = {};
       BAIRROS_SCFV.forEach(bn => { bairroRelResultados[bn] = new Set(); });
@@ -214,7 +232,6 @@ export default function DashboardRelatorioMensalTab() {
         }
       });
 
-      // Count attendance per bairro+period
       presencas.filter((p: any) => p.presente).forEach((pres: any) => {
         const turma = turmaMap.get(pres.turma_id);
         if (!turma) return;
@@ -236,7 +253,6 @@ export default function DashboardRelatorioMensalTab() {
         }
       });
 
-      // Build Metas sheet rows
       const metasRows: any[][] = [];
       let totalCriancas = 0, totalMeta = 0, totalIdosos = 0, totalMetaIdosos = 0;
 
@@ -288,13 +304,11 @@ export default function DashboardRelatorioMensalTab() {
       applyBorders(wsMetas);
       XLSX.utils.book_append_sheet(wb, wsMetas, "Metas");
 
-      // --- Sheet 4: Monitoramento e Avaliação ---
-      // Calculate metrics
+      // --- Sheet 4: Monitoramento ---
       const totalPresencasRegistros = presencas.length;
       const totalPresentes = presencas.filter((p: any) => p.presente).length;
       const pctPresencaGeral = totalPresencasRegistros > 0 ? Math.round((totalPresentes / totalPresencasRegistros) * 100) : 0;
 
-      // % de participantes ativos com frequência >= 75%
       const partFreq: Record<string, { total: number; presentes: number }> = {};
       presencas.forEach((p: any) => {
         if (!partFreq[p.participante_id]) partFreq[p.participante_id] = { total: 0, presentes: 0 };
@@ -345,9 +359,41 @@ export default function DashboardRelatorioMensalTab() {
       applyBorders(wsMonitor);
       XLSX.utils.book_append_sheet(wb, wsMonitor, "Monitoramento");
 
-      // --- Sheets 5+: Matrizes de frequência por turma ---
+      // --- Sheet 5: Atendimentos Técnicos ---
+      if (filteredAtendimentos.length > 0) {
+        const atendRows = filteredAtendimentos.map((a: any) => {
+          const part = partMap.get(a.participante_id);
+          const prof = profileMap.get(a.profissional_id);
+          return [
+            a.data_atendimento,
+            TIPO_ATENDIMENTO_LABELS[a.tipo] || a.tipo,
+            part?.nome_completo || "—",
+            prof?.nome || "—",
+            (a.descricao || "").slice(0, 200),
+            a.encaminhamento || "",
+          ];
+        });
+
+        const atendData = [
+          ["ATENDIMENTOS TÉCNICOS"],
+          [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
+          [],
+          ["Data", "Tipo", "Participante", "Profissional", "Descrição", "Encaminhamento"],
+          ...atendRows,
+        ];
+        const wsAtend = XLSX.utils.aoa_to_sheet(atendData);
+        wsAtend["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 30 }, { wch: 20 }, { wch: 50 }, { wch: 30 }];
+        applyHeaderStyle(wsAtend, 3, 6);
+        applyBorders(wsAtend);
+        XLSX.utils.book_append_sheet(wb, wsAtend, "Atendimentos");
+      }
+
+      // --- Sheets: Matrizes de frequência por turma (black fill for presence) ---
       const turmasAtivas = turmas.filter((t: any) => t.ativa);
-      const usedSheetNames = new Set<string>(["Resumo", "Atividades", "Metas", "Monitoramento"]);
+      const usedSheetNames = new Set<string>(["Resumo", "Atividades", "Metas", "Monitoramento", "Atendimentos"]);
+      const border = { style: "thin", color: { rgb: "000000" } };
+      const borderObj = { top: border, bottom: border, left: border, right: border };
+
       for (const turma of turmasAtivas) {
         const t = turma as any;
         const tpIds = turmaParticipantes.filter((tp: any) => tp.turma_id === t.id).map((tp: any) => tp.participante_id);
@@ -376,7 +422,8 @@ export default function DashboardRelatorioMensalTab() {
           const row: any[] = [idx + 1, p.nome_completo];
           datas.forEach(d => {
             const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
-            row.push(rec ? (rec.presente ? "✓" : "F") : "");
+            // Use empty string; styling (black fill) is applied below
+            row.push(rec ? (rec.presente ? "" : "") : "");
           });
           return row;
         });
@@ -384,6 +431,37 @@ export default function DashboardRelatorioMensalTab() {
         const sheetData = [header1, header2, header3, [], colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]];
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
         ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...datas.map(() => ({ wch: 6 }))];
+
+        // Apply header style to column headers row (row index 4)
+        applyHeaderStyle(ws, 4, colHeaders.length);
+
+        // Apply black fill for present cells and borders to all data cells
+        const dataStartRow = 5; // row index where participant data starts
+        tParts.forEach((p: any, pIdx: number) => {
+          const excelRow = dataStartRow + pIdx;
+          // Nº and Nome cells get borders
+          for (let c = 0; c < 2; c++) {
+            const addr = XLSX.utils.encode_cell({ r: excelRow, c });
+            if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+            ws[addr].s = { ...(ws[addr].s || {}), border: borderObj };
+          }
+          // Date cells: black fill if present, just border if absent/no record
+          datas.forEach((d, dIdx) => {
+            const col = 2 + dIdx;
+            const addr = XLSX.utils.encode_cell({ r: excelRow, c: col });
+            if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+            const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
+            if (rec && rec.presente) {
+              ws[addr].s = {
+                fill: { fgColor: { rgb: "000000" } },
+                border: borderObj,
+              };
+            } else {
+              ws[addr].s = { border: borderObj };
+            }
+          });
+        });
+
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
       }
 
@@ -412,7 +490,7 @@ export default function DashboardRelatorioMensalTab() {
         <CardContent className="space-y-4">
           <p className="text-xs text-muted-foreground">
             Inclui: atendidos por bairro/faixa/período, novas inserções, atividades planejadas × relatadas,
-            metas por bairro, monitoramento SCFV e matrizes de frequência por turma.
+            metas por bairro, monitoramento SCFV, atendimentos técnicos e matrizes de frequência por turma.
           </p>
           <div className="flex gap-3 items-end">
             <div>

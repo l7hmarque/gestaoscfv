@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, Upload, Image, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +9,7 @@ import { toast } from "sonner";
 import { FeedPost } from "@/components/FeedPost";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { compressFileForUpload } from "@/hooks/useDocumentScanner";
+import { MentionInput } from "@/components/MentionInput";
 
 const FeedPage = () => {
   const { user } = useAuth();
@@ -23,6 +23,7 @@ const FeedPage = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newContent, setNewContent] = useState("");
+  const [newMentions, setNewMentions] = useState<string[]>([]);
   const [newPhotos, setNewPhotos] = useState<File[]>([]);
   const isDemo = useIsDemo();
 
@@ -79,8 +80,20 @@ const FeedPage = () => {
       autor_id: myProfileId,
       conteudo: newContent,
       tipo: "manual" as any,
-    }).select("id").single();
+      mencoes: newMentions,
+    } as any).select("id").single();
     if (error || !fp) { toast.error(error?.message || "Erro"); return; }
+
+    // Send notification for each mentioned person
+    for (const mid of newMentions) {
+      if (mid !== myProfileId) {
+        await supabase.from("recados").insert({
+          remetente_id: myProfileId,
+          destinatario_id: mid,
+          conteudo: `Você foi mencionado em um post no Feed por ${profiles[myProfileId]?.nome || "alguém"}`,
+        });
+      }
+    }
 
     for (let i = 0; i < newPhotos.length; i++) {
       const compressed = await compressFileForUpload(newPhotos[i]);
@@ -95,6 +108,7 @@ const FeedPage = () => {
 
     toast.success("Publicado!");
     setNewContent("");
+    setNewMentions([]);
     setNewPhotos([]);
     setDialogOpen(false);
     fetchAll();
@@ -120,10 +134,13 @@ const FeedPage = () => {
           <DialogContent>
             <DialogHeader><DialogTitle>Nova Postagem</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              <Textarea
+              <MentionInput
                 value={newContent}
-                onChange={(e) => setNewContent(e.target.value)}
-                placeholder="O que está acontecendo?"
+                onChange={setNewContent}
+                profiles={profiles}
+                mentions={newMentions}
+                onMentionsChange={setNewMentions}
+                placeholder="O que está acontecendo? Use @ para mencionar"
                 rows={4}
               />
               {newPhotos.length > 0 && (

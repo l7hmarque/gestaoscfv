@@ -33,7 +33,7 @@ async function awardConquista(perfilId: string, tipo: string, nivel: number = 1)
     .eq("nivel", nivel)
     .maybeSingle();
 
-  if (existing) return null; // Already earned
+  if (existing) return null;
 
   const { error } = await supabase.from("conquistas").insert({
     perfil_id: perfilId,
@@ -46,32 +46,21 @@ async function awardConquista(perfilId: string, tipo: string, nivel: number = 1)
   return def ? `${def.label} — ${def.desc}` : tipo;
 }
 
-async function postConquistaToFeed(perfilId: string, text: string) {
-  await supabase.from("feed_posts").insert({
-    autor_id: perfilId,
-    conteudo: `🏆 Conquista desbloqueada!\n\n${text}`,
-    tipo: "conquista" as any,
-  });
-}
-
-export async function checkConquistas(check: ConquistaCheck) {
+export async function checkConquistas(check: ConquistaCheck): Promise<string[]> {
   const { educadorProfileId: pid, scoreElo, pctAdesao, iniciativa, autonomia, colaboracao, comunicacao, respeito_mutuo } = check;
   const earned: string[] = [];
 
-  // Count total reports by this educator
   const { count } = await supabase
     .from("relatorios_atividade")
     .select("id", { count: "exact", head: true })
     .eq("educador_id", pid);
   const total = count || 0;
 
-  // First report
   if (total === 1) {
     const r = await awardConquista(pid, "primeiro_relatorio");
     if (r) earned.push(r);
   }
 
-  // Progressive writer
   const thresholds = [
     { count: 10, tipo: "escritor_10", nivel: 1 },
     { count: 25, tipo: "escritor_25", nivel: 2 },
@@ -85,34 +74,27 @@ export async function checkConquistas(check: ConquistaCheck) {
     }
   }
 
-  // ELO de Ouro
   if (scoreElo >= 4.0) {
     const r = await awardConquista(pid, "elo_ouro");
     if (r) earned.push(r);
   }
 
-  // 100% Adesão
   if (pctAdesao >= 100) {
     const r = await awardConquista(pid, "adesao_100");
     if (r) earned.push(r);
   }
 
-  // Engajamento Total (all indicators >= 4)
   if (iniciativa >= 4 && autonomia >= 4 && colaboracao >= 4 && comunicacao >= 4 && respeito_mutuo >= 4) {
     const r = await awardConquista(pid, "engajamento_total");
     if (r) earned.push(r);
   }
 
-  // Turma Completa
   if (pctAdesao >= 100) {
     const r = await awardConquista(pid, "turma_completa");
     if (r) earned.push(r);
   }
 
-  // Post conquistas to feed
-  for (const text of earned) {
-    await postConquistaToFeed(pid, text);
-  }
-
+  // No longer creates separate feed posts — earned conquistas are returned
+  // and appended inline to the activity's auto-post
   return earned;
 }
