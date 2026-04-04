@@ -137,6 +137,7 @@ Deno.serve(async (req: Request) => {
     const bairroMap = new Map(bairros.map((b: any) => [b.id, b.nome]));
     const profileMap = new Map(profilesData.map((p: any) => [p.id, p]));
     const turmaMap = new Map(turmas.map((t: any) => [t.id, t]));
+    const planMap = new Map(planejamentos.map((p: any) => [p.id, p]));
 
     const wb = XLSX.utils.book_new();
 
