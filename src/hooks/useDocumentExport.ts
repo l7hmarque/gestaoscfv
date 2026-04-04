@@ -96,18 +96,29 @@ function remapDataWithMappings(
 
   const result: Record<string, any> = { ...originalData };
 
+  // Build a lookup index: normalize all keys in allData so we can find values
+  // regardless of casing convention (SCORE_ELO, score_elo, ScoreELO, etc.)
+  const normalizedIndex: Record<string, any> = {};
+  for (const [key, value] of Object.entries(allData)) {
+    normalizedIndex[key] = value;
+    normalizedIndex[key.toUpperCase()] = value;
+    normalizedIndex[key.toLowerCase()] = value;
+    // Also store snake_case → UPPER_SNAKE: "score_elo" → "SCORE_ELO"
+    normalizedIndex[key.toUpperCase().replace(/\./g, "_")] = value;
+  }
+
   for (const [tagName, fieldKey] of Object.entries(tagMappings)) {
-    // The fieldKey maps to a key in allData
-    // Check if the original data already has a value with the fieldKey as key
-    const upperTag = tagName.toUpperCase();
-    if (allData[upperTag] !== undefined) {
-      result[tagName] = allData[upperTag];
-    } else if (allData[tagName] !== undefined) {
-      result[tagName] = allData[tagName];
-    }
-    // Also ensure the tag exists in result keyed exactly as written in template
-    if (result[tagName] === undefined && result[upperTag] !== undefined) {
-      result[tagName] = result[upperTag];
+    // Use fieldKey to resolve the value from allData
+    const fieldUpper = fieldKey.toUpperCase().replace(/\./g, "_");
+    const resolved =
+      normalizedIndex[fieldKey] ??
+      normalizedIndex[fieldUpper] ??
+      normalizedIndex[fieldKey.toLowerCase()] ??
+      allData[fieldKey] ??
+      allData[fieldUpper];
+
+    if (resolved !== undefined) {
+      result[tagName] = resolved;
     }
   }
 
