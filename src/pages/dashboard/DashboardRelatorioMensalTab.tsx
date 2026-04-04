@@ -552,6 +552,28 @@ export default function DashboardRelatorioMensalTab() {
           </p>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileText className="h-4 w-4" /> Relatório de Execução do Objeto (REO)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Gera o REO completo em DOCX com: atividades propostas × desenvolvidas, serviços da equipe técnica,
+            comparativo de metas por bairro, recursos humanos, monitoramento, execução financeira e anexos fotográficos.
+          </p>
+          <div className="flex gap-3 items-end flex-wrap">
+            <Button onClick={generateReo} disabled={generatingReo}>
+              <FileText className="h-4 w-4 mr-1" /> {generatingReo ? "Gerando REO..." : "Gerar REO (DOCX)"}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Usa o mesmo mês/ano selecionado acima. O documento é gerado em segundo plano no servidor.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
