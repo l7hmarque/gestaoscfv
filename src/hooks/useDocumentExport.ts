@@ -750,8 +750,12 @@ function buildFichaTemplateData(p: any) {
     SITUACAO_MORADIA: p.situacao_moradia || "—",
     RESPONSAVEL1_NOME: p.responsavel1_nome || "—",
     RESPONSAVEL1_WHATSAPP: p.responsavel1_whatsapp || "—",
+    VINCULO_RESP1: p.vinculo_resp1 || "—",
     RESPONSAVEL2_NOME: p.responsavel2_nome || "—",
     RESPONSAVEL2_WHATSAPP: p.responsavel2_whatsapp || "—",
+    VINCULO_RESP2: p.vinculo_resp2 || "—",
+    // Lowercase aliases for template compatibility
+    responsavel2: p.responsavel2_nome || "—",
     ORIGEM_ENCAMINHAMENTO: p.origem_encaminhamento || "—",
     RESPONSAVEL_TECNICO: p.responsavel_tecnico || "—",
     CATEGORIA_VULNERABILIDADE: p.categoria_vulnerabilidade || "—",
@@ -762,13 +766,20 @@ function buildFichaTemplateData(p: any) {
     DIAS_CONTRATURNO: p.dias_contraturno || "—",
     RESTRICAO_ALIMENTAR: p.restricao_alimentar || "—",
     LAUDO: p.laudo || "—",
+    REMEDIO: p.remedio_continuo || "—",
+    REMEDIO_CONTINUO: p.remedio_continuo || "—",
+    outras_cond: p.outras_condicoes || "—",
+    OUTRAS_COND: p.outras_condicoes || "—",
     FOTO_URL: p.foto_url || "—",
     TURMAS: p._turmas_nomes || "—",
     DOCUMENTOS: p._documentos_lista || "—",
     PONTO_TRANSPORTE: p._ponto_transporte || "—",
     NOME_GRUPO: p._nome_grupo || "—",
+    nomegrupo: p._nome_grupo || "—",
     JUST_DESLG: p.justificativa_desligamento || "—",
+    JUST_DESLIG: p.justificativa_desligamento || "—",
     MOTIVO_DESLG: p.motivo_desligamento || "—",
+    MOTIVO_DESLIG: p.motivo_desligamento || "—",
   };
 }
 
