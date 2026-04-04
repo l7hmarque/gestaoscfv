@@ -1,139 +1,80 @@
 
 
-## Plano: Módulo Financeiro Avançado — MROSC/SIT + Detecção de documentos + Auditoria + RPA
+## Plano: Fotos ajustadas + Ocultar Presença + Corrigir relatório mensal
 
 ---
 
-### Resumo
+### Diagnóstico do relatório mensal (causa raiz)
 
-Expandir o módulo financeiro com: rubricas pré-cadastradas do SCFV, lançamento em lote, upload de boletos/notas/comprovantes com detecção automática via IA, conformidade MROSC/SIT, geração de arquivo RCA, automação RPA para lançamento no SIT, e auditoria inteligente.
+Analisando os dados reais e o código da edge function `generate-relatorio-mensal`:
 
----
+**Problema 1 — Atividades Propostas x Desenvolvidas vazio:**
+O relatório filtra `planejamentos` pela `data_aplicacao` no mês selecionado (linha 132). Os planejamentos existentes no banco têm datas de `2025-11` — nenhum de `2026-04`. O relatório "criando nosso site" tem `planejamento_id = ff393198...`, mas esse planejamento tem `data_aplicacao` de novembro/2025. Portanto, nem o planejamento aparece na lista, nem o relatório é listado como "sem planejamento" porque ele TEM planejamento_id.
 
-### 1. Rubricas pré-cadastradas do Plano de Trabalho
+**Correção:** A aba Atividades deve ser orientada pelos **relatórios do mês** (não planejamentos). Para cada relatório do mês, buscar o planejamento vinculado (independente da data dele). Relatórios sem planejamento aparecem como atividades "não planejadas".
 
-**Migração SQL** — inserir as rubricas padrão do SCFV na tabela `categorias_financeiras`:
+**Problema 2 — Matriz de frequência sem presenças preenchidas (células pretas):**
+A lógica na linha 293 filtra `tPresencas` por `turma_id` E período do mês. A presença registrada via relatório salva corretamente na tabela `presenca` (linha 250 do RelatorioNovoPage). Porém, a filtragem global na linha 130 usa comparação de strings `p.data >= startDate && p.data < endDate`. Se o mês selecionado for abril/2026 (`2026-04-01` a `2026-05-01`) e a presença é de `2026-04-03`, deveria funcionar. O problema pode ser que a edge function usa `getClaims` que pode estar falhando silenciosamente — mas o fetch via service role key deveria funcionar. O verdadeiro problema é que os dados retornam vazios no contexto da edge function.
 
-| Código | Descrição |
-|---|---|
-| 3.1.90.04 | Contratação por tempo determinado |
-| 3.1.90.11 | Vencimentos e vantagens fixas |
-| 3.1.90.13 | Obrigações patronais |
-| 3.3.90.14 | Diárias |
-| 3.3.90.30 | Material de Consumo |
-| 3.3.90.33 | Passagens e despesas com locomoção |
-| 3.3.90.36 | Serviços de Terceiros — Pessoa Física |
-| 3.3.90.39 | Serviços de Terceiros — Pessoa Jurídica |
-| 3.3.90.47 | Obrigações tributárias e contributivas |
-| 4.4.90.52 | Equipamentos e material permanente |
+Verificando o relatório: data = `2026-04-03`, turma vinculada via `relatorio_turmas`, e presença salva em `presenca` com `turma_id` e `data`. A query na presenca retorna `[]` no client (visto nos network requests). Isso pode indicar que as presenças NÃO estão sendo salvas corretamente, OU que a RLS está filtrando. Mas a edge function usa service role key, portanto RLS não se aplica. O problema real é que **não há dados na tabela presenca** (a resposta do network request mostra `[]`).
 
-Usar INSERT via supabase insert tool (não migração, pois são dados). A tabela já existe com estrutura correta.
+**Investigação adicional:** O `RelatorioNovoPage` (linhas 241-264) faz `delete().eq("turma_id", turmaId).eq("data", dataStr)` antes de inserir. Se houve erro no insert, as presenças teriam sido apagadas sem serem reinseridas. Além disso, o `registrado_por` usa `user?.id` (auth UUID) em vez de `profile.id` — mas isso é o campo correto.
+
+**Conclusão:** O relatório registra presença na tabela `relatorio_presenca` (funciona — confirma pelos dados de `num_participantes: 19` no relatório). Porém a tabela `presenca` está vazia (confirmado pelo network request). Isso sugere que o fluxo de salvar na tabela `presenca` (linhas 241-264) pode estar falhando silenciosamente, OU que as presenças foram lançadas antes dessa funcionalidade ser adicionada.
+
+**Correção adicional:** A matriz de frequência na edge function deve TAMBÉM considerar dados de `relatorio_presenca` + `relatorio_turmas` como fonte alternativa de presença quando a tabela `presenca` está vazia para uma turma/data.
 
 ---
 
-### 2. Campos adicionais na tabela `despesas` (MROSC/SIT)
+### Mudanças
 
-**Migração SQL** para adequar ao formato exigido:
+#### 1. Fotos de perfil — profissionais e participantes
 
-```sql
-ALTER TABLE despesas ADD COLUMN IF NOT EXISTS
-  fornecedor text,
-  cnpj_cpf text,
-  numero_documento text,
-  tipo_documento text DEFAULT 'nota_fiscal',
-  comprovante_url text,
-  nota_url text,
-  boleto_url text,
-  status_sit text DEFAULT 'pendente',
-  lote_id uuid;
-```
+**`src/components/ui/avatar.tsx`**: Adicionar `object-cover` ao `AvatarImage` para garantir recorte proporcional.
 
-Campos `tipo_documento`: `nota_fiscal`, `recibo`, `cupom_fiscal`, `boleto`, `darf`, `gps`, `outro`.
-Campo `status_sit`: `pendente`, `lancado`, `erro`.
+**`src/pages/dashboard/DashboardProfissionaisTab.tsx`**: O Avatar `h-12 w-12` já existe — apenas garantir `object-cover` via classe no AvatarImage.
 
----
+**`src/pages/profissional/ProfissionalPerfilPage.tsx`**: Avatar `h-20 w-20` OK — adicionar `object-cover`.
 
-### 3. Lançamento em lote de despesas
+**`src/pages/participantes/ParticipantePerfilPage.tsx`**: Adicionar exibição de foto no topo do perfil (atualmente não existe). Criar um bloco com Avatar ao lado do nome usando `participante.foto_url`.
 
-**`FinanceiroPage.tsx`** — Novo dialog "Lançar em Lote":
-- Formulário com N linhas editáveis (adicionar/remover)
-- Cada linha: Descrição, Valor, Data, Categoria (select), Fornecedor, CNPJ/CPF, Nº Documento
-- Botão "Salvar Todas" insere todas de uma vez com `supabase.from("despesas").insert([...array])`
-- Gerar um `lote_id` compartilhado para rastreabilidade
+**`src/pages/participantes/ParticipantesPage.tsx`**: Adicionar miniatura Avatar na coluna "Nome" da tabela.
 
----
+**`src/pages/participantes/ParticipanteNovoPage.tsx`**: Preview de foto já existe com `w-24 h-24 object-cover` — OK. Apenas garantir consistência de recorte.
 
-### 4. Upload de documentos com detecção automática via IA
+#### 2. Ocultar página de Presença do menu e atalhos
 
-**Nova edge function `detect-despesa-from-doc`**:
-- Recebe imagem/PDF (base64 ou URL do Storage)
-- Usa Lovable AI (gemini-2.5-flash) com prompt para extrair: valor, data, fornecedor, CNPJ/CPF, nº documento, descrição, tipo
-- Retorna JSON estruturado via tool calling
+**`src/components/AppSidebar.tsx`**: Remover `{ title: "Presença", url: "/presenca", icon: ClipboardCheck }` do grupo "Atividades".
 
-**UI em `FinanceiroPage.tsx`**:
-- Botão "Importar Documentos" abre dialog
-- Upload de múltiplos arquivos (boleto, nota fiscal, comprovante)
-- Para cada arquivo: upload ao bucket `documentos`, chamar edge function, mostrar preview dos dados extraídos
-- Usuário revisa/edita cada campo antes de confirmar
-- Botão "Lançar Todas" salva as despesas com links para os documentos
+**`src/pages/Index.tsx`**: Remover atalho de "Presença" do array `shortcuts`.
 
----
+**`src/pages/presenca/PresencaExportarPage.tsx`** e **`PresencaHistoricoPage.tsx`**: Mudar link de voltar de `/presenca` para `/dashboard`.
 
-### 5. Geração de arquivo RCA
+A rota `/presenca` em `App.tsx` permanece (mantém compatibilidade com links existentes), mas fica inacessível pela navegação principal.
 
-**Nova edge function `generate-rca`**:
-- Recebe `{ mes, ano }`
-- Busca despesas do mês com todos os campos (fornecedor, CNPJ, nº documento, etc.)
-- Gera arquivo CSV/XLSX no formato exigido pelo SIT (colunas: Nº Ordem, Data, Nº Documento, Fornecedor, CNPJ/CPF, Descrição, Valor, Categoria)
-- Salva no Storage e retorna URL
+#### 3. Corrigir aba Atividades do relatório mensal (edge function + local)
 
-**UI**: Botão "Gerar RCA" na página Financeiro.
+**`supabase/functions/generate-relatorio-mensal/index.ts`** e **`src/pages/dashboard/DashboardRelatorioMensalTab.tsx`** (lógica local):
 
----
+Substituir lógica da Sheet 2 (Atividades):
+- Em vez de iterar `filteredPlanejamentos` e buscar relatório, **iterar `filteredRelatorios`** e buscar planejamento vinculado
+- Para cada relatório do mês:
+  - Coluna "Atividades Propostas": título do planejamento vinculado (ou "Não planejada")
+  - Coluna "Atividades Desenvolvidas": `nome_atividade` do relatório
+  - Coluna "Resultados Alcançados": `analise_ia`
+  - Coluna "Justificativas": vazio
 
-### 6. Automação RPA para lançamento no SIT
+#### 4. Corrigir matrizes de frequência usando `relatorio_presenca` como fallback
 
-**Abordagem**: O SIT é um sistema web governamental sem API. A automação via robô (browser automation) requer:
+Na edge function e na geração local, ao montar as matrizes por turma:
+- Continuar usando tabela `presenca` como fonte primária
+- Se não houver registros na tabela `presenca` para uma turma/data, buscar em `relatorio_presenca` + `relatorio_turmas`:
+  - `relatorio_turmas` vincula relatório → turma
+  - `relatorio_presenca` tem `participante_id` + `presente`
+  - `relatorios_atividade` tem `data`
+- Mesclar essas fontes para preencher as células pretas
 
-- **Nova edge function `sit-automation`** que recebe as credenciais (armazenadas como secret) e os dados das despesas
-- Usa Puppeteer/Playwright em ambiente externo (não roda dentro de edge functions Deno)
-- **Alternativa viável**: Gerar um script `.py` de automação com Selenium/Playwright que o usuário executa localmente, ou integrar com um serviço de RPA externo (n8n, Make, etc.)
-
-**Implementação realista**:
-1. Armazenar credenciais SIT como secrets (`SIT_USERNAME`, `SIT_PASSWORD`)
-2. Gerar script Python de automação que:
-   - Loga no SIT com as credenciais
-   - Navega até a tela de lançamento
-   - Preenche cada despesa do mês
-   - Marca como `status_sit = 'lancado'`
-3. Botão "Gerar Script RPA" na página Financeiro que baixa o `.py` pronto para executar
-4. Alternativamente, sugerir integração com n8n (MCP connector disponível) para automação cloud
-
-> **Nota**: Automação direta via edge function não é possível pois o SIT não tem API e edge functions não rodam browsers. A solução mais robusta é gerar o script + integrar com n8n para execução cloud.
-
----
-
-### 7. Auditoria financeira inteligente
-
-**Nova edge function `audit-financeiro`**:
-- Recebe `{ mes, ano }` ou `{ periodo_inicio, periodo_fim }`
-- Busca todas as despesas, parcelas, categorias, estornos
-- Usa Lovable AI para analisar e detectar:
-  - Despesas sem comprovante anexo
-  - Despesas sem fornecedor ou CNPJ
-  - Valores acima do previsto por categoria
-  - Duplicidades (mesmo valor + data + fornecedor)
-  - Gaps de numeração de documentos
-  - Categorias com saldo negativo
-  - Despesas fora do período de vigência
-  - Inconsistências entre nota fiscal e valor lançado
-- Retorna relatório estruturado com severidade (erro/alerta/sugestão)
-
-**UI em `FinanceiroPage.tsx`**:
-- Nova aba "Auditoria" ou botão no header
-- Card com resultado da auditoria: lista de achados com ícones (erro vermelho, alerta amarelo, ok verde)
-- Para cada achado: descrição do problema + ação sugerida + botão de correção automática quando aplicável
-- Botão "Corrigir Automaticamente" para itens que podem ser resolvidos (ex: preencher categoria faltante baseado no código)
+Também adicionar fetch de `relatorio_presenca` e `relatorio_turmas` no `Promise.all` da edge function (já são fetched na linha 124-125, mas não usados na seção das matrizes).
 
 ---
 
@@ -141,19 +82,15 @@ Campo `status_sit`: `pendente`, `lancado`, `erro`.
 
 | Arquivo | Mudança |
 |---|---|
-| Supabase insert tool | Rubricas pré-cadastradas |
-| Migração SQL | Campos MROSC na tabela `despesas` |
-| `src/pages/financeiro/FinanceiroPage.tsx` | Lote, import docs, RCA, auditoria, script RPA |
-| `supabase/functions/detect-despesa-from-doc/index.ts` | IA para extrair dados de documentos |
-| `supabase/functions/generate-rca/index.ts` | Geração de arquivo RCA |
-| `supabase/functions/audit-financeiro/index.ts` | Auditoria inteligente com IA |
-
-### Ordem de implementação
-
-1. Migração SQL (campos + rubricas)
-2. Lançamento em lote
-3. Edge function de detecção de documentos + UI de upload
-4. Geração de RCA
-5. Auditoria financeira
-6. Script RPA / integração n8n
+| `src/components/ui/avatar.tsx` | `object-cover` no AvatarImage |
+| `src/pages/dashboard/DashboardProfissionaisTab.tsx` | Ajustar classe de foto |
+| `src/pages/profissional/ProfissionalPerfilPage.tsx` | Ajustar classe de foto |
+| `src/pages/participantes/ParticipantePerfilPage.tsx` | Adicionar Avatar com foto no header |
+| `src/pages/participantes/ParticipantesPage.tsx` | Miniatura na tabela |
+| `src/components/AppSidebar.tsx` | Remover item Presença |
+| `src/pages/Index.tsx` | Remover atalho Presença |
+| `src/pages/presenca/PresencaExportarPage.tsx` | Link voltar → `/dashboard` |
+| `src/pages/presenca/PresencaHistoricoPage.tsx` | Link voltar → `/dashboard` |
+| `supabase/functions/generate-relatorio-mensal/index.ts` | Corrigir atividades + fallback presença |
+| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Mesma correção na geração local |
 
