@@ -1,7 +1,7 @@
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Header, Footer, AlignmentType, PageOrientation, BorderStyle, WidthType,
-  ShadingType, PageBreak, HeadingLevel, LevelFormat,
+  ShadingType, PageBreak, HeadingLevel, LevelFormat, ImageRun,
 } from "docx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
