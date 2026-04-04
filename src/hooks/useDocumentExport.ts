@@ -1,7 +1,7 @@
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Header, Footer, AlignmentType, PageOrientation, BorderStyle, WidthType,
-  ShadingType, PageBreak, HeadingLevel, LevelFormat,
+  ShadingType, PageBreak, HeadingLevel, LevelFormat, ImageRun,
 } from "docx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -157,6 +157,70 @@ function fileTimestamp(): string {
   return format(new Date(), "yyyy-MM-dd_HHmmss");
 }
 
+// ===== PHOTO HELPERS =====
+interface PhotoBuffer {
+  buffer: ArrayBuffer;
+  width: number;
+  height: number;
+  type: "jpg" | "png";
+}
+
+async function fetchPhotosAsBuffers(fotos: any[]): Promise<PhotoBuffer[]> {
+  const results: PhotoBuffer[] = [];
+  for (const foto of fotos) {
+    try {
+      const url = foto.foto_url;
+      if (!url) continue;
+      const resp = await fetch(url);
+      if (!resp.ok) continue;
+      const blob = await resp.blob();
+      const buffer = await blob.arrayBuffer();
+      const type = blob.type.includes("png") ? "png" as const : "jpg" as const;
+      // Get dimensions
+      let width = 800, height = 600;
+      try {
+        const bitmap = await createImageBitmap(blob);
+        width = bitmap.width;
+        height = bitmap.height;
+        bitmap.close();
+      } catch { /* use defaults */ }
+      results.push({ buffer, width, height, type });
+    } catch {
+      // silently skip
+    }
+  }
+  return results;
+}
+
+function buildPhotoSection(photos: PhotoBuffer[], caption: string): Paragraph[] {
+  const paragraphs: Paragraph[] = [
+    new Paragraph({ children: [new PageBreak()] }),
+    new Paragraph({ spacing: { after: 200 }, alignment: AlignmentType.CENTER, children: [
+      new TextRun({ text: "REGISTRO FOTOGRÁFICO", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR }),
+    ]}),
+  ];
+  for (const photo of photos) {
+    const maxWidth = 450;
+    const scale = maxWidth / photo.width;
+    const scaledHeight = Math.round(photo.height * scale);
+    paragraphs.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 80 },
+      children: [new ImageRun({
+        type: photo.type,
+        data: photo.buffer,
+        transformation: { width: maxWidth, height: scaledHeight },
+      })],
+    }));
+    paragraphs.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 200 },
+      children: [new TextRun({ text: caption, size: 16, font: "Arial", italics: true, color: "555555" })],
+    }));
+  }
+  return paragraphs;
+}
+
 // ===== SHARED CONSTANTS (fallback) =====
 const HEADER_COLOR = "1A5276";
 const ACCENT_COLOR = "C62828";
@@ -288,6 +352,9 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     OBJETIVO: item.objetivo_alcancado ? (objLabels[item.objetivo_alcancado] || item.objetivo_alcancado) : "—",
     INTERVENCOES: item.intervencoes || "—",
     OBSERVACOES: item.observacoes || "—",
+    // New tags
+    NOME_GRUPO: item._nome_grupo || turmaNames.join(", ") || "—",
+    PERIODO_SCFV: item._periodo_scfv || "—",
     // Presença loop
     PRESENCA: presenca.map((p, i) => ({
       NUM: i + 1,
@@ -409,6 +476,15 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
       ]})),
     ];
     children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [500, 6360, 1200, 1300], rows: presRows }));
+  }
+
+  // Photos section
+  if (fotos && fotos.length > 0) {
+    const photoCaption = `${item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yy") : ""} - ${item.nome_atividade || "Atividade"} - Grupos: ${turmaNames.join(", ")}`;
+    const photoBuffers = await fetchPhotosAsBuffers(fotos);
+    if (photoBuffers.length > 0) {
+      children.push(...buildPhotoSection(photoBuffers, photoCaption));
+    }
   }
 
   const doc = new Document({
@@ -652,6 +728,7 @@ export async function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
 // ===== FICHA DE INSCRIÇÃO =====
 
 function buildFichaTemplateData(p: any) {
+  const periodoInverso = p.periodo === "manha" ? "Tarde" : p.periodo === "tarde" ? "Manhã" : "—";
   return {
     NOME_COMPLETO: p.nome_completo || "—",
     CPF: p.cpf || "—",
@@ -659,6 +736,7 @@ function buildFichaTemplateData(p: any) {
     GENERO: p.genero || "—",
     COR_RACA: p.cor_raca || "—",
     PERIODO: p.periodo || "—",
+    PERIODO_SCFV: periodoInverso,
     STATUS: p.status || "—",
     ESCOLA: p.escola || "—",
     SERIE: p.serie || "—",
@@ -687,6 +765,10 @@ function buildFichaTemplateData(p: any) {
     FOTO_URL: p.foto_url || "—",
     TURMAS: p._turmas_nomes || "—",
     DOCUMENTOS: p._documentos_lista || "—",
+    PONTO_TRANSPORTE: p._ponto_transporte || "—",
+    NOME_GRUPO: p._nome_grupo || "—",
+    JUST_DESLG: p.justificativa_desligamento || "—",
+    MOTIVO_DESLG: p.motivo_desligamento || "—",
   };
 }
 

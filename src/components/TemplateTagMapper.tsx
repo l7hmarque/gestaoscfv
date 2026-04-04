@@ -50,7 +50,9 @@ const SYSTEM_FIELDS: Record<string, { value: string; label: string }[]> = {
     { value: "obj_3", label: "Objetivo: Não alcançado" },
     { value: "presenca_loop", label: "Lista de presença (loop)" },
     { value: "analise_ia", label: "Análise IA" },
-    { value: "fotos", label: "Fotos (URLs)" },
+    { value: "fotos", label: "Fotos (imagens embutidas)" },
+    { value: "nome_grupo", label: "Nome do grupo (turma)" },
+    { value: "periodo_scfv", label: "Período SCFV (inverso)" },
   ],
   "planejamento.docx": [
     { value: "titulo", label: "Título" },
@@ -96,6 +98,11 @@ const SYSTEM_FIELDS: Record<string, { value: string; label: string }[]> = {
     { value: "dias_contraturno", label: "Dias de contraturno" },
     { value: "turmas", label: "Turmas vinculadas" },
     { value: "documentos", label: "Documentos anexos (lista)" },
+    { value: "ponto_transporte", label: "Ponto de transporte" },
+    { value: "periodo_scfv", label: "Período SCFV (inverso)" },
+    { value: "nome_grupo", label: "Nome do grupo (turma)" },
+    { value: "justificativa_desligamento", label: "Justificativa de desligamento" },
+    { value: "motivo_desligamento", label: "Motivo de desligamento" },
   ],
   "matriz_frequencia.docx": [
     { value: "turma_nome", label: "Nome da turma" },
@@ -132,6 +139,9 @@ const AUTO_MATCH: Record<string, string> = {
   ENG_1: "eng_1", ENG_2: "eng_2", ENG_3: "eng_3", ENG_4: "eng_4",
   SIT_1: "sit_1", SIT_2: "sit_2", SIT_3: "sit_3", SIT_4: "sit_4", SIT_5: "sit_5",
   OBJ_1: "obj_1", OBJ_2: "obj_2", OBJ_3: "obj_3",
+  NOME_GRUPO: "nome_grupo", PERIODO_SCFV: "periodo_scfv",
+  PONTO_TRANSPORTE: "ponto_transporte",
+  JUST_DESLG: "justificativa_desligamento", MOTIVO_DESLG: "motivo_desligamento",
   // Planejamento
   TITULO: "titulo", TEMA: "tema", QUESTAO: "questao_geradora", QUESTAO_GERADORA: "questao_geradora",
   OBJETIVOS: "objetivos", ROTEIRO: "roteiro", MATERIAIS: "materiais",

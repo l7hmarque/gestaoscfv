@@ -28,7 +28,7 @@ const diasOptions = [
   { value: "qui", label: "Quinta" }, { value: "sex", label: "Sexta" }, { value: "sab", label: "Sábado" },
 ];
 
-interface MemberRow { tp_id: string; participante_id: string; nome: string; periodo: string | null; }
+interface MemberRow { tp_id: string; participante_id: string; nome: string; periodo: string | null; status?: string | null; data_desligamento?: string | null; }
 interface AlertInfo { consecutiveFaults: number; adesao: number; lastPresent: string | null; }
 interface TurmaDashboard { taxaAdesao: number; totalPresencas: number; totalRegistros: number; medianElo: number; stdElo: number; eloCount: number; }
 interface LinkedPlan { id: string; titulo: string; data_aplicacao: string | null; }
@@ -68,7 +68,7 @@ const TurmaDetalhePage = () => {
     setLoading(true);
     const [{ data: t }, { data: tp }, { data: ap }, { data: b }, { data: e }, { data: ptData }, { data: rtData }] = await Promise.all([
       supabase.from("turmas").select("*, profiles(nome), bairros(nome)").eq("id", id!).single(),
-      supabase.from("turma_participantes").select("id, participante_id, participantes(nome_completo, periodo)").eq("turma_id", id!),
+      supabase.from("turma_participantes").select("id, participante_id, participantes(nome_completo, periodo, status, data_desligamento)").eq("turma_id", id!),
       supabase.from("participantes").select("id, nome_completo, periodo").eq("status", "ativo").order("nome_completo"),
       supabase.from("bairros").select("*").order("nome"),
       supabase.from("profiles").select("*").order("nome"),
@@ -76,12 +76,12 @@ const TurmaDetalhePage = () => {
       supabase.from("relatorio_turmas").select("relatorio_id, relatorios_atividade(id, nome_atividade, data, score_elo)").eq("turma_id", id!),
     ]);
     setTurma(t);
-    const membersList = (tp || []).map((r: any) => ({ tp_id: r.id, participante_id: r.participante_id, nome: r.participantes?.nome_completo || "", periodo: r.participantes?.periodo }));
+    const membersList = (tp || []).map((r: any) => ({ tp_id: r.id, participante_id: r.participante_id, nome: r.participantes?.nome_completo || "", periodo: r.participantes?.periodo, status: r.participantes?.status, data_desligamento: r.participantes?.data_desligamento }));
     setMembers(membersList);
     setAllParticipantes(ap || []);
     setBairros(b || []);
     setEducadores(e || []);
-    if (t) setForm({ nome: t.nome, periodo: t.periodo, faixa_etaria: t.faixa_etaria || "", tipo: t.tipo, bairro_id: t.bairro_id || "", educador_id: t.educador_id || "", dias_semana: t.dias_semana || [], ativa: t.ativa, oficina: t.oficina || "" });
+    if (t) setForm({ nome: t.nome, periodo: t.periodo, faixa_etaria: t.faixa_etaria || "", tipo: t.tipo, bairro_id: t.bairro_id || "", educador_id: t.educador_id || "", dias_semana: t.dias_semana || [], ativa: t.ativa, oficina: t.oficina || "", nome_grupo: t.nome_grupo || "" });
 
     // Load attendance for alerts
     if (membersList.length > 0) {
@@ -293,6 +293,7 @@ const TurmaDetalhePage = () => {
           <CardHeader className="pb-3"><CardTitle className="text-sm">Editar Turma</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="col-span-1 sm:col-span-2"><Label className="text-xs">Nome</Label><Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="h-9 text-sm mt-1" /></div>
+            <div className="col-span-1 sm:col-span-2"><Label className="text-xs">Nome do Grupo (opcional)</Label><Input value={form.nome_grupo || ""} onChange={(e) => setForm({ ...form, nome_grupo: e.target.value })} className="h-9 text-sm mt-1" placeholder="Ex: Turma Esperança" /></div>
             <div><Label className="text-xs">Período</Label>
               <Select value={form.periodo || ""} onValueChange={(v) => setForm({ ...form, periodo: v })}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
@@ -413,6 +414,9 @@ const TurmaDetalhePage = () => {
                           <TableCell className="text-xs sm:text-sm">
                             <div className="flex items-center gap-1.5">
                               <Link to={`/participantes/${m.participante_id}`} className="hover:underline text-foreground">{m.nome}</Link>
+                              {m.status === "desligado" && (
+                                <Badge variant="secondary" className="text-[9px] bg-muted text-muted-foreground">Desligado{m.data_desligamento ? ` ${m.data_desligamento}` : ""}</Badge>
+                              )}
                               {alert && (
                                 <Tooltip>
                                   <TooltipTrigger>
