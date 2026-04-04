@@ -471,9 +471,7 @@ export default function DashboardRelatorioMensalTab() {
         const datasAtividade = getDatasAtividade(parseInt(ano), mesNum, diasSemana);
         const fallbackDates = [...new Set(relPresFallback.map(f => f.data))];
         const allDatesSet = new Set([...datasAtividade, ...tPresencas.map((p: any) => p.data), ...fallbackDates]);
-        const datas = datasAtividade.length > 0
-          ? datasAtividade
-          : [...allDatesSet].sort();
+        const datas = [...allDatesSet].sort();
         if (!datas.length && !tParts.length) continue;
 
         const bairroNome = bairroMap.get(t.bairro_id) || "N/I";
