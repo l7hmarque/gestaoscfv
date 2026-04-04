@@ -48,6 +48,7 @@ const SYSTEM_FIELDS: Record<string, { value: string; label: string }[]> = {
     { value: "sit_5", label: "Situação: Destaque positivo" },
     { value: "presenca_loop", label: "Lista de presença (loop)" },
     { value: "analise_ia", label: "Análise IA" },
+    { value: "fotos", label: "Fotos (URLs)" },
   ],
   "planejamento.docx": [
     { value: "titulo", label: "Título" },
