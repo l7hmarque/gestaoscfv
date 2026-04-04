@@ -461,8 +461,10 @@ const ParticipantePerfilPage = () => {
                 <EditField label="Escola" field="escola" /><EditField label="Série" field="serie" /><EditField label="Origem" field="origem_encaminhamento" />
                 <EditField label="Resp. Técnico" field="responsavel_tecnico" /><EditField label="Vulnerabilidade" field="categoria_vulnerabilidade" /><EditField label="Início SCFV" field="iniciou_em" type="date" />
                 <EditField label="Data Desligamento" field="data_desligamento" type="date" /><EditField label="Dias Contraturno" field="dias_contraturno" />
+                <EditField label="Remédio Contínuo" field="remedio_continuo" />
                 <div className="col-span-2 sm:col-span-3"><Label className="text-xs">Restrição Alimentar</Label><Textarea value={form.restricao_alimentar || ""} onChange={(e) => set("restricao_alimentar", e.target.value)} className="text-sm mt-0.5 min-h-[50px]" /></div>
                 <div className="col-span-2 sm:col-span-3"><Label className="text-xs">Laudo</Label><Textarea value={form.laudo || ""} onChange={(e) => set("laudo", e.target.value)} className="text-sm mt-0.5 min-h-[50px]" /></div>
+                <div className="col-span-2 sm:col-span-3"><Label className="text-xs">Outras Condições de Saúde</Label><Textarea value={form.outras_condicoes || ""} onChange={(e) => set("outras_condicoes", e.target.value)} className="text-sm mt-0.5 min-h-[50px]" /></div>
               </>
             ) : (
               <>
@@ -470,6 +472,7 @@ const ParticipantePerfilPage = () => {
                 <Info label="Vulnerabilidade" value={participante.categoria_vulnerabilidade} /><Info label="Início SCFV" value={participante.iniciou_em} />
                 <Info label="Data Desligamento" value={(participante as any).data_desligamento} /><Info label="Dias Contraturno" value={(participante as any).dias_contraturno} />
                 <Info label="Restrição Alimentar" value={participante.restricao_alimentar} /><Info label="Laudo" value={participante.laudo} />
+                <Info label="Remédio Contínuo" value={(participante as any).remedio_continuo} /><Info label="Outras Condições" value={(participante as any).outras_condicoes} />
               </>
             )}
           </CardContent>
