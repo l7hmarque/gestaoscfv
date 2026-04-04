@@ -147,13 +147,10 @@ const ParticipantePerfilPage = () => {
     if (error) { toast.error("Erro: " + error.message); return; }
     toast.success("Atualizado com sucesso!");
 
-    // Automação 1: Desligar → remover de turmas
+    // Automação 1: Desligar → abrir dialog para preencher motivo/justificativa
     if (newStatus === "desligado" && oldStatus !== "desligado") {
-      const { data: links } = await supabase.from("turma_participantes").select("id").eq("participante_id", id!);
-      if (links && links.length > 0) {
-        await supabase.from("turma_participantes").delete().eq("participante_id", id!);
-        toast.info(`Removido de ${links.length} turma(s) automaticamente`);
-      }
+      setDesligForm({ data_desligamento: form.data_desligamento || new Date().toISOString().slice(0, 10), motivo_desligamento: "", justificativa_desligamento: "" });
+      setShowDesligDialog(true);
     }
 
     // Automação 2: Pendente → Ativo = vincular a turmas compatíveis
@@ -173,21 +170,20 @@ const ParticipantePerfilPage = () => {
       }
     }
 
-    // Automação 3: Realocar turmas se bairro/período/idade mudaram e está ativo
+    // Automação 3: Realocar turmas se bairro/período/idade mudaram e está ativo → solicitar aprovação
     if (newStatus === "ativo" && oldStatus === "ativo") {
       const oldFaixa = calcFaixaFromDate(oldDataNasc);
       const newFaixa = calcFaixaFromDate(newDataNasc);
       const changed = oldBairro !== newBairro || oldPeriodo !== newPeriodo || oldFaixa !== newFaixa;
 
       if (changed && newBairro && newPeriodo && newFaixa) {
-        await supabase.from("turma_participantes").delete().eq("participante_id", id!);
-        let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", newBairro).eq("faixa_etaria", newFaixa as any);
+        let query = supabase.from("turmas").select("id, nome").eq("ativa", true).eq("bairro_id", newBairro).eq("faixa_etaria", newFaixa as any);
         if (newPeriodo !== "integral") query = query.eq("periodo", newPeriodo as any);
         const { data: turmasCompativeis } = await query;
+        const oldTurmaNames = turmas.map(t => t.turma_nome);
         if (turmasCompativeis && turmasCompativeis.length > 0) {
-          const newLinks = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: id! }));
-          await supabase.from("turma_participantes").upsert(newLinks, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
-          toast.info(`Realocado para ${turmasCompativeis.length} turma(s) compatível(is)`);
+          setTransferInfo({ oldTurmas: oldTurmaNames, newTurmas: turmasCompativeis.map(t => ({ id: t.id, nome: t.nome })), payload });
+          setShowTransferDialog(true);
         } else {
           toast.warning("Nenhuma turma compatível encontrada para os novos dados");
         }
