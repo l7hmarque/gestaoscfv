@@ -430,6 +430,7 @@ const ParticipantePerfilPage = () => {
             {editing ? (
               <>
                 <EditField label="Resp. 1 Nome" field="responsavel1_nome" />
+                <EditField label="Vínculo Resp. 1" field="vinculo_resp1" />
                 <div>
                   <Label className="text-xs">CPF do Participante</Label>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -442,10 +443,11 @@ const ParticipantePerfilPage = () => {
                 </div>
                 <div><Label className="text-xs">WhatsApp</Label><Input value={maskPhone(form.responsavel1_whatsapp || "")} onChange={(e) => set("responsavel1_whatsapp", unmaskDigits(e.target.value))} className="h-8 text-sm mt-0.5" placeholder="(00) 00000-0000" /></div>
                 <EditField label="Resp. 2 Nome" field="responsavel2_nome" />
+                <EditField label="Vínculo Resp. 2" field="vinculo_resp2" />
                 <div><Label className="text-xs">WhatsApp 2</Label><Input value={maskPhone(form.responsavel2_whatsapp || "")} onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))} className="h-8 text-sm mt-0.5" placeholder="(00) 00000-0000" /></div>
               </>
             ) : (
-              <><Info label="Resp. 1" value={participante.responsavel1_nome} /><Info label="CPF" value={displayCPF((participante as any).cpf)} /><Info label="WhatsApp" value={displayPhone(participante.responsavel1_whatsapp)} /><Info label="Resp. 2" value={participante.responsavel2_nome} /><Info label="WhatsApp 2" value={displayPhone(participante.responsavel2_whatsapp)} /></>
+              <><Info label="Resp. 1" value={participante.responsavel1_nome} /><Info label="Vínculo" value={(participante as any).vinculo_resp1} /><Info label="CPF" value={displayCPF((participante as any).cpf)} /><Info label="WhatsApp" value={displayPhone(participante.responsavel1_whatsapp)} /><Info label="Resp. 2" value={participante.responsavel2_nome} /><Info label="Vínculo" value={(participante as any).vinculo_resp2} /><Info label="WhatsApp 2" value={displayPhone(participante.responsavel2_whatsapp)} /></>
             )}
           </CardContent>
         </Card>
