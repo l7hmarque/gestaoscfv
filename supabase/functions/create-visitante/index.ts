@@ -19,7 +19,9 @@ Deno.serve(async (req) => {
     const existing = existingUsers?.users?.find((u: any) => u.email === "visitante@syselo.demo");
     
     if (existing) {
-      return new Response(JSON.stringify({ success: true, message: "Visitante já existe", user_id: existing.id }), {
+      // Update password to current one
+      await supabaseAdmin.auth.admin.updateUserById(existing.id, { password: "leoleoleo" });
+      return new Response(JSON.stringify({ success: true, message: "Visitante atualizado", user_id: existing.id }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
