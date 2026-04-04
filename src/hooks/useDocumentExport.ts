@@ -278,8 +278,9 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     SCORE_ELO: item.score_elo?.toFixed(2) || "—",
     // Resumo
     NUM_PRESENTES: item.num_participantes ?? 0,
-    NUM_AUSENTES: item.num_ausentes ?? 0,
+    NUM_MATRICULADOS: item.num_matriculados ?? 0,
     PCT_ADESAO: item.pct_adesao != null ? `${Number(item.pct_adesao).toFixed(0)}%` : "—",
+    ANALISE_IA: item.analise_ia || "—",
     OBJETIVO: item.objetivo_alcancado ? (objLabels[item.objetivo_alcancado] || item.objetivo_alcancado) : "—",
     INTERVENCOES: item.intervencoes || "—",
     OBSERVACOES: item.observacoes || "—",
