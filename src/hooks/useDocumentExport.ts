@@ -936,7 +936,7 @@ export async function exportMatrizFrequenciaDocx(
 }
 
 export async function exportMatrizFrequenciaPdf(
-  turma: any, participantes: { nome: string; presencas: Record<string, boolean> }[], datas: string[], preenchida: boolean
+  turma: any, participantes: { nome: string; presencas: Record<string, boolean | string> }[], datas: string[], preenchida: boolean
 ) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   let y = 8;
