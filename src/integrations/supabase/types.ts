@@ -1578,6 +1578,7 @@ export type Database = {
         | "motorista"
         | "cozinheiro"
         | "visitante"
+        | "marketing"
       faixa_etaria_enum: "6-8" | "9-11" | "12-17" | "idosos"
       objetivo_resultado: "alcancado" | "parcial" | "nao_alcancado"
       periodo_enum: "manha" | "tarde" | "integral"
@@ -1720,6 +1721,7 @@ export const Constants = {
         "motorista",
         "cozinheiro",
         "visitante",
+        "marketing",
       ],
       faixa_etaria_enum: ["6-8", "9-11", "12-17", "idosos"],
       objetivo_resultado: ["alcancado", "parcial", "nao_alcancado"],
