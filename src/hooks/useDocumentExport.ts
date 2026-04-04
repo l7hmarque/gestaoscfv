@@ -478,6 +478,15 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
     children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [500, 6360, 1200, 1300], rows: presRows }));
   }
 
+  // Photos section
+  if (fotos && fotos.length > 0) {
+    const photoCaption = `${item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yy") : ""} - ${item.nome_atividade || "Atividade"} - Grupos: ${turmaNames.join(", ")}`;
+    const photoBuffers = await fetchPhotosAsBuffers(fotos);
+    if (photoBuffers.length > 0) {
+      children.push(...buildPhotoSection(photoBuffers, photoCaption));
+    }
+  }
+
   const doc = new Document({
     styles: { default: { document: { run: { font: "Arial", size: 20 } } } },
     sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }],
