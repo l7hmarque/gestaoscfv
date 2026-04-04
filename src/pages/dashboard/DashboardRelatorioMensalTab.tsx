@@ -185,17 +185,30 @@ export default function DashboardRelatorioMensalTab() {
       const bairroMap = new Map((bairros || []).map((b: any) => [b.id, b.nome]));
       const profileMap = new Map((profilesData || []).map((p: any) => [p.id, p]));
 
+      // Filter out presencas from desligados after their data_desligamento
+      const activePresencas = presencas.filter((p: any) => {
+        const part = partMap.get(p.participante_id);
+        if (!part) return true;
+        if (part.status === "desligado" && part.data_desligamento && p.data > part.data_desligamento) return false;
+        return true;
+      });
+
       const wb = XLSX.utils.book_new();
 
       // --- Sheet 1: Resumo ---
-      const atendidosIds = new Set(presencas.filter((p: any) => p.presente).map((p: any) => p.participante_id));
+      const atendidosIds = new Set(activePresencas.filter((p: any) => p.presente).map((p: any) => p.participante_id));
       const atendidos = [...atendidosIds].map(id => partMap.get(id)).filter(Boolean);
+      // Exclude participants desligados before start of month
+      const atendidosFiltered = atendidos.filter((p: any) => {
+        if (p.status === "desligado" && p.data_desligamento && p.data_desligamento < startDate) return false;
+        return true;
+      });
 
       const byBairro: Record<string, number> = {};
-      atendidos.forEach((p: any) => { const b = p.bairro_id ? (bairroMap.get(p.bairro_id) || "N/I") : "N/I"; byBairro[b] = (byBairro[b] || 0) + 1; });
+      atendidosFiltered.forEach((p: any) => { const b = p.bairro_id ? (bairroMap.get(p.bairro_id) || "N/I") : "N/I"; byBairro[b] = (byBairro[b] || 0) + 1; });
 
       const byFaixa: Record<string, number> = {};
-      atendidos.forEach((p: any) => {
+      atendidosFiltered.forEach((p: any) => {
         if (p.data_nascimento) {
           const f = calcFaixaFromDate(p.data_nascimento);
           if (f) byFaixa[f] = (byFaixa[f] || 0) + 1;
@@ -203,7 +216,7 @@ export default function DashboardRelatorioMensalTab() {
       });
 
       const byPeriodo: Record<string, number> = {};
-      atendidos.forEach((p: any) => { const per = p.periodo || "N/I"; byPeriodo[per] = (byPeriodo[per] || 0) + 1; });
+      atendidosFiltered.forEach((p: any) => { const per = p.periodo || "N/I"; byPeriodo[per] = (byPeriodo[per] || 0) + 1; });
 
       const novasInsercoes = participantes.filter((p: any) => {
         if (!p.iniciou_em) return false;
