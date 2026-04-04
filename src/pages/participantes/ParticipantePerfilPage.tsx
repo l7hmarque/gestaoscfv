@@ -65,6 +65,12 @@ const ParticipantePerfilPage = () => {
   const [showAtdForm, setShowAtdForm] = useState(false);
   const [atdForm, setAtdForm] = useState({ data_atendimento: new Date().toISOString().slice(0, 10), tipo: "atendimento_individual", descricao: "", encaminhamento: "" });
   const [myProfileId, setMyProfileId] = useState("");
+  // Discharge dialog
+  const [showDesligDialog, setShowDesligDialog] = useState(false);
+  const [desligForm, setDesligForm] = useState({ data_desligamento: new Date().toISOString().slice(0, 10), motivo_desligamento: "", justificativa_desligamento: "" });
+  // Transfer dialog
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [transferInfo, setTransferInfo] = useState<{ oldTurmas: string[]; newTurmas: { id: string; nome: string }[]; payload: Record<string, unknown> } | null>(null);
 
   const scanner = useDocumentScanner();
 
