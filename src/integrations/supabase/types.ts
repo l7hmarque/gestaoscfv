@@ -488,6 +488,58 @@ export type Database = {
           },
         ]
       }
+      participante_transferencias: {
+        Row: {
+          created_at: string | null
+          data_transferencia: string
+          id: string
+          motivo: string | null
+          participante_id: string
+          turma_destino_id: string | null
+          turma_origem_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_transferencia?: string
+          id?: string
+          motivo?: string | null
+          participante_id: string
+          turma_destino_id?: string | null
+          turma_origem_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data_transferencia?: string
+          id?: string
+          motivo?: string | null
+          participante_id?: string
+          turma_destino_id?: string | null
+          turma_origem_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participante_transferencias_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "participantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participante_transferencias_turma_destino_id_fkey"
+            columns: ["turma_destino_id"]
+            isOneToOne: false
+            referencedRelation: "turmas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participante_transferencias_turma_origem_id_fkey"
+            columns: ["turma_origem_id"]
+            isOneToOne: false
+            referencedRelation: "turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       participantes: {
         Row: {
           bairro_id: string | null
@@ -506,7 +558,9 @@ export type Database = {
           genero: string | null
           id: string
           iniciou_em: string | null
+          justificativa_desligamento: string | null
           laudo: string | null
+          motivo_desligamento: string | null
           nome_completo: string
           observacoes_sigilosas: string | null
           origem_encaminhamento: string | null
@@ -543,7 +597,9 @@ export type Database = {
           genero?: string | null
           id?: string
           iniciou_em?: string | null
+          justificativa_desligamento?: string | null
           laudo?: string | null
+          motivo_desligamento?: string | null
           nome_completo: string
           observacoes_sigilosas?: string | null
           origem_encaminhamento?: string | null
@@ -580,7 +636,9 @@ export type Database = {
           genero?: string | null
           id?: string
           iniciou_em?: string | null
+          justificativa_desligamento?: string | null
           laudo?: string | null
+          motivo_desligamento?: string | null
           nome_completo?: string
           observacoes_sigilosas?: string | null
           origem_encaminhamento?: string | null
@@ -1196,6 +1254,7 @@ export type Database = {
           faixa_etaria: Database["public"]["Enums"]["faixa_etaria_enum"] | null
           id: string
           nome: string
+          nome_grupo: string | null
           oficina: string | null
           periodo: Database["public"]["Enums"]["periodo_enum"] | null
           tipo: Database["public"]["Enums"]["tipo_turma"] | null
@@ -1210,6 +1269,7 @@ export type Database = {
           faixa_etaria?: Database["public"]["Enums"]["faixa_etaria_enum"] | null
           id?: string
           nome: string
+          nome_grupo?: string | null
           oficina?: string | null
           periodo?: Database["public"]["Enums"]["periodo_enum"] | null
           tipo?: Database["public"]["Enums"]["tipo_turma"] | null
@@ -1224,6 +1284,7 @@ export type Database = {
           faixa_etaria?: Database["public"]["Enums"]["faixa_etaria_enum"] | null
           id?: string
           nome?: string
+          nome_grupo?: string | null
           oficina?: string | null
           periodo?: Database["public"]["Enums"]["periodo_enum"] | null
           tipo?: Database["public"]["Enums"]["tipo_turma"] | null
