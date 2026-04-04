@@ -1,74 +1,65 @@
 
 
-## Plano: Mural Post-It + Heat Map por Participantes + Reorganização UI/UX
+## Plano: Coordenação com acesso total + Matrizes XLSX com presença preenchida + Atendimentos no relatório + Conquistas inline + Menções @
 
 ---
 
-### 1. Mural com estética de Post-It
+### 1. Coordenação vê todos os recados e notificações
 
-**`MuralPage.tsx`** — Redesign completo do layout dos posts:
+**Migração SQL**: Alterar RLS de `recados` para incluir coordenação no SELECT e UPDATE.
 
-- Trocar layout de lista vertical (`Card`) para **grid responsivo** de post-its: `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4`
-- Cada post-it terá:
-  - Fundo colorido por tipo: aviso = `bg-amber-100`, lembrete = `bg-blue-100`, informativo = `bg-green-100`
-  - Leve rotação aleatória (`rotate-[-2deg]`, `rotate-[1deg]`, `rotate-[-1deg]`) via classe condicional baseada no index
-  - Sombra estilo papel: `shadow-md hover:shadow-lg`
-  - Borda superior grossa colorida ou fita adesiva simulada (div decorativo no topo)
-  - Canto levemente dobrado via pseudo-elemento ou gradient
-  - Posts fixados com destaque visual (pin icon no canto + fundo levemente diferente)
-- Manter funcionalidade: criar, fixar/desafixar, deletar
-- Posts fixados sempre no topo do grid
+**`NotificationBell.tsx` (linha 46)**: Verificar role `coordenacao` via `user_roles`. Se coord, não filtrar por `destinatario_id` — mostrar todos os recados. Exibir "Para: [nome]" quando o recado não é para o coord.
+
+**`MuralPage.tsx`**: Coord já vê tudo (sem filtro por destinatário). Sem alteração.
 
 ---
 
-### 2. Volume por dia da semana baseado em participantes
+### 2. Matrizes de frequência no XLSX — formato conforme print
 
-**`EquipeTecnicaPage.tsx`** — Corrigir `mapaCalor` (linhas 142-156):
+A print mostra o formato desejado que **já existe no código** (linhas 348-388 do `DashboardRelatorioMensalTab.tsx`). O problema é que os dados de presença não estão aparecendo nas células.
 
-- Atualmente conta quantidade de turmas por dia. Deve contar **participantes**.
-- Carregar `turma_participantes` no `loadAll()` (nova query: `supabase.from("turma_participantes").select("turma_id")`)
-- Contar quantos participantes cada turma tem: `tpCountMap[turma_id] = count`
-- No cálculo do heat map, em vez de `diasMap[key]++`, somar `diasMap[key] += tpCountMap[turma.id] || 0`
-- Atualizar label: "Participantes estimados por dia"
+**Diagnóstico**: O código usa `✓` e `F` para marcar presença, mas a print mostra **células preenchidas com fundo preto** para presença. Além disso, as datas são geradas a partir dos `dias_semana` da turma (correto).
+
+**Correções em `DashboardRelatorioMensalTab.tsx`**:
+
+- **Estilização das células de presença**: Em vez de apenas `✓`/`F`, aplicar **fundo preto (`fill: { fgColor: { rgb: "000000" } }`)** nas células onde `presente === true`, mantendo a célula vazia visualmente (o preenchimento preto indica presença, como na print).
+- Células com falta (`presente === false`): manter fundo branco, sem texto.
+- Células sem registro: manter vazio.
+- Aplicar **bordas finas** em todas as células da matriz (já existe `applyBorders` mas não é chamado nas sheets de turma — adicionar chamada).
+- **Header style**: Aplicar negrito + fundo cinza na linha de cabeçalho (Nº, Nome, datas).
+- **Coluna widths**: Nº=5, Nome=30, datas=6 (já correto).
+- **Linha de assinatura**: Já existe (linha 384). Manter.
+
+**Verificar `fetchAllRows`**: A função já pagina corretamente (busca em blocos de 1000). O problema pode ser que a filtragem `p.data >= startDate && p.data < endDate` usa comparação de strings — verificar se as datas estão no formato correto `YYYY-MM-DD`. Adicionar log/debug se necessário.
 
 ---
 
-### 3. Reorganização UI/UX do Sidebar e Navegação
+### 3. Atendimentos e demais dados no relatório mensal XLSX
 
-**Problema atual**: 10 itens flat no sidebar sem agrupamento. Presença, Planejamento e Relatórios são do fluxo do educador mas ficam misturados. Mural e Feed são comunicação mas não estão juntos. Banco de Dados fica no meio.
+**Nova aba "Atendimentos"** no `DashboardRelatorioMensalTab.tsx`:
+- Buscar da tabela `atendimentos` filtrado pelo período (mês/ano)
+- Colunas: Data, Tipo, Participante, Profissional, Descrição (truncada), Encaminhamento
+- Aplicar bordas e header style
 
-**Nova estrutura do sidebar com grupos** (`AppSidebar.tsx`):
+**Aba "Resumo"**: Adicionar contagem de atendimentos técnicos no mês.
 
-```text
-PRINCIPAL
-  Dashboard
-  Participantes
-  Turmas
+---
 
-ATIVIDADES
-  Presença
-  Planejamento
-  Relatórios
+### 4. Conquistas inline no post do relatório (evitar flood)
 
-COMUNICAÇÃO
-  Mural
-  Feed
+**`useConquistas.ts`**: Remover `postConquistaToFeed` (posts separados). Retornar apenas `earned[]`.
 
-GESTÃO
-  Equipe Técnica
-  Banco de Dados
-```
+**`RelatorioNovoPage.tsx`**: Após criar o auto-post do relatório no feed, se houver conquistas earned, fazer UPDATE no `conteudo` do post adicionando as conquistas como texto no final: `"\n\n🏆 Conquistas: ..."`.
 
-- Usar `SidebarGroup` + `SidebarGroupLabel` para cada categoria
-- Manter todos os itens visíveis (sem collapse de grupo)
-- Separadores visuais leves entre grupos
+---
 
-**Página Index (Home)** — Enriquecer com informações úteis:
+### 5. Menções @ com notificação
 
-- Manter grid de atalhos existente
-- Adicionar seção de **avisos fixados do mural** (últimos 2-3 posts fixados, mini cards)
-- Adicionar **alertas rápidos**: pendentes count, recados não lidos count
-- Isso tira a sensação de "coisas escondidas" pois o home resume o que precisa de atenção
+**Migração SQL**: Adicionar coluna `mencoes text[] DEFAULT '{}'` em `feed_posts` e `feed_comentarios`.
+
+**`FeedPage.tsx`** e **`FeedPost.tsx`**: Ao digitar `@` no campo de texto, mostrar dropdown com profissionais para selecionar. Ao salvar, gravar IDs no campo `mencoes` e criar um `recado` automático para cada mencionado.
+
+Renderizar `@Nome` com destaque visual no texto do post/comentário.
 
 ---
 
@@ -76,8 +67,11 @@ GESTÃO
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/mural/MuralPage.tsx` | Redesign com grid de post-its coloridos com rotação |
-| `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx` | Heat map conta participantes, não turmas |
-| `src/components/AppSidebar.tsx` | Sidebar com 4 grupos categorizados |
-| `src/pages/Index.tsx` | Home com avisos fixados + alertas rápidos |
+| Migração SQL | RLS recados coord + colunas `mencoes` |
+| `src/components/NotificationBell.tsx` | Coord vê todos os recados |
+| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Células pretas para presença + bordas + aba Atendimentos |
+| `src/hooks/useConquistas.ts` | Remover post separado, retornar earned |
+| `src/pages/relatorios/RelatorioNovoPage.tsx` | Conquistas inline no auto-post |
+| `src/components/FeedPost.tsx` | Renderizar menções @ |
+| `src/pages/feed/FeedPage.tsx` | UI de @ mention no campo de texto |
 
