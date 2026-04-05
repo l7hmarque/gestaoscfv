@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
       return respond({ found: false });
     }
 
-    const nomePadronizado = nome_completo.trim().toUpperCase();
+    const nomePadronizado = nome_completo.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
