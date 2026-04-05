@@ -12,10 +12,15 @@ function respond(body: object, status = 200) {
   });
 }
 
-/** Trim + uppercase */
+/** Remove accents from a string */
+function stripAccents(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/** Trim + uppercase + strip accents */
 function padronizar(val: string | null | undefined): string | null {
   if (!val) return null;
-  const s = val.trim().toUpperCase();
+  const s = stripAccents(val.trim().toUpperCase());
   return s || null;
 }
 
