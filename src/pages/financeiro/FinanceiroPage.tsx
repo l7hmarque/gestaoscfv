@@ -360,7 +360,13 @@ export default function FinanceiroPage() {
 
         // Convert to base64 for AI
         const buffer = await doc.file.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        const bytes = new Uint8Array(buffer);
+        let binary = "";
+        const chunkSize = 8192;
+        for (let j = 0; j < bytes.length; j += chunkSize) {
+          binary += String.fromCharCode(...bytes.subarray(j, j + chunkSize));
+        }
+        const base64 = btoa(binary);
 
         const { data, error } = await supabase.functions.invoke("detect-despesa-from-doc", {
           body: { file_base64: base64, mime_type: doc.file.type },
