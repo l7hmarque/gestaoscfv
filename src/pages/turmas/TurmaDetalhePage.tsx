@@ -285,8 +285,8 @@ const TurmaDetalhePage = () => {
     ws["!cols"] = [{ wch: 4 }, { wch: 35 }, ...datas.map(() => ({ wch: 5 }))];
 
     const wb = XLSX.utils.book_new();
-    const sheetTitle = `${turma.nome} - ${MESES_NOMES[mesNum - 1]}/${anoNum}`;
-    XLSX.utils.book_append_sheet(wb, ws, sheetTitle.slice(0, 31));
+    const sheetTitle = `${turma.nome} - ${MESES_NOMES[mesNum - 1]} ${anoNum}`.replace(/[:\\/?*[\]]/g, "").slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
     const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     saveAs(new Blob([buf], { type: "application/octet-stream" }), sysEloFileName("ListaPresenca", "xlsx", `${turma.nome}_${anoNum}-${listaMes}`));
     toast.success("Lista de presença exportada!");
