@@ -16,7 +16,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { participante_id, tipo } = await req.json();
+    const body = await req.json();
+    const { participante_id, tipo } = body;
 
     if (!participante_id || !tipo) {
       return respond({ error: "participante_id e tipo são obrigatórios" }, 400);
