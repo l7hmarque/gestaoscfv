@@ -873,7 +873,7 @@ export default function DashboardRelatorioMensalTab() {
     }
   };
 
-  const anyGenerating = generating || generatingLocal || generatingFull || generatingReo || generatingPdf;
+  const anyGenerating = generating || generatingLocal || generatingFull || generatingReo || generatingReoXlsx || generatingPdf;
 
   return (
     <div className="space-y-4">
