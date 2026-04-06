@@ -136,7 +136,8 @@ Deno.serve(async (req: Request) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const { mes, ano } = await req.json();
+    const { mes, ano, formato } = await req.json();
+    const outputFormat = formato || "docx";
     const mesNum = parseInt(mes);
     const anoNum = parseInt(ano);
     const prefix = `${anoNum}-${String(mesNum).padStart(2, "0")}`;
