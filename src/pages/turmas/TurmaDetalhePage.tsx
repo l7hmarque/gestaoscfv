@@ -358,7 +358,6 @@ const TurmaDetalhePage = () => {
               </div>
             </DialogContent>
           </Dialog>
-          )}
           {!editing ? (
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Pencil className="h-3.5 w-3.5 mr-1" />Editar</Button>
           ) : (
