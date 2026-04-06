@@ -473,6 +473,137 @@ export default function FinanceiroPage() {
     toast.success(`${despesas.length} despesas exportadas para SIT`);
   };
 
+  // === PRESTAÇÃO DE CONTAS ===
+  const [pcLoading, setPcLoading] = useState(false);
+
+  const generatePrestacaoContas = async (formato: "pdf" | "xlsx") => {
+    setPcLoading(true);
+    try {
+      const fmtVal = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const mesLabel = MESES_NOMES[parseInt(mesRef.split("-")[1]) - 1] + " " + mesRef.split("-")[0];
+
+      // Load all despesas (not just filtered month)
+      const { data: allDesp } = await supabase.from("despesas").select("*").order("data_lancamento");
+      const allDespesas = (allDesp || []) as Despesa[];
+      const despMes = allDespesas.filter(d => d.mes_referencia === mesRef);
+
+      const totalRec = parcelas.reduce((s, p) => s + Number(p.valor), 0);
+      const totalDesp = despMes.reduce((s, d) => s + Number(d.valor), 0);
+      const totalEst = estornos.reduce((s, e) => s + Number(e.valor), 0);
+      const saldoPC = totalRec - allDespesas.reduce((s, d) => s + Number(d.valor), 0) + totalEst;
+
+      if (formato === "xlsx") {
+        const wb = XLSX.utils.book_new();
+        const border = { style: "thin" as const, color: { rgb: "000000" } };
+        const hdr = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "C62828" } }, border: { top: border, bottom: border, left: border, right: border } };
+        const cell = { border: { top: border, bottom: border, left: border, right: border } };
+
+        // Resumo
+        const resumoRows = [
+          ["PRESTAÇÃO DE CONTAS — " + mesLabel],
+          ["Gerado em: " + new Date().toLocaleString("pt-BR")],
+          [],
+          ["Item", "Valor"],
+          ["Total Recebido (Parcelas)", totalRec],
+          ["Despesas no Mês", totalDesp],
+          ["Estornos no Mês", totalEst],
+          ["Saldo Acumulado", saldoPC],
+        ];
+        const wsR = XLSX.utils.aoa_to_sheet(resumoRows);
+        wsR["!cols"] = [{ wch: 35 }, { wch: 20 }];
+        XLSX.utils.book_append_sheet(wb, wsR, "Resumo");
+
+        // Despesas
+        const despRows = [["Código", "Descrição", "Fornecedor", "CNPJ/CPF", "Tipo Doc", "Nº Doc", "Valor", "Data", "Status", "Comprovante", "NF", "Boleto"]];
+        despMes.sort((a, b) => a.data_lancamento.localeCompare(b.data_lancamento)).forEach(d => {
+          despRows.push([
+            d.codigo_lancamento || "", d.descricao, d.fornecedor || "", d.cnpj_cpf || "",
+            TIPOS_DOCUMENTO.find(t => t.value === d.tipo_documento)?.label || "",
+            d.numero_documento || "", Number(d.valor) as any,
+            d.data_lancamento ? format(new Date(d.data_lancamento + "T12:00:00"), "dd/MM/yyyy") : "",
+            d.comprovante_url ? "Pago ✓" : "Aguardando ⏳",
+            d.comprovante_url ? "Sim" : "", d.nota_url ? "Sim" : "", d.boleto_url ? "Sim" : "",
+          ]);
+        });
+        const wsD = XLSX.utils.aoa_to_sheet(despRows);
+        wsD["!cols"] = [{ wch: 12 }, { wch: 30 }, { wch: 20 }, { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 6 }, { wch: 6 }];
+        XLSX.utils.book_append_sheet(wb, wsD, "Despesas");
+
+        // Categorias
+        const catRows = [["Código", "Descrição", "Previsto", "Gasto", "Estornado", "Saldo"]];
+        categorias.forEach(c => {
+          const gasto = allDespesas.filter(d => d.categoria_id === c.id).reduce((s, d) => s + Number(d.valor), 0);
+          const est = estornos.filter(e => e.categoria_id === c.id).reduce((s, e) => s + Number(e.valor), 0);
+          const prev = Number(c.valor_previsto || 0);
+          catRows.push([c.codigo, c.descricao, prev as any, gasto as any, est as any, (prev - gasto + est) as any]);
+        });
+        const wsC = XLSX.utils.aoa_to_sheet(catRows);
+        wsC["!cols"] = [{ wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+        XLSX.utils.book_append_sheet(wb, wsC, "Categorias");
+
+        // Documentos
+        const docRows = [["Despesa", "Data", "Comprovante", "Nota Fiscal", "Boleto"]];
+        despMes.sort((a, b) => a.data_lancamento.localeCompare(b.data_lancamento)).forEach(d => {
+          docRows.push([d.descricao, d.data_lancamento, d.comprovante_url ? "Anexado" : "", d.nota_url ? "Anexado" : "", d.boleto_url ? "Anexado" : ""]);
+        });
+        const wsDoc = XLSX.utils.aoa_to_sheet(docRows);
+        wsDoc["!cols"] = [{ wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+        XLSX.utils.book_append_sheet(wb, wsDoc, "Documentos");
+
+        const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+        saveAs(new Blob([buf], { type: "application/octet-stream" }), sysEloFileName("PrestacaoContas", "xlsx", mesRef));
+        toast.success("Prestação de Contas (XLSX) gerada!");
+      } else {
+        // PDF
+        const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+        doc.setFontSize(16);
+        doc.text("PRESTAÇÃO DE CONTAS — " + mesLabel, 14, 15);
+        doc.setFontSize(8);
+        doc.text("Gerado em: " + new Date().toLocaleString("pt-BR"), 14, 21);
+
+        // Resumo
+        autoTable(doc, {
+          startY: 26,
+          head: [["Item", "Valor (R$)"]],
+          body: [
+            ["Total Recebido (Parcelas)", fmtVal(totalRec)],
+            ["Despesas no Mês", fmtVal(totalDesp)],
+            ["Estornos no Mês", fmtVal(totalEst)],
+            ["Saldo Acumulado", fmtVal(saldoPC)],
+          ],
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [198, 40, 40] },
+        });
+
+        // Despesas
+        const lastY = (doc as any).lastAutoTable?.finalY || 60;
+        doc.setFontSize(11);
+        doc.text("Despesas Detalhadas", 14, lastY + 8);
+        autoTable(doc, {
+          startY: lastY + 12,
+          head: [["Cód.", "Descrição", "Fornecedor", "Valor", "Data", "Status", "Docs"]],
+          body: despMes.sort((a, b) => a.data_lancamento.localeCompare(b.data_lancamento)).map(d => [
+            d.codigo_lancamento || "—", d.descricao, d.fornecedor || "—",
+            fmtVal(Number(d.valor)),
+            d.data_lancamento ? format(new Date(d.data_lancamento + "T12:00:00"), "dd/MM/yyyy") : "—",
+            d.comprovante_url ? "Pago ✓" : "Aguardando ⏳",
+            [d.comprovante_url ? "Comp" : "", d.nota_url ? "NF" : "", d.boleto_url ? "Bol" : ""].filter(Boolean).join(", ") || "—",
+          ]),
+          styles: { fontSize: 7 },
+          headStyles: { fillColor: [198, 40, 40], fontSize: 7 },
+          alternateRowStyles: { fillColor: [245, 245, 245] },
+        });
+
+        doc.save(sysEloFileName("PrestacaoContas", "pdf", mesRef));
+        toast.success("Prestação de Contas (PDF) gerada!");
+      }
+    } catch (err: any) {
+      toast.error("Erro ao gerar prestação de contas: " + (err.message || ""));
+    } finally {
+      setPcLoading(false);
+    }
+  };
+
   const severityIcon = (s: string) => {
     if (s === "erro") return <AlertTriangle className="h-4 w-4 text-destructive" />;
     if (s === "alerta") return <Info className="h-4 w-4 text-amber-500" />;
