@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
         const best = fuzzyResults[0];
         const { data: fullPart } = await supabaseAdmin
           .from("participantes")
-          .select("id, nome_completo, data_nascimento, genero, foto_url, status, periodo, bairro_id, ponto_transporte_id, responsavel1_nome, responsavel2_nome, escola, serie, endereco_bairro, bairros:bairro_id(id, nome), pontos_transporte:ponto_transporte_id(id, nome, horario_manha, horario_tarde, bairro_id, bairros:bairro_id(nome))")
+          .select("id, nome_completo, data_nascimento, genero, foto_url, status, periodo, bairro_id, ponto_transporte_id, responsavel1_nome, responsavel2_nome, escola, serie, endereco_bairro, iniciou_em, bairros:bairro_id(id, nome), pontos_transporte:ponto_transporte_id(id, nome, horario_manha, horario_tarde, bairro_id, bairros:bairro_id(nome))")
           .eq("id", best.id)
           .single();
 
