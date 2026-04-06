@@ -96,6 +96,9 @@ const App = () => (
               </Route>
               <Route path="/dev" element={<DevPage />} />
               <Route path="/matricula" element={<MatriculaPublicaPage />} />
+              <Route path="/familia" element={<FamiliaLoginPage />} />
+              <Route path="/familia/painel" element={<FamiliaDashboardPage />} />
+              <Route path="/familia/formulario/:id" element={<FormularioRespostaPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>
