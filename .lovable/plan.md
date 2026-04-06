@@ -1,58 +1,85 @@
-## Plano: Detecção e Merge de Participantes com Nomes Similares (Typos)
+## Plano: Portal dos Pais / Familiares (atualizado com mapa de transporte)
 
-### Problema
+### Visão Geral
 
-Pais digitam nomes com pequenos erros de digitação na matrícula online (ex: "ANDRE ALESANDO" vs "ANDRE ALESSANDRO"). O sistema atual só detecta duplicatas por nome **exato** + data de nascimento, então variações com 1-2 caracteres diferentes criam cadastros novos.
+Criar área pública `/familia` onde pais acessam informações dos filhos sem login, autenticando via nome completo da criança + data de nascimento (com busca fuzzy). Se o responsável tem outros filhos, todos aparecem automaticamente (match por `responsavel1_nome` ou `responsavel2_nome`).
 
-### Duplicatas identificadas agora no banco
+---
 
+### Fluxo de Acesso
 
-| Manter (ativo/mais completo)                | Deletar (pendente/typo)                       |
-| ------------------------------------------- | --------------------------------------------- |
-| ANDRE ALESSANDRO DOS SANTOS RAMIREZ (ativo) | ANDRE ALESANDO DOS SANTOS RAMIREZ (pendente)  |
-| ANDRE ALESSANDRO DOS SANTOS RAMIREZ (ativo) | ANDRE ALESSADRO DOS SANTOS RAMIREZ (pendente) |
-| SOFIA DE LIMA SILVA (ativo)                 | SOFIA DE LI A SILVA (pendente)                |
+1. Pai acessa `/familia` → campos **Nome da criança** e **Data de nascimento**
+2. Edge Function `public-familia-auth` busca exata (ilike) + fuzzy fallback (similarity > 0.5)
+3. Se match fuzzy, pergunta "Este é seu filho(a)?"
+4. Após confirmar, busca irmãos pelo `responsavel1_nome` ou `responsavel2_nome`
+5. Retorna dados seguros (sem CPF, sem observações sigilosas)
 
+---
 
-### Solução: 2 partes
-
-#### Parte 1 — Merge imediato das duplicatas conhecidas (SQL)
-
-Migração SQL que:
-
-- Transfere vínculos (turma_participantes, presenca, participante_documentos, atendimentos, relatorio_presenca) dos registros typo para o registro correto
-- Deleta os registros duplicados
-
-#### Parte 2 — Painel de "Possíveis Duplicatas" na listagem de participantes
-
-Adicionar na `ParticipantesPage.tsx` um alerta/seção que mostra pares de participantes com **mesma data de nascimento** e **nome similar** (distância de Levenshtein ≤ 3 ou similaridade trigram ≥ 0.4).
-
-**Implementação:**
-
-- Criar uma função SQL `find_similar_participants()` que usa `pg_trgm` (extensão de trigramas do Postgres) para encontrar pares de participantes com mesma `data_nascimento` e `similarity(nome_completo, nome_completo) > 0.4`
-- Na UI, exibir um banner "X possíveis duplicatas encontradas" com botão para expandir
-- Cada par mostra os dois nomes lado a lado com botões: **"Mesclar →"** (mantém o da esquerda, transfere vínculos, deleta o da direita) e **"Ignorar"**
-- A ação de merge chama uma Edge Function `merge-participantes` que faz o merge server-side com service_role
-
-#### Parte 3 — Prevenção: busca fuzzy na matrícula online
-
-Melhorar o `public-check-participante` para, além da busca exata, fazer uma busca por similaridade quando a busca exata não encontrar resultado. Se encontrar nome com similarity > 0.6 e mesma data de nascimento, retornar como sugestão de rematrícula.
-
-### Arquivos afetados
+### O que o pai vê por filho
 
 
-| Arquivo                                                 | Alteração                                                                                     |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Migração SQL                                            | Merge dos 3 pares conhecidos + habilitar `pg_trgm` + criar função `find_similar_participants` |
-| `supabase/functions/merge-participantes/index.ts`       | Nova Edge Function para merge seguro                                                          |
-| `src/pages/participantes/ParticipantesPage.tsx`         | Banner de duplicatas + UI de merge                                                            |
-| `supabase/functions/public-check-participante/index.ts` | Busca fuzzy como fallback                                                                     |
+| Seção                   | Dados                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| **Resumo**              | Nome, turma, período, status, foto                                               |
+| **Transporte**          | Ponto de embarque, horários manhã/tarde, **mapa interativo com ponto destacado** |
+| **Atividades Recentes** | Últimos 10 relatórios de atividade onde o filho esteve presente                  |
+| **Presença**            | % frequência no mês atual e anterior                                             |
+| **Recados**             | Recados enviados pela coordenação/equipe técnica para aquele participante        |
+| **Formulários**         | Formulários pendentes e respondidos                                              |
 
 
-### O que NÃO muda
+---
 
-- Fluxo normal de matrícula, aprovação e gestão de participantes continua idêntico
-- Nenhuma tabela existente é alterada estruturalmente
-- O merge só acontece por ação manual do coordenador (exceto os 3 pares já confirmados)  
-  
-Poderia mudar uma copisa no fluxo da matricula, solicitar nome e data de nascimento antes de abrir os campos pra preencher as demais opcoes, assim o sistema ja busca a similaridade no sistema com as duas informacoes e solicita ao usuario confirmacao de que se trata daquele participante. Se o usuario confirma, abrem os campos pra preenchimento das demais informacoes.
+### Mapa de Transporte (novo)
+
+Incorporar o mapa do Google Maps com todos os pontos de transporte:
+
+```html
+<iframe src="https://www.google.com/maps/d/embed?mid=16Zj-8IkR-08tLtP1LxhQouLxCmuDxYg&ehbc=2E312F&noprof=1" width="100%" height="400"></iframe>
+```
+
+**Destaque do ponto da criança:**
+
+- Acima do mapa, exibir card com o nome do ponto, bairro e horários (manhã/tarde) do participante
+- O nome do ponto no Google Maps é intuitivo e corresponde ao cadastro — exibir texto "Localize seu ponto: **[nome do ponto]**" para o pai identificar no mapa
+- Estilo visual: card com ícone MapPin + cor primária, iframe abaixo com bordas arredondadas. Cor primaria deve bater com a cor do pin dos pontos do mapa.
+- Nota: o Google My Maps embed não suporta highlight programático de pins individuais via URL params, então a abordagem é indicar textualmente qual ponto procurar no mapa.
+
+---
+
+### Sistema de Formulários
+
+**Nova tabela `formularios_familia`:**
+
+- `id`, `titulo`, `descricao`, `tipo` (pesquisa, declaracao, autorizacao, outro)
+- `campos` (jsonb — array de campos dinâmicos)
+- `criado_por` (profile_id), `ativo`, `created_at`
+- `destinatario_ids` (uuid[] — null = todos os ativos)
+
+**Nova tabela `formulario_respostas`:**
+
+- `id`, `formulario_id`, `participante_id`, `responsavel_nome`
+- `respostas` (jsonb), `created_at`
+
+---
+
+### Arquivos e Alterações
+
+
+| Arquivo                                           | Descrição                                                                                                                      |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `src/pages/familia/FamiliaLoginPage.tsx`          | Tela de acesso: nome + data nascimento, verificação fuzzy                                                                      |
+| `src/pages/familia/FamiliaDashboardPage.tsx`      | Painel com abas por filho: resumo, transporte (com mapa embed + destaque do ponto), atividades, presença, recados, formulários |
+| `src/pages/familia/FormularioRespostaPage.tsx`    | Página para pai responder formulário                                                                                           |
+| `supabase/functions/public-familia-auth/index.ts` | Busca participante + irmãos, retorna dados seguros                                                                             |
+| `supabase/functions/public-familia-data/index.ts` | Retorna atividades, presença, recados, formulários                                                                             |
+| Migração SQL                                      | CREATE `formularios_familia` + `formulario_respostas` com RLS                                                                  |
+| `src/App.tsx`                                     | Rotas `/familia`, `/familia/painel`, `/familia/formulario/:id`                                                                 |
+
+
+### Segurança (LGPD)
+
+- Nenhum dado sensível exposto (CPF, observações sigilosas, prontuários)
+- Edge Functions com service_role, sem JWT público
+- Formulários vinculados ao participante, não ao responsável
