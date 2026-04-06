@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
       case "turmas": {
         const { data } = await supabaseAdmin
           .from("turma_participantes")
-          .select("turma_id, turmas:turma_id(id, nome, periodo, dias_semana, oficina, educador_id, profiles:educador_id(nome))")
+          .select("turma_id, turmas:turma_id(id, nome, nome_grupo, periodo, dias_semana, oficina, educador_id, profiles:educador_id(nome))")
           .eq("participante_id", participante_id);
         return respond({ turmas: (data || []).map((tp: any) => tp.turmas).filter(Boolean) });
       }
