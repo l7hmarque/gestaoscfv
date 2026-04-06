@@ -89,6 +89,10 @@ export default function FinanceiroPage() {
   const [estForm, setEstForm] = useState({ categoria_id: "", valor: "" });
   const [dialogOpen, setDialogOpen] = useState<string | null>(null);
 
+  // Edit despesa
+  const [editDesp, setEditDesp] = useState<Despesa | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+
   // Batch entry
   const [loteLines, setLoteLines] = useState<LoteLine[]>([emptyLoteLine()]);
   const [loteLoading, setLoteLoading] = useState(false);
@@ -195,6 +199,28 @@ export default function FinanceiroPage() {
   const deleteRow = async (table: string, id: string) => {
     await (supabase.from as any)(table).delete().eq("id", id);
     toast.success("Removido");
+    load();
+  };
+
+  const updateDespesa = async () => {
+    if (!editDesp) return;
+    setEditSaving(true);
+    const { error } = await supabase.from("despesas").update({
+      codigo_lancamento: editDesp.codigo_lancamento || null,
+      descricao: editDesp.descricao,
+      valor: Number(editDesp.valor),
+      data_lancamento: editDesp.data_lancamento,
+      categoria_id: editDesp.categoria_id || null,
+      fornecedor: editDesp.fornecedor || null,
+      cnpj_cpf: editDesp.cnpj_cpf || null,
+      numero_documento: editDesp.numero_documento || null,
+      tipo_documento: editDesp.tipo_documento || "nota_fiscal",
+      status_sit: editDesp.status_sit || "pendente",
+    }).eq("id", editDesp.id);
+    setEditSaving(false);
+    if (error) { toast.error("Erro ao atualizar"); return; }
+    toast.success("Despesa atualizada");
+    setEditDesp(null);
     load();
   };
 
@@ -576,7 +602,7 @@ if __name__ == "__main__":
                 </TableRow></TableHeader>
                 <TableBody>
                   {despesas.map(d => (
-                    <TableRow key={d.id}>
+                    <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditDesp({ ...d })}>
                       <TableCell className="text-xs">{d.codigo_lancamento || "—"}</TableCell>
                       <TableCell className="text-xs max-w-[200px] truncate">{d.descricao}</TableCell>
                       <TableCell className="text-xs">{(d as any).fornecedor || "—"}</TableCell>
@@ -588,7 +614,7 @@ if __name__ == "__main__":
                           {(d as any).status_sit || "pendente"}
                         </Badge>
                       </TableCell>
-                      <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteRow("despesas", d.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
+                      <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); deleteRow("despesas", d.id); }}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
                     </TableRow>
                   ))}
                   {despesas.length === 0 && <TableRow><TableCell colSpan={8} className="text-xs text-center text-muted-foreground py-6">Nenhuma despesa neste mês</TableCell></TableRow>}
@@ -596,6 +622,57 @@ if __name__ == "__main__":
               </div>
             </CardContent>
           </Card>
+
+          {/* Dialog editar despesa */}
+          <Dialog open={!!editDesp} onOpenChange={v => { if (!v) setEditDesp(null); }}>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle>Editar Despesa</DialogTitle></DialogHeader>
+              {editDesp && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label className="text-xs">Código Lançamento</Label><Input value={editDesp.codigo_lancamento || ""} onChange={e => setEditDesp(p => p ? { ...p, codigo_lancamento: e.target.value } : p)} /></div>
+                    <div><Label className="text-xs">Data *</Label><Input type="date" value={editDesp.data_lancamento} onChange={e => setEditDesp(p => p ? { ...p, data_lancamento: e.target.value } : p)} /></div>
+                  </div>
+                  <div><Label className="text-xs">Descrição *</Label><Input value={editDesp.descricao} onChange={e => setEditDesp(p => p ? { ...p, descricao: e.target.value } : p)} /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label className="text-xs">Valor *</Label><Input type="number" step="0.01" value={editDesp.valor} onChange={e => setEditDesp(p => p ? { ...p, valor: Number(e.target.value) } : p)} /></div>
+                    <div><Label className="text-xs">Tipo Documento</Label>
+                      <Select value={editDesp.tipo_documento || "nota_fiscal"} onValueChange={v => setEditDesp(p => p ? { ...p, tipo_documento: v } : p)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>{TIPOS_DOCUMENTO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label className="text-xs">Fornecedor</Label><Input value={editDesp.fornecedor || ""} onChange={e => setEditDesp(p => p ? { ...p, fornecedor: e.target.value } : p)} /></div>
+                    <div><Label className="text-xs">CNPJ/CPF</Label><Input value={editDesp.cnpj_cpf || ""} onChange={e => setEditDesp(p => p ? { ...p, cnpj_cpf: e.target.value } : p)} /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label className="text-xs">Nº Documento</Label><Input value={editDesp.numero_documento || ""} onChange={e => setEditDesp(p => p ? { ...p, numero_documento: e.target.value } : p)} /></div>
+                    <div><Label className="text-xs">Categoria</Label>
+                      <Select value={editDesp.categoria_id || ""} onValueChange={v => setEditDesp(p => p ? { ...p, categoria_id: v } : p)}>
+                        <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                        <SelectContent>{categorias.map(c => <SelectItem key={c.id} value={c.id}>{c.codigo} — {c.descricao}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div><Label className="text-xs">Status SIT</Label>
+                    <Select value={editDesp.status_sit || "pendente"} onValueChange={v => setEditDesp(p => p ? { ...p, status_sit: v } : p)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pendente">Pendente</SelectItem>
+                        <SelectItem value="lancado">Lançado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={updateDespesa} className="w-full" disabled={editSaving}>
+                    {editSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Salvar Alterações
+                  </Button>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* =================== PARCELAS =================== */}
