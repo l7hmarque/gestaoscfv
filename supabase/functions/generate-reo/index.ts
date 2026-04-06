@@ -1,10 +1,11 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
-  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  Document, Packer, Paragraph, TextRun, Table as DocxTable, TableRow as DocxTableRow, TableCell as DocxTableCell,
   Header, Footer, AlignmentType, BorderStyle, WidthType, ShadingType,
   PageNumber, PageBreak, HeadingLevel, ImageRun,
 } from "npm:docx@9.2.0";
+import XLSX from "npm:xlsx-js-style";
 
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const BAIRROS_SCFV = ["JARDIM IRENE", "PARQUE INDEPENDENCIA", "ALVORADA"];
@@ -83,8 +84,8 @@ const thinBorder = { style: BorderStyle.SINGLE, size: 1, color: "000000" };
 const cellBorders = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
 const cellMargins = { top: 40, bottom: 40, left: 80, right: 80 };
 
-function headerCell(text: string, width: number, opts?: { colSpan?: number; rowSpan?: number; shading?: string }): TableCell {
-  return new TableCell({
+function headerCell(text: string, width: number, opts?: { colSpan?: number; rowSpan?: number; shading?: string }): DocxTableCell {
+  return new DocxTableCell({
     borders: cellBorders,
     margins: cellMargins,
     width: { size: width, type: WidthType.DXA },
@@ -99,8 +100,8 @@ function headerCell(text: string, width: number, opts?: { colSpan?: number; rowS
   });
 }
 
-function dataCell(text: string, width: number, opts?: { bold?: boolean; alignment?: (typeof AlignmentType)[keyof typeof AlignmentType] }): TableCell {
-  return new TableCell({
+function dataCell(text: string, width: number, opts?: { bold?: boolean; alignment?: (typeof AlignmentType)[keyof typeof AlignmentType] }): DocxTableCell {
+  return new DocxTableCell({
     borders: cellBorders,
     margins: cellMargins,
     width: { size: width, type: WidthType.DXA },
@@ -135,7 +136,8 @@ Deno.serve(async (req: Request) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const { mes, ano } = await req.json();
+    const { mes, ano, formato } = await req.json();
+    const outputFormat = formato || "docx";
     const mesNum = parseInt(mes);
     const anoNum = parseInt(ano);
     const prefix = `${anoNum}-${String(mesNum).padStart(2, "0")}`;
@@ -169,9 +171,9 @@ Deno.serve(async (req: Request) => {
     const plansMes = planejamentos.filter((p: any) => p.data_aplicacao?.startsWith(prefix));
     const relsMes = relatorios.filter((r: any) => r.data?.startsWith(prefix));
 
-    const atividadesRows: TableRow[] = [];
+    const atividadesRows: DocxTableRow[] = [];
     // Header
-    atividadesRows.push(new TableRow({
+    atividadesRows.push(new DocxTableRow({
       children: [
         headerCell("Atividades Propostas", 2800),
         headerCell("Atividades desenvolvidas", 2500),
@@ -183,7 +185,7 @@ Deno.serve(async (req: Request) => {
     // Group plans by title
     for (const plan of plansMes) {
       const matched = relsMes.filter((r: any) => r.planejamento_id === plan.id);
-      atividadesRows.push(new TableRow({
+      atividadesRows.push(new DocxTableRow({
         children: [
           dataCell(plan.titulo || plan.tema || "-", 2800),
           dataCell(matched.length > 0 ? `Sim (${matched.length}x)` : "Não realizada", 2500),
@@ -195,7 +197,7 @@ Deno.serve(async (req: Request) => {
     // Relatórios without plan
     const relsWithoutPlan = relsMes.filter((r: any) => !r.planejamento_id || !plansMes.find((p: any) => p.id === r.planejamento_id));
     for (const r of relsWithoutPlan) {
-      atividadesRows.push(new TableRow({
+      atividadesRows.push(new DocxTableRow({
         children: [
           dataCell(r.nome_atividade || "(Sem planejamento)", 2800),
           dataCell("Sim", 2500),
@@ -206,7 +208,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (atividadesRows.length === 1) {
-      atividadesRows.push(new TableRow({
+      atividadesRows.push(new DocxTableRow({
         children: [
           dataCell("Nenhuma atividade registrada", 2800),
           dataCell("-", 2500),
@@ -237,13 +239,13 @@ Deno.serve(async (req: Request) => {
     ];
 
     let totalServicos = 0;
-    const equipeRows: TableRow[] = [];
-    equipeRows.push(new TableRow({
+    const equipeRows: DocxTableRow[] = [];
+    equipeRows.push(new DocxTableRow({
       children: [
         headerCell(`RELATÓRIO MENSAL DE SERVIÇOS - EQUIPE TÉCNICA - ${mesNome?.toUpperCase()}/${anoNum}`, 7060, { colSpan: 2 }),
       ],
     }));
-    equipeRows.push(new TableRow({
+    equipeRows.push(new DocxTableRow({
       children: [
         headerCell("SERVIÇO", 5200),
         headerCell("QUANTIDADE", 1860),
@@ -252,14 +254,14 @@ Deno.serve(async (req: Request) => {
     for (const [key, label] of servicoLabels) {
       const count = countByTipo[key] || 0;
       totalServicos += count;
-      equipeRows.push(new TableRow({
+      equipeRows.push(new DocxTableRow({
         children: [
           dataCell(label, 5200),
           dataCell(String(count), 1860, { alignment: AlignmentType.CENTER }),
         ],
       }));
     }
-    equipeRows.push(new TableRow({
+    equipeRows.push(new DocxTableRow({
       children: [
         dataCell("TOTAL:", 5200, { bold: true }),
         dataCell(String(totalServicos), 1860, { bold: true, alignment: AlignmentType.CENTER }),
@@ -285,8 +287,8 @@ Deno.serve(async (req: Request) => {
       return partIds.size;
     }
 
-    const metasRows: TableRow[] = [];
-    metasRows.push(new TableRow({
+    const metasRows: DocxTableRow[] = [];
+    metasRows.push(new DocxTableRow({
       children: [
         headerCell("Metas Propostas", 3800),
         headerCell("Quant.", 1100),
@@ -309,7 +311,7 @@ Deno.serve(async (req: Request) => {
       const metaTotal = meta.criancasManha + meta.criancasTarde + (meta.idosos || 0);
       const pct = metaTotal > 0 ? Math.round((bairroTotal / metaTotal) * 100) : 0;
 
-      metasRows.push(new TableRow({
+      metasRows.push(new DocxTableRow({
         children: [
           dataCell(metaDesc, 3800, { bold: true }),
           dataCell(String(bairroTotal), 1100, { alignment: AlignmentType.CENTER }),
@@ -318,7 +320,7 @@ Deno.serve(async (req: Request) => {
         ],
       }));
     }
-    metasRows.push(new TableRow({
+    metasRows.push(new DocxTableRow({
       children: [
         dataCell("TOTAL GERAL:", 3800, { bold: true }),
         dataCell(String(totalGeral), 1100, { bold: true, alignment: AlignmentType.CENTER }),
@@ -329,8 +331,8 @@ Deno.serve(async (req: Request) => {
 
     // ── 1.4 RH ──
     const activeProfiles = profiles.filter((p: any) => p.ativo !== false && p.cargo);
-    const rhRows: TableRow[] = [];
-    rhRows.push(new TableRow({
+    const rhRows: DocxTableRow[] = [];
+    rhRows.push(new DocxTableRow({
       children: [
         headerCell("Nome", 3600),
         headerCell("Função", 2600),
@@ -338,7 +340,7 @@ Deno.serve(async (req: Request) => {
       ],
     }));
     for (const p of activeProfiles) {
-      rhRows.push(new TableRow({
+      rhRows.push(new DocxTableRow({
         children: [
           dataCell(p.nome || "", 3600),
           dataCell(p.cargo || "", 2600),
@@ -348,8 +350,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 1.5 Monitoramento ──
-    const monitorRows: TableRow[] = [];
-    monitorRows.push(new TableRow({
+    const monitorRows: DocxTableRow[] = [];
+    monitorRows.push(new DocxTableRow({
       children: [
         headerCell("Objetivo", 2800),
         headerCell("Indicador", 2400),
@@ -363,7 +365,7 @@ Deno.serve(async (req: Request) => {
     const taxaGeral = totalRegistros > 0 ? Math.round((totalPresencas / totalRegistros) * 100) : 0;
 
     for (const row of MONITORAMENTO_ROWS) {
-      monitorRows.push(new TableRow({
+      monitorRows.push(new DocxTableRow({
         children: [
           dataCell(row.objetivo, 2800),
           dataCell(row.indicador, 2400),
@@ -374,8 +376,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 2.1 Parcelas ──
-    const parcelasRows: TableRow[] = [];
-    parcelasRows.push(new TableRow({
+    const parcelasRows: DocxTableRow[] = [];
+    parcelasRows.push(new DocxTableRow({
       children: [
         headerCell("Número da parcela", 2400),
         headerCell("Valor da parcela", 2800),
@@ -384,7 +386,7 @@ Deno.serve(async (req: Request) => {
     }));
     const sortedParcelas = [...parcelas].sort((a: any, b: any) => a.numero_parcela - b.numero_parcela);
     for (const p of sortedParcelas) {
-      parcelasRows.push(new TableRow({
+      parcelasRows.push(new DocxTableRow({
         children: [
           dataCell(String(p.numero_parcela), 2400, { alignment: AlignmentType.CENTER }),
           dataCell(fmt(Number(p.valor)), 2800, { alignment: AlignmentType.RIGHT }),
@@ -395,8 +397,8 @@ Deno.serve(async (req: Request) => {
 
     // ── 2.2 Despesas do mês ──
     const despMes = despesas.filter((d: any) => d.mes_referencia === prefix);
-    const despesasRows: TableRow[] = [];
-    despesasRows.push(new TableRow({
+    const despesasRows: DocxTableRow[] = [];
+    despesasRows.push(new DocxTableRow({
       children: [
         headerCell("Código", 1600),
         headerCell("Descrição", 4200),
@@ -406,7 +408,7 @@ Deno.serve(async (req: Request) => {
     let totalDespMes = 0;
     for (const d of despMes) {
       totalDespMes += Number(d.valor);
-      despesasRows.push(new TableRow({
+      despesasRows.push(new DocxTableRow({
         children: [
           dataCell(d.codigo_lancamento || "-", 1600),
           dataCell(d.descricao, 4200),
@@ -415,7 +417,7 @@ Deno.serve(async (req: Request) => {
       }));
     }
     if (despMes.length === 0) {
-      despesasRows.push(new TableRow({
+      despesasRows.push(new DocxTableRow({
         children: [
           dataCell("-", 1600), dataCell("Nenhuma despesa registrada", 4200), dataCell("-", 2200),
         ],
@@ -429,7 +431,7 @@ Deno.serve(async (req: Request) => {
     const totalEstornos = estornosMes.reduce((s: number, e: any) => s + Number(e.valor), 0);
     const saldo = totalParcelas - totalDespesas + totalEstornos;
 
-    const resumoRows: TableRow[] = [];
+    const resumoRows: DocxTableRow[] = [];
     const resumoData = [
       ["Saldo Anterior", fmt(totalParcelas - totalDespMes + totalEstornos)],
       ["Valores Transferidos", fmt(totalParcelas)],
@@ -439,7 +441,7 @@ Deno.serve(async (req: Request) => {
       ["Saldo para o mês seguinte", fmt(saldo)],
     ];
     for (const [label, val] of resumoData) {
-      resumoRows.push(new TableRow({
+      resumoRows.push(new DocxTableRow({
         children: [
           dataCell(label, 4500, { bold: true }),
           dataCell(val, 3500, { alignment: AlignmentType.RIGHT }),
@@ -448,8 +450,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 2.4 Saldo por categoria ──
-    const catRows: TableRow[] = [];
-    catRows.push(new TableRow({
+    const catRows: DocxTableRow[] = [];
+    catRows.push(new DocxTableRow({
       children: [
         headerCell("Código", 1600),
         headerCell("Descrição", 2200),
@@ -471,7 +473,7 @@ Deno.serve(async (req: Request) => {
       catTotalEst += est;
       catTotalSaldo += saldoCat;
 
-      catRows.push(new TableRow({
+      catRows.push(new DocxTableRow({
         children: [
           dataCell(cat.codigo, 1600),
           dataCell(cat.descricao, 2200),
@@ -482,7 +484,7 @@ Deno.serve(async (req: Request) => {
         ],
       }));
     }
-    catRows.push(new TableRow({
+    catRows.push(new DocxTableRow({
       children: [
         dataCell("", 1600),
         dataCell("TOTAL", 2200, { bold: true }),
@@ -493,11 +495,135 @@ Deno.serve(async (req: Request) => {
       ],
     }));
 
-    // ── Fetch photos ──
+    // ── XLSX FORMAT ──
+    if (outputFormat === "xlsx") {
+      const wb = XLSX.utils.book_new();
+      const border = { style: "thin", color: { rgb: "000000" } };
+      const hdrStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1A5276" } }, border: { top: border, bottom: border, left: border, right: border }, alignment: { wrapText: true, vertical: "center" } };
+      const cellStyle = { border: { top: border, bottom: border, left: border, right: border }, alignment: { wrapText: true, vertical: "center" } };
+
+      function applyStyles(ws: any) {
+        const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+        for (let r = range.s.r; r <= range.e.r; r++) {
+          for (let c = range.s.c; c <= range.e.c; c++) {
+            const addr = XLSX.utils.encode_cell({ r, c });
+            if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+            if (r === 0) ws[addr].s = { ...hdrStyle };
+            else ws[addr].s = { ...cellStyle };
+          }
+        }
+      }
+
+      // Aba Atividades
+      const atRows = [["Atividades Propostas", "Atividades Desenvolvidas", "Resultados", "Justificativa"]];
+      for (const plan of plansMes) {
+        const matched = relsMes.filter((r: any) => r.planejamento_id === plan.id);
+        atRows.push([plan.titulo || plan.tema || "-", matched.length > 0 ? `Sim (${matched.length}x)` : "Não realizada", matched.length > 0 ? (matched[0].objetivo_alcancado === "alcancado" ? "Alcançado" : matched[0].objetivo_alcancado === "parcial" ? "Parcial" : "Não") : "-", matched.length === 0 ? "Não realizada" : ""]);
+      }
+      for (const r of relsWithoutPlan) {
+        atRows.push([r.nome_atividade || "(Sem plan.)", "Sim", r.objetivo_alcancado === "alcancado" ? "Alcançado" : r.objetivo_alcancado === "parcial" ? "Parcial" : "-", ""]);
+      }
+      const wsAt = XLSX.utils.aoa_to_sheet(atRows);
+      wsAt["!cols"] = [{ wch: 35 }, { wch: 25 }, { wch: 20 }, { wch: 25 }];
+      applyStyles(wsAt);
+      XLSX.utils.book_append_sheet(wb, wsAt, "Atividades");
+
+      // Aba Equipe Técnica
+      const eqRows = [["Serviço", "Quantidade"]];
+      for (const [key, label] of servicoLabels) { eqRows.push([label, String(countByTipo[key] || 0)]); }
+      eqRows.push(["TOTAL", String(totalServicos)]);
+      const wsEq = XLSX.utils.aoa_to_sheet(eqRows);
+      wsEq["!cols"] = [{ wch: 50 }, { wch: 15 }];
+      applyStyles(wsEq);
+      XLSX.utils.book_append_sheet(wb, wsEq, "Equipe Técnica");
+
+      // Aba Metas
+      const mtRows = [["Metas Propostas", "Quantidade", "Resultados", "Justificativa"]];
+      for (const bairro of BAIRROS_SCFV) {
+        const meta = METAS_BAIRRO[bairro];
+        const manha = countUniqueParts(bairro, "manha");
+        const tarde = countUniqueParts(bairro, "tarde");
+        const idosos = meta.idosos ? countUniqueParts(bairro, "integral") : 0;
+        const bt = manha + tarde + idosos;
+        const metaT = meta.criancasManha + meta.criancasTarde + (meta.idosos || 0);
+        const pct = metaT > 0 ? Math.round((bt / metaT) * 100) : 0;
+        mtRows.push([bairro, String(bt), `${pct}% da meta`, pct < 100 ? "Meta não atingida" : ""]);
+      }
+      mtRows.push(["TOTAL", String(totalGeral), "", ""]);
+      const wsMt = XLSX.utils.aoa_to_sheet(mtRows);
+      wsMt["!cols"] = [{ wch: 40 }, { wch: 12 }, { wch: 20 }, { wch: 25 }];
+      applyStyles(wsMt);
+      XLSX.utils.book_append_sheet(wb, wsMt, "Metas");
+
+      // Aba RH
+      const rhXRows = [["Nome", "Função", "Carga Horária"]];
+      for (const p of activeProfiles) { rhXRows.push([p.nome || "", p.cargo || "", p.carga_horaria || "-"]); }
+      const wsRh = XLSX.utils.aoa_to_sheet(rhXRows);
+      wsRh["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 15 }];
+      applyStyles(wsRh);
+      XLSX.utils.book_append_sheet(wb, wsRh, "RH");
+
+      // Aba Monitoramento
+      const moRows = [["Objetivo", "Indicador", "Meta Prevista", "Meta Atingida"]];
+      for (const row of MONITORAMENTO_ROWS) { moRows.push([row.objetivo, row.indicador, row.meta, `${taxaGeral}%`]); }
+      const wsMo = XLSX.utils.aoa_to_sheet(moRows);
+      wsMo["!cols"] = [{ wch: 50 }, { wch: 45 }, { wch: 12 }, { wch: 12 }];
+      applyStyles(wsMo);
+      XLSX.utils.book_append_sheet(wb, wsMo, "Monitoramento");
+
+      // Aba Financeiro
+      const finRows: any[][] = [["PARCELAS RECEBIDAS", "", ""]];
+      finRows.push(["Nº Parcela", "Valor", "Data Recebimento"]);
+      for (const p of sortedParcelas) { finRows.push([p.numero_parcela, Number(p.valor), p.data_recebimento ? new Date(p.data_recebimento + "T12:00:00").toLocaleDateString("pt-BR") : "-"]); }
+      finRows.push([]);
+      finRows.push(["DESPESAS DO MÊS", "", ""]);
+      finRows.push(["Código", "Descrição", "Valor"]);
+      for (const d of despMes) { finRows.push([d.codigo_lancamento || "-", d.descricao, Number(d.valor)]); }
+      finRows.push(["", "TOTAL", totalDespMes]);
+      finRows.push([]);
+      finRows.push(["RESUMO FINANCEIRO", "", ""]);
+      for (const [label, val] of resumoData) { finRows.push([label, val, ""]); }
+      finRows.push([]);
+      finRows.push(["SALDO POR CATEGORIA", "", "", "", "", ""]);
+      finRows.push(["Código", "Descrição", "Previsto", "Gasto", "Estornado", "Saldo"]);
+      for (const cat of categorias) {
+        const gasto = despesas.filter((d: any) => d.categoria_id === cat.id).reduce((s: number, d: any) => s + Number(d.valor), 0);
+        const est = estornos.filter((e: any) => e.categoria_id === cat.id).reduce((s: number, e: any) => s + Number(e.valor), 0);
+        const prev = Number(cat.valor_previsto || 0);
+        finRows.push([cat.codigo, cat.descricao, prev, gasto, est, prev - gasto + est]);
+      }
+      finRows.push(["", "TOTAL", catTotalPrev, catTotalGasto, catTotalEst, catTotalSaldo]);
+      const wsFin = XLSX.utils.aoa_to_sheet(finRows);
+      wsFin["!cols"] = [{ wch: 18 }, { wch: 35 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+      const finRange = XLSX.utils.decode_range(wsFin["!ref"] || "A1");
+      for (let r = finRange.s.r; r <= finRange.e.r; r++) {
+        for (let c = finRange.s.c; c <= finRange.e.c; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c });
+          if (!wsFin[addr]) wsFin[addr] = { v: "", t: "s" };
+          wsFin[addr].s = { ...cellStyle };
+        }
+      }
+      XLSX.utils.book_append_sheet(wb, wsFin, "Financeiro");
+
+      const buf = new Uint8Array(XLSX.write(wb, { bookType: "xlsx", type: "array" }));
+      const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+      const fileName = `SysELO_REO_${anoNum}-${String(mesNum).padStart(2, "0")}_${ts}.xlsx`;
+      const storagePath = `reo/${fileName}`;
+
+      const { error: uploadErr } = await supabase.storage.from("documentos").upload(storagePath, buf, { contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true });
+      if (uploadErr) throw uploadErr;
+      const { data: urlData } = await supabase.storage.from("documentos").createSignedUrl(storagePath, 600);
+
+      return new Response(JSON.stringify({ url: urlData?.signedUrl, fileName }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Fetch photos (DOCX only) ──
     const relIdsMes = new Set(relsMes.map((r: any) => r.id));
     const fotosMes = relatorioFotos.filter((f: any) => relIdsMes.has(f.relatorio_id));
 
-    const photoChildren: (Paragraph | Table)[] = [];
+    const photoChildren: (Paragraph | DocxTable)[] = [];
     if (fotosMes.length > 0) {
       photoChildren.push(sectionTitle("ANEXOS I - REGISTROS FOTOGRÁFICOS"));
 
@@ -587,28 +713,28 @@ Deno.serve(async (req: Request) => {
           }),
 
           sectionTitle("1.1. Atividades, oficinas e/ou projetos desenvolvidos para o cumprimento do objeto:"),
-          new Table({ width: { size: tableWidth, type: WidthType.DXA }, columnWidths: [2800, 2500, 2200, 1860], rows: atividadesRows }),
+          new DocxTable({ width: { size: tableWidth, type: WidthType.DXA }, columnWidths: [2800, 2500, 2200, 1860], rows: atividadesRows }),
           subNote("¹ Preencher este campo caso a atividade não tenha sido realizada no mês."),
 
           new Paragraph({ children: [new PageBreak()] }),
 
           sectionTitle("1.2. Atividades, serviços e ações da Equipe Técnica - Psicólogo(a) e Assistente Social"),
-          new Table({ width: { size: 7060, type: WidthType.DXA }, columnWidths: [5200, 1860], rows: equipeRows }),
+          new DocxTable({ width: { size: 7060, type: WidthType.DXA }, columnWidths: [5200, 1860], rows: equipeRows }),
 
           new Paragraph({ children: [new PageBreak()] }),
 
           sectionTitle("1.3. Comparativo"),
-          new Table({ width: { size: tableWidth, type: WidthType.DXA }, columnWidths: [3800, 1100, 2200, 2260], rows: metasRows }),
+          new DocxTable({ width: { size: tableWidth, type: WidthType.DXA }, columnWidths: [3800, 1100, 2200, 2260], rows: metasRows }),
           subNote("² Descrever o motivo que ensejou o não alcance das metas e quais as providências adotadas pela Entidade em relação a sanar esta questão."),
 
           new Paragraph({ children: [new PageBreak()] }),
 
           sectionTitle("1.4. Recursos Humanos Envolvidos³"),
-          new Table({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [3600, 2600, 1800], rows: rhRows }),
+          new DocxTable({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [3600, 2600, 1800], rows: rhRows }),
           subNote("³ Constar a equipe informada no Plano de Trabalho."),
 
           sectionTitle("1.5. Monitoramento e Avaliação"),
-          new Table({ width: { size: 7360, type: WidthType.DXA }, columnWidths: [2800, 2400, 1000, 1160], rows: monitorRows }),
+          new DocxTable({ width: { size: 7360, type: WidthType.DXA }, columnWidths: [2800, 2400, 1000, 1160], rows: monitorRows }),
 
           new Paragraph({ children: [new PageBreak()] }),
 
@@ -620,20 +746,20 @@ Deno.serve(async (req: Request) => {
           }),
 
           sectionTitle("2.1. Valores transferidos"),
-          new Table({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [2400, 2800, 2800], rows: parcelasRows }),
+          new DocxTable({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [2400, 2800, 2800], rows: parcelasRows }),
 
           new Paragraph({ children: [new PageBreak()] }),
 
           sectionTitle("2.2. Despesas Efetuadas no mês"),
-          new Table({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [1600, 4200, 2200], rows: despesasRows }),
+          new DocxTable({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [1600, 4200, 2200], rows: despesasRows }),
 
           new Paragraph({ children: [new PageBreak()] }),
 
           sectionTitle("2.3. Resumo financeiro"),
-          new Table({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [4500, 3500], rows: resumoRows }),
+          new DocxTable({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [4500, 3500], rows: resumoRows }),
 
           sectionTitle("2.4 Saldo atualizado por categoria econômica"),
-          new Table({ width: { size: 9000, type: WidthType.DXA }, columnWidths: [1600, 2200, 1400, 1400, 1200, 1200], rows: catRows }),
+          new DocxTable({ width: { size: 9000, type: WidthType.DXA }, columnWidths: [1600, 2200, 1400, 1400, 1200, 1200], rows: catRows }),
           subNote("⁵ Considerar o valor gasto estimado de todos os meses."),
           subNote("⁶ Para se chegar ao saldo disponível é necessário realizar a seguinte equação: Valor previsto – valor gasto + valor estornado."),
 

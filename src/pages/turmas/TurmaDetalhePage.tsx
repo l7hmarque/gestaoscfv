@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, UserPlus, Trash2, Pencil, Save, AlertTriangle, FileText, TrendingUp, Users, BarChart3, ClipboardList, Calendar as CalendarIcon } from "lucide-react";
+import { ArrowLeft, UserPlus, Trash2, Pencil, Save, AlertTriangle, FileText, TrendingUp, Users, BarChart3, ClipboardList, Calendar as CalendarIcon, FileSpreadsheet, Download } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,9 @@ import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx-js-style";
+import { saveAs } from "file-saver";
+import { sysEloFileName } from "@/lib/fileNaming";
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const faixaLabel: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
@@ -58,6 +61,9 @@ const TurmaDetalhePage = () => {
   const [alerts, setAlerts] = useState<Record<string, AlertInfo>>({});
   const [memberStats, setMemberStats] = useState<Record<string, { pctFreq: number; lastDate: string | null }>>({});
   const [participantesData, setParticipantesData] = useState<Record<string, any>>({});
+  const [listaOpen, setListaOpen] = useState(false);
+  const [listaMes, setListaMes] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
+  const [listaAno, setListaAno] = useState(String(new Date().getFullYear()));
   const [dashboard, setDashboard] = useState<TurmaDashboard>({ taxaAdesao: 0, totalPresencas: 0, totalRegistros: 0, medianElo: 0, stdElo: 0, eloCount: 0 });
   const [linkedPlans, setLinkedPlans] = useState<LinkedPlan[]>([]);
   const [linkedReports, setLinkedReports] = useState<LinkedReport[]>([]);
@@ -241,6 +247,52 @@ const TurmaDetalhePage = () => {
     toast.success("Relatório de Busca Ativa exportado!");
   };
 
+  const DIAS_MAP: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
+
+  const exportListaPresencaXlsx = () => {
+    if (!turma) return;
+    const mesNum = parseInt(listaMes);
+    const anoNum = parseInt(listaAno);
+    const diasSemana: string[] = turma.dias_semana || [];
+    const diasNum = diasSemana.map((d: string) => DIAS_MAP[d.toLowerCase()]).filter((n: number | undefined) => n !== undefined);
+    const datas: string[] = [];
+    const d = new Date(anoNum, mesNum - 1, 1);
+    while (d.getMonth() === mesNum - 1) {
+      if (diasNum.includes(d.getDay())) datas.push(format(d, "dd/MM"));
+      d.setDate(d.getDate() + 1);
+    }
+    if (datas.length === 0) { toast.error("Nenhuma data de atividade para este mês"); return; }
+
+    const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+    const header = ["Nº", "Nome do Participante", ...datas];
+    const rows = members.filter(m => m.status !== "desligado").sort((a, b) => a.nome.localeCompare(b.nome)).map((m, i) => [i + 1, m.nome, ...datas.map(() => "")]);
+
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    const border = { style: "thin" as const, color: { rgb: "000000" } };
+    const borders = { top: border, bottom: border, left: border, right: border };
+    const hdrStyle = { font: { bold: true, color: { rgb: "FFFFFF" }, sz: 9 }, fill: { fgColor: { rgb: "1A5276" } }, border: borders, alignment: { horizontal: "center", vertical: "center", wrapText: true } };
+    const cellStyle = { border: borders, alignment: { vertical: "center" }, font: { sz: 9 } };
+
+    const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+        ws[addr].s = r === 0 ? { ...hdrStyle } : { ...cellStyle };
+      }
+    }
+
+    ws["!cols"] = [{ wch: 4 }, { wch: 35 }, ...datas.map(() => ({ wch: 5 }))];
+
+    const wb = XLSX.utils.book_new();
+    const sheetTitle = `${turma.nome} - ${MESES_NOMES[mesNum - 1]}/${anoNum}`;
+    XLSX.utils.book_append_sheet(wb, ws, sheetTitle.slice(0, 31));
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    saveAs(new Blob([buf], { type: "application/octet-stream" }), sysEloFileName("ListaPresenca", "xlsx", `${turma.nome}_${anoNum}-${listaMes}`));
+    toast.success("Lista de presença exportada!");
+    setListaOpen(false);
+  };
+
   const memberIds = new Set(members.map((m) => m.participante_id));
   const availableParticipantes = allParticipantes.filter((p) => !memberIds.has(p.id) && p.nome_completo.toLowerCase().includes(addSearch.toLowerCase()));
 
@@ -277,6 +329,35 @@ const TurmaDetalhePage = () => {
               <span className="hidden sm:inline">Busca Ativa</span>
             </Button>
           )}
+          <Dialog open={listaOpen} onOpenChange={setListaOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1 text-xs">
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Lista Presença</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-sm">
+              <DialogHeader><DialogTitle>Gerar Lista de Presença</DialogTitle></DialogHeader>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label className="text-xs">Mês</Label>
+                    <Select value={listaMes} onValueChange={setListaMes}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {["01","02","03","04","05","06","07","08","09","10","11","12"].map((m,i) => <SelectItem key={m} value={m}>{["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][i]}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label className="text-xs">Ano</Label>
+                    <Input value={listaAno} onChange={e => setListaAno(e.target.value)} />
+                  </div>
+                </div>
+                <Button onClick={exportListaPresencaXlsx} className="w-full gap-1">
+                  <Download className="h-4 w-4" />Gerar XLSX
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
           {!editing ? (
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Pencil className="h-3.5 w-3.5 mr-1" />Editar</Button>
           ) : (

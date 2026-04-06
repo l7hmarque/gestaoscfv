@@ -96,26 +96,28 @@ export default function DashboardRelatorioMensalTab() {
   const [generating, setGenerating] = useState(false);
   const [generatingLocal, setGeneratingLocal] = useState(false);
   const [generatingReo, setGeneratingReo] = useState(false);
+  const [generatingReoXlsx, setGeneratingReoXlsx] = useState(false);
   const [generatingFull, setGeneratingFull] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
-  const generateReo = async () => {
-    setGeneratingReo(true);
+  const generateReo = async (formato: "docx" | "xlsx" = "docx") => {
+    const isXlsx = formato === "xlsx";
+    if (isXlsx) setGeneratingReoXlsx(true); else setGeneratingReo(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-reo", {
-        body: { mes, ano },
+        body: { mes, ano, formato },
       });
       if (error) throw error;
       if (data?.url) {
         window.open(data.url, "_blank");
-        toast.success("REO gerado com sucesso!");
+        toast.success(`REO (${formato.toUpperCase()}) gerado com sucesso!`);
       } else {
         throw new Error("URL não retornada");
       }
     } catch (err: any) {
       toast.error("Erro ao gerar REO: " + (err.message || "Erro desconhecido"));
     } finally {
-      setGeneratingReo(false);
+      if (isXlsx) setGeneratingReoXlsx(false); else setGeneratingReo(false);
     }
   };
 
@@ -871,7 +873,7 @@ export default function DashboardRelatorioMensalTab() {
     }
   };
 
-  const anyGenerating = generating || generatingLocal || generatingFull || generatingReo || generatingPdf;
+  const anyGenerating = generating || generatingLocal || generatingFull || generatingReo || generatingReoXlsx || generatingPdf;
 
   return (
     <div className="space-y-4">
@@ -982,9 +984,14 @@ export default function DashboardRelatorioMensalTab() {
             metas, recursos humanos, monitoramento, execução financeira e anexos fotográficos.
             <strong> Gerado no servidor.</strong>
           </p>
-          <Button onClick={generateReo} disabled={anyGenerating} variant="outline" size="sm">
-            {generatingReo ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando REO...</> : <><FileText className="h-4 w-4 mr-1" />Gerar REO (DOCX)</>}
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={() => generateReo("docx")} disabled={anyGenerating} variant="outline" size="sm">
+              {generatingReo ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando REO...</> : <><FileText className="h-4 w-4 mr-1" />Gerar REO (DOCX)</>}
+            </Button>
+            <Button onClick={() => generateReo("xlsx")} disabled={anyGenerating} variant="outline" size="sm">
+              {generatingReoXlsx ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando REO...</> : <><FileSpreadsheet className="h-4 w-4 mr-1" />Gerar REO (XLSX)</>}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
