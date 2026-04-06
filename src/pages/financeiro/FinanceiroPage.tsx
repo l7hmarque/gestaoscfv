@@ -89,6 +89,10 @@ export default function FinanceiroPage() {
   const [estForm, setEstForm] = useState({ categoria_id: "", valor: "" });
   const [dialogOpen, setDialogOpen] = useState<string | null>(null);
 
+  // Edit despesa
+  const [editDesp, setEditDesp] = useState<Despesa | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+
   // Batch entry
   const [loteLines, setLoteLines] = useState<LoteLine[]>([emptyLoteLine()]);
   const [loteLoading, setLoteLoading] = useState(false);
