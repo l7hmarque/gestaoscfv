@@ -329,6 +329,36 @@ const TurmaDetalhePage = () => {
               <span className="hidden sm:inline">Busca Ativa</span>
             </Button>
           )}
+          <Dialog open={listaOpen} onOpenChange={setListaOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1 text-xs">
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Lista Presença</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-sm">
+              <DialogHeader><DialogTitle>Gerar Lista de Presença</DialogTitle></DialogHeader>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label className="text-xs">Mês</Label>
+                    <Select value={listaMes} onValueChange={setListaMes}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {["01","02","03","04","05","06","07","08","09","10","11","12"].map((m,i) => <SelectItem key={m} value={m}>{["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][i]}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label className="text-xs">Ano</Label>
+                    <Input value={listaAno} onChange={e => setListaAno(e.target.value)} />
+                  </div>
+                </div>
+                <Button onClick={exportListaPresencaXlsx} className="w-full gap-1">
+                  <Download className="h-4 w-4" />Gerar XLSX
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          )}
           {!editing ? (
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Pencil className="h-3.5 w-3.5 mr-1" />Editar</Button>
           ) : (
