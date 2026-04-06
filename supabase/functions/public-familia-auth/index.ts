@@ -114,6 +114,7 @@ function buildSafe(p: any) {
     escola: p.escola,
     serie: p.serie,
     endereco_bairro: p.endereco_bairro,
+    iniciou_em: p.iniciou_em || null,
     bairro_nome: p.bairros?.nome || null,
     ponto_transporte: p.pontos_transporte ? {
       id: p.pontos_transporte.id,
