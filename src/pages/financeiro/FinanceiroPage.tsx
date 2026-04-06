@@ -629,6 +629,14 @@ export default function FinanceiroPage() {
           <Button variant="outline" size="sm" onClick={generateDespesaTxt} className="gap-1">
             <Download className="h-3 w-3" />Exportar SIT
           </Button>
+          <Button variant="outline" size="sm" onClick={() => generatePrestacaoContas("pdf")} disabled={pcLoading} className="gap-1">
+            {pcLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+            Prest. Contas (PDF)
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => generatePrestacaoContas("xlsx")} disabled={pcLoading} className="gap-1">
+            {pcLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileSpreadsheet className="h-3 w-3" />}
+            Prest. Contas (XLSX)
+          </Button>
         </div>
       </div>
 
