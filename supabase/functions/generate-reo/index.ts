@@ -623,7 +623,7 @@ Deno.serve(async (req: Request) => {
     const relIdsMes = new Set(relsMes.map((r: any) => r.id));
     const fotosMes = relatorioFotos.filter((f: any) => relIdsMes.has(f.relatorio_id));
 
-    const photoChildren: (Paragraph | Table)[] = [];
+    const photoChildren: (Paragraph | DocxTable)[] = [];
     if (fotosMes.length > 0) {
       photoChildren.push(sectionTitle("ANEXOS I - REGISTROS FOTOGRÁFICOS"));
 
