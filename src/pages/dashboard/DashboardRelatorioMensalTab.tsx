@@ -100,23 +100,24 @@ export default function DashboardRelatorioMensalTab() {
   const [generatingFull, setGeneratingFull] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
-  const generateReo = async () => {
-    setGeneratingReo(true);
+  const generateReo = async (formato: "docx" | "xlsx" = "docx") => {
+    const isXlsx = formato === "xlsx";
+    if (isXlsx) setGeneratingReoXlsx(true); else setGeneratingReo(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-reo", {
-        body: { mes, ano },
+        body: { mes, ano, formato },
       });
       if (error) throw error;
       if (data?.url) {
         window.open(data.url, "_blank");
-        toast.success("REO gerado com sucesso!");
+        toast.success(`REO (${formato.toUpperCase()}) gerado com sucesso!`);
       } else {
         throw new Error("URL não retornada");
       }
     } catch (err: any) {
       toast.error("Erro ao gerar REO: " + (err.message || "Erro desconhecido"));
     } finally {
-      setGeneratingReo(false);
+      if (isXlsx) setGeneratingReoXlsx(false); else setGeneratingReo(false);
     }
   };
 
