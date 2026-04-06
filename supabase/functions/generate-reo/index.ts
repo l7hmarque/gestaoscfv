@@ -495,7 +495,131 @@ Deno.serve(async (req: Request) => {
       ],
     }));
 
-    // ── Fetch photos ──
+    // ── XLSX FORMAT ──
+    if (outputFormat === "xlsx") {
+      const wb = XLSX.utils.book_new();
+      const border = { style: "thin", color: { rgb: "000000" } };
+      const hdrStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1A5276" } }, border: { top: border, bottom: border, left: border, right: border }, alignment: { wrapText: true, vertical: "center" } };
+      const cellStyle = { border: { top: border, bottom: border, left: border, right: border }, alignment: { wrapText: true, vertical: "center" } };
+
+      function applyStyles(ws: any) {
+        const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+        for (let r = range.s.r; r <= range.e.r; r++) {
+          for (let c = range.s.c; c <= range.e.c; c++) {
+            const addr = XLSX.utils.encode_cell({ r, c });
+            if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+            if (r === 0) ws[addr].s = { ...hdrStyle };
+            else ws[addr].s = { ...cellStyle };
+          }
+        }
+      }
+
+      // Aba Atividades
+      const atRows = [["Atividades Propostas", "Atividades Desenvolvidas", "Resultados", "Justificativa"]];
+      for (const plan of plansMes) {
+        const matched = relsMes.filter((r: any) => r.planejamento_id === plan.id);
+        atRows.push([plan.titulo || plan.tema || "-", matched.length > 0 ? `Sim (${matched.length}x)` : "Não realizada", matched.length > 0 ? (matched[0].objetivo_alcancado === "alcancado" ? "Alcançado" : matched[0].objetivo_alcancado === "parcial" ? "Parcial" : "Não") : "-", matched.length === 0 ? "Não realizada" : ""]);
+      }
+      for (const r of relsWithoutPlan) {
+        atRows.push([r.nome_atividade || "(Sem plan.)", "Sim", r.objetivo_alcancado === "alcancado" ? "Alcançado" : r.objetivo_alcancado === "parcial" ? "Parcial" : "-", ""]);
+      }
+      const wsAt = XLSX.utils.aoa_to_sheet(atRows);
+      wsAt["!cols"] = [{ wch: 35 }, { wch: 25 }, { wch: 20 }, { wch: 25 }];
+      applyStyles(wsAt);
+      XLSX.utils.book_append_sheet(wb, wsAt, "Atividades");
+
+      // Aba Equipe Técnica
+      const eqRows = [["Serviço", "Quantidade"]];
+      for (const [key, label] of servicoLabels) { eqRows.push([label, String(countByTipo[key] || 0)]); }
+      eqRows.push(["TOTAL", String(totalServicos)]);
+      const wsEq = XLSX.utils.aoa_to_sheet(eqRows);
+      wsEq["!cols"] = [{ wch: 50 }, { wch: 15 }];
+      applyStyles(wsEq);
+      XLSX.utils.book_append_sheet(wb, wsEq, "Equipe Técnica");
+
+      // Aba Metas
+      const mtRows = [["Metas Propostas", "Quantidade", "Resultados", "Justificativa"]];
+      for (const bairro of BAIRROS_SCFV) {
+        const meta = METAS_BAIRRO[bairro];
+        const manha = countUniqueParts(bairro, "manha");
+        const tarde = countUniqueParts(bairro, "tarde");
+        const idosos = meta.idosos ? countUniqueParts(bairro, "integral") : 0;
+        const bt = manha + tarde + idosos;
+        const metaT = meta.criancasManha + meta.criancasTarde + (meta.idosos || 0);
+        const pct = metaT > 0 ? Math.round((bt / metaT) * 100) : 0;
+        mtRows.push([bairro, String(bt), `${pct}% da meta`, pct < 100 ? "Meta não atingida" : ""]);
+      }
+      mtRows.push(["TOTAL", String(totalGeral), "", ""]);
+      const wsMt = XLSX.utils.aoa_to_sheet(mtRows);
+      wsMt["!cols"] = [{ wch: 40 }, { wch: 12 }, { wch: 20 }, { wch: 25 }];
+      applyStyles(wsMt);
+      XLSX.utils.book_append_sheet(wb, wsMt, "Metas");
+
+      // Aba RH
+      const rhXRows = [["Nome", "Função", "Carga Horária"]];
+      for (const p of activeProfiles) { rhXRows.push([p.nome || "", p.cargo || "", p.carga_horaria || "-"]); }
+      const wsRh = XLSX.utils.aoa_to_sheet(rhXRows);
+      wsRh["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 15 }];
+      applyStyles(wsRh);
+      XLSX.utils.book_append_sheet(wb, wsRh, "RH");
+
+      // Aba Monitoramento
+      const moRows = [["Objetivo", "Indicador", "Meta Prevista", "Meta Atingida"]];
+      for (const row of MONITORAMENTO_ROWS) { moRows.push([row.objetivo, row.indicador, row.meta, `${taxaGeral}%`]); }
+      const wsMo = XLSX.utils.aoa_to_sheet(moRows);
+      wsMo["!cols"] = [{ wch: 50 }, { wch: 45 }, { wch: 12 }, { wch: 12 }];
+      applyStyles(wsMo);
+      XLSX.utils.book_append_sheet(wb, wsMo, "Monitoramento");
+
+      // Aba Financeiro
+      const finRows: any[][] = [["PARCELAS RECEBIDAS", "", ""]];
+      finRows.push(["Nº Parcela", "Valor", "Data Recebimento"]);
+      for (const p of sortedParcelas) { finRows.push([p.numero_parcela, Number(p.valor), p.data_recebimento ? new Date(p.data_recebimento + "T12:00:00").toLocaleDateString("pt-BR") : "-"]); }
+      finRows.push([]);
+      finRows.push(["DESPESAS DO MÊS", "", ""]);
+      finRows.push(["Código", "Descrição", "Valor"]);
+      for (const d of despMes) { finRows.push([d.codigo_lancamento || "-", d.descricao, Number(d.valor)]); }
+      finRows.push(["", "TOTAL", totalDespMes]);
+      finRows.push([]);
+      finRows.push(["RESUMO FINANCEIRO", "", ""]);
+      for (const [label, val] of resumoData) { finRows.push([label, val, ""]); }
+      finRows.push([]);
+      finRows.push(["SALDO POR CATEGORIA", "", "", "", "", ""]);
+      finRows.push(["Código", "Descrição", "Previsto", "Gasto", "Estornado", "Saldo"]);
+      for (const cat of categorias) {
+        const gasto = despesas.filter((d: any) => d.categoria_id === cat.id).reduce((s: number, d: any) => s + Number(d.valor), 0);
+        const est = estornos.filter((e: any) => e.categoria_id === cat.id).reduce((s: number, e: any) => s + Number(e.valor), 0);
+        const prev = Number(cat.valor_previsto || 0);
+        finRows.push([cat.codigo, cat.descricao, prev, gasto, est, prev - gasto + est]);
+      }
+      finRows.push(["", "TOTAL", catTotalPrev, catTotalGasto, catTotalEst, catTotalSaldo]);
+      const wsFin = XLSX.utils.aoa_to_sheet(finRows);
+      wsFin["!cols"] = [{ wch: 18 }, { wch: 35 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+      const finRange = XLSX.utils.decode_range(wsFin["!ref"] || "A1");
+      for (let r = finRange.s.r; r <= finRange.e.r; r++) {
+        for (let c = finRange.s.c; c <= finRange.e.c; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c });
+          if (!wsFin[addr]) wsFin[addr] = { v: "", t: "s" };
+          wsFin[addr].s = { ...cellStyle };
+        }
+      }
+      XLSX.utils.book_append_sheet(wb, wsFin, "Financeiro");
+
+      const buf = new Uint8Array(XLSX.write(wb, { bookType: "xlsx", type: "array" }));
+      const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+      const fileName = `SysELO_REO_${anoNum}-${String(mesNum).padStart(2, "0")}_${ts}.xlsx`;
+      const storagePath = `reo/${fileName}`;
+
+      const { error: uploadErr } = await supabase.storage.from("documentos").upload(storagePath, buf, { contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true });
+      if (uploadErr) throw uploadErr;
+      const { data: urlData } = await supabase.storage.from("documentos").createSignedUrl(storagePath, 600);
+
+      return new Response(JSON.stringify({ url: urlData?.signedUrl, fileName }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Fetch photos (DOCX only) ──
     const relIdsMes = new Set(relsMes.map((r: any) => r.id));
     const fotosMes = relatorioFotos.filter((f: any) => relIdsMes.has(f.relatorio_id));
 
