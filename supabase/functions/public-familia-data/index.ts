@@ -117,6 +117,23 @@ Deno.serve(async (req) => {
         });
       }
 
+      case "responder_formulario": {
+        const { formulario_id, responsavel_nome, respostas } = body;
+        if (!formulario_id) return respond({ error: "formulario_id obrigatório" }, 400);
+
+        const { error } = await supabaseAdmin
+          .from("formulario_respostas")
+          .insert({
+            formulario_id,
+            participante_id,
+            responsavel_nome: responsavel_nome || null,
+            respostas: respostas || {},
+          });
+
+        if (error) return respond({ error: error.message }, 500);
+        return respond({ success: true });
+      }
+
       default:
         return respond({ error: "Tipo inválido" }, 400);
     }
