@@ -984,9 +984,14 @@ export default function DashboardRelatorioMensalTab() {
             metas, recursos humanos, monitoramento, execução financeira e anexos fotográficos.
             <strong> Gerado no servidor.</strong>
           </p>
-          <Button onClick={generateReo} disabled={anyGenerating} variant="outline" size="sm">
-            {generatingReo ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando REO...</> : <><FileText className="h-4 w-4 mr-1" />Gerar REO (DOCX)</>}
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={() => generateReo("docx")} disabled={anyGenerating} variant="outline" size="sm">
+              {generatingReo ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando REO...</> : <><FileText className="h-4 w-4 mr-1" />Gerar REO (DOCX)</>}
+            </Button>
+            <Button onClick={() => generateReo("xlsx")} disabled={anyGenerating} variant="outline" size="sm">
+              {generatingReoXlsx ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando REO...</> : <><FileSpreadsheet className="h-4 w-4 mr-1" />Gerar REO (XLSX)</>}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
