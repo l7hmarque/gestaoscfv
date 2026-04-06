@@ -1730,6 +1730,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      find_similar_participants: {
+        Args: never
+        Returns: {
+          data_nascimento: string
+          id1: string
+          id2: string
+          nome1: string
+          nome2: string
+          similaridade: number
+          status1: string
+          status2: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1737,6 +1750,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       app_role:
