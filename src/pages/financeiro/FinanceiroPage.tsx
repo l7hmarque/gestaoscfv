@@ -17,6 +17,8 @@ import {
 import OrcamentosTab from "./OrcamentosTab";
 import DocumentosPrestacaoTab from "./DocumentosPrestacaoTab";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { sysEloFileName } from "@/lib/fileNaming";
 
 type Categoria = { id: string; codigo: string; descricao: string; valor_previsto: number; created_at: string };
 type Parcela = { id: string; numero_parcela: number; valor: number; data_recebimento: string; created_at: string };
@@ -436,80 +438,29 @@ export default function FinanceiroPage() {
     setAuditSummary(data.summary || null);
   };
 
-  // === RPA SCRIPT ===
-  const generateRPAScript = () => {
-    const script = `#!/usr/bin/env python3
-"""
-Script de automação RPA para lançamento no SIT
-Gerado automaticamente pelo SysELO — ${mesRef}
-Requer: pip install playwright && playwright install chromium
-"""
-import asyncio
-from playwright.async_api import async_playwright
-import json
-
-# === CREDENCIAIS (preencha antes de executar) ===
-SIT_URL = "https://sit.mds.gov.br"  # URL do SIT
-USERNAME = "SEU_USUARIO"
-PASSWORD = "SUA_SENHA"
-
-# === DADOS DAS DESPESAS ===
-despesas = ${JSON.stringify(despesas.map(d => ({
-  descricao: d.descricao,
-  valor: Number(d.valor),
-  data: d.data_lancamento,
-  fornecedor: d.fornecedor || "",
-  cnpj_cpf: d.cnpj_cpf || "",
-  numero_documento: d.numero_documento || "",
-  tipo: d.tipo_documento || "nota_fiscal",
-  categoria: d.categoria_id ? (catMap.get(d.categoria_id)?.codigo || "") : "",
-})), null, 2)}
-
-async def main():
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
-        page = await browser.new_page()
-        
-        # 1. Login
-        await page.goto(SIT_URL)
-        await page.fill('input[name="usuario"]', USERNAME)
-        await page.fill('input[name="senha"]', PASSWORD)
-        await page.click('button[type="submit"]')
-        await page.wait_for_load_state("networkidle")
-        print("Login realizado")
-        
-        # 2. Navegar até lançamento de despesas
-        # IMPORTANTE: Ajuste os seletores conforme a interface do SIT
-        # await page.click('text=Prestação de Contas')
-        # await page.click('text=Lançar Despesa')
-        
-        for i, d in enumerate(despesas):
-            print(f"Lançando despesa {i+1}/{len(despesas)}: {d['descricao']}")
-            # AJUSTE os seletores abaixo conforme a tela do SIT:
-            # await page.fill('#descricao', d['descricao'])
-            # await page.fill('#valor', str(d['valor']))
-            # await page.fill('#data', d['data'])
-            # await page.fill('#fornecedor', d['fornecedor'])
-            # await page.fill('#cnpj_cpf', d['cnpj_cpf'])
-            # await page.fill('#numero_documento', d['numero_documento'])
-            # await page.click('button[type="submit"]')
-            # await page.wait_for_load_state("networkidle")
-            pass
-        
-        print(f"\\n{len(despesas)} despesas processadas!")
-        await browser.close()
-
-if __name__ == "__main__":
-    asyncio.run(main())
-`;
-    const blob = new Blob([script], { type: "text/x-python" });
+  // === EXPORTAR SIT (Despesa.txt) ===
+  const generateDespesaTxt = () => {
+    if (!despesas.length) { toast.error("Nenhuma despesa para exportar"); return; }
+    const lines = despesas.map(d => {
+      const tipoLabel = TIPOS_DOCUMENTO.find(t => t.value === d.tipo_documento)?.label || d.tipo_documento || "";
+      return [
+        d.codigo_lancamento || "",
+        d.data_lancamento ? format(new Date(d.data_lancamento + "T12:00:00"), "dd/MM/yyyy") : "",
+        Number(d.valor).toFixed(2),
+        d.cnpj_cpf?.replace(/\D/g, "") || "",
+        tipoLabel,
+        d.numero_documento || "",
+        (d.descricao || "").replace(/\|/g, " "),
+      ].join("|");
+    });
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `rpa_sit_${mesRef}.py`;
+    a.download = sysEloFileName("Despesa", "txt", mesRef);
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Script RPA baixado");
+    toast.success(`${despesas.length} despesas exportadas para SIT`);
   };
 
   const severityIcon = (s: string) => {
@@ -533,8 +484,8 @@ if __name__ == "__main__":
             {rcaLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
             Gerar RCA
           </Button>
-          <Button variant="outline" size="sm" onClick={generateRPAScript} className="gap-1">
-            <FileText className="h-3 w-3" />Script RPA
+          <Button variant="outline" size="sm" onClick={generateDespesaTxt} className="gap-1">
+            <Download className="h-3 w-3" />Exportar SIT
           </Button>
         </div>
       </div>
