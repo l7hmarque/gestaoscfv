@@ -828,14 +828,19 @@ export default function FinanceiroPage() {
                       </Select>
                     </div>
                   </div>
-                  <div><Label className="text-xs">Status SIT</Label>
-                    <Select value={editDesp.status_sit || "pendente"} onValueChange={v => setEditDesp(p => p ? { ...p, status_sit: v } : p)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pendente">Pendente</SelectItem>
-                        <SelectItem value="lancado">Lançado</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div><Label className="text-xs">Comprovante de Pagamento (URL)</Label>
+                    <Input value={editDesp.comprovante_url || ""} onChange={e => setEditDesp(p => p ? { ...p, comprovante_url: e.target.value } : p)} placeholder="URL do comprovante" />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {editDesp.comprovante_url ? "✓ Comprovante anexado — Status: Pago" : "⏳ Sem comprovante — Status: Aguardando Pagamento"}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label className="text-xs">Nota Fiscal (URL)</Label>
+                      <Input value={editDesp.nota_url || ""} onChange={e => setEditDesp(p => p ? { ...p, nota_url: e.target.value } : p)} placeholder="URL da NF" />
+                    </div>
+                    <div><Label className="text-xs">Boleto (URL)</Label>
+                      <Input value={editDesp.boleto_url || ""} onChange={e => setEditDesp(p => p ? { ...p, boleto_url: e.target.value } : p)} placeholder="URL do boleto" />
+                    </div>
                   </div>
                   <Button onClick={updateDespesa} className="w-full" disabled={editSaving}>
                     {editSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
