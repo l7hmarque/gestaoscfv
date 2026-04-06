@@ -1730,6 +1730,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      find_fuzzy_participant: {
+        Args: { _data_nascimento: string; _nome: string }
+        Returns: {
+          id: string
+          nome_completo: string
+          sim: number
+        }[]
+      }
       find_similar_participants: {
         Args: never
         Returns: {
