@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
       case "turmas": {
         const { data } = await supabaseAdmin
           .from("turma_participantes")
-          .select("turma_id, turmas:turma_id(id, nome, periodo, dias_semana, oficina, educador_id, profiles:educador_id(nome))")
+          .select("turma_id, turmas:turma_id(id, nome, nome_grupo, periodo, dias_semana, oficina, educador_id, profiles:educador_id(nome))")
           .eq("participante_id", participante_id);
         return respond({ turmas: (data || []).map((tp: any) => tp.turmas).filter(Boolean) });
       }
@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
           .eq("participante_id", participante_id)
           .gte("data", `${mesAnterior}-01`);
 
-        const stats = { mesAtual: { total: 0, presentes: 0 }, mesAnterior: { total: 0, presentes: 0 } };
+        const stats: any = { mesAtual: { total: 0, presentes: 0 }, mesAnterior: { total: 0, presentes: 0 }, ultima_presenca: null };
         for (const p of presencas || []) {
           const mes = p.data.substring(0, 7);
           if (mes === mesAtual) {
@@ -74,7 +74,24 @@ Deno.serve(async (req) => {
             stats.mesAnterior.total++;
             if (p.presente) stats.mesAnterior.presentes++;
           }
+          if (p.presente && (!stats.ultima_presenca || p.data > stats.ultima_presenca)) {
+            stats.ultima_presenca = p.data;
+          }
         }
+
+        // Also check for the absolute last presence if not in the 2-month window
+        if (!stats.ultima_presenca) {
+          const { data: lastP } = await supabaseAdmin
+            .from("presenca")
+            .select("data")
+            .eq("participante_id", participante_id)
+            .eq("presente", true)
+            .order("data", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (lastP) stats.ultima_presenca = lastP.data;
+        }
+
         return respond({ presenca: stats });
       }
 

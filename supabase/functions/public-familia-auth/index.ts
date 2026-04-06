@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     // 1. Exact match
     const { data: exactMatch } = await supabaseAdmin
       .from("participantes")
-      .select("id, nome_completo, data_nascimento, genero, foto_url, status, periodo, bairro_id, ponto_transporte_id, responsavel1_nome, responsavel2_nome, escola, serie, endereco_bairro, bairros:bairro_id(id, nome), pontos_transporte:ponto_transporte_id(id, nome, horario_manha, horario_tarde, bairro_id, bairros:bairro_id(nome))")
+      .select("id, nome_completo, data_nascimento, genero, foto_url, status, periodo, bairro_id, ponto_transporte_id, responsavel1_nome, responsavel2_nome, escola, serie, endereco_bairro, iniciou_em, bairros:bairro_id(id, nome), pontos_transporte:ponto_transporte_id(id, nome, horario_manha, horario_tarde, bairro_id, bairros:bairro_id(nome))")
       .ilike("nome_completo", nomePadronizado)
       .eq("data_nascimento", data_nascimento)
       .in("status", ["ativo", "pendente"])
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
         const best = fuzzyResults[0];
         const { data: fullPart } = await supabaseAdmin
           .from("participantes")
-          .select("id, nome_completo, data_nascimento, genero, foto_url, status, periodo, bairro_id, ponto_transporte_id, responsavel1_nome, responsavel2_nome, escola, serie, endereco_bairro, bairros:bairro_id(id, nome), pontos_transporte:ponto_transporte_id(id, nome, horario_manha, horario_tarde, bairro_id, bairros:bairro_id(nome))")
+          .select("id, nome_completo, data_nascimento, genero, foto_url, status, periodo, bairro_id, ponto_transporte_id, responsavel1_nome, responsavel2_nome, escola, serie, endereco_bairro, iniciou_em, bairros:bairro_id(id, nome), pontos_transporte:ponto_transporte_id(id, nome, horario_manha, horario_tarde, bairro_id, bairros:bairro_id(nome))")
           .eq("id", best.id)
           .single();
 
@@ -94,7 +94,7 @@ async function findSiblings(supabase: any, participante: any) {
 
   const { data } = await supabase
     .from("participantes")
-    .select("id, nome_completo, data_nascimento, genero, foto_url, status, periodo, bairro_id, ponto_transporte_id, responsavel1_nome, responsavel2_nome, escola, serie, endereco_bairro, bairros:bairro_id(id, nome), pontos_transporte:ponto_transporte_id(id, nome, horario_manha, horario_tarde, bairro_id, bairros:bairro_id(nome))")
+    .select("id, nome_completo, data_nascimento, genero, foto_url, status, periodo, bairro_id, ponto_transporte_id, responsavel1_nome, responsavel2_nome, escola, serie, endereco_bairro, iniciou_em, bairros:bairro_id(id, nome), pontos_transporte:ponto_transporte_id(id, nome, horario_manha, horario_tarde, bairro_id, bairros:bairro_id(nome))")
     .neq("id", participante.id)
     .in("status", ["ativo", "pendente"])
     .or(`responsavel1_nome.ilike.${respNome},responsavel2_nome.ilike.${respNome}`);
@@ -114,6 +114,7 @@ function buildSafe(p: any) {
     escola: p.escola,
     serie: p.serie,
     endereco_bairro: p.endereco_bairro,
+    iniciou_em: p.iniciou_em || null,
     bairro_nome: p.bairros?.nome || null,
     ponto_transporte: p.pontos_transporte ? {
       id: p.pontos_transporte.id,
