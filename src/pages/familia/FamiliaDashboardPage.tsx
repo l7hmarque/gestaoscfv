@@ -91,6 +91,19 @@ export default function FamiliaDashboardPage() {
   const periodoLabel = p.periodo === "manha" ? "Manhã" : p.periodo === "tarde" ? "Tarde" : p.periodo === "integral" ? "Integral" : null;
   const grupoNome = turmas.length > 0 ? turmas.map((t: any) => t.nome_grupo || t.nome).join(", ") : null;
 
+  // Dias de atividade (from turma dias_semana)
+  const allDias = turmas.flatMap((t: any) => t.dias_semana || []);
+  const diasUnicos = [...new Set(allDias)];
+  const diasAtividade = diasUnicos.length > 0 ? diasUnicos.join(", ") : null;
+
+  // Horário do ônibus
+  const horarioOnibus = p.ponto_transporte
+    ? [
+        p.ponto_transporte.horario_manha ? `Manhã: ${p.ponto_transporte.horario_manha}` : null,
+        p.ponto_transporte.horario_tarde ? `Tarde: ${p.ponto_transporte.horario_tarde}` : null,
+      ].filter(Boolean).join(" · ") || null
+    : null;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
       {/* Header */}
