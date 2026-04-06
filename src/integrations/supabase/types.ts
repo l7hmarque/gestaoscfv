@@ -443,6 +443,92 @@ export type Database = {
           },
         ]
       }
+      formulario_respostas: {
+        Row: {
+          created_at: string
+          formulario_id: string
+          id: string
+          participante_id: string
+          responsavel_nome: string | null
+          respostas: Json
+        }
+        Insert: {
+          created_at?: string
+          formulario_id: string
+          id?: string
+          participante_id: string
+          responsavel_nome?: string | null
+          respostas?: Json
+        }
+        Update: {
+          created_at?: string
+          formulario_id?: string
+          id?: string
+          participante_id?: string
+          responsavel_nome?: string | null
+          respostas?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formulario_respostas_formulario_id_fkey"
+            columns: ["formulario_id"]
+            isOneToOne: false
+            referencedRelation: "formularios_familia"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formulario_respostas_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "participantes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      formularios_familia: {
+        Row: {
+          ativo: boolean
+          campos: Json
+          created_at: string
+          criado_por: string | null
+          descricao: string | null
+          destinatario_ids: string[] | null
+          id: string
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          ativo?: boolean
+          campos?: Json
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          destinatario_ids?: string[] | null
+          id?: string
+          tipo?: string
+          titulo: string
+        }
+        Update: {
+          ativo?: boolean
+          campos?: Json
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          destinatario_ids?: string[] | null
+          id?: string
+          tipo?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formularios_familia_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mural_posts: {
         Row: {
           autor_id: string
