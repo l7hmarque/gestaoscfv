@@ -61,6 +61,9 @@ const TurmaDetalhePage = () => {
   const [alerts, setAlerts] = useState<Record<string, AlertInfo>>({});
   const [memberStats, setMemberStats] = useState<Record<string, { pctFreq: number; lastDate: string | null }>>({});
   const [participantesData, setParticipantesData] = useState<Record<string, any>>({});
+  const [listaOpen, setListaOpen] = useState(false);
+  const [listaMes, setListaMes] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
+  const [listaAno, setListaAno] = useState(String(new Date().getFullYear()));
   const [dashboard, setDashboard] = useState<TurmaDashboard>({ taxaAdesao: 0, totalPresencas: 0, totalRegistros: 0, medianElo: 0, stdElo: 0, eloCount: 0 });
   const [linkedPlans, setLinkedPlans] = useState<LinkedPlan[]>([]);
   const [linkedReports, setLinkedReports] = useState<LinkedReport[]>([]);
