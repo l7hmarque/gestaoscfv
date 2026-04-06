@@ -12,13 +12,17 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Plus, Trash2, DollarSign, Receipt, Undo2, Layers,
-  Upload, FileText, ShieldCheck, Download, Loader2, AlertTriangle, CheckCircle2, Info, ListPlus, ClipboardList, FolderOpen, Paperclip
+  Upload, FileText, ShieldCheck, Download, Loader2, AlertTriangle, CheckCircle2, Info, ListPlus, ClipboardList, FolderOpen, Paperclip, FileSpreadsheet
 } from "lucide-react";
 import OrcamentosTab from "./OrcamentosTab";
 import DocumentosPrestacaoTab from "./DocumentosPrestacaoTab";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { sysEloFileName } from "@/lib/fileNaming";
+import * as XLSX from "xlsx-js-style";
+import { saveAs } from "file-saver";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 type Categoria = { id: string; codigo: string; descricao: string; valor_previsto: number; created_at: string };
 type Parcela = { id: string; numero_parcela: number; valor: number; data_recebimento: string; created_at: string };
