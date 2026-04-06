@@ -224,7 +224,7 @@ export default function FinanceiroPage() {
       cnpj_cpf: editDesp.cnpj_cpf || null,
       numero_documento: editDesp.numero_documento || null,
       tipo_documento: editDesp.tipo_documento || "nota_fiscal",
-      status_sit: editDesp.status_sit || "pendente",
+      status_sit: editDesp.comprovante_url ? "pago" : "aguardando_pagamento",
     };
 
     const { error } = await supabase.from("despesas").update(updatePayload).eq("id", editDesp.id);
