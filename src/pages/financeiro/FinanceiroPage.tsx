@@ -202,6 +202,28 @@ export default function FinanceiroPage() {
     load();
   };
 
+  const updateDespesa = async () => {
+    if (!editDesp) return;
+    setEditSaving(true);
+    const { error } = await supabase.from("despesas").update({
+      codigo_lancamento: editDesp.codigo_lancamento || null,
+      descricao: editDesp.descricao,
+      valor: Number(editDesp.valor),
+      data_lancamento: editDesp.data_lancamento,
+      categoria_id: editDesp.categoria_id || null,
+      fornecedor: editDesp.fornecedor || null,
+      cnpj_cpf: editDesp.cnpj_cpf || null,
+      numero_documento: editDesp.numero_documento || null,
+      tipo_documento: editDesp.tipo_documento || "nota_fiscal",
+      status_sit: editDesp.status_sit || "pendente",
+    }).eq("id", editDesp.id);
+    setEditSaving(false);
+    if (error) { toast.error("Erro ao atualizar"); return; }
+    toast.success("Despesa atualizada");
+    setEditDesp(null);
+    load();
+  };
+
   const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   // Build month options
