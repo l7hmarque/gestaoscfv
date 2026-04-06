@@ -474,7 +474,7 @@ export default function FinanceiroPage() {
   };
 
   // === PRESTAÇÃO DE CONTAS ===
-  const [pcLoading, setPcLoading] = useState(false);
+  
 
   const generatePrestacaoContas = async (formato: "pdf" | "xlsx") => {
     setPcLoading(true);
