@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Upload, Search, Filter, Eye, Bell, Check, X } from "lucide-react";
+import { Plus, Upload, Search, Filter, Eye, Bell, Check, X, AlertTriangle, Merge, ChevronDown, ChevronUp } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,17 @@ const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Deslig
 const statusColor: Record<string, string> = { ativo: "bg-green-100 text-green-800", desligado: "bg-red-100 text-red-800", incompleto: "bg-yellow-100 text-yellow-800", pendente: "bg-blue-100 text-blue-800" };
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 
+interface DuplicatePair {
+  id1: string;
+  nome1: string;
+  status1: string;
+  id2: string;
+  nome2: string;
+  status2: string;
+  data_nascimento: string;
+  similaridade: number;
+}
+
 const ParticipantesPage = () => {
   const navigate = useNavigate();
   const [participantes, setParticipantes] = useState<Tables<"participantes">[]>([]);
@@ -28,9 +39,13 @@ const ParticipantesPage = () => {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [periodoFilter, setPeriodoFilter] = useState<string>("");
   const [bairroFilter, setBairroFilter] = useState<string>("");
+  const [duplicatas, setDuplicatas] = useState<DuplicatePair[]>([]);
+  const [showDuplicatas, setShowDuplicatas] = useState(false);
+  const [merging, setMerging] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
+    fetchDuplicatas();
   }, []);
 
   const fetchData = async () => {
@@ -42,6 +57,42 @@ const ParticipantesPage = () => {
     setParticipantes(p || []);
     setBairros(b || []);
     setLoading(false);
+  };
+
+  const fetchDuplicatas = async () => {
+    try {
+      const { data } = await supabase.rpc("find_similar_participants" as any);
+      setDuplicatas((data as DuplicatePair[] | null) || []);
+    } catch {
+      // pg_trgm not available or function not found
+    }
+  };
+
+  const handleMerge = async (keepId: string, removeId: string) => {
+    if (guardDemo(isDemo)) return;
+    setMerging(removeId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { toast.error("Sessão expirada"); return; }
+
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/merge-participantes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ keep_id: keepId, remove_id: removeId }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+      toast.success(result.message || "Participantes mesclados!");
+      fetchData();
+      fetchDuplicatas();
+    } catch (err: any) {
+      toast.error("Erro ao mesclar: " + (err.message || "Tente novamente"));
+    }
+    setMerging(null);
   };
 
   const hasFilters = statusFilter || periodoFilter || bairroFilter;
@@ -113,6 +164,79 @@ const ParticipantesPage = () => {
             )}
           </div>
         </button>
+      )}
+
+      {/* Duplicatas banner */}
+      {duplicatas.length > 0 && (
+        <div className="border border-yellow-300 bg-yellow-50 rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowDuplicatas(!showDuplicatas)}
+            className="w-full flex items-center gap-3 p-3 text-left hover:bg-yellow-100 transition-colors"
+          >
+            <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-yellow-800">
+                {duplicatas.length} possível(is) duplicata(s) encontrada(s)
+              </p>
+              <p className="text-xs text-yellow-600">Nomes similares com mesma data de nascimento</p>
+            </div>
+            {showDuplicatas ? <ChevronUp className="h-4 w-4 text-yellow-600" /> : <ChevronDown className="h-4 w-4 text-yellow-600" />}
+          </button>
+
+          {showDuplicatas && (
+            <div className="border-t border-yellow-200 p-3 space-y-3">
+              {duplicatas.map((d, i) => (
+                <div key={i} className="bg-white rounded-md border border-yellow-200 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="secondary" className="text-[10px]">
+                      {Math.round(d.similaridade * 100)}% similar
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      Nascimento: {new Date(d.data_nascimento + "T12:00:00").toLocaleDateString("pt-BR")}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-2 items-center">
+                    <div className="text-sm">
+                      <p className="font-medium">{d.nome1}</p>
+                      <Badge variant="secondary" className={`text-[10px] mt-1 ${statusColor[d.status1]}`}>
+                        {statusLabel[d.status1]}
+                      </Badge>
+                    </div>
+                    <div className="flex gap-1 justify-center">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 gap-1"
+                        disabled={merging === d.id2}
+                        onClick={() => handleMerge(d.id1, d.id2)}
+                      >
+                        <Merge className="h-3 w-3" />
+                        ← Manter
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 gap-1"
+                        disabled={merging === d.id1}
+                        onClick={() => handleMerge(d.id2, d.id1)}
+                      >
+                        Manter →
+                        <Merge className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="text-sm text-right">
+                      <p className="font-medium">{d.nome2}</p>
+                      <Badge variant="secondary" className={`text-[10px] mt-1 ${statusColor[d.status2]}`}>
+                        {statusLabel[d.status2]}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       <div className="flex items-center justify-between">
