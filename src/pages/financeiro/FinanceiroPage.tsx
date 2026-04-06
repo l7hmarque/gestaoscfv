@@ -673,6 +673,7 @@ if __name__ == "__main__":
               )}
             </DialogContent>
           </Dialog>
+        </TabsContent>
 
         {/* =================== PARCELAS =================== */}
         <TabsContent value="parcelas">
