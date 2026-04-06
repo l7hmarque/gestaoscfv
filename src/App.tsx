@@ -31,6 +31,9 @@ import DashboardPage from "./pages/dashboard/DashboardPage";
 import ProfissionalPerfilPage from "./pages/profissional/ProfissionalPerfilPage";
 import DevPage from "./pages/dev/DevPage";
 import MatriculaPublicaPage from "./pages/matricula/MatriculaPublicaPage";
+import FamiliaLoginPage from "./pages/familia/FamiliaLoginPage";
+import FamiliaDashboardPage from "./pages/familia/FamiliaDashboardPage";
+import FormularioRespostaPage from "./pages/familia/FormularioRespostaPage";
 import MuralPage from "./pages/mural/MuralPage";
 import FeedPage from "./pages/feed/FeedPage";
 import EquipeTecnicaPage from "./pages/equipe-tecnica/EquipeTecnicaPage";
@@ -93,6 +96,9 @@ const App = () => (
               </Route>
               <Route path="/dev" element={<DevPage />} />
               <Route path="/matricula" element={<MatriculaPublicaPage />} />
+              <Route path="/familia" element={<FamiliaLoginPage />} />
+              <Route path="/familia/painel" element={<FamiliaDashboardPage />} />
+              <Route path="/familia/formulario/:id" element={<FormularioRespostaPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>
