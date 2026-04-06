@@ -91,6 +91,19 @@ export default function FamiliaDashboardPage() {
   const periodoLabel = p.periodo === "manha" ? "Manhã" : p.periodo === "tarde" ? "Tarde" : p.periodo === "integral" ? "Integral" : null;
   const grupoNome = turmas.length > 0 ? turmas.map((t: any) => t.nome_grupo || t.nome).join(", ") : null;
 
+  // Dias de atividade (from turma dias_semana)
+  const allDias = turmas.flatMap((t: any) => t.dias_semana || []);
+  const diasUnicos = [...new Set(allDias)];
+  const diasAtividade = diasUnicos.length > 0 ? diasUnicos.join(", ") : null;
+
+  // Horário do ônibus
+  const horarioOnibus = p.ponto_transporte
+    ? [
+        p.ponto_transporte.horario_manha ? `Manhã: ${p.ponto_transporte.horario_manha}` : null,
+        p.ponto_transporte.horario_tarde ? `Tarde: ${p.ponto_transporte.horario_tarde}` : null,
+      ].filter(Boolean).join(" · ") || null
+    : null;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
       {/* Header */}
@@ -140,42 +153,40 @@ export default function FamiliaDashboardPage() {
                   <div className="flex-1 min-w-0">
                     <h2 className="font-bold text-lg text-foreground leading-tight">{p.nome_completo}</h2>
                     <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
-                      {p.bairro_nome && (
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span>Bairro: <span className="text-foreground font-medium">{p.bairro_nome}</span></span>
-                        </div>
-                      )}
-                      {grupoNome && (
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          <Users className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span>Grupo: <span className="text-foreground font-medium">{grupoNome}</span></span>
-                        </div>
-                      )}
-                      {periodoLabel && (
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          <Clock className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span>Período: <span className="text-foreground font-medium">{periodoLabel}</span></span>
-                        </div>
-                      )}
-                      {p.iniciou_em && (
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span>Início: <span className="text-foreground font-medium">{format(parseISO(p.iniciou_em), "dd/MM/yyyy")}</span></span>
-                        </div>
-                      )}
-                      {presenca?.ultima_presenca && (
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          <CalendarCheck className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span>Última presença: <span className="text-foreground font-medium">{format(parseISO(presenca.ultima_presenca), "dd/MM/yyyy")}</span></span>
-                        </div>
-                      )}
-                      {pctAtual !== null && (
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          <Percent className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span>Frequência: <span className={`font-bold ${pctAtual >= 75 ? "text-green-600" : pctAtual >= 50 ? "text-amber-600" : "text-red-600"}`}>{pctAtual}%</span> <span className="text-xs">({presenca.mesAtual.presentes}/{presenca.mesAtual.total})</span></span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span>Bairro: <span className="text-foreground font-medium">{p.bairro_nome || "Sem dados"}</span></span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Users className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span>Grupo: <span className="text-foreground font-medium">{grupoNome || "Sem dados"}</span></span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span>Período: <span className="text-foreground font-medium">{periodoLabel || "Sem dados"}</span></span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span>Início: <span className="text-foreground font-medium">{p.iniciou_em ? format(parseISO(p.iniciou_em), "dd/MM/yyyy") : "Sem dados"}</span></span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <CalendarCheck className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span>Última presença: <span className="text-foreground font-medium">{presenca?.ultima_presenca ? format(parseISO(presenca.ultima_presenca), "dd/MM/yyyy") : "Sem dados"}</span></span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Percent className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span>Frequência: {pctAtual !== null ? (
+                          <><span className={`font-bold ${pctAtual >= 75 ? "text-green-600" : pctAtual >= 50 ? "text-amber-600" : "text-red-600"}`}>{pctAtual}%</span> <span className="text-xs">({presenca.mesAtual.presentes}/{presenca.mesAtual.total})</span></>
+                        ) : <span className="text-foreground font-medium">Sem dados</span>}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground col-span-2">
+                        <BookOpen className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span>Dias de atividade: <span className="text-foreground font-medium">{diasAtividade || "Sem dados"}</span></span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground col-span-2">
+                        <Clock className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span>Horário do ônibus: <span className="text-foreground font-medium">{horarioOnibus || "Sem dados"}</span></span>
+                      </div>
                     </div>
                   </div>
                 </div>
