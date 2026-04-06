@@ -779,8 +779,11 @@ export default function FinanceiroPage() {
                       <TableCell className="text-xs text-right font-medium">{fmt(Number(d.valor))}</TableCell>
                       <TableCell className="text-xs">{d.data_lancamento}</TableCell>
                       <TableCell className="text-xs">
-                        <Badge variant={(d as any).status_sit === "lancado" ? "default" : "secondary"} className="text-[10px]">
-                          {(d as any).status_sit || "pendente"}
+                        <Badge 
+                          variant={d.comprovante_url ? "default" : "secondary"} 
+                          className={`text-[10px] ${d.comprovante_url ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-500 hover:bg-amber-600 text-white"}`}
+                        >
+                          {d.comprovante_url ? "Pago ✓" : "Aguardando ⏳"}
                         </Badge>
                       </TableCell>
                       <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); deleteRow("despesas", d.id); }}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
