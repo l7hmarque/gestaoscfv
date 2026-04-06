@@ -136,6 +136,36 @@ export type Database = {
           },
         ]
       }
+      despesa_historico: {
+        Row: {
+          alterado_por: string | null
+          campo: string
+          created_at: string
+          despesa_id: string
+          id: string
+          valor_anterior: string | null
+          valor_novo: string | null
+        }
+        Insert: {
+          alterado_por?: string | null
+          campo: string
+          created_at?: string
+          despesa_id: string
+          id?: string
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Update: {
+          alterado_por?: string | null
+          campo?: string
+          created_at?: string
+          despesa_id?: string
+          id?: string
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Relationships: []
+      }
       despesas: {
         Row: {
           boleto_url: string | null
