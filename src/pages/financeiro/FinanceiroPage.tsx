@@ -204,8 +204,11 @@ export default function FinanceiroPage() {
 
   const updateDespesa = async () => {
     if (!editDesp) return;
+    const originalDesp = despesas.find(d => d.id === editDesp.id);
+    if (!originalDesp) return;
     setEditSaving(true);
-    const { error } = await supabase.from("despesas").update({
+
+    const updatePayload = {
       codigo_lancamento: editDesp.codigo_lancamento || null,
       descricao: editDesp.descricao,
       valor: Number(editDesp.valor),
@@ -216,12 +219,77 @@ export default function FinanceiroPage() {
       numero_documento: editDesp.numero_documento || null,
       tipo_documento: editDesp.tipo_documento || "nota_fiscal",
       status_sit: editDesp.status_sit || "pendente",
-    }).eq("id", editDesp.id);
+    };
+
+    const { error } = await supabase.from("despesas").update(updatePayload).eq("id", editDesp.id);
+    if (error) { setEditSaving(false); toast.error("Erro ao atualizar"); return; }
+
+    // --- Registrar histórico de alterações ---
+    const fieldsToTrack: { key: keyof Despesa; label: string }[] = [
+      { key: "descricao", label: "Descrição" },
+      { key: "valor", label: "Valor" },
+      { key: "data_lancamento", label: "Data" },
+      { key: "categoria_id", label: "Categoria" },
+      { key: "fornecedor", label: "Fornecedor" },
+      { key: "cnpj_cpf", label: "CNPJ/CPF" },
+      { key: "numero_documento", label: "Nº Documento" },
+      { key: "tipo_documento", label: "Tipo Documento" },
+      { key: "status_sit", label: "Status SIT" },
+      { key: "codigo_lancamento", label: "Código" },
+    ];
+    const changes: { despesa_id: string; campo: string; valor_anterior: string | null; valor_novo: string | null }[] = [];
+    for (const f of fieldsToTrack) {
+      const oldVal = String(originalDesp[f.key] ?? "");
+      const newVal = String((editDesp as any)[f.key] ?? "");
+      if (oldVal !== newVal) {
+        changes.push({
+          despesa_id: editDesp.id,
+          campo: f.label,
+          valor_anterior: originalDesp[f.key] != null ? oldVal : null,
+          valor_novo: (editDesp as any)[f.key] != null ? newVal : null,
+        });
+      }
+    }
+    if (changes.length > 0) {
+      await supabase.from("despesa_historico").insert(changes as any);
+    }
+
+    // --- Sync orçamento vinculado ---
+    const orcId = (editDesp as any).orcamento_id;
+    if (orcId) {
+      const orcUpdate: Record<string, any> = {};
+      if (Number(editDesp.valor) !== Number(originalDesp.valor)) {
+        // nada automático no valor do orçamento, mas mudamos fornecedor se mudou
+      }
+      if (editDesp.fornecedor !== originalDesp.fornecedor) {
+        orcUpdate.fornecedor_vencedor = editDesp.fornecedor || null;
+      }
+      if (editDesp.cnpj_cpf !== originalDesp.cnpj_cpf) {
+        orcUpdate.cnpj_vencedor = editDesp.cnpj_cpf || null;
+      }
+      if (editDesp.categoria_id !== originalDesp.categoria_id) {
+        orcUpdate.categoria_id = editDesp.categoria_id || null;
+      }
+      if (Object.keys(orcUpdate).length > 0) {
+        await supabase.from("orcamentos").update(orcUpdate).eq("id", orcId);
+      }
+    }
+
     setEditSaving(false);
-    if (error) { toast.error("Erro ao atualizar"); return; }
-    toast.success("Despesa atualizada");
     setEditDesp(null);
     load();
+
+    // --- Toast com links de exportação ---
+    toast.success("Despesa atualizada", {
+      description: changes.length > 0
+        ? `${changes.length} campo(s) alterado(s). Documentos de prestação de contas podem estar desatualizados.`
+        : undefined,
+      duration: 8000,
+      action: {
+        label: "Gerar RCA",
+        onClick: () => generateRCA(),
+      },
+    });
   };
 
   const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
