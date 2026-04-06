@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, UserPlus, Trash2, Pencil, Save, AlertTriangle, FileText, TrendingUp, Users, BarChart3, ClipboardList, Calendar as CalendarIcon } from "lucide-react";
+import { ArrowLeft, UserPlus, Trash2, Pencil, Save, AlertTriangle, FileText, TrendingUp, Users, BarChart3, ClipboardList, Calendar as CalendarIcon, FileSpreadsheet, Download } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,9 @@ import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx-js-style";
+import { saveAs } from "file-saver";
+import { sysEloFileName } from "@/lib/fileNaming";
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const faixaLabel: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
