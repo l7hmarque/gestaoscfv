@@ -88,7 +88,6 @@ const App = () => (
                 <Route path="/turmas/nova" element={<TurmaNovaPage />} />
                 <Route path="/turmas/:id" element={<TurmaDetalhePage />} />
                 <Route path="/presenca" element={<PresencaPage />} />
-                <Route path="/presenca/historico" element={<PresencaHistoricoPage />} />
                 <Route path="/presenca/exportar" element={<PresencaExportarPage />} />
                 <Route path="/planejamentos" element={<PlanejamentosPage />} />
                 <Route path="/planejamentos/novo" element={<PlanejamentoNovoPage />} />
