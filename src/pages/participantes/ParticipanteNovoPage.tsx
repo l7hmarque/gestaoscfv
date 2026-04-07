@@ -389,7 +389,7 @@ const ParticipanteNovoPage = () => {
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={scanner.addPageToScan}><Plus className="h-3.5 w-3.5 mr-1"Adicionar Página</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={scanner.addPageToScan}><Plus className="h-3.5 w-3.5 mr-1" />Adicionar Página</Button>
                   {scanner.scanSession.pages.length > 0 && (
                     <Button type="button" size="sm" onClick={handleFinalizeScan}><Check className="h-3.5 w-3.5 mr-1"Finalizar Scan</Button>
                   )}
