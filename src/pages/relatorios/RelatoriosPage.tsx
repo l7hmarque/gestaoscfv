@@ -132,8 +132,16 @@ const RelatoriosPage = () => {
   const handleBulkDelete = async () => {
     const ids = Array.from(bulkSelected);
     if (ids.length === 0) return;
+    if (!bulkJustificativa.trim()) { toast.error("Informe a justificativa"); return; }
     setBulkDeleting(true);
     try {
+      await auditLog({
+        acao: "exclusão em lote",
+        tabela: "relatorios_atividade",
+        registro_id: ids.join(","),
+        detalhes: `${ids.length} relatório(s) excluído(s)`,
+        justificativa: bulkJustificativa.trim(),
+      });
       await Promise.all([
         supabase.from("relatorio_presenca").delete().in("relatorio_id", ids),
         supabase.from("relatorio_fotos").delete().in("relatorio_id", ids),
@@ -146,6 +154,7 @@ const RelatoriosPage = () => {
       setBulkResults([]);
       setBulkSelected(new Set());
       setConfirmOpen(false);
+      setBulkJustificativa("");
       loadData();
     } catch (e: any) {
       toast.error(e.message || "Erro ao excluir");
