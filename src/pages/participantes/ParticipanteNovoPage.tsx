@@ -204,7 +204,7 @@ const ParticipanteNovoPage = () => {
   const renderField = (label: string, field: string, type = "text", placeholder = "", half = false) => (
     <div className={half ? "col-span-1" : "col-span-2"} key={field}>
       <Label className="text-xs font-medium">{label}</Label>
-      <Input type={type} value={(form as any)[field]} onChange={(e) => set(field, e.target.value)} placeholder={placeholder} className="h-9 text-sm mt-1)}
+      <Input type={type} value={(form as any)[field]} onChange={(e) => set(field, e.target.value)} placeholder={placeholder} className="h-9 text-sm mt-1"
     </div>
   );
 
@@ -213,7 +213,7 @@ const ParticipanteNovoPage = () => {
   return (
     <div className="space-y-4 max-w-4xl">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" asChild><Link to="/participantes"><ArrowLeft className="h-4 w-4)}</Link></Button>
+        <Button variant="ghost" size="icon" asChild><Link to="/participantes"><ArrowLeft className="h-4 w-4"</Link></Button>
         <h1 className="text-xl font-semibold text-foreground">Novo Participante</h1>
       </div>
 
@@ -223,12 +223,12 @@ const ParticipanteNovoPage = () => {
           <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Foto de Perfil</CardTitle></CardHeader>
           <CardContent className="flex items-center gap-4">
             <div className="w-24 h-24 rounded-full bg-muted border-2 border-dashed border-border flex items-center justify-center overflow-hidden">
-              {fotoPreview ? <img src={fotoPreview} alt="Preview" className="w-full h-full object-cover)} : <Image className="h-8 w-8 text-muted-foreground)}}
+              {fotoPreview ? <img src={fotoPreview} alt="Preview" className="w-full h-full object-cover" : <Image className="h-8 w-8 text-muted-foreground"}
             </div>
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="h-3.5 w-3.5 mr-1)}Selecionar Foto</Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => cameraInputRef.current?.click()}><Camera className="h-3.5 w-3.5 mr-1)}Câmera</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="h-3.5 w-3.5 mr-1"Selecionar Foto</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => cameraInputRef.current?.click()}><Camera className="h-3.5 w-3.5 mr-1"Câmera</Button>
               </div>
               <p className="text-xs text-muted-foreground">JPG, PNG. Máx 5MB.</p>
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFotoSelect} />
@@ -379,9 +379,9 @@ const ParticipanteNovoPage = () => {
                   <div className="flex gap-2 flex-wrap">
                     {scanner.scanSession.pages.map((page, i) => (
                       <div key={i} className="relative group w-16 h-20 border rounded overflow-hidden">
-                        <img src={page.dataUrl} alt={`Página ${i+1}`} className="w-full h-full object-cover)}
+                        <img src={page.dataUrl} alt={`Página ${i+1}`} className="w-full h-full object-cover"
                         <button type="button" onClick={() => scanner.removePageFromScan(i)} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <X className="h-3 w-3)}
+                          <X className="h-3 w-3"
                         </button>
                         <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] text-center">{i+1}</span>
                       </div>
@@ -389,9 +389,9 @@ const ParticipanteNovoPage = () => {
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={scanner.addPageToScan}><Plus className="h-3.5 w-3.5 mr-1)}Adicionar Página</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={scanner.addPageToScan}><Plus className="h-3.5 w-3.5 mr-1"Adicionar Página</Button>
                   {scanner.scanSession.pages.length > 0 && (
-                    <Button type="button" size="sm" onClick={handleFinalizeScan}><Check className="h-3.5 w-3.5 mr-1)}Finalizar Scan</Button>
+                    <Button type="button" size="sm" onClick={handleFinalizeScan}><Check className="h-3.5 w-3.5 mr-1"Finalizar Scan</Button>
                   )}
                   <Button type="button" size="sm" variant="ghost" onClick={scanner.cancelScan}>Cancelar</Button>
                 </div>
@@ -420,10 +420,10 @@ const ParticipanteNovoPage = () => {
                       const globalIdx = pendingDocs.indexOf(doc);
                       return (
                         <div key={i} className="flex items-center gap-2 bg-muted/50 rounded p-1.5">
-                          <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0)}
+                          <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0"
                           <span className="text-[10px] truncate flex-1">{doc.fileName}</span>
                           <button type="button" onClick={() => removePendingDoc(globalIdx)} className="text-destructive hover:text-destructive/80">
-                            <X className="h-3 w-3)}
+                            <X className="h-3 w-3"
                           </button>
                         </div>
                       );
