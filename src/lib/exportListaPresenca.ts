@@ -124,9 +124,14 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   // Row 7: Table header
   rows.push(["Nº", "Nome do Participante", ...datas]);
 
-  // Data rows
-  sorted.forEach((m, i) => {
-    rows.push([i + 1, m.nome, ...datas.map(() => "")]);
+  // Data rows - desligados at bottom with strikethrough
+  const activeMembers = sorted.filter(m => !m.desligado);
+  const desligadoMembers = sorted.filter(m => m.desligado);
+  const orderedMembers = [...activeMembers, ...desligadoMembers];
+
+  orderedMembers.forEach((m, i) => {
+    const label = m.desligado ? `${m.nome} (D${m.data_desligamento ? " " + m.data_desligamento : ""})` : m.nome;
+    rows.push([i + 1, label, ...datas.map(() => m.desligado ? "—" : "")]);
   });
 
   // Blank row + signature
