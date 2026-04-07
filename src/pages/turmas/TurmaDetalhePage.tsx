@@ -252,13 +252,17 @@ const TurmaDetalhePage = () => {
     if (!turma) return;
     const mesNum = parseInt(listaMes);
     const anoNum = parseInt(listaAno);
-    const activeMems = members.filter(m => m.status !== "desligado").map(m => ({ nome: m.nome }));
+    const mems = members.map(m => ({
+      nome: m.nome,
+      desligado: m.status === "desligado",
+      data_desligamento: m.data_desligamento || null,
+    }));
     const turmaInfo = {
       ...turma,
       profiles: turma.profiles || undefined,
       bairros: turma.bairros || undefined,
     };
-    const ok = exportSingleListaPresenca(turmaInfo, activeMems, mesNum, anoNum);
+    const ok = exportSingleListaPresenca(turmaInfo, mems, mesNum, anoNum);
     if (!ok) { toast.error("Nenhuma data de atividade para este mês"); return; }
     toast.success("Lista de presença exportada!");
     setListaOpen(false);
@@ -420,7 +424,7 @@ const TurmaDetalhePage = () => {
       {/* Participantes da turma */}
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <CardTitle className="text-sm">Participantes ({members.length})</CardTitle>
+          <CardTitle className="text-sm">Participantes Ativos ({members.filter(m => m.status !== "desligado").length})</CardTitle>
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
               <Button size="sm" variant="outline"><UserPlus className="h-3.5 w-3.5 mr-1" /><span className="hidden sm:inline">Adicionar</span></Button>
@@ -442,8 +446,8 @@ const TurmaDetalhePage = () => {
           </Dialog>
         </CardHeader>
         <CardContent>
-          {members.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Nenhum participante nesta turma.</p>
+          {members.filter(m => m.status !== "desligado").length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Nenhum participante ativo nesta turma.</p>
           ) : (
             <div className="overflow-x-auto -mx-2 px-2">
               <TooltipProvider>
@@ -458,7 +462,7 @@ const TurmaDetalhePage = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {members.map((m) => {
+                    {members.filter(m => m.status !== "desligado").map((m) => {
                       const alert = alerts[m.participante_id];
                       const stats = memberStats[m.participante_id];
                       return (
@@ -466,9 +470,6 @@ const TurmaDetalhePage = () => {
                           <TableCell className="text-xs sm:text-sm">
                             <div className="flex items-center gap-1.5">
                               <Link to={`/participantes/${m.participante_id}`} className="hover:underline text-foreground">{m.nome}</Link>
-                              {m.status === "desligado" && (
-                                <Badge variant="secondary" className="text-[9px] bg-muted text-muted-foreground">Desligado{m.data_desligamento ? ` ${m.data_desligamento}` : ""}</Badge>
-                              )}
                               {alert && (
                                 <Tooltip>
                                   <TooltipTrigger>
@@ -505,6 +506,53 @@ const TurmaDetalhePage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Histórico: Desligados / Transferidos */}
+      {(() => {
+        const historicos = members.filter(m => m.status === "desligado");
+        if (historicos.length === 0) return null;
+        return (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                Desligados / Transferidos ({historicos.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto -mx-2 px-2">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="text-xs">Nome</TableHead>
+                      <TableHead className="text-xs">Data Deslig.</TableHead>
+                      <TableHead className="text-xs">Adesão até Deslig.</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {historicos.map(m => {
+                      const stats = memberStats[m.participante_id];
+                      return (
+                        <TableRow key={m.tp_id} className="hover:bg-muted/30 cursor-pointer" onClick={() => window.location.href = `/participantes/${m.participante_id}`}>
+                          <TableCell className="text-xs sm:text-sm text-muted-foreground line-through">
+                            {m.nome}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {m.data_desligamento ? format(new Date(m.data_desligamento + "T12:00:00"), "dd/MM/yyyy") : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {stats ? `${stats.pctFreq}%` : "—"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Dashboard */}
       {!editing && (

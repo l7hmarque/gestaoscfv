@@ -64,11 +64,11 @@ const PresencaPage = () => {
     const fetchParts = async () => {
       const { data } = await supabase
         .from("turma_participantes")
-        .select("participante_id, participantes(id, nome_completo, data_nascimento, bairro_id, periodo)")
+        .select("participante_id, participantes(id, nome_completo, data_nascimento, bairro_id, periodo, status)")
         .eq("turma_id", selectedTurma);
       if (data) {
         const list = data
-          .filter((d: any) => d.participantes)
+          .filter((d: any) => d.participantes && d.participantes.status !== "desligado")
           .map((d: any) => d.participantes)
           .sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo));
         setParticipantes(list);

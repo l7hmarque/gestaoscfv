@@ -18,6 +18,8 @@ interface TurmaInfo {
 
 interface MemberInfo {
   nome: string;
+  desligado?: boolean;
+  data_desligamento?: string | null;
 }
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
@@ -82,6 +84,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
   };
   const cellStyle = { border: borders, alignment: { vertical: "center" as const }, font: { sz: 8 } };
+  const cellStrikeStyle = { border: borders, alignment: { vertical: "center" as const }, font: { sz: 8, strike: true, color: { rgb: "999999" } } };
   const cellCenterStyle = { border: borders, alignment: { horizontal: "center" as const, vertical: "center" as const }, font: { sz: 8 } };
   const signStyle = {
     font: { sz: 9, italic: true },
@@ -121,14 +124,19 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   // Row 7: Table header
   rows.push(["Nº", "Nome do Participante", ...datas]);
 
-  // Data rows
-  sorted.forEach((m, i) => {
-    rows.push([i + 1, m.nome, ...datas.map(() => "")]);
+  // Data rows - desligados at bottom with strikethrough
+  const activeMembers = sorted.filter(m => !m.desligado);
+  const desligadoMembers = sorted.filter(m => m.desligado);
+  const orderedMembers = [...activeMembers, ...desligadoMembers];
+
+  orderedMembers.forEach((m, i) => {
+    const label = m.desligado ? `${m.nome} (D${m.data_desligamento ? " " + m.data_desligamento : ""})` : m.nome;
+    rows.push([i + 1, label, ...datas.map(() => m.desligado ? "—" : "")]);
   });
 
   // Blank row + signature
   rows.push([]);
-  const signRow = headerStartRow + 1 + sorted.length + 1;
+  const signRow = headerStartRow + 1 + orderedMembers.length + 1;
   rows.push(["", `Assinatura do(a) Educador(a): ${"_".repeat(60)}`]);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -156,8 +164,14 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
       else if (r === 5) ws[addr].s = infoStyle;
       else if (r === 6) ws[addr].s = { border: bordersLight, fill: { fgColor: { rgb: "FFFFFF" } } };
       else if (r === headerStartRow) ws[addr].s = hdrStyle;
-      else if (r > headerStartRow && r < headerStartRow + 1 + sorted.length) {
-        ws[addr].s = c === 0 ? cellCenterStyle : (c >= 2 ? cellCenterStyle : cellStyle);
+      else if (r > headerStartRow && r < headerStartRow + 1 + orderedMembers.length) {
+        const memberIdx = r - headerStartRow - 1;
+        const isDesligado = memberIdx >= activeMembers.length;
+        if (isDesligado) {
+          ws[addr].s = c === 0 ? { ...cellCenterStyle, font: { ...cellCenterStyle.font, strike: true, color: { rgb: "999999" } } } : (c >= 2 ? { ...cellCenterStyle, font: { ...cellCenterStyle.font, strike: true, color: { rgb: "999999" } } } : cellStrikeStyle);
+        } else {
+          ws[addr].s = c === 0 ? cellCenterStyle : (c >= 2 ? cellCenterStyle : cellStyle);
+        }
       } else if (r === signRow) {
         ws[addr].s = signStyle;
       } else {
@@ -176,7 +190,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   ws["!rows"][3] = { hpt: 22 };
   ws["!rows"][4] = { hpt: 22 };
   ws["!rows"][5] = { hpt: 16 };
-  for (let r = headerStartRow + 1; r < headerStartRow + 1 + sorted.length; r++) {
+  for (let r = headerStartRow + 1; r < headerStartRow + 1 + orderedMembers.length; r++) {
     ws["!rows"][r] = { hpt: 18 };
   }
 
