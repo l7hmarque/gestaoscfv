@@ -153,6 +153,20 @@ export default function FinanceiroPage() {
   const saldo = totalRecebido - totalDespesas + totalEstornos;
   const gastosPrevistos = despesas.filter(d => (d as any).orcamento_id && !d.comprovante_url && !d.nota_url && !d.boleto_url).reduce((s, d) => s + Number(d.valor), 0);
 
+  // Pipeline status helpers
+  const despStatus = (d: Despesa) => {
+    const hasNF = !!d.nota_url;
+    const hasBoleto = !!d.boleto_url;
+    const hasComprovante = !!d.comprovante_url;
+    if (hasComprovante) return "completa";
+    if (hasNF || hasBoleto) return "aguardando";
+    return "pendente";
+  };
+  const despCompletas = despesas.filter(d => despStatus(d) === "completa").length;
+  const despAguardando = despesas.filter(d => despStatus(d) === "aguardando").length;
+  const despPendentes = despesas.filter(d => despStatus(d) === "pendente").length;
+  const filteredDespesas = despFilter === "all" ? despesas : despesas.filter(d => despStatus(d) === despFilter);
+
   const addCategoria = async () => {
     if (!catForm.codigo || !catForm.descricao) return;
     const { error } = await supabase.from("categorias_financeiras").insert({
