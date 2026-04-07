@@ -635,23 +635,42 @@ export default function FinanceiroPage() {
               {monthOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={generateRCA} disabled={rcaLoading} className="gap-1">
-            {rcaLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-            Gerar RCA
-          </Button>
-          <Button variant="outline" size="sm" onClick={generateDespesaTxt} className="gap-1">
-            <Download className="h-3 w-3" />Exportar SIT
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => generatePrestacaoContas("pdf")} disabled={pcLoading} className="gap-1">
-            {pcLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
-            Prest. Contas (PDF)
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => generatePrestacaoContas("xlsx")} disabled={pcLoading} className="gap-1">
-            {pcLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileSpreadsheet className="h-3 w-3" />}
-            Prest. Contas (XLSX)
-          </Button>
         </div>
       </div>
+
+      {/* Relatórios & Exportações */}
+      <Card>
+        <CardContent className="pt-4">
+          <div className="flex flex-wrap gap-2">
+            <span className="text-xs font-medium text-muted-foreground self-center mr-1">Exportar:</span>
+            <Button variant="outline" size="sm" onClick={() => generateREO("docx")} disabled={reoLoading} className="gap-1">
+              {reoLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+              REO (DOCX)
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => generateREO("xlsx")} disabled={reoLoading} className="gap-1">
+              {reoLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileSpreadsheet className="h-3 w-3" />}
+              REO (XLSX)
+            </Button>
+            <div className="w-px h-6 bg-border self-center" />
+            <Button variant="outline" size="sm" onClick={() => generatePrestacaoContas("pdf")} disabled={pcLoading} className="gap-1">
+              {pcLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+              Prest. Contas (PDF)
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => generatePrestacaoContas("xlsx")} disabled={pcLoading} className="gap-1">
+              {pcLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileSpreadsheet className="h-3 w-3" />}
+              Prest. Contas (XLSX)
+            </Button>
+            <div className="w-px h-6 bg-border self-center" />
+            <Button variant="outline" size="sm" onClick={generateDespesaTxt} className="gap-1">
+              <Download className="h-3 w-3" />Exportar SIT
+            </Button>
+            <Button variant="outline" size="sm" onClick={generateRCA} disabled={rcaLoading} className="gap-1">
+              {rcaLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+              Gerar RCA
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
