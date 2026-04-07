@@ -427,7 +427,7 @@ const ParticipantesPage = () => {
                         <span>{p.nome_completo}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{calcAge(p.data_nascimento)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{displayAge(p.data_nascimento)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{bairroNome && BAIRROS_SCFV.includes(bairroNome) ? bairroNome : "—"}</TableCell>
                     <TableCell className="text-sm">{p.periodo ? periodoLabel[p.periodo] || p.periodo : "—"}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
