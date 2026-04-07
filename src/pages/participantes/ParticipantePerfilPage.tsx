@@ -31,8 +31,8 @@ const MOTIVOS_DESLIGAMENTO = [
   "Outro",
 ];
 
-const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto", pendente: "Pendente" };
-const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
+const statusLabel = STATUS_LABELS;
+const periodoLabel = PERIODO_LABELS;
 
 function calcFaixaEtaria(dataNasc: string | null): string {
   if (!dataNasc) return "—";
