@@ -211,9 +211,22 @@ export default function FinanceiroPage() {
     load();
   };
 
-  const deleteRow = async (table: string, id: string) => {
-    await (supabase.from as any)(table).delete().eq("id", id);
-    toast.success("Removido");
+  const confirmDeleteRow = async () => {
+    if (!deleteTarget) return;
+    if (!deleteJustificativa.trim()) { toast.error("Informe a justificativa"); return; }
+    setDeleteLoading(true);
+    await auditLog({
+      acao: "exclusão",
+      tabela: deleteTarget.table,
+      registro_id: deleteTarget.id,
+      detalhes: deleteTarget.label,
+      justificativa: deleteJustificativa.trim(),
+    });
+    await (supabase.from as any)(deleteTarget.table).delete().eq("id", deleteTarget.id);
+    setDeleteLoading(false);
+    setDeleteTarget(null);
+    setDeleteJustificativa("");
+    toast.success("Removido com registro de auditoria");
     load();
   };
 
