@@ -122,15 +122,19 @@ const TurmaNovaPage = () => {
     if (combos.length === 0) { toast.error("Selecione ao menos uma opção de cada filtro"); return; }
     setBatchSaving(true);
     const periodoLabels: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
-    const rows = combos.map(c => ({
-      nome: `${c.bairro.nome} — ${c.faixa} — ${periodoLabels[c.periodo] || c.periodo}`,
-      bairro_id: c.bairro.id,
-      faixa_etaria: c.faixa,
-      periodo: c.periodo,
-      tipo: batchTipo,
-      dias_semana: batchDias,
-      ...(batchEducadorId ? { educador_id: batchEducadorId } : {}),
-    }));
+    const rows = combos.map(c => {
+      const comboKey = `${c.bairro.id}_${c.faixa}_${c.periodo}`;
+      const dias = batchCombosDias[comboKey] ?? batchDias;
+      return {
+        nome: `${c.bairro.nome} — ${c.faixa} — ${periodoLabels[c.periodo] || c.periodo}`,
+        bairro_id: c.bairro.id,
+        faixa_etaria: c.faixa,
+        periodo: c.periodo,
+        tipo: batchTipo,
+        dias_semana: dias,
+        ...(batchEducadorId ? { educador_id: batchEducadorId } : {}),
+      };
+    });
 
     const { data: turmasCriadas, error } = await supabase.from("turmas").insert(rows as any).select();
     if (error) { setBatchSaving(false); toast.error("Erro: " + error.message); return; }
