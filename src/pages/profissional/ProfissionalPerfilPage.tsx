@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Printer, Calendar, Users, FileText, ClipboardList, CheckSquare } from "lucide-react";
+import { ArrowLeft, Printer, Calendar, Users, FileText, ClipboardList, CheckSquare, Bell } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -19,6 +19,7 @@ const ProfissionalPerfilPage = () => {
   const [planejamentos, setPlanejamentos] = useState<any[]>([]);
   const [relatorios, setRelatorios] = useState<any[]>([]);
   const [presencas, setPresencas] = useState<any[]>([]);
+  const [recadosCount, setRecadosCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,6 +43,11 @@ const ProfissionalPerfilPage = () => {
         grouped.get(key)!.count++;
       });
       setPresencas(Array.from(grouped.values()));
+
+      // Count unread recados for this profile
+      const { count } = await supabase.from("recados").select("id", { count: "exact", head: true }).eq("destinatario_id", id!).eq("lido", false);
+      setRecadosCount(count || 0);
+
       setLoading(false);
     };
     fetchData();
@@ -81,6 +87,11 @@ const ProfissionalPerfilPage = () => {
             <p className="text-sm text-muted-foreground">{profile.cargo || "Sem cargo"}</p>
             <div className="flex gap-2 mt-1 justify-center sm:justify-start flex-wrap">
               <Badge variant={profile.ativo ? "default" : "secondary"}>{profile.ativo ? "Ativo" : "Inativo"}</Badge>
+              {recadosCount > 0 && (
+                <Badge variant="destructive" className="gap-1">
+                  <Bell className="h-3 w-3" />{recadosCount} recado{recadosCount > 1 ? "s" : ""} não lido{recadosCount > 1 ? "s" : ""}
+                </Badge>
+              )}
               {profile.email && <span className="text-xs text-muted-foreground">{profile.email}</span>}
               {profile.telefone && <span className="text-xs text-muted-foreground">📞 {profile.telefone}</span>}
             </div>

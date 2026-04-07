@@ -359,7 +359,7 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     PRESENCA: presenca.map((p, i) => ({
       NUM: i + 1,
       NOME: p.participantes?.nome_completo || "",
-      STATUS: p.presente ? "✓" : "✗",
+      STATUS: p.presente ? "☑" : "☐",
       JUSTIFICATIVA: p.justificativa || "",
     })),
     HAS_PRESENCA: presenca.length > 0,
@@ -464,15 +464,19 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
     const presRows = [
       new TableRow({ children: [
         new TableCell({ width: { size: 500, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nº", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 6360, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nome", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Presente", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 1300, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Justificativa", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 5860, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nome do Participante", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Presença", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 1800, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Justificativa", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
       ]}),
       ...presenca.map((p, i) => new TableRow({ children: [
-        new TableCell({ width: { size: 500, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: String(i + 1), size: 16, font: "Arial" })] })] }),
-        new TableCell({ width: { size: 6360, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.participantes?.nome_completo || "", size: 16, font: "Arial" })] })] }),
-        new TableCell({ width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: p.presente ? "✓" : "✗", size: 18, font: "Arial", bold: true, color: p.presente ? "43A047" : "E53935" })] })] }),
-        new TableCell({ width: { size: 1300, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.justificativa || "", size: 14, font: "Arial" })] })] }),
+        new TableCell({ width: { size: 500, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 16, font: "Arial" })] })] }),
+        new TableCell({ width: { size: 5860, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.participantes?.nome_completo || "", size: 16, font: "Arial" })] })] }),
+        new TableCell({
+          width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins,
+          shading: { fill: p.presente ? "E8F5E9" : "FFEBEE", type: ShadingType.CLEAR },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: p.presente ? "☑" : "☐", size: 20, font: "Segoe UI Symbol", bold: true, color: p.presente ? "2E7D32" : "C62828" })] })],
+        }),
+        new TableCell({ width: { size: 1800, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.justificativa || "", size: 14, font: "Arial", italics: true })] })] }),
       ]})),
     ];
     children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [500, 6360, 1200, 1300], rows: presRows }));
@@ -613,11 +617,19 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     doc.text("Lista de Presença", 105, py, { align: "center" }); py += 5;
     autoTable(doc, {
       startY: py,
-      head: [["Nº", "Nome", "Presente", "Justificativa"]],
-      body: presenca.map((p, i) => [i + 1, p.participantes?.nome_completo || "", p.presente ? "✓" : "✗", p.justificativa || ""]),
-      headStyles: { fillColor: [26, 82, 118], fontSize: 7 },
-      styles: { fontSize: 7, cellPadding: 1.5 },
-      columnStyles: { 0: { cellWidth: 8 }, 2: { cellWidth: 15, halign: "center" } },
+      head: [["Nº", "Nome do Participante", "Presença", "Justificativa"]],
+      body: presenca.map((p, i) => [i + 1, p.participantes?.nome_completo || "", p.presente ? "☑ Presente" : "☐ Ausente", p.justificativa || ""]),
+      headStyles: { fillColor: [26, 82, 118], fontSize: 7, textColor: [255, 255, 255] },
+      styles: { fontSize: 7, cellPadding: 2 },
+      columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 20, halign: "center" } },
+      didParseCell: (data: any) => {
+        if (data.section === "body" && data.column.index === 2) {
+          const isPresente = data.cell.raw?.toString().includes("☑");
+          data.cell.styles.fillColor = isPresente ? [232, 245, 233] : [255, 235, 238];
+          data.cell.styles.textColor = isPresente ? [46, 125, 50] : [198, 40, 40];
+          data.cell.styles.fontStyle = "bold";
+        }
+      },
     });
   }
 

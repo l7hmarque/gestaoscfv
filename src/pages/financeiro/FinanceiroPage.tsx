@@ -125,6 +125,9 @@ export default function FinanceiroPage() {
   const [pcLoading, setPcLoading] = useState(false);
   const [reoLoading, setReoLoading] = useState(false);
 
+  // Pipeline filter
+  const [despFilter, setDespFilter] = useState<"all" | "pendente" | "aguardando" | "completa">("all");
+
   const load = useCallback(async () => {
     setLoading(true);
     const [c, p, d, e] = await Promise.all([
@@ -149,6 +152,20 @@ export default function FinanceiroPage() {
   const totalEstornos = estornos.reduce((s, e) => s + Number(e.valor), 0);
   const saldo = totalRecebido - totalDespesas + totalEstornos;
   const gastosPrevistos = despesas.filter(d => (d as any).orcamento_id && !d.comprovante_url && !d.nota_url && !d.boleto_url).reduce((s, d) => s + Number(d.valor), 0);
+
+  // Pipeline status helpers
+  const despStatus = (d: Despesa) => {
+    const hasNF = !!d.nota_url;
+    const hasBoleto = !!d.boleto_url;
+    const hasComprovante = !!d.comprovante_url;
+    if (hasComprovante) return "completa";
+    if (hasNF || hasBoleto) return "aguardando";
+    return "pendente";
+  };
+  const despCompletas = despesas.filter(d => despStatus(d) === "completa").length;
+  const despAguardando = despesas.filter(d => despStatus(d) === "aguardando").length;
+  const despPendentes = despesas.filter(d => despStatus(d) === "pendente").length;
+  const filteredDespesas = despFilter === "all" ? despesas : despesas.filter(d => despStatus(d) === despFilter);
 
   const addCategoria = async () => {
     if (!catForm.codigo || !catForm.descricao) return;
@@ -811,6 +828,21 @@ export default function FinanceiroPage() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Pipeline summary & filters */}
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <Button size="sm" variant={despFilter === "all" ? "default" : "outline"} className="h-7 text-xs gap-1" onClick={() => setDespFilter("all")}>
+                  Todas ({despesas.length})
+                </Button>
+                <Button size="sm" variant={despFilter === "completa" ? "default" : "outline"} className="h-7 text-xs gap-1" onClick={() => setDespFilter("completa")}>
+                  <CheckCircle2 className="h-3 w-3" />Completas ({despCompletas})
+                </Button>
+                <Button size="sm" variant={despFilter === "aguardando" ? "default" : "outline"} className="h-7 text-xs gap-1" onClick={() => setDespFilter("aguardando")}>
+                  <Loader2 className="h-3 w-3" />Aguardando ({despAguardando})
+                </Button>
+                <Button size="sm" variant={despFilter === "pendente" ? "default" : "outline"} className="h-7 text-xs gap-1" onClick={() => setDespFilter("pendente")}>
+                  <AlertTriangle className="h-3 w-3" />Pendentes ({despPendentes})
+                </Button>
+              </div>
               <div className="overflow-auto">
                 <Table><TableHeader><TableRow>
                   <TableHead className="text-xs">Cód.</TableHead>
@@ -819,11 +851,14 @@ export default function FinanceiroPage() {
                   <TableHead className="text-xs">Categoria</TableHead>
                   <TableHead className="text-xs text-right">Valor</TableHead>
                   <TableHead className="text-xs">Data</TableHead>
-                  <TableHead className="text-xs">SIT</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs">Docs</TableHead>
                   <TableHead className="w-8"></TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {despesas.map(d => (
+                  {filteredDespesas.map(d => {
+                    const st = despStatus(d);
+                    return (
                     <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditDesp({ ...d })}>
                       <TableCell className="text-xs">{d.codigo_lancamento || "—"}</TableCell>
                       <TableCell className="text-xs max-w-[200px] truncate">{d.descricao}</TableCell>
@@ -833,16 +868,23 @@ export default function FinanceiroPage() {
                       <TableCell className="text-xs">{d.data_lancamento}</TableCell>
                       <TableCell className="text-xs">
                         <Badge 
-                          variant={d.comprovante_url ? "default" : "secondary"} 
-                          className={`text-[10px] ${d.comprovante_url ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-500 hover:bg-amber-600 text-white"}`}
+                          variant={st === "completa" ? "default" : "secondary"} 
+                          className={`text-[10px] ${st === "completa" ? "bg-emerald-600 hover:bg-emerald-700" : st === "aguardando" ? "bg-amber-500 hover:bg-amber-600 text-white" : "bg-red-500 hover:bg-red-600 text-white"}`}
                         >
-                          {d.comprovante_url ? "Pago ✓" : "Aguardando ⏳"}
+                          {st === "completa" ? "✅ Pago" : st === "aguardando" ? "⏳ Aguardando" : "⚠️ Pendente"}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <div className="flex gap-0.5">
+                          {d.nota_url && <Badge variant="outline" className="text-[9px] px-1 py-0">NF</Badge>}
+                          {d.boleto_url && <Badge variant="outline" className="text-[9px] px-1 py-0">Bol</Badge>}
+                          {d.comprovante_url && <Badge variant="outline" className="text-[9px] px-1 py-0">Comp</Badge>}
+                        </div>
                       </TableCell>
                       <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); setDeleteTarget({ table: "despesas", id: d.id, label: `Despesa: ${d.descricao} - ${fmt(Number(d.valor))}` }); }}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
                     </TableRow>
-                  ))}
-                  {despesas.length === 0 && <TableRow><TableCell colSpan={8} className="text-xs text-center text-muted-foreground py-6">Nenhuma despesa neste mês</TableCell></TableRow>}
+                  );})}
+                  {filteredDespesas.length === 0 && <TableRow><TableCell colSpan={9} className="text-xs text-center text-muted-foreground py-6">Nenhuma despesa {despFilter !== "all" ? "com este filtro" : "neste mês"}</TableCell></TableRow>}
                 </TableBody></Table>
               </div>
             </CardContent>
