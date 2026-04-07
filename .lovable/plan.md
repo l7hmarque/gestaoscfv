@@ -1,92 +1,100 @@
-## Plano: REO em XLSX + Prestação de Contas PDF/XLSX + Lista de Presença XLSX por Turma
+## Plano: Correções e Novas Funcionalidades
 
-São 3 funcionalidades distintas. Vou detalhar cada uma.
-
----
-
-### 1. REO em XLSX (além do DOCX existente)
-
-**O que**: Novo botão "Gerar REO (XLSX)" na aba Relatórios Mensais, ao lado do botão DOCX existente. Gera planilha com as mesmas seções do REO DOCX.
-
-**Abordagem**: Nova Edge Function `generate-reo-xlsx` (ou estender a existente com parâmetro `formato`).
-
-**Estrutura do XLSX**:
-
-- Aba "Atividades": oficinas propostas × desenvolvidas
-- Aba "Equipe Técnica": atendimentos da equipe técnica
-- Aba "Metas": comparativo metas × alcançadas
-- Aba "RH": recursos humanos (nome, cargo, carga horária)
-- Aba "Monitoramento": objetivos, indicadores, metas, verificação
-- Aba "Financeiro": parcelas, despesas do mês, resumo financeiro, saldo por categoria
-
-**Arquivos alterados**:
-
-- `supabase/functions/generate-reo/index.ts` — adicionar parâmetro `formato: "docx" | "xlsx"`, reutilizar dados já carregados, gerar XLSX com `xlsx-js-style` quando `formato === "xlsx"`
-- `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` — novo botão + função `generateReoXlsx`
+Este é um conjunto grande de mudanças. Vou dividir em blocos priorizados.
 
 ---
 
-### 2. Relatório de Prestação de Contas (PDF e XLSX)
+### 1. BUG FIX — Campos de texto no cadastro de participante
 
-**O que**: Novo botão "Prestação de Contas" no painel financeiro. Gera documento completo com:
+**Causa raiz**: O componente `Field` está definido **dentro** do corpo do componente `ParticipanteNovoPage` (linha 204). Isso faz com que o React o trate como um componente novo a cada re-render, desmontando e remontando o `<input>`, causando perda de foco ao digitar.
 
-- Resumo financeiro (parcelas recebidas, despesas, estornos, saldo)
-- Despesas detalhadas com status de comprovação
-- Saldo por categoria
-- Lista de documentos fiscais anexados (NF, boleto, comprovante) em ordem cronologica de gastos
+**Correção**: Mover `Field` para fora do componente, recebendo `form`, `set` como props, ou substituir por JSX inline.
 
-**Regra de negócio**: Despesa só fica "aprovada/paga" se tiver `comprovante_url` preenchido. Caso contrário, status = "aguardando_pagamento".
-
-**Estrutura PDF**: Cabeçalho institucional, tabelas estilizadas (padrão REO), assinatura.
-
-**Estrutura XLSX**: Abas "Resumo", "Despesas", "Categorias", "Documentos".
-
-**Arquivos alterados**:
-
-- `src/pages/financeiro/FinanceiroPage.tsx`:
-  - Nova função `generatePrestacaoContas(formato: "pdf" | "xlsx")`
-  - Lógica de status: ao salvar despesa, se `comprovante_url` está vazio → `status_sit = "aguardando_pagamento"`; se preenchido → `status_sit = "pago"`
-  - Dois novos botões na barra de ações: "Prestação de Contas (PDF)" e "Prestação de Contas (XLSX)"
-  - Badge visual na tabela de despesas indicando status (pago ✓ / aguardando pagamento ⏳)
+**Arquivo**: `src/pages/participantes/ParticipanteNovoPage.tsx`
 
 ---
 
-### 3. Lista de Presença XLSX na Página da Turma
+### 2. Relatórios no Financeiro — Consolidação
 
-**O que**: Botão "Lista de Presença (XLSX)" na `TurmaDetalhePage`. Ao clicar, gera planilha A4 paisagem com:
+**O que**: Na página `/financeiro`, disponibilizar 3 downloads:
 
-- Cabeçalho: nome da turma, bairro, período, mês/ano
-- Coluna "Nº", coluna "Nome", colunas com datas de atividade do mês (baseado em `dias_semana` da turma)
-- Bordas 0.5pt pretas em todas as células
-- Células de presença vazias para preenchimento manual
+- **REO** (XLSX + PDF) — já existe via edge function, adicionar botões diretos
+- **Prestação de Contas** (XLSX + PDF) — já existe parcialmente, consolidar
+- **SIT .txt** — já implementado
 
-**Seleção de mês**: Dialog com seletores de mês/ano antes de gerar.
+**Alteração**: Reorganizar a seção de exportações em `FinanceiroPage.tsx` com botões claros para cada relatório, cada um baixando tanto XLSX quanto PDF simultaneamente (ou com dropdown).
 
-**Arquivos alterados**:
-
-- `src/pages/turmas/TurmaDetalhePage.tsx`:
-  - Importar `xlsx-js-style`
-  - Nova função `exportListaPresencaXlsx()`
-  - Dialog para selecionar mês/ano
-  - Botão "Lista de Presença" na barra de ações
-  - Reutilizar lógica de `calcularDatasDoMes` (já existente em `useDocumentExport.ts`)
-
-**Estilo XLSX**:
-
-```
-Bordas: { style: "thin", color: { rgb: "000000" } } em top/bottom/left/right
-Cabeçalho: fundo azul #1A5276, texto branco, bold
-Coluna nome: largura ~35, colunas data: largura ~5
-```
+**Arquivo**: `src/pages/financeiro/FinanceiroPage.tsx`
 
 ---
 
-### Resumo de alterações
+### 3. PDFs com layout customizado
 
+Para gerar PDFs que sigam fielmente o layout dos seus documentos institucionais, a melhor abordagem é:
 
-| Arquivo                                               | Alteração                                                |
-| ----------------------------------------------------- | -------------------------------------------------------- |
-| `supabase/functions/generate-reo/index.ts`            | Suporte a formato XLSX                                   |
-| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Botão "REO XLSX"                                         |
-| `src/pages/financeiro/FinanceiroPage.tsx`             | Prestação de contas PDF/XLSX + lógica comprovante→status |
-| `src/pages/turmas/TurmaDetalhePage.tsx`               | Botão + dialog lista presença XLSX                       |
+**O que você precisa me fornecer**: Faça upload dos arquivos `.docx` ou `.pdf` dos modelos diretamente neste chat. Eu vou analisar a estrutura (cabeçalhos, tabelas, margens, fontes) e replicar no código usando `jsPDF` + `autoTable`, ou gerar HTML→PDF via edge function.
+
+**Não precisa converter para HTML** — basta enviar os documentos originais (.docx/.pdf) que eu extraio o layout.
+
+---
+
+### 4. Geração de turmas em lote — Dias por bairro/faixa
+
+**O que**: Ao gerar turmas em lote, permitir especificar dias da semana diferentes para cada combinação bairro + faixa etária.
+
+**UX proposta**: 
+
+1. Usuário seleciona bairros, faixas e períodos (como hoje)
+2. Abaixo, aparece uma grade com as combinações geradas
+3. Cada linha da grade tem checkboxes de dias da semana editáveis
+4. Por padrão, todas começam com os dias selecionados no filtro geral
+5. Usuário ajusta individualmente se necessário
+
+**Arquivo**: `src/pages/turmas/TurmaNovaPage.tsx`
+
+---
+
+### 5. Relatório da Equipe Técnica
+
+**O que**: Nova funcionalidade na página `/equipe-tecnica` para gerar relatório com:
+
+- Seletor de intervalo de datas (início/fim)
+- Lista de atendimentos no período
+- Para cada atendimento: participante, tipo, descrição, encaminhamentos
+- Exportar em XLSX e PDF
+
+**Arquivo**: `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx`
+
+---
+
+### 6. Rotas de Transporte — Cronograma do Motorista
+
+**O que**: Na aba Transporte, nova funcionalidade para:
+
+- Criar rotas diárias (ex: "Rota Segunda Manhã") agrupando pontos numa ordem
+- Quadro visual tipo cronograma semanal para o motorista consultar
+- Cada rota mostra: horário, pontos em sequência, bairro, nº de participantes
+
+**Necessita**: Nova tabela `rotas_transporte` no banco (id, nome, dia_semana, periodo, ordem dos pontos como JSON ou tabela associativa).
+
+**Arquivos**: 
+
+- Migração SQL para `rotas_transporte` e `rota_pontos`
+- `src/pages/dashboard/DashboardTransporteTab.tsx`
+
+---
+
+### Ordem de implementação sugerida
+
+1. **Bug fix campos de texto** (imediato, 1 arquivo)
+2. **Dias por bairro/faixa no lote** (1 arquivo)
+3. **Relatório equipe técnica** (1 arquivo)
+4. **Consolidar downloads no financeiro** (1 arquivo)
+5. **Rotas de transporte** (migração + 1 arquivo)
+6. **PDFs com layout** (após receber os modelos)
+
+### Sobre os PDFs
+
+Envie os modelos (.docx ou .pdf) dos relatórios REO e Prestação de Contas neste chat para que eu replique o layout fielmente nos PDFs gerados pelo sistema.  
+  
+Mantenha esse plano, mas nao precisa implementar a rota de transporte agora. Antes de iniciar, aguarde eu enviar os documentos modelo. Para facilitar, liste no chat os documentos que preciso enviar os modelos.
