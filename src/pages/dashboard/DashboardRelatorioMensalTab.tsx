@@ -35,12 +35,7 @@ function getDatasAtividade(ano: number, mes: number, diasSemana: string[]): stri
   return datas;
 }
 
-function calcAge(dob: string): number {
-  const b = new Date(dob); const now = new Date();
-  let age = now.getFullYear() - b.getFullYear();
-  if (now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) age--;
-  return age;
-}
+// calcAge imported from constants
 
 /** Apply thin borders to all cells in a sheet */
 function applyBorders(ws: XLSX.WorkSheet) {
