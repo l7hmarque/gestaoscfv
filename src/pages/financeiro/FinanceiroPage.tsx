@@ -969,7 +969,7 @@ export default function FinanceiroPage() {
                     <TableCell className="text-xs font-mono">{c.codigo}</TableCell>
                     <TableCell className="text-xs">{c.descricao}</TableCell>
                     <TableCell className="text-xs text-right">{fmt(Number(c.valor_previsto))}</TableCell>
-                    <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteRow("categorias_financeiras", c.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
+                    <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setDeleteTarget({ table: "categorias_financeiras", id: c.id, label: `Categoria ${c.codigo}: ${c.descricao}` })}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
                   </TableRow>
                 ))}
                 {categorias.length === 0 && <TableRow><TableCell colSpan={4} className="text-xs text-center text-muted-foreground py-6">Nenhuma categoria cadastrada</TableCell></TableRow>}
