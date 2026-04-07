@@ -22,13 +22,7 @@ export interface DashboardData {
   totalParticipantesAlerta: number;
 }
 
-function calcAge(dob: string): number {
-  const b = new Date(dob);
-  const now = new Date();
-  let age = now.getFullYear() - b.getFullYear();
-  if (now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) age--;
-  return age;
-}
+// calcAge imported from constants
 
 function monthKey(d: string) {
   return d.slice(0, 7);

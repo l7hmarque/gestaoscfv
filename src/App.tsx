@@ -18,7 +18,6 @@ import TurmasPage from "./pages/turmas/TurmasPage";
 import TurmaNovaPage from "./pages/turmas/TurmaNovaPage";
 import TurmaDetalhePage from "./pages/turmas/TurmaDetalhePage";
 import PresencaPage from "./pages/presenca/PresencaPage";
-import PresencaHistoricoPage from "./pages/presenca/PresencaHistoricoPage";
 import PresencaExportarPage from "./pages/presenca/PresencaExportarPage";
 import PlanejamentosPage from "./pages/planejamentos/PlanejamentosPage";
 import PlanejamentoNovoPage from "./pages/planejamentos/PlanejamentoNovoPage";
