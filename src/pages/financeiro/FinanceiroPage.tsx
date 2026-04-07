@@ -932,7 +932,7 @@ export default function FinanceiroPage() {
                     <TableCell className="text-xs">{p.numero_parcela}</TableCell>
                     <TableCell className="text-xs text-right font-medium">{fmt(Number(p.valor))}</TableCell>
                     <TableCell className="text-xs">{p.data_recebimento}</TableCell>
-                    <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteRow("parcelas_financeiras", p.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
+                    <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setDeleteTarget({ table: "parcelas_financeiras", id: p.id, label: `Parcela ${p.numero_parcela}: ${fmt(Number(p.valor))}` })}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
                   </TableRow>
                 ))}
                 {parcelas.length === 0 && <TableRow><TableCell colSpan={4} className="text-xs text-center text-muted-foreground py-6">Nenhuma parcela cadastrada</TableCell></TableRow>}
