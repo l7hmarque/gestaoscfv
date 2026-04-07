@@ -79,6 +79,7 @@ const emptyLoteLine = (): LoteLine => ({
 });
 
 export default function FinanceiroPage() {
+  const { log: auditLog } = useAuditLog();
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [parcelas, setParcelas] = useState<Parcela[]>([]);
   const [despesas, setDespesas] = useState<Despesa[]>([]);
