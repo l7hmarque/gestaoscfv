@@ -101,6 +101,11 @@ export default function FinanceiroPage() {
   const [editDesp, setEditDesp] = useState<Despesa | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
+  // Delete with justificativa
+  const [deleteTarget, setDeleteTarget] = useState<{ table: string; id: string; label: string } | null>(null);
+  const [deleteJustificativa, setDeleteJustificativa] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   // Batch entry
   const [loteLines, setLoteLines] = useState<LoteLine[]>([emptyLoteLine()]);
   const [loteLoading, setLoteLoading] = useState(false);
