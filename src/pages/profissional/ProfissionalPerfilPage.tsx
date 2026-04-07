@@ -43,6 +43,11 @@ const ProfissionalPerfilPage = () => {
         grouped.get(key)!.count++;
       });
       setPresencas(Array.from(grouped.values()));
+
+      // Count unread recados for this profile
+      const { count } = await supabase.from("recados").select("id", { count: "exact", head: true }).eq("destinatario_id", id!).eq("lido", false);
+      setRecadosCount(count || 0);
+
       setLoading(false);
     };
     fetchData();
