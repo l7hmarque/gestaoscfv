@@ -5,8 +5,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { BAIRROS_SCFV, calcFaixaFromDate } from "@/lib/constants";
@@ -14,10 +17,22 @@ import { displayPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
+import { useAuditLog } from "@/hooks/useAuditLog";
+import { useAuth } from "@/contexts/AuthContext";
 
 const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto", pendente: "Pendente" };
 const statusColor: Record<string, string> = { ativo: "bg-green-100 text-green-800", desligado: "bg-red-100 text-red-800", incompleto: "bg-yellow-100 text-yellow-800", pendente: "bg-blue-100 text-blue-800" };
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
+
+const MOTIVOS_DESLIGAMENTO = [
+  "Mudança de município",
+  "Evasão",
+  "Desistência",
+  "Completou a faixa etária",
+  "Transferência para outro serviço",
+  "Faltas consecutivas",
+  "Outro",
+];
 
 interface DuplicatePair {
   id1: string;
@@ -32,6 +47,8 @@ interface DuplicatePair {
 
 const ParticipantesPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { log: auditLog } = useAuditLog();
   const [participantes, setParticipantes] = useState<Tables<"participantes">[]>([]);
   const [bairros, setBairros] = useState<Tables<"bairros">[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +59,13 @@ const ParticipantesPage = () => {
   const [duplicatas, setDuplicatas] = useState<DuplicatePair[]>([]);
   const [showDuplicatas, setShowDuplicatas] = useState(false);
   const [merging, setMerging] = useState<string | null>(null);
+
+  // Desligamento dialog state
+  const [desligamentoOpen, setDesligamentoOpen] = useState(false);
+  const [desligamentoTarget, setDesligamentoTarget] = useState<Tables<"participantes"> | null>(null);
+  const [desligamentoMotivo, setDesligamentoMotivo] = useState("");
+  const [desligamentoJustificativa, setDesligamentoJustificativa] = useState("");
+  const [desligamentoSaving, setDesligamentoSaving] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -129,6 +153,87 @@ const ParticipantesPage = () => {
       }
     }
     toast.success("Matrícula aprovada!");
+    fetchData();
+  };
+
+  // Quick status change
+  const handleStatusChange = async (p: Tables<"participantes">, newStatus: string) => {
+    if (guardDemo(isDemo)) return;
+    if (newStatus === "desligado") {
+      setDesligamentoTarget(p);
+      setDesligamentoMotivo("");
+      setDesligamentoJustificativa("");
+      setDesligamentoOpen(true);
+      return;
+    }
+    // Direct status change for ativo/incompleto
+    const { error } = await supabase.from("participantes").update({ status: newStatus } as any).eq("id", p.id);
+    if (error) { toast.error(error.message); return; }
+    await auditLog({ acao: "alteração de status", tabela: "participantes", registro_id: p.id, detalhes: `Status: ${p.status} → ${newStatus}` });
+    toast.success(`Status alterado para ${statusLabel[newStatus]}`);
+    fetchData();
+  };
+
+  const handleDesligamento = async () => {
+    if (!desligamentoTarget || !desligamentoMotivo) return;
+    setDesligamentoSaving(true);
+    const today = new Date().toISOString().split("T")[0];
+    const { error } = await supabase.from("participantes").update({
+      status: "desligado",
+      motivo_desligamento: desligamentoMotivo,
+      justificativa_desligamento: desligamentoJustificativa || null,
+      data_desligamento: today,
+    } as any).eq("id", desligamentoTarget.id);
+
+    if (error) {
+      toast.error(error.message);
+      setDesligamentoSaving(false);
+      return;
+    }
+
+    await auditLog({
+      acao: "desligamento",
+      tabela: "participantes",
+      registro_id: desligamentoTarget.id,
+      detalhes: `Motivo: ${desligamentoMotivo}. ${desligamentoJustificativa || ""}`,
+      justificativa: desligamentoJustificativa || desligamentoMotivo,
+    });
+
+    // Notify educators of turmas this participant belongs to
+    try {
+      const { data: tps } = await supabase.from("turma_participantes")
+        .select("turma_id, turmas(educador_id)")
+        .eq("participante_id", desligamentoTarget.id);
+
+      if (tps) {
+        const myProfile = await supabase.from("profiles").select("id").eq("user_id", user!.id).single();
+        const educadorIds = new Set<string>();
+        tps.forEach((tp: any) => {
+          if (tp.turmas?.educador_id && tp.turmas.educador_id !== myProfile.data?.id) {
+            educadorIds.add(tp.turmas.educador_id);
+          }
+        });
+
+        const recados = Array.from(educadorIds).map(edId => ({
+          remetente_id: myProfile.data!.id,
+          destinatario_id: edId,
+          participante_id: desligamentoTarget.id,
+          conteudo: `O participante ${desligamentoTarget.nome_completo} foi desligado(a). Motivo: ${desligamentoMotivo}.${desligamentoJustificativa ? ` Justificativa: ${desligamentoJustificativa}` : ""} Por favor, tome ciência desta informação.`,
+        }));
+
+        if (recados.length > 0) {
+          await supabase.from("recados").insert(recados);
+          toast.info(`${recados.length} educador(es) notificado(s)`);
+        }
+      }
+    } catch {
+      // non-critical
+    }
+
+    toast.success("Participante desligado!");
+    setDesligamentoOpen(false);
+    setDesligamentoTarget(null);
+    setDesligamentoSaving(false);
     fetchData();
   };
 
@@ -331,10 +436,20 @@ const ParticipantesPage = () => {
                     <TableCell className="text-sm text-muted-foreground">{calcAge(p.data_nascimento)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{bairroNome && BAIRROS_SCFV.includes(bairroNome) ? bairroNome : "—"}</TableCell>
                     <TableCell className="text-sm">{p.periodo ? periodoLabel[p.periodo] || p.periodo : "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className={`text-xs ${statusColor[p.status || "ativo"]}`}>
-                        {statusLabel[p.status || "ativo"]}
-                      </Badge>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Select
+                        value={p.status || "ativo"}
+                        onValueChange={(v) => handleStatusChange(p, v)}
+                      >
+                        <SelectTrigger className={`h-6 text-[10px] w-[100px] border-0 px-1.5 ${statusColor[p.status || "ativo"]}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ativo">Ativo</SelectItem>
+                          <SelectItem value="desligado">Desligado</SelectItem>
+                          <SelectItem value="incompleto">Incompleto</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{p.responsavel1_nome || "—"}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{displayPhone(p.responsavel1_whatsapp)}</TableCell>
@@ -357,6 +472,51 @@ const ParticipantesPage = () => {
           </Table>
         </div>
       )}
+
+      {/* Desligamento Dialog */}
+      <Dialog open={desligamentoOpen} onOpenChange={setDesligamentoOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Desligar Participante</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Desligar <span className="font-medium text-foreground">{desligamentoTarget?.nome_completo}</span>?
+              Os educadores vinculados serão notificados.
+            </p>
+            <div className="space-y-1">
+              <Label className="text-xs">Motivo *</Label>
+              <Select value={desligamentoMotivo} onValueChange={setDesligamentoMotivo}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Selecione o motivo" /></SelectTrigger>
+                <SelectContent>
+                  {MOTIVOS_DESLIGAMENTO.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Justificativa (opcional)</Label>
+              <Textarea
+                value={desligamentoJustificativa}
+                onChange={e => setDesligamentoJustificativa(e.target.value)}
+                placeholder="Detalhes adicionais..."
+                className="text-sm"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDesligamentoOpen(false)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={!desligamentoMotivo || desligamentoSaving}
+              onClick={handleDesligamento}
+            >
+              {desligamentoSaving ? "Processando..." : "Confirmar Desligamento"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -18,6 +18,8 @@ interface TurmaInfo {
 
 interface MemberInfo {
   nome: string;
+  desligado?: boolean;
+  data_desligamento?: string | null;
 }
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
