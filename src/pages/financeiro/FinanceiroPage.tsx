@@ -838,7 +838,7 @@ export default function FinanceiroPage() {
                           {d.comprovante_url ? "Pago ✓" : "Aguardando ⏳"}
                         </Badge>
                       </TableCell>
-                      <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); deleteRow("despesas", d.id); }}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
+                      <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); setDeleteTarget({ table: "despesas", id: d.id, label: `Despesa: ${d.descricao} - ${fmt(Number(d.valor))}` }); }}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
                     </TableRow>
                   ))}
                   {despesas.length === 0 && <TableRow><TableCell colSpan={8} className="text-xs text-center text-muted-foreground py-6">Nenhuma despesa neste mês</TableCell></TableRow>}
