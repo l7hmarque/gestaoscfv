@@ -201,8 +201,8 @@ const ParticipanteNovoPage = () => {
     }
   };
 
-  const Field = ({ label, field, type = "text", placeholder = "", half = false }: { label: string; field: string; type?: string; placeholder?: string; half?: boolean }) => (
-    <div className={half ? "col-span-1" : "col-span-2"}>
+  const renderField = (label: string, field: string, type = "text", placeholder = "", half = false) => (
+    <div className={half ? "col-span-1" : "col-span-2"} key={field}>
       <Label className="text-xs font-medium">{label}</Label>
       <Input type={type} value={(form as any)[field]} onChange={(e) => set(field, e.target.value)} placeholder={placeholder} className="h-9 text-sm mt-1" />
     </div>
