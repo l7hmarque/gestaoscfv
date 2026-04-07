@@ -115,6 +115,7 @@ export default function FinanceiroPage() {
   // RCA
   const [rcaLoading, setRcaLoading] = useState(false);
   const [pcLoading, setPcLoading] = useState(false);
+  const [reoLoading, setReoLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
