@@ -440,7 +440,7 @@ const ParticipanteNovoPage = () => {
 
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" asChild><Link to="/participantes">Cancelar</Link></Button>
-          <Button type="submit" disabled={saving}><Save className="h-4 w-4 mr-1)}{saving ? "Salvando..." : "Salvar"}</Button>
+          <Button type="submit" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? "Salvando..." : "Salvar"}</Button>
         </div>
       </form>
     </div>
