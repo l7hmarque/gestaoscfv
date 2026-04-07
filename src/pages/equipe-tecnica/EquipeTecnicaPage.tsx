@@ -184,6 +184,109 @@ const EquipeTecnicaPage = () => {
   const partName = (id: string) => participantes.find(p => p.id === id)?.nome_completo || "—";
   const tipoLabel = (v: string) => TIPOS_ATENDIMENTO.find(t => t.value === v)?.label || v;
 
+  const relAtendimentos = useMemo(() => {
+    return atendimentos.filter(a => a.data_atendimento >= relDataInicio && a.data_atendimento <= relDataFim);
+  }, [atendimentos, relDataInicio, relDataFim]);
+
+  const generateRelatorioEquipe = (formato: "xlsx" | "pdf") => {
+    if (relAtendimentos.length === 0) { toast.error("Nenhum atendimento no período"); return; }
+    const periodoLabel = `${format(new Date(relDataInicio + "T12:00:00"), "dd/MM/yyyy")} a ${format(new Date(relDataFim + "T12:00:00"), "dd/MM/yyyy")}`;
+
+    if (formato === "xlsx") {
+      const border = { style: "thin" as const, color: { rgb: "000000" } };
+      const hdr = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1565C0" } }, border: { top: border, bottom: border, left: border, right: border } };
+      const cell = { border: { top: border, bottom: border, left: border, right: border } };
+      const wb = XLSX.utils.book_new();
+      const rows: any[][] = [
+        ["RELATÓRIO DE ATIVIDADES DA EQUIPE TÉCNICA"],
+        ["Período: " + periodoLabel],
+        ["Gerado em: " + new Date().toLocaleString("pt-BR")],
+        [],
+        ["Data", "Profissional", "Participante", "Tipo", "Descrição", "Encaminhamento"],
+      ];
+      relAtendimentos.forEach(a => {
+        rows.push([
+          format(new Date(a.data_atendimento + "T12:00:00"), "dd/MM/yyyy"),
+          profName(a.profissional_id),
+          partName(a.participante_id),
+          tipoLabel(a.tipo),
+          a.descricao || "",
+          a.encaminhamento || "",
+        ]);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 28 }, { wch: 20 }, { wch: 40 }, { wch: 30 }];
+      // Style header row
+      for (let c = 0; c < 6; c++) {
+        const addr = XLSX.utils.encode_cell({ r: 4, c });
+        if (ws[addr]) ws[addr].s = hdr;
+      }
+      // Style data cells
+      for (let r = 5; r < rows.length; r++) {
+        for (let c = 0; c < 6; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c });
+          if (ws[addr]) ws[addr].s = cell;
+        }
+      }
+      XLSX.utils.book_append_sheet(wb, ws, "Atendimentos");
+
+      // Resumo por tipo
+      const tipoMap: Record<string, number> = {};
+      relAtendimentos.forEach(a => { tipoMap[tipoLabel(a.tipo)] = (tipoMap[tipoLabel(a.tipo)] || 0) + 1; });
+      const resumoRows: any[][] = [["Tipo", "Quantidade"]];
+      Object.entries(tipoMap).forEach(([tipo, qt]) => resumoRows.push([tipo, qt]));
+      resumoRows.push(["TOTAL", relAtendimentos.length]);
+      const wsR = XLSX.utils.aoa_to_sheet(resumoRows);
+      wsR["!cols"] = [{ wch: 25 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, wsR, "Resumo");
+
+      const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      saveAs(new Blob([buf]), sysEloFileName("RelEquipeTecnica", "xlsx"));
+      toast.success("Relatório XLSX gerado!");
+    } else {
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      doc.setFontSize(14);
+      doc.text("RELATÓRIO DE ATIVIDADES DA EQUIPE TÉCNICA", 14, 15);
+      doc.setFontSize(9);
+      doc.text("Período: " + periodoLabel, 14, 22);
+      doc.text("Gerado em: " + new Date().toLocaleString("pt-BR"), 14, 27);
+
+      autoTable(doc, {
+        startY: 32,
+        head: [["Data", "Profissional", "Participante", "Tipo", "Descrição", "Encaminhamento"]],
+        body: relAtendimentos.map(a => [
+          format(new Date(a.data_atendimento + "T12:00:00"), "dd/MM/yyyy"),
+          profName(a.profissional_id),
+          partName(a.participante_id),
+          tipoLabel(a.tipo),
+          a.descricao || "—",
+          a.encaminhamento || "—",
+        ]),
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        headStyles: { fillColor: [21, 101, 192], fontSize: 7 },
+        alternateRowStyles: { fillColor: [240, 240, 240] },
+        columnStyles: { 4: { cellWidth: 60 }, 5: { cellWidth: 40 } },
+      });
+
+      // Resumo
+      const lastY = (doc as any).lastAutoTable?.finalY || 100;
+      doc.setFontSize(11);
+      doc.text("Resumo por Tipo", 14, lastY + 8);
+      const tipoMap2: Record<string, number> = {};
+      relAtendimentos.forEach(a => { tipoMap2[tipoLabel(a.tipo)] = (tipoMap2[tipoLabel(a.tipo)] || 0) + 1; });
+      autoTable(doc, {
+        startY: lastY + 12,
+        head: [["Tipo", "Quantidade"]],
+        body: [...Object.entries(tipoMap2).map(([t, q]) => [t, String(q)]), ["TOTAL", String(relAtendimentos.length)]],
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [21, 101, 192] },
+      });
+
+      doc.save(sysEloFileName("RelEquipeTecnica", "pdf"));
+      toast.success("Relatório PDF gerado!");
+    }
+  };
+
   if (loading) return <div className="flex justify-center py-12"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
 
   return (
