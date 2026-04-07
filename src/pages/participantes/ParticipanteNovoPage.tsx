@@ -201,8 +201,8 @@ const ParticipanteNovoPage = () => {
     }
   };
 
-  const Field = ({ label, field, type = "text", placeholder = "", half = false }: { label: string; field: string; type?: string; placeholder?: string; half?: boolean }) => (
-    <div className={half ? "col-span-1" : "col-span-2"}>
+  const renderField = (label: string, field: string, type = "text", placeholder = "", half = false) => (
+    <div className={half ? "col-span-1" : "col-span-2"} key={field}>
       <Label className="text-xs font-medium">{label}</Label>
       <Input type={type} value={(form as any)[field]} onChange={(e) => set(field, e.target.value)} placeholder={placeholder} className="h-9 text-sm mt-1" />
     </div>
@@ -245,7 +245,7 @@ const ParticipanteNovoPage = () => {
               <Label className="text-xs font-medium">Nome Completo *</Label>
               <Input value={form.nome_completo} onChange={(e) => set("nome_completo", e.target.value)} placeholder="Nome completo do participante" className="h-9 text-sm mt-1" required />
             </div>
-            <Field label="Data de Nascimento" field="data_nascimento" type="date" half />
+            {renderField("Data de Nascimento", "data_nascimento", "date", "", true)}
             <div>
               <Label className="text-xs font-medium">Gênero</Label>
               <Select value={form.genero} onValueChange={(v) => set("genero", v)}>
@@ -274,8 +274,8 @@ const ParticipanteNovoPage = () => {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Escolaridade</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
-            <Field label="Escola" field="escola" placeholder="Nome da escola" half />
-            <Field label="Série/Ano" field="serie" placeholder="Ex: 5º ano" half />
+            {renderField("Escola", "escola", "text", "Nome da escola", true)}
+            {renderField("Série/Ano", "serie", "text", "Ex: 5º ano", true)}
           </CardContent>
         </Card>
 
@@ -283,14 +283,13 @@ const ParticipanteNovoPage = () => {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Endereço</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
-            <Field label="Rua" field="endereco_rua" placeholder="Nome da rua" />
-            <Field label="Número" field="endereco_numero" placeholder="Nº" half />
-            <Field label="Bairro (texto)" field="endereco_bairro" placeholder="Bairro" half />
+            {renderField("Rua", "endereco_rua", "text", "Nome da rua")}
+            {renderField("Número", "endereco_numero", "text", "Nº", true)}
+            {renderField("Bairro (texto)", "endereco_bairro", "text", "Bairro", true)}
             <div>
               <Label className="text-xs font-medium">Bairro do CAIA que vai frequentar</Label>
               <Select value={form.bairro_id} onValueChange={(v) => {
                 set("bairro_id", v);
-                // Limpar ponto se não pertence ao novo bairro
                 if (form.ponto_transporte_id) {
                   const ponto = pontos.find(p => p.id === form.ponto_transporte_id);
                   if (ponto && ponto.bairro_id !== v) set("ponto_transporte_id", "");
@@ -307,8 +306,8 @@ const ParticipanteNovoPage = () => {
                 <SelectContent>{pontos.filter(p => !form.bairro_id || p.bairro_id === form.bairro_id).map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <Field label="UF de Origem" field="uf_origem" placeholder="Ex: PR" half />
-            <Field label="Situação de Moradia" field="situacao_moradia" placeholder="Própria, alugada..." half />
+            {renderField("UF de Origem", "uf_origem", "text", "Ex: PR", true)}
+            {renderField("Situação de Moradia", "situacao_moradia", "text", "Própria, alugada...", true)}
           </CardContent>
         </Card>
 
@@ -316,8 +315,8 @@ const ParticipanteNovoPage = () => {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Responsáveis</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
-            <Field label="Responsável 1 - Nome" field="responsavel1_nome" placeholder="Nome completo" />
-            <Field label="Vínculo com o participante" field="vinculo_resp1" placeholder="Ex: Mãe, Pai, Avó" half />
+            {renderField("Responsável 1 - Nome", "responsavel1_nome", "text", "Nome completo")}
+            {renderField("Vínculo com o participante", "vinculo_resp1", "text", "Ex: Mãe, Pai, Avó", true)}
             <div className="col-span-1">
               <Label className="text-xs font-medium">CPF do Participante</Label>
               <Input value={estrangeiroCpf ? form.responsavel1_cpf : maskCPF(form.responsavel1_cpf)} onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} className="h-9 text-sm mt-1" />
@@ -330,8 +329,8 @@ const ParticipanteNovoPage = () => {
               <Label className="text-xs font-medium">WhatsApp</Label>
               <Input value={maskPhone(form.responsavel1_whatsapp)} onChange={(e) => set("responsavel1_whatsapp", unmaskDigits(e.target.value))} placeholder="(00) 00000-0000" className="h-9 text-sm mt-1" />
             </div>
-            <Field label="Responsável 2 - Nome" field="responsavel2_nome" placeholder="Nome completo" />
-            <Field label="Vínculo com o participante" field="vinculo_resp2" placeholder="Ex: Mãe, Pai, Avó" half />
+            {renderField("Responsável 2 - Nome", "responsavel2_nome", "text", "Nome completo")}
+            {renderField("Vínculo com o participante", "vinculo_resp2", "text", "Ex: Mãe, Pai, Avó", true)}
             <div className="col-span-1">
               <Label className="text-xs font-medium">WhatsApp</Label>
               <Input value={maskPhone(form.responsavel2_whatsapp)} onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))} placeholder="(00) 00000-0000" className="h-9 text-sm mt-1" />
@@ -343,10 +342,10 @@ const ParticipanteNovoPage = () => {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Informações Complementares</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
-            <Field label="Origem/Encaminhamento" field="origem_encaminhamento" placeholder="CRAS, escola..." half />
-            <Field label="Responsável Técnico" field="responsavel_tecnico" placeholder="Nome do técnico" half />
-            <Field label="Categoria de Vulnerabilidade" field="categoria_vulnerabilidade" placeholder="Ex: situação de risco" half />
-            <Field label="Início no SCFV" field="iniciou_em" type="date" half />
+            {renderField("Origem/Encaminhamento", "origem_encaminhamento", "text", "CRAS, escola...", true)}
+            {renderField("Responsável Técnico", "responsavel_tecnico", "text", "Nome do técnico", true)}
+            {renderField("Categoria de Vulnerabilidade", "categoria_vulnerabilidade", "text", "Ex: situação de risco", true)}
+            {renderField("Início no SCFV", "iniciou_em", "date", "", true)}
             <div className="col-span-2">
               <Label className="text-xs font-medium">Restrição Alimentar</Label>
               <Textarea value={form.restricao_alimentar} onChange={(e) => set("restricao_alimentar", e.target.value)} placeholder="Alergias, intolerâncias..." className="text-sm mt-1 min-h-[60px]" />
@@ -355,7 +354,7 @@ const ParticipanteNovoPage = () => {
               <Label className="text-xs font-medium">Laudo / Observações de Saúde</Label>
               <Textarea value={form.laudo} onChange={(e) => set("laudo", e.target.value)} placeholder="Informações médicas relevantes..." className="text-sm mt-1 min-h-[60px]" />
             </div>
-            <Field label="Remédio de Uso Contínuo" field="remedio_continuo" placeholder="Ex: Ritalina 10mg" />
+            {renderField("Remédio de Uso Contínuo", "remedio_continuo", "text", "Ex: Ritalina 10mg")}
             <div className="col-span-2">
               <Label className="text-xs font-medium">Outras Condições de Saúde</Label>
               <Textarea value={form.outras_condicoes} onChange={(e) => set("outras_condicoes", e.target.value)} placeholder="Outras condições relevantes..." className="text-sm mt-1 min-h-[60px]" />
@@ -380,9 +379,9 @@ const ParticipanteNovoPage = () => {
                   <div className="flex gap-2 flex-wrap">
                     {scanner.scanSession.pages.map((page, i) => (
                       <div key={i} className="relative group w-16 h-20 border rounded overflow-hidden">
-                        <img src={page.dataUrl} alt={`Página ${i+1}`} className="w-full h-full object-cover" />
+                        <img src={page.dataUrl} alt={`Página ${i+1}`} className="w-full h-full object-cover"
                         <button type="button" onClick={() => scanner.removePageFromScan(i)} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <X className="h-3 w-3" />
+                          <X className="h-3 w-3"
                         </button>
                         <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] text-center">{i+1}</span>
                       </div>
@@ -390,9 +389,9 @@ const ParticipanteNovoPage = () => {
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={scanner.addPageToScan}><Plus className="h-3.5 w-3.5 mr-1" />Adicionar Página</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={scanner.addPageToScan}><Plus className="h-3.5 w-3.5 mr-1"Adicionar Página</Button>
                   {scanner.scanSession.pages.length > 0 && (
-                    <Button type="button" size="sm" onClick={handleFinalizeScan}><Check className="h-3.5 w-3.5 mr-1" />Finalizar Scan</Button>
+                    <Button type="button" size="sm" onClick={handleFinalizeScan}><Check className="h-3.5 w-3.5 mr-1"Finalizar Scan</Button>
                   )}
                   <Button type="button" size="sm" variant="ghost" onClick={scanner.cancelScan}>Cancelar</Button>
                 </div>
@@ -411,20 +410,20 @@ const ParticipanteNovoPage = () => {
                     </div>
                     <div className="flex gap-1.5">
                       <Button type="button" variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => scanner.startScan(cat.value)} disabled={!!scanner.scanSession}>
-                        <Camera className="h-3 w-3 mr-1" />Escanear
+                        <Camera className="h-3 w-3 mr-1)}Escanear
                       </Button>
                       <Button type="button" variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => handleUploadFile(cat.value)} disabled={!!scanner.scanSession}>
-                        <Upload className="h-3 w-3 mr-1" />Upload
+                        <Upload className="h-3 w-3 mr-1)}Upload
                       </Button>
                     </div>
                     {docsForCat.map((doc, i) => {
                       const globalIdx = pendingDocs.indexOf(doc);
                       return (
                         <div key={i} className="flex items-center gap-2 bg-muted/50 rounded p-1.5">
-                          <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0"
                           <span className="text-[10px] truncate flex-1">{doc.fileName}</span>
                           <button type="button" onClick={() => removePendingDoc(globalIdx)} className="text-destructive hover:text-destructive/80">
-                            <X className="h-3 w-3" />
+                            <X className="h-3 w-3"
                           </button>
                         </div>
                       );
@@ -441,7 +440,7 @@ const ParticipanteNovoPage = () => {
 
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" asChild><Link to="/participantes">Cancelar</Link></Button>
-          <Button type="submit" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? "Salvando..." : "Salvar"}</Button>
+          <Button type="submit" disabled={saving}><Save className="h-4 w-4 mr-1)}{saving ? "Salvando..." : "Salvar"}</Button>
         </div>
       </form>
     </div>
