@@ -38,13 +38,7 @@ interface TurmaDashboard { taxaAdesao: number; totalPresencas: number; totalRegi
 interface LinkedPlan { id: string; titulo: string; data_aplicacao: string | null; }
 interface LinkedReport { id: string; nome_atividade: string | null; data: string; score_elo: number | null; }
 
-function calcAge(dob: string): number {
-  const b = new Date(dob);
-  const now = new Date();
-  let age = now.getFullYear() - b.getFullYear();
-  if (now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) age--;
-  return age;
-}
+// calcAge imported from constants
 
 const TurmaDetalhePage = () => {
   const { id } = useParams();

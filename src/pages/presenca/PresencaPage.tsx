@@ -23,13 +23,7 @@ const FAIXAS: Record<string, [number, number]> = {
   "idosos": [60, 120],
 };
 
-function calcAge(dob: string): number {
-  const d = new Date(dob);
-  const now = new Date();
-  let age = now.getFullYear() - d.getFullYear();
-  if (now.getMonth() < d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() < d.getDate())) age--;
-  return age;
-}
+// calcAge imported from constants
 
 const PresencaPage = () => {
   const { user } = useAuth();

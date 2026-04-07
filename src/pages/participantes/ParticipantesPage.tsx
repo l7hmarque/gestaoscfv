@@ -129,13 +129,7 @@ const ParticipantesPage = () => {
     return true;
   });
 
-  const calcAge = (d: string | null) => {
-    if (!d) return "—";
-    const diff = Date.now() - new Date(d).getTime();
-    return Math.floor(diff / 31557600000) + " anos";
-  };
-
-  const isDemo = useIsDemo();
+  // Use centralized displayAge
 
   const handleAprovar = async (p: Tables<"participantes">) => {
     if (guardDemo(isDemo)) return;
