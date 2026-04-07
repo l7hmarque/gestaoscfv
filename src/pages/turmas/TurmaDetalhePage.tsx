@@ -252,13 +252,17 @@ const TurmaDetalhePage = () => {
     if (!turma) return;
     const mesNum = parseInt(listaMes);
     const anoNum = parseInt(listaAno);
-    const activeMems = members.filter(m => m.status !== "desligado").map(m => ({ nome: m.nome }));
+    const mems = members.map(m => ({
+      nome: m.nome,
+      desligado: m.status === "desligado",
+      data_desligamento: m.data_desligamento || null,
+    }));
     const turmaInfo = {
       ...turma,
       profiles: turma.profiles || undefined,
       bairros: turma.bairros || undefined,
     };
-    const ok = exportSingleListaPresenca(turmaInfo, activeMems, mesNum, anoNum);
+    const ok = exportSingleListaPresenca(turmaInfo, mems, mesNum, anoNum);
     if (!ok) { toast.error("Nenhuma data de atividade para este mês"); return; }
     toast.success("Lista de presença exportada!");
     setListaOpen(false);
