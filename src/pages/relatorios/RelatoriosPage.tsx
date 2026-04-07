@@ -354,9 +354,13 @@ const RelatoriosPage = () => {
               Serão excluídos {bulkSelected.size} relatório(s) e todos os dados vinculados (presença, fotos, turmas). Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs">Justificativa *</Label>
+            <Textarea placeholder="Motivo da exclusão..." value={bulkJustificativa} onChange={e => setBulkJustificativa(e.target.value)} className="text-sm" />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={bulkDeleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDelete} disabled={bulkDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={handleBulkDelete} disabled={bulkDeleting || !bulkJustificativa.trim()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {bulkDeleting ? "Excluindo..." : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
