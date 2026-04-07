@@ -32,6 +32,7 @@ interface RankedActivity {
 
 const RelatoriosPage = () => {
   const { user } = useAuth();
+  const { log: auditLog } = useAuditLog();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [ranking, setRanking] = useState<RankedActivity[]>([]);
