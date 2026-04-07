@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { calcFaixaFromDate, calcAge } from "@/lib/constants";
 
 export interface DashboardData {
