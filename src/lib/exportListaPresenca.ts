@@ -164,8 +164,14 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
       else if (r === 5) ws[addr].s = infoStyle;
       else if (r === 6) ws[addr].s = { border: bordersLight, fill: { fgColor: { rgb: "FFFFFF" } } };
       else if (r === headerStartRow) ws[addr].s = hdrStyle;
-      else if (r > headerStartRow && r < headerStartRow + 1 + sorted.length) {
-        ws[addr].s = c === 0 ? cellCenterStyle : (c >= 2 ? cellCenterStyle : cellStyle);
+      else if (r > headerStartRow && r < headerStartRow + 1 + orderedMembers.length) {
+        const memberIdx = r - headerStartRow - 1;
+        const isDesligado = memberIdx >= activeMembers.length;
+        if (isDesligado) {
+          ws[addr].s = c === 0 ? { ...cellCenterStyle, font: { ...cellCenterStyle.font, strike: true, color: { rgb: "999999" } } } : (c >= 2 ? { ...cellCenterStyle, font: { ...cellCenterStyle.font, strike: true, color: { rgb: "999999" } } } : cellStrikeStyle);
+        } else {
+          ws[addr].s = c === 0 ? cellCenterStyle : (c >= 2 ? cellCenterStyle : cellStyle);
+        }
       } else if (r === signRow) {
         ws[addr].s = signStyle;
       } else {
