@@ -391,13 +391,42 @@ const TurmaNovaPage = () => {
 
                 {combos.length > 0 && (
                   <div className="rounded-md border p-3 space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Pré-visualização: {combos.length} turma(s) serão criadas</p>
-                    <div className="flex flex-wrap gap-1.5 max-h-40 overflow-auto">
-                      {combos.map((c, i) => (
-                        <Badge key={i} variant="secondary" className="text-[10px]">
-                          {c.bairro.nome} · {c.faixa} · {c.periodo === "manha" ? "Manhã" : c.periodo === "tarde" ? "Tarde" : "Integral"}
-                        </Badge>
-                      ))}
+                    <p className="text-xs font-medium text-muted-foreground">Pré-visualização: {combos.length} turma(s) — clique nos dias para ajustar individualmente</p>
+                    <div className="space-y-1.5 max-h-60 overflow-auto">
+                      {combos.map((c, i) => {
+                        const comboKey = `${c.bairro.id}_${c.faixa}_${c.periodo}`;
+                        const comboDias = batchCombosDias[comboKey] ?? batchDias;
+                        const toggleComboDia = (dia: string) => {
+                          setBatchCombosDias(prev => {
+                            const current = prev[comboKey] ?? [...batchDias];
+                            const updated = current.includes(dia) ? current.filter(d => d !== dia) : [...current, dia];
+                            return { ...prev, [comboKey]: updated };
+                          });
+                        };
+                        return (
+                          <div key={i} className="flex items-center gap-2 py-1 border-b last:border-0">
+                            <Badge variant="secondary" className="text-[10px] shrink-0 min-w-[140px]">
+                              {c.bairro.nome} · {c.faixa} · {c.periodo === "manha" ? "M" : c.periodo === "tarde" ? "T" : "I"}
+                            </Badge>
+                            <div className="flex gap-1">
+                              {diasOptions.map(d => (
+                                <button
+                                  key={d.value}
+                                  type="button"
+                                  onClick={() => toggleComboDia(d.value)}
+                                  className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${
+                                    comboDias.includes(d.value)
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-muted text-muted-foreground border-border hover:border-primary/50"
+                                  }`}
+                                >
+                                  {d.label.slice(0, 3)}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
