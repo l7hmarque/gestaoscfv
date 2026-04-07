@@ -379,9 +379,9 @@ const ParticipanteNovoPage = () => {
                   <div className="flex gap-2 flex-wrap">
                     {scanner.scanSession.pages.map((page, i) => (
                       <div key={i} className="relative group w-16 h-20 border rounded overflow-hidden">
-                        <img src={page.dataUrl} alt={`Página ${i+1}`} className="w-full h-full object-cover"
+                        <img src={page.dataUrl} alt={`Página ${i+1}`} className="w-full h-full object-cover" />
                         <button type="button" onClick={() => scanner.removePageFromScan(i)} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <X className="h-3 w-3"
+                          <X className="h-3 w-3" />
                         </button>
                         <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] text-center">{i+1}</span>
                       </div>
