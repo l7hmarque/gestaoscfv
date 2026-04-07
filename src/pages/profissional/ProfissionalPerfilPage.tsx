@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Printer, Calendar, Users, FileText, ClipboardList, CheckSquare } from "lucide-react";
+import { ArrowLeft, Printer, Calendar, Users, FileText, ClipboardList, CheckSquare, Bell } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";

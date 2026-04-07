@@ -7,17 +7,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuditLog } from "@/hooks/useAuditLog";
 import { toast } from "sonner";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 interface Props {
-  /** If set, pre-fills the destinatario filter to tecnico roles only */
   toTecnicos?: boolean;
   trigger?: React.ReactNode;
 }
 
 export function SendRecadoDialog({ toTecnicos, trigger }: Props) {
   const { user } = useAuth();
+  const { log: auditLog } = useAuditLog();
   const isDemo = useIsDemo();
   const [open, setOpen] = useState(false);
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -59,13 +60,23 @@ export function SendRecadoDialog({ toTecnicos, trigger }: Props) {
     if (guardDemo(isDemo)) return;
     if (!form.destinatario_id || !form.conteudo.trim()) { toast.error("Preencha destinatário e conteúdo"); return; }
     const partId = form.participante_id === "__none__" ? null : (form.participante_id || null);
-    const { error } = await supabase.from("recados").insert({
+    const { data, error } = await supabase.from("recados").insert({
       remetente_id: myProfileId,
       destinatario_id: form.destinatario_id,
       participante_id: partId,
       conteudo: form.conteudo,
-    } as any);
+    } as any).select("*").single();
     if (error) { toast.error("Erro: " + error.message); return; }
+
+    // Audit log
+    const destName = profiles.find(p => p.id === form.destinatario_id)?.nome || "—";
+    await auditLog({
+      acao: "criação",
+      tabela: "recados",
+      registro_id: data?.id,
+      detalhes: `Recado #${(data as any)?.numero || "—"} enviado para ${destName}${partId ? ` sobre participante` : ""}`,
+    });
+
     toast.success("Recado enviado!");
     setOpen(false);
     setForm({ destinatario_id: "", participante_id: "", conteudo: "" });
