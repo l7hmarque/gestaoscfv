@@ -345,15 +345,18 @@ const TurmaNovaPage = () => {
                 </div>
 
                 <div>
-                  <Label className="text-xs font-medium mb-2 block">Dias da Semana (aplicados a todas)</Label>
+                  <Label className="text-xs font-medium mb-2 block">Dias da Semana (padrão para todas)</Label>
                   <div className="flex flex-wrap gap-3">
                     {diasOptions.map(d => (
                       <label key={d.value} className="flex items-center gap-1.5 cursor-pointer">
-                        <Checkbox checked={batchDias.includes(d.value)} onCheckedChange={() => toggleArray(batchDias, d.value, setBatchDias)} />
+                        <Checkbox checked={batchDias.includes(d.value)} onCheckedChange={() => {
+                          toggleArray(batchDias, d.value, setBatchDias);
+                        }} />
                         <span className="text-sm">{d.label}</span>
                       </label>
                     ))}
                   </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">Você pode ajustar dias individuais na pré-visualização abaixo.</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
