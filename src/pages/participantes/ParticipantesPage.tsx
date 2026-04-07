@@ -129,7 +129,7 @@ const ParticipantesPage = () => {
     return true;
   });
 
-  // Use centralized displayAge
+  const isDemo = useIsDemo();
 
   const handleAprovar = async (p: Tables<"participantes">) => {
     if (guardDemo(isDemo)) return;
