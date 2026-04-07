@@ -140,6 +140,41 @@ export type Database = {
         }
         Relationships: []
       }
+      chamadas_assinadas: {
+        Row: {
+          arquivo_url: string
+          created_at: string
+          id: string
+          mes_referencia: string
+          turma_id: string
+          uploaded_by: string
+        }
+        Insert: {
+          arquivo_url: string
+          created_at?: string
+          id?: string
+          mes_referencia: string
+          turma_id: string
+          uploaded_by: string
+        }
+        Update: {
+          arquivo_url?: string
+          created_at?: string
+          id?: string
+          mes_referencia?: string
+          turma_id?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chamadas_assinadas_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conquistas: {
         Row: {
           created_at: string
@@ -1315,6 +1350,7 @@ export type Database = {
           destinatario_id: string
           id: string
           lido: boolean
+          numero: number
           participante_id: string | null
           remetente_id: string
         }
@@ -1325,6 +1361,7 @@ export type Database = {
           destinatario_id: string
           id?: string
           lido?: boolean
+          numero?: number
           participante_id?: string | null
           remetente_id: string
         }
@@ -1335,6 +1372,7 @@ export type Database = {
           destinatario_id?: string
           id?: string
           lido?: boolean
+          numero?: number
           participante_id?: string | null
           remetente_id?: string
         }
