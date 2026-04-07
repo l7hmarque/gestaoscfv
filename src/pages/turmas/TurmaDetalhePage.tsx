@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
-import { isBairroSCFV, OFICINAS_TURMA } from "@/lib/constants";
+import { isBairroSCFV, OFICINAS_TURMA, PERIODO_LABELS, FAIXA_LABELS, calcAge } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
@@ -24,8 +24,8 @@ import { saveAs } from "file-saver";
 import { sysEloFileName } from "@/lib/fileNaming";
 import { exportSingleListaPresenca } from "@/lib/exportListaPresenca";
 
-const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
-const faixaLabel: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
+const periodoLabel = PERIODO_LABELS;
+const faixaLabel = FAIXA_LABELS;
 const diasLabel: Record<string, string> = { seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb" };
 const diasOptions = [
   { value: "seg", label: "Segunda" }, { value: "ter", label: "Terça" }, { value: "qua", label: "Quarta" },
@@ -38,13 +38,7 @@ interface TurmaDashboard { taxaAdesao: number; totalPresencas: number; totalRegi
 interface LinkedPlan { id: string; titulo: string; data_aplicacao: string | null; }
 interface LinkedReport { id: string; nome_atividade: string | null; data: string; score_elo: number | null; }
 
-function calcAge(dob: string): number {
-  const b = new Date(dob);
-  const now = new Date();
-  let age = now.getFullYear() - b.getFullYear();
-  if (now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) age--;
-  return age;
-}
+// calcAge imported from constants
 
 const TurmaDetalhePage = () => {
   const { id } = useParams();

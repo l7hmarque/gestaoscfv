@@ -18,7 +18,6 @@ import TurmasPage from "./pages/turmas/TurmasPage";
 import TurmaNovaPage from "./pages/turmas/TurmaNovaPage";
 import TurmaDetalhePage from "./pages/turmas/TurmaDetalhePage";
 import PresencaPage from "./pages/presenca/PresencaPage";
-import PresencaHistoricoPage from "./pages/presenca/PresencaHistoricoPage";
 import PresencaExportarPage from "./pages/presenca/PresencaExportarPage";
 import PlanejamentosPage from "./pages/planejamentos/PlanejamentosPage";
 import PlanejamentoNovoPage from "./pages/planejamentos/PlanejamentoNovoPage";
@@ -46,7 +45,16 @@ import SiteConteudosPage from "./pages/site/SiteConteudosPage";
 import SiteContatoPage from "./pages/site/SiteContatoPage";
 import SiteAdminPage from "./pages/site-admin/SiteAdminPage";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 min — evita refetch desnecessário
+      gcTime: 10 * 60 * 1000,   // 10 min cache
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
   <ErrorBoundary>
@@ -79,7 +87,6 @@ const App = () => (
                 <Route path="/turmas/nova" element={<TurmaNovaPage />} />
                 <Route path="/turmas/:id" element={<TurmaDetalhePage />} />
                 <Route path="/presenca" element={<PresencaPage />} />
-                <Route path="/presenca/historico" element={<PresencaHistoricoPage />} />
                 <Route path="/presenca/exportar" element={<PresencaExportarPage />} />
                 <Route path="/planejamentos" element={<PlanejamentosPage />} />
                 <Route path="/planejamentos/novo" element={<PlanejamentoNovoPage />} />

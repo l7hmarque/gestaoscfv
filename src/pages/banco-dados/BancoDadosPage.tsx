@@ -13,12 +13,13 @@ import { useBackupExport } from "@/hooks/useBackupExport";
 import { exportXLSX, exportPDF } from "@/hooks/useDataExport";
 import { Download, FileSpreadsheet, FileText, Archive, Loader2 } from "lucide-react";
 import { displayCPF, displayPhone } from "@/lib/utils";
+import { STATUS_LABELS, PERIODO_LABELS } from "@/lib/constants";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto", pendente: "Pendente" };
-const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
+const statusLabel = STATUS_LABELS;
+const periodoLabel = PERIODO_LABELS;
 
 export default function BancoDadosPage() {
   const [tab, setTab] = useState("participantes");

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
-import { calcFaixaFromDate } from "@/lib/constants";
+import { calcFaixaFromDate, calcAge } from "@/lib/constants";
 
 export interface DashboardData {
   totalParticipantesAtivos: number;
@@ -23,13 +23,7 @@ export interface DashboardData {
   totalParticipantesAlerta: number;
 }
 
-function calcAge(dob: string): number {
-  const b = new Date(dob);
-  const now = new Date();
-  let age = now.getFullYear() - b.getFullYear();
-  if (now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) age--;
-  return age;
-}
+// calcAge imported from constants
 
 function monthKey(d: string) {
   return d.slice(0, 7);

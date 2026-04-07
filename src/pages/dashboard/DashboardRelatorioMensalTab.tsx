@@ -10,7 +10,7 @@ import { FileSpreadsheet, Download, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
-import { BAIRROS_SCFV, calcFaixaFromDate } from "@/lib/constants";
+import { BAIRROS_SCFV, calcFaixaFromDate, calcAge } from "@/lib/constants";
 import { sysEloFileName } from "@/lib/fileNaming";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -35,12 +35,7 @@ function getDatasAtividade(ano: number, mes: number, diasSemana: string[]): stri
   return datas;
 }
 
-function calcAge(dob: string): number {
-  const b = new Date(dob); const now = new Date();
-  let age = now.getFullYear() - b.getFullYear();
-  if (now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) age--;
-  return age;
-}
+// calcAge imported from constants
 
 /** Apply thin borders to all cells in a sheet */
 function applyBorders(ws: XLSX.WorkSheet) {
