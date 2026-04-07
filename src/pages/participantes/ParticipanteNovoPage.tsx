@@ -423,7 +423,7 @@ const ParticipanteNovoPage = () => {
                           <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <span className="text-[10px] truncate flex-1">{doc.fileName}</span>
                           <button type="button" onClick={() => removePendingDoc(globalIdx)} className="text-destructive hover:text-destructive/80">
-                            <X className="h-3 w-3"
+                            <X className="h-3 w-3" />
                           </button>
                         </div>
                       );
