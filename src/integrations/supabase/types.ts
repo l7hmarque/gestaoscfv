@@ -65,6 +65,42 @@ export type Database = {
           },
         ]
       }
+      audit_log: {
+        Row: {
+          acao: string
+          created_at: string
+          detalhes: string | null
+          id: string
+          justificativa: string | null
+          registro_id: string | null
+          tabela: string
+          user_id: string
+          user_nome: string | null
+        }
+        Insert: {
+          acao: string
+          created_at?: string
+          detalhes?: string | null
+          id?: string
+          justificativa?: string | null
+          registro_id?: string | null
+          tabela: string
+          user_id: string
+          user_nome?: string | null
+        }
+        Update: {
+          acao?: string
+          created_at?: string
+          detalhes?: string | null
+          id?: string
+          justificativa?: string | null
+          registro_id?: string | null
+          tabela?: string
+          user_id?: string
+          user_nome?: string | null
+        }
+        Relationships: []
+      }
       bairros: {
         Row: {
           id: string
