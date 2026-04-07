@@ -47,6 +47,7 @@ const RelatoriosPage = () => {
   const [bulkSearching, setBulkSearching] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [bulkJustificativa, setBulkJustificativa] = useState("");
 
   useEffect(() => {
     if (user) {
