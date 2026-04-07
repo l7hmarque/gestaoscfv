@@ -98,7 +98,14 @@ const TurmasPage = () => {
         }
         ws["!cols"] = [{ wch: 4 }, { wch: 35 }, ...datas.map(() => ({ wch: 5 }))];
 
-        const sheetName = t.nome.replace(/[:\\/?*[\]]/g, "").slice(0, 31);
+        let sheetName = t.nome.replace(/[:\\/?*[\]]/g, "").slice(0, 31);
+        const existingNames = wb.SheetNames || [];
+        let suffix = 2;
+        while (existingNames.includes(sheetName)) {
+          const tag = ` (${suffix})`;
+          sheetName = t.nome.replace(/[:\\/?*[\]]/g, "").slice(0, 31 - tag.length) + tag;
+          suffix++;
+        }
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
         sheetsAdded++;
       }
