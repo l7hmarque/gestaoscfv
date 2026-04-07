@@ -1008,7 +1008,7 @@ export default function FinanceiroPage() {
                   <TableRow key={e.id}>
                     <TableCell className="text-xs">{e.categoria_id ? (catMap.get(e.categoria_id)?.descricao || "—") : "—"}</TableCell>
                     <TableCell className="text-xs text-right font-medium">{fmt(Number(e.valor))}</TableCell>
-                    <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteRow("estornos", e.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
+                    <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setDeleteTarget({ table: "estornos", id: e.id, label: `Estorno: ${fmt(Number(e.valor))}` })}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
                   </TableRow>
                 ))}
                 {estornos.length === 0 && <TableRow><TableCell colSpan={3} className="text-xs text-center text-muted-foreground py-6">Nenhum estorno neste mês</TableCell></TableRow>}
