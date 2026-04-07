@@ -359,7 +359,7 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     PRESENCA: presenca.map((p, i) => ({
       NUM: i + 1,
       NOME: p.participantes?.nome_completo || "",
-      STATUS: p.presente ? "✓" : "✗",
+      STATUS: p.presente ? "☑" : "☐",
       JUSTIFICATIVA: p.justificativa || "",
     })),
     HAS_PRESENCA: presenca.length > 0,
