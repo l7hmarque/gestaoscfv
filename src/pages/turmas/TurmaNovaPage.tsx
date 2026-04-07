@@ -54,6 +54,7 @@ const TurmaNovaPage = () => {
   const [batchFaixas, setBatchFaixas] = useState<string[]>([]);
   const [batchPeriodos, setBatchPeriodos] = useState<string[]>([]);
   const [batchDias, setBatchDias] = useState<string[]>([]);
+  const [batchCombosDias, setBatchCombosDias] = useState<Record<string, string[]>>({});
   const [batchEducadorId, setBatchEducadorId] = useState("");
   const [batchTipo, setBatchTipo] = useState("ordinaria");
   const [batchSaving, setBatchSaving] = useState(false);
@@ -121,15 +122,19 @@ const TurmaNovaPage = () => {
     if (combos.length === 0) { toast.error("Selecione ao menos uma opção de cada filtro"); return; }
     setBatchSaving(true);
     const periodoLabels: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
-    const rows = combos.map(c => ({
-      nome: `${c.bairro.nome} — ${c.faixa} — ${periodoLabels[c.periodo] || c.periodo}`,
-      bairro_id: c.bairro.id,
-      faixa_etaria: c.faixa,
-      periodo: c.periodo,
-      tipo: batchTipo,
-      dias_semana: batchDias,
-      ...(batchEducadorId ? { educador_id: batchEducadorId } : {}),
-    }));
+    const rows = combos.map(c => {
+      const comboKey = `${c.bairro.id}_${c.faixa}_${c.periodo}`;
+      const dias = batchCombosDias[comboKey] ?? batchDias;
+      return {
+        nome: `${c.bairro.nome} — ${c.faixa} — ${periodoLabels[c.periodo] || c.periodo}`,
+        bairro_id: c.bairro.id,
+        faixa_etaria: c.faixa,
+        periodo: c.periodo,
+        tipo: batchTipo,
+        dias_semana: dias,
+        ...(batchEducadorId ? { educador_id: batchEducadorId } : {}),
+      };
+    });
 
     const { data: turmasCriadas, error } = await supabase.from("turmas").insert(rows as any).select();
     if (error) { setBatchSaving(false); toast.error("Erro: " + error.message); return; }
@@ -340,15 +345,18 @@ const TurmaNovaPage = () => {
                 </div>
 
                 <div>
-                  <Label className="text-xs font-medium mb-2 block">Dias da Semana (aplicados a todas)</Label>
+                  <Label className="text-xs font-medium mb-2 block">Dias da Semana (padrão para todas)</Label>
                   <div className="flex flex-wrap gap-3">
                     {diasOptions.map(d => (
                       <label key={d.value} className="flex items-center gap-1.5 cursor-pointer">
-                        <Checkbox checked={batchDias.includes(d.value)} onCheckedChange={() => toggleArray(batchDias, d.value, setBatchDias)} />
+                        <Checkbox checked={batchDias.includes(d.value)} onCheckedChange={() => {
+                          toggleArray(batchDias, d.value, setBatchDias);
+                        }} />
                         <span className="text-sm">{d.label}</span>
                       </label>
                     ))}
                   </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">Você pode ajustar dias individuais na pré-visualização abaixo.</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -383,13 +391,42 @@ const TurmaNovaPage = () => {
 
                 {combos.length > 0 && (
                   <div className="rounded-md border p-3 space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Pré-visualização: {combos.length} turma(s) serão criadas</p>
-                    <div className="flex flex-wrap gap-1.5 max-h-40 overflow-auto">
-                      {combos.map((c, i) => (
-                        <Badge key={i} variant="secondary" className="text-[10px]">
-                          {c.bairro.nome} · {c.faixa} · {c.periodo === "manha" ? "Manhã" : c.periodo === "tarde" ? "Tarde" : "Integral"}
-                        </Badge>
-                      ))}
+                    <p className="text-xs font-medium text-muted-foreground">Pré-visualização: {combos.length} turma(s) — clique nos dias para ajustar individualmente</p>
+                    <div className="space-y-1.5 max-h-60 overflow-auto">
+                      {combos.map((c, i) => {
+                        const comboKey = `${c.bairro.id}_${c.faixa}_${c.periodo}`;
+                        const comboDias = batchCombosDias[comboKey] ?? batchDias;
+                        const toggleComboDia = (dia: string) => {
+                          setBatchCombosDias(prev => {
+                            const current = prev[comboKey] ?? [...batchDias];
+                            const updated = current.includes(dia) ? current.filter(d => d !== dia) : [...current, dia];
+                            return { ...prev, [comboKey]: updated };
+                          });
+                        };
+                        return (
+                          <div key={i} className="flex items-center gap-2 py-1 border-b last:border-0">
+                            <Badge variant="secondary" className="text-[10px] shrink-0 min-w-[140px]">
+                              {c.bairro.nome} · {c.faixa} · {c.periodo === "manha" ? "M" : c.periodo === "tarde" ? "T" : "I"}
+                            </Badge>
+                            <div className="flex gap-1">
+                              {diasOptions.map(d => (
+                                <button
+                                  key={d.value}
+                                  type="button"
+                                  onClick={() => toggleComboDia(d.value)}
+                                  className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${
+                                    comboDias.includes(d.value)
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-muted text-muted-foreground border-border hover:border-primary/50"
+                                  }`}
+                                >
+                                  {d.label.slice(0, 3)}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

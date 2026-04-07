@@ -17,7 +17,12 @@ import { toast } from "sonner";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity } from "lucide-react";
+import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx-js-style";
+import { saveAs } from "file-saver";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { sysEloFileName } from "@/lib/fileNaming";
 
 const TIPOS_ATENDIMENTO = [
   { value: "visita_domiciliar", label: "Visita Domiciliar" },
@@ -45,6 +50,8 @@ const EquipeTecnicaPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filterTipo, setFilterTipo] = useState("");
   const [filterProf, setFilterProf] = useState("");
+  const [relDataInicio, setRelDataInicio] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const [relDataFim, setRelDataFim] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [form, setForm] = useState({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "" });
   const [myProfileId, setMyProfileId] = useState("");
 
@@ -177,6 +184,109 @@ const EquipeTecnicaPage = () => {
   const partName = (id: string) => participantes.find(p => p.id === id)?.nome_completo || "—";
   const tipoLabel = (v: string) => TIPOS_ATENDIMENTO.find(t => t.value === v)?.label || v;
 
+  const relAtendimentos = useMemo(() => {
+    return atendimentos.filter(a => a.data_atendimento >= relDataInicio && a.data_atendimento <= relDataFim);
+  }, [atendimentos, relDataInicio, relDataFim]);
+
+  const generateRelatorioEquipe = (formato: "xlsx" | "pdf") => {
+    if (relAtendimentos.length === 0) { toast.error("Nenhum atendimento no período"); return; }
+    const periodoLabel = `${format(new Date(relDataInicio + "T12:00:00"), "dd/MM/yyyy")} a ${format(new Date(relDataFim + "T12:00:00"), "dd/MM/yyyy")}`;
+
+    if (formato === "xlsx") {
+      const border = { style: "thin" as const, color: { rgb: "000000" } };
+      const hdr = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1565C0" } }, border: { top: border, bottom: border, left: border, right: border } };
+      const cell = { border: { top: border, bottom: border, left: border, right: border } };
+      const wb = XLSX.utils.book_new();
+      const rows: any[][] = [
+        ["RELATÓRIO DE ATIVIDADES DA EQUIPE TÉCNICA"],
+        ["Período: " + periodoLabel],
+        ["Gerado em: " + new Date().toLocaleString("pt-BR")],
+        [],
+        ["Data", "Profissional", "Participante", "Tipo", "Descrição", "Encaminhamento"],
+      ];
+      relAtendimentos.forEach(a => {
+        rows.push([
+          format(new Date(a.data_atendimento + "T12:00:00"), "dd/MM/yyyy"),
+          profName(a.profissional_id),
+          partName(a.participante_id),
+          tipoLabel(a.tipo),
+          a.descricao || "",
+          a.encaminhamento || "",
+        ]);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 28 }, { wch: 20 }, { wch: 40 }, { wch: 30 }];
+      // Style header row
+      for (let c = 0; c < 6; c++) {
+        const addr = XLSX.utils.encode_cell({ r: 4, c });
+        if (ws[addr]) ws[addr].s = hdr;
+      }
+      // Style data cells
+      for (let r = 5; r < rows.length; r++) {
+        for (let c = 0; c < 6; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c });
+          if (ws[addr]) ws[addr].s = cell;
+        }
+      }
+      XLSX.utils.book_append_sheet(wb, ws, "Atendimentos");
+
+      // Resumo por tipo
+      const tipoMap: Record<string, number> = {};
+      relAtendimentos.forEach(a => { tipoMap[tipoLabel(a.tipo)] = (tipoMap[tipoLabel(a.tipo)] || 0) + 1; });
+      const resumoRows: any[][] = [["Tipo", "Quantidade"]];
+      Object.entries(tipoMap).forEach(([tipo, qt]) => resumoRows.push([tipo, qt]));
+      resumoRows.push(["TOTAL", relAtendimentos.length]);
+      const wsR = XLSX.utils.aoa_to_sheet(resumoRows);
+      wsR["!cols"] = [{ wch: 25 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, wsR, "Resumo");
+
+      const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      saveAs(new Blob([buf]), sysEloFileName("RelEquipeTecnica", "xlsx"));
+      toast.success("Relatório XLSX gerado!");
+    } else {
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      doc.setFontSize(14);
+      doc.text("RELATÓRIO DE ATIVIDADES DA EQUIPE TÉCNICA", 14, 15);
+      doc.setFontSize(9);
+      doc.text("Período: " + periodoLabel, 14, 22);
+      doc.text("Gerado em: " + new Date().toLocaleString("pt-BR"), 14, 27);
+
+      autoTable(doc, {
+        startY: 32,
+        head: [["Data", "Profissional", "Participante", "Tipo", "Descrição", "Encaminhamento"]],
+        body: relAtendimentos.map(a => [
+          format(new Date(a.data_atendimento + "T12:00:00"), "dd/MM/yyyy"),
+          profName(a.profissional_id),
+          partName(a.participante_id),
+          tipoLabel(a.tipo),
+          a.descricao || "—",
+          a.encaminhamento || "—",
+        ]),
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        headStyles: { fillColor: [21, 101, 192], fontSize: 7 },
+        alternateRowStyles: { fillColor: [240, 240, 240] },
+        columnStyles: { 4: { cellWidth: 60 }, 5: { cellWidth: 40 } },
+      });
+
+      // Resumo
+      const lastY = (doc as any).lastAutoTable?.finalY || 100;
+      doc.setFontSize(11);
+      doc.text("Resumo por Tipo", 14, lastY + 8);
+      const tipoMap2: Record<string, number> = {};
+      relAtendimentos.forEach(a => { tipoMap2[tipoLabel(a.tipo)] = (tipoMap2[tipoLabel(a.tipo)] || 0) + 1; });
+      autoTable(doc, {
+        startY: lastY + 12,
+        head: [["Tipo", "Quantidade"]],
+        body: [...Object.entries(tipoMap2).map(([t, q]) => [t, String(q)]), ["TOTAL", String(relAtendimentos.length)]],
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [21, 101, 192] },
+      });
+
+      doc.save(sysEloFileName("RelEquipeTecnica", "pdf"));
+      toast.success("Relatório PDF gerado!");
+    }
+  };
+
   if (loading) return <div className="flex justify-center py-12"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
 
   return (
@@ -232,6 +342,7 @@ const EquipeTecnicaPage = () => {
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="atendimentos">Atendimentos</TabsTrigger>
+          <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
           <TabsTrigger value="alertas">Alertas</TabsTrigger>
         </TabsList>
 
@@ -399,6 +510,65 @@ const EquipeTecnicaPage = () => {
               </TableBody>
             </Table>
           </div>
+        </TabsContent>
+
+        {/* RELATÓRIOS */}
+        <TabsContent value="relatorios" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Relatório de Atividades da Equipe Técnica</CardTitle>
+              <p className="text-xs text-muted-foreground">Selecione o intervalo de datas para gerar o relatório com todos os atendimentos realizados.</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-3 items-end">
+                <div>
+                  <Label className="text-xs">Data Início</Label>
+                  <Input type="date" value={relDataInicio} onChange={e => setRelDataInicio(e.target.value)} className="h-9 text-sm mt-1 w-44" />
+                </div>
+                <div>
+                  <Label className="text-xs">Data Fim</Label>
+                  <Input type="date" value={relDataFim} onChange={e => setRelDataFim(e.target.value)} className="h-9 text-sm mt-1 w-44" />
+                </div>
+                <Badge variant="secondary" className="text-xs h-9 px-3">{relAtendimentos.length} atendimento(s)</Badge>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => generateRelatorioEquipe("xlsx")} disabled={relAtendimentos.length === 0} className="gap-1">
+                  <FileSpreadsheet className="h-3.5 w-3.5" />Exportar XLSX
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => generateRelatorioEquipe("pdf")} disabled={relAtendimentos.length === 0} className="gap-1">
+                  <Download className="h-3.5 w-3.5" />Exportar PDF
+                </Button>
+              </div>
+
+              {relAtendimentos.length > 0 && (
+                <div className="border rounded-lg overflow-auto max-h-60">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Data</TableHead>
+                        <TableHead className="text-xs">Profissional</TableHead>
+                        <TableHead className="text-xs">Participante</TableHead>
+                        <TableHead className="text-xs">Tipo</TableHead>
+                        <TableHead className="text-xs">Encaminhamento</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {relAtendimentos.slice(0, 20).map(a => (
+                        <TableRow key={a.id}>
+                          <TableCell className="text-xs">{a.data_atendimento}</TableCell>
+                          <TableCell className="text-xs">{profName(a.profissional_id)}</TableCell>
+                          <TableCell className="text-xs">{partName(a.participante_id)}</TableCell>
+                          <TableCell><Badge variant="secondary" className="text-[10px]">{tipoLabel(a.tipo)}</Badge></TableCell>
+                          <TableCell className="text-xs max-w-[150px] truncate">{a.encaminhamento || "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {relAtendimentos.length > 20 && <p className="text-[10px] text-muted-foreground text-center py-1">Mostrando 20 de {relAtendimentos.length}</p>}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ALERTAS */}
