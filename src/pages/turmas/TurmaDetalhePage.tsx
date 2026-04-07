@@ -22,6 +22,7 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import { sysEloFileName } from "@/lib/fileNaming";
+import { exportSingleListaPresenca } from "@/lib/exportListaPresenca";
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const faixaLabel: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
