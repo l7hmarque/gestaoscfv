@@ -46,7 +46,16 @@ import SiteConteudosPage from "./pages/site/SiteConteudosPage";
 import SiteContatoPage from "./pages/site/SiteContatoPage";
 import SiteAdminPage from "./pages/site-admin/SiteAdminPage";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 min — evita refetch desnecessário
+      gcTime: 10 * 60 * 1000,   // 10 min cache
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
   <ErrorBoundary>
