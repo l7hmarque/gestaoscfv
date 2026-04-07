@@ -410,10 +410,10 @@ const ParticipanteNovoPage = () => {
                     </div>
                     <div className="flex gap-1.5">
                       <Button type="button" variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => scanner.startScan(cat.value)} disabled={!!scanner.scanSession}>
-                        <Camera className="h-3 w-3 mr-1)}Escanear
+                        <Camera className="h-3 w-3 mr-1" />Escanear
                       </Button>
                       <Button type="button" variant="outline" size="sm" className="text-xs h-7 px-2" onClick={() => handleUploadFile(cat.value)} disabled={!!scanner.scanSession}>
-                        <Upload className="h-3 w-3 mr-1)}Upload
+                        <Upload className="h-3 w-3 mr-1" />Upload
                       </Button>
                     </div>
                     {docsForCat.map((doc, i) => {
