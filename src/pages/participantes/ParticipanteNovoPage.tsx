@@ -420,7 +420,7 @@ const ParticipanteNovoPage = () => {
                       const globalIdx = pendingDocs.indexOf(doc);
                       return (
                         <div key={i} className="flex items-center gap-2 bg-muted/50 rounded p-1.5">
-                          <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0"
+                          <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <span className="text-[10px] truncate flex-1">{doc.fileName}</span>
                           <button type="button" onClick={() => removePendingDoc(globalIdx)} className="text-destructive hover:text-destructive/80">
                             <X className="h-3 w-3"
