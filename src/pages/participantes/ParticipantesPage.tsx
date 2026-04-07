@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
-import { BAIRROS_SCFV, calcFaixaFromDate } from "@/lib/constants";
+import { BAIRROS_SCFV, calcFaixaFromDate, displayAge, PERIODO_LABELS, STATUS_LABELS, STATUS_COLORS } from "@/lib/constants";
 import { displayPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
@@ -20,9 +20,9 @@ import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import { useAuth } from "@/contexts/AuthContext";
 
-const statusLabel: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto", pendente: "Pendente" };
-const statusColor: Record<string, string> = { ativo: "bg-green-100 text-green-800", desligado: "bg-red-100 text-red-800", incompleto: "bg-yellow-100 text-yellow-800", pendente: "bg-blue-100 text-blue-800" };
-const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
+const statusLabel = STATUS_LABELS;
+const statusColor = STATUS_COLORS;
+const periodoLabel = PERIODO_LABELS;
 
 const MOTIVOS_DESLIGAMENTO = [
   "Mudança de município",
