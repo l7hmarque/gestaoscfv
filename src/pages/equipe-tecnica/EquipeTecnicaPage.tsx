@@ -342,7 +342,9 @@ const EquipeTecnicaPage = () => {
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="atendimentos">Atendimentos</TabsTrigger>
+          <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
           <TabsTrigger value="alertas">Alertas</TabsTrigger>
+        </TabsList>
         </TabsList>
 
         {/* DASHBOARD */}
