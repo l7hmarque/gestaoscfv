@@ -8,15 +8,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { saveAs } from "file-saver";
-import { sysEloFileName } from "@/lib/fileNaming";
-import * as XLSX from "xlsx-js-style";
-import { format } from "date-fns";
+import { exportAllListasPresenca } from "@/lib/exportListaPresenca";
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const faixaLabel: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
 const diasLabel: Record<string, string> = { seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb" };
-const DIAS_MAP: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
 interface TurmaRow {
@@ -65,56 +61,15 @@ const TurmasPage = () => {
         membersByTurma[tp.turma_id].push({ nome: tp.participantes?.nome_completo || "" });
       });
 
-      const wb = XLSX.utils.book_new();
-      const border = { style: "thin" as const, color: { rgb: "000000" } };
-      const borders = { top: border, bottom: border, left: border, right: border };
-      const hdrStyle = { font: { bold: true, color: { rgb: "FFFFFF" }, sz: 9 }, fill: { fgColor: { rgb: "1A5276" } }, border: borders, alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true } };
-      const cellStyle = { border: borders, alignment: { vertical: "center" as const }, font: { sz: 9 } };
-      let sheetsAdded = 0;
+      const turmasWithProfiles = ativas.map(t => ({
+        ...t,
+        profiles: t.profiles || undefined,
+        bairros: t.bairros || undefined,
+      }));
 
-      for (const t of ativas) {
-        const diasSemana: string[] = t.dias_semana || [];
-        const diasNum = diasSemana.map(d => DIAS_MAP[d.toLowerCase()]).filter(n => n !== undefined);
-        const datas: string[] = [];
-        const d = new Date(anoNum, mesNum - 1, 1);
-        while (d.getMonth() === mesNum - 1) {
-          if (diasNum.includes(d.getDay())) datas.push(format(d, "dd/MM"));
-          d.setDate(d.getDate() + 1);
-        }
-        if (datas.length === 0) continue;
-
-        const members = (membersByTurma[t.id] || []).sort((a, b) => a.nome.localeCompare(b.nome));
-        const header = ["Nº", "Nome do Participante", ...datas];
-        const rows = members.map((m, i) => [i + 1, m.nome, ...datas.map(() => "")]);
-
-        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-        const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
-        for (let r = range.s.r; r <= range.e.r; r++) {
-          for (let c = range.s.c; c <= range.e.c; c++) {
-            const addr = XLSX.utils.encode_cell({ r, c });
-            if (!ws[addr]) ws[addr] = { v: "", t: "s" };
-            ws[addr].s = r === 0 ? { ...hdrStyle } : { ...cellStyle };
-          }
-        }
-        ws["!cols"] = [{ wch: 4 }, { wch: 35 }, ...datas.map(() => ({ wch: 5 }))];
-
-        let sheetName = t.nome.replace(/[:\\/?*[\]]/g, "").slice(0, 31);
-        const existingNames = wb.SheetNames || [];
-        let suffix = 2;
-        while (existingNames.includes(sheetName)) {
-          const tag = ` (${suffix})`;
-          sheetName = t.nome.replace(/[:\\/?*[\]]/g, "").slice(0, 31 - tag.length) + tag;
-          suffix++;
-        }
-        XLSX.utils.book_append_sheet(wb, ws, sheetName);
-        sheetsAdded++;
-      }
-
-      if (sheetsAdded === 0) { toast.error("Nenhuma turma com dias de atividade neste mês"); return; }
-
-      const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-      saveAs(new Blob([buf], { type: "application/octet-stream" }), sysEloFileName("ListasPresenca", "xlsx", `${MESES_NOMES[mesNum - 1]}_${anoNum}`));
-      toast.success(`${sheetsAdded} lista(s) exportada(s)!`);
+      const result = exportAllListasPresenca(turmasWithProfiles, membersByTurma, mesNum, anoNum);
+      if (!result.success) { toast.error("Nenhuma turma com dias de atividade neste mês"); return; }
+      toast.success(`${result.sheetsAdded} lista(s) exportada(s)!`);
       setExportOpen(false);
     } catch (e: any) {
       toast.error("Erro ao exportar: " + e.message);
