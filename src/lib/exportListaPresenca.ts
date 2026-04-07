@@ -136,7 +136,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
 
   // Blank row + signature
   rows.push([]);
-  const signRow = headerStartRow + 1 + sorted.length + 1;
+  const signRow = headerStartRow + 1 + orderedMembers.length + 1;
   rows.push(["", `Assinatura do(a) Educador(a): ${"_".repeat(60)}`]);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -190,7 +190,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   ws["!rows"][3] = { hpt: 22 };
   ws["!rows"][4] = { hpt: 22 };
   ws["!rows"][5] = { hpt: 16 };
-  for (let r = headerStartRow + 1; r < headerStartRow + 1 + sorted.length; r++) {
+  for (let r = headerStartRow + 1; r < headerStartRow + 1 + orderedMembers.length; r++) {
     ws["!rows"][r] = { hpt: 18 };
   }
 
