@@ -125,6 +125,9 @@ export default function FinanceiroPage() {
   const [pcLoading, setPcLoading] = useState(false);
   const [reoLoading, setReoLoading] = useState(false);
 
+  // Pipeline filter
+  const [despFilter, setDespFilter] = useState<"all" | "pendente" | "aguardando" | "completa">("all");
+
   const load = useCallback(async () => {
     setLoading(true);
     const [c, p, d, e] = await Promise.all([
