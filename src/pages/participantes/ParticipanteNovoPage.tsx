@@ -204,7 +204,7 @@ const ParticipanteNovoPage = () => {
   const renderField = (label: string, field: string, type = "text", placeholder = "", half = false) => (
     <div className={half ? "col-span-1" : "col-span-2"} key={field}>
       <Label className="text-xs font-medium">{label}</Label>
-      <Input type={type} value={(form as any)[field]} onChange={(e) => set(field, e.target.value)} placeholder={placeholder} className="h-9 text-sm mt-1"
+      <Input type={type} value={(form as any)[field]} onChange={(e) => set(field, e.target.value)} placeholder={placeholder} className="h-9 text-sm mt-1" />
     </div>
   );
 
@@ -213,7 +213,7 @@ const ParticipanteNovoPage = () => {
   return (
     <div className="space-y-4 max-w-4xl">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" asChild><Link to="/participantes"><ArrowLeft className="h-4 w-4"</Link></Button>
+        <Button variant="ghost" size="icon" asChild><Link to="/participantes"><ArrowLeft className="h-4 w-4" /></Link></Button>
         <h1 className="text-xl font-semibold text-foreground">Novo Participante</h1>
       </div>
 
@@ -223,12 +223,12 @@ const ParticipanteNovoPage = () => {
           <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Foto de Perfil</CardTitle></CardHeader>
           <CardContent className="flex items-center gap-4">
             <div className="w-24 h-24 rounded-full bg-muted border-2 border-dashed border-border flex items-center justify-center overflow-hidden">
-              {fotoPreview ? <img src={fotoPreview} alt="Preview" className="w-full h-full object-cover" : <Image className="h-8 w-8 text-muted-foreground"}
+              {fotoPreview ? <img src={fotoPreview} alt="Preview" className="w-full h-full object-cover" /> : <Image className="h-8 w-8 text-muted-foreground" />}
             </div>
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="h-3.5 w-3.5 mr-1"Selecionar Foto</Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => cameraInputRef.current?.click()}><Camera className="h-3.5 w-3.5 mr-1"Câmera</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><Upload className="h-3.5 w-3.5 mr-1" />Selecionar Foto</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => cameraInputRef.current?.click()}><Camera className="h-3.5 w-3.5 mr-1" />Câmera</Button>
               </div>
               <p className="text-xs text-muted-foreground">JPG, PNG. Máx 5MB.</p>
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFotoSelect} />
