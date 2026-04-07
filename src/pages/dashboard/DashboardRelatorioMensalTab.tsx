@@ -10,7 +10,7 @@ import { FileSpreadsheet, Download, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
-import { BAIRROS_SCFV, calcFaixaFromDate } from "@/lib/constants";
+import { BAIRROS_SCFV, calcFaixaFromDate, calcAge } from "@/lib/constants";
 import { sysEloFileName } from "@/lib/fileNaming";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
