@@ -513,6 +513,65 @@ const EquipeTecnicaPage = () => {
           </div>
         </TabsContent>
 
+        {/* RELATÓRIOS */}
+        <TabsContent value="relatorios" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Relatório de Atividades da Equipe Técnica</CardTitle>
+              <p className="text-xs text-muted-foreground">Selecione o intervalo de datas para gerar o relatório com todos os atendimentos realizados.</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-3 items-end">
+                <div>
+                  <Label className="text-xs">Data Início</Label>
+                  <Input type="date" value={relDataInicio} onChange={e => setRelDataInicio(e.target.value)} className="h-9 text-sm mt-1 w-44" />
+                </div>
+                <div>
+                  <Label className="text-xs">Data Fim</Label>
+                  <Input type="date" value={relDataFim} onChange={e => setRelDataFim(e.target.value)} className="h-9 text-sm mt-1 w-44" />
+                </div>
+                <Badge variant="secondary" className="text-xs h-9 px-3">{relAtendimentos.length} atendimento(s)</Badge>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => generateRelatorioEquipe("xlsx")} disabled={relAtendimentos.length === 0} className="gap-1">
+                  <FileSpreadsheet className="h-3.5 w-3.5" />Exportar XLSX
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => generateRelatorioEquipe("pdf")} disabled={relAtendimentos.length === 0} className="gap-1">
+                  <Download className="h-3.5 w-3.5" />Exportar PDF
+                </Button>
+              </div>
+
+              {relAtendimentos.length > 0 && (
+                <div className="border rounded-lg overflow-auto max-h-60">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Data</TableHead>
+                        <TableHead className="text-xs">Profissional</TableHead>
+                        <TableHead className="text-xs">Participante</TableHead>
+                        <TableHead className="text-xs">Tipo</TableHead>
+                        <TableHead className="text-xs">Encaminhamento</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {relAtendimentos.slice(0, 20).map(a => (
+                        <TableRow key={a.id}>
+                          <TableCell className="text-xs">{a.data_atendimento}</TableCell>
+                          <TableCell className="text-xs">{profName(a.profissional_id)}</TableCell>
+                          <TableCell className="text-xs">{partName(a.participante_id)}</TableCell>
+                          <TableCell><Badge variant="secondary" className="text-[10px]">{tipoLabel(a.tipo)}</Badge></TableCell>
+                          <TableCell className="text-xs max-w-[150px] truncate">{a.encaminhamento || "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {relAtendimentos.length > 20 && <p className="text-[10px] text-muted-foreground text-center py-1">Mostrando 20 de {relAtendimentos.length}</p>}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* ALERTAS */}
         <TabsContent value="alertas" className="space-y-4">
           {pendentes.length > 0 && (
