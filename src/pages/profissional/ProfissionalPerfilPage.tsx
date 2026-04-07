@@ -87,6 +87,11 @@ const ProfissionalPerfilPage = () => {
             <p className="text-sm text-muted-foreground">{profile.cargo || "Sem cargo"}</p>
             <div className="flex gap-2 mt-1 justify-center sm:justify-start flex-wrap">
               <Badge variant={profile.ativo ? "default" : "secondary"}>{profile.ativo ? "Ativo" : "Inativo"}</Badge>
+              {recadosCount > 0 && (
+                <Badge variant="destructive" className="gap-1">
+                  <Bell className="h-3 w-3" />{recadosCount} recado{recadosCount > 1 ? "s" : ""} não lido{recadosCount > 1 ? "s" : ""}
+                </Badge>
+              )}
               {profile.email && <span className="text-xs text-muted-foreground">{profile.email}</span>}
               {profile.telefone && <span className="text-xs text-muted-foreground">📞 {profile.telefone}</span>}
             </div>
