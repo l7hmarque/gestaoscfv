@@ -617,11 +617,19 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     doc.text("Lista de Presença", 105, py, { align: "center" }); py += 5;
     autoTable(doc, {
       startY: py,
-      head: [["Nº", "Nome", "Presente", "Justificativa"]],
-      body: presenca.map((p, i) => [i + 1, p.participantes?.nome_completo || "", p.presente ? "✓" : "✗", p.justificativa || ""]),
-      headStyles: { fillColor: [26, 82, 118], fontSize: 7 },
-      styles: { fontSize: 7, cellPadding: 1.5 },
-      columnStyles: { 0: { cellWidth: 8 }, 2: { cellWidth: 15, halign: "center" } },
+      head: [["Nº", "Nome do Participante", "Presença", "Justificativa"]],
+      body: presenca.map((p, i) => [i + 1, p.participantes?.nome_completo || "", p.presente ? "☑ Presente" : "☐ Ausente", p.justificativa || ""]),
+      headStyles: { fillColor: [26, 82, 118], fontSize: 7, textColor: [255, 255, 255] },
+      styles: { fontSize: 7, cellPadding: 2 },
+      columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 20, halign: "center" } },
+      didParseCell: (data: any) => {
+        if (data.section === "body" && data.column.index === 2) {
+          const isPresente = data.cell.raw?.toString().includes("☑");
+          data.cell.styles.fillColor = isPresente ? [232, 245, 233] : [255, 235, 238];
+          data.cell.styles.textColor = isPresente ? [46, 125, 50] : [198, 40, 40];
+          data.cell.styles.fontStyle = "bold";
+        }
+      },
     });
   }
 
