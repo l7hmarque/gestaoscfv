@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { exportFichaInscricaoDocx, exportFichaInscricaoPdf, exportProntuarioPdf } from "@/hooks/useDocumentExport";
-import { isBairroSCFV, calcFaixaFromDate } from "@/lib/constants";
+import { isBairroSCFV, calcFaixaFromDate, STATUS_LABELS, PERIODO_LABELS } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDocumentScanner, CATEGORIES, compressFileForUpload } from "@/hooks/useDocumentScanner";
 import type { Tables } from "@/integrations/supabase/types";
