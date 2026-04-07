@@ -464,15 +464,19 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
     const presRows = [
       new TableRow({ children: [
         new TableCell({ width: { size: 500, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nº", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 6360, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nome", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Presente", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 1300, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Justificativa", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 5860, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nome do Participante", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Presença", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 1800, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Justificativa", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
       ]}),
       ...presenca.map((p, i) => new TableRow({ children: [
-        new TableCell({ width: { size: 500, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: String(i + 1), size: 16, font: "Arial" })] })] }),
-        new TableCell({ width: { size: 6360, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.participantes?.nome_completo || "", size: 16, font: "Arial" })] })] }),
-        new TableCell({ width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: p.presente ? "✓" : "✗", size: 18, font: "Arial", bold: true, color: p.presente ? "43A047" : "E53935" })] })] }),
-        new TableCell({ width: { size: 1300, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.justificativa || "", size: 14, font: "Arial" })] })] }),
+        new TableCell({ width: { size: 500, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 16, font: "Arial" })] })] }),
+        new TableCell({ width: { size: 5860, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.participantes?.nome_completo || "", size: 16, font: "Arial" })] })] }),
+        new TableCell({
+          width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins,
+          shading: { fill: p.presente ? "E8F5E9" : "FFEBEE", type: ShadingType.CLEAR },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: p.presente ? "☑" : "☐", size: 20, font: "Segoe UI Symbol", bold: true, color: p.presente ? "2E7D32" : "C62828" })] })],
+        }),
+        new TableCell({ width: { size: 1800, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.justificativa || "", size: 14, font: "Arial", italics: true })] })] }),
       ]})),
     ];
     children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [500, 6360, 1200, 1300], rows: presRows }));
