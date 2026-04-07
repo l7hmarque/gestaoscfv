@@ -19,6 +19,7 @@ const ProfissionalPerfilPage = () => {
   const [planejamentos, setPlanejamentos] = useState<any[]>([]);
   const [relatorios, setRelatorios] = useState<any[]>([]);
   const [presencas, setPresencas] = useState<any[]>([]);
+  const [recadosCount, setRecadosCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
