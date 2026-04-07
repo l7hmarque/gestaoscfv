@@ -245,18 +245,18 @@ const ParticipanteNovoPage = () => {
               <Label className="text-xs font-medium">Nome Completo *</Label>
               <Input value={form.nome_completo} onChange={(e) => set("nome_completo", e.target.value)} placeholder="Nome completo do participante" className="h-9 text-sm mt-1" required />
             </div>
-            {renderField("Data de Nascimento" "data_nascimento, "date", true)}
+            {renderField("Data de Nascimento", "data_nascimento", "date", "", true)}
             <div>
               <Label className="text-xs font-medium">Gênero</Label>
               <Select value={form.genero} onValueChange={(v) => set("genero", v)}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar)}</SelectTrigger>
+                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
                 <SelectContent><SelectItem value="masculino">Masculino</SelectItem><SelectItem value="feminino">Feminino</SelectItem><SelectItem value="outro">Outro</SelectItem></SelectContent>
               </Select>
             </div>
             <div>
               <Label className="text-xs font-medium">Cor/Raça</Label>
               <Select value={form.cor_raca} onValueChange={(v) => set("cor_raca", v)}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar)}</SelectTrigger>
+                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
                 <SelectContent><SelectItem value="branca">Branca</SelectItem><SelectItem value="preta">Preta</SelectItem><SelectItem value="parda">Parda</SelectItem><SelectItem value="amarela">Amarela</SelectItem><SelectItem value="indigena">Indígena</SelectItem></SelectContent>
               </Select>
             </div>
@@ -274,8 +274,8 @@ const ParticipanteNovoPage = () => {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Escolaridade</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
-            {renderField("Escola" "escola, "Nome da escola", true)}
-            {renderField("Série/Ano" "serie, "Ex: 5º ano", true)}
+            {renderField("Escola", "escola", "text", "Nome da escola", true)}
+            {renderField("Série/Ano", "serie", "text", "Ex: 5º ano", true)}
           </CardContent>
         </Card>
 
@@ -283,32 +283,31 @@ const ParticipanteNovoPage = () => {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Endereço</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
-            {renderField("Rua" "endereco_rua, "Nome da rua)}
-            {renderField("Número" "endereco_numero, "Nº", true)}
-            {renderField("Bairro (texto)" "endereco_bairro, "Bairro", true)}
+            {renderField("Rua", "endereco_rua", "text", "Nome da rua")}
+            {renderField("Número", "endereco_numero", "text", "Nº", true)}
+            {renderField("Bairro (texto)", "endereco_bairro", "text", "Bairro", true)}
             <div>
               <Label className="text-xs font-medium">Bairro do CAIA que vai frequentar</Label>
               <Select value={form.bairro_id} onValueChange={(v) => {
                 set("bairro_id", v);
-                // Limpar ponto se não pertence ao novo bairro
                 if (form.ponto_transporte_id) {
                   const ponto = pontos.find(p => p.id === form.ponto_transporte_id);
                   if (ponto && ponto.bairro_id !== v) set("ponto_transporte_id", "");
                 }
               }}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar)}</SelectTrigger>
+                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
                 <SelectContent>{bairros.filter(b => isBairroSCFV(b.nome)).map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
               <Label className="text-xs font-medium">Ponto de Transporte</Label>
               <Select value={form.ponto_transporte_id} onValueChange={(v) => set("ponto_transporte_id", v)}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar)}</SelectTrigger>
+                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
                 <SelectContent>{pontos.filter(p => !form.bairro_id || p.bairro_id === form.bairro_id).map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            {renderField("UF de Origem" "uf_origem, "Ex: PR", true)}
-            {renderField("Situação de Moradia" "situacao_moradia, "Própria, alugada...", true)}
+            {renderField("UF de Origem", "uf_origem", "text", "Ex: PR", true)}
+            {renderField("Situação de Moradia", "situacao_moradia", "text", "Própria, alugada...", true)}
           </CardContent>
         </Card>
 
@@ -316,25 +315,25 @@ const ParticipanteNovoPage = () => {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Responsáveis</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
-            {renderField("Responsável 1 - Nome" "responsavel1_nome, "Nome completo)}
-            {renderField("Vínculo com o participante" "vinculo_resp1, "Ex: Mãe, Pai, Avó", true)}
+            {renderField("Responsável 1 - Nome", "responsavel1_nome", "text", "Nome completo")}
+            {renderField("Vínculo com o participante", "vinculo_resp1", "text", "Ex: Mãe, Pai, Avó", true)}
             <div className="col-span-1">
               <Label className="text-xs font-medium">CPF do Participante</Label>
-              <Input value={estrangeiroCpf ? form.responsavel1_cpf : maskCPF(form.responsavel1_cpf)} onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} className="h-9 text-sm mt-1)}
+              <Input value={estrangeiroCpf ? form.responsavel1_cpf : maskCPF(form.responsavel1_cpf)} onChange={(e) => set("responsavel1_cpf", estrangeiroCpf ? e.target.value : unmaskDigits(e.target.value))} placeholder={estrangeiroCpf ? "Documento" : "000.000.000-00"} className="h-9 text-sm mt-1" />
               <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
-                <input type="checkbox" checked={estrangeiroCpf} onChange={(e) => setEstrangeiroCpf(e.target.checked)} className="h-3 w-3)}
+                <input type="checkbox" checked={estrangeiroCpf} onChange={(e) => setEstrangeiroCpf(e.target.checked)} className="h-3 w-3" />
                 <span className="text-[10px] text-muted-foreground">Estrangeiro/Sem CPF</span>
               </label>
             </div>
             <div className="col-span-1">
               <Label className="text-xs font-medium">WhatsApp</Label>
-              <Input value={maskPhone(form.responsavel1_whatsapp)} onChange={(e) => set("responsavel1_whatsapp", unmaskDigits(e.target.value))} placeholder="(00) 00000-0000" className="h-9 text-sm mt-1)}
+              <Input value={maskPhone(form.responsavel1_whatsapp)} onChange={(e) => set("responsavel1_whatsapp", unmaskDigits(e.target.value))} placeholder="(00) 00000-0000" className="h-9 text-sm mt-1" />
             </div>
-            {renderField("Responsável 2 - Nome" "responsavel2_nome, "Nome completo)}
-            {renderField("Vínculo com o participante" "vinculo_resp2, "Ex: Mãe, Pai, Avó", true)}
+            {renderField("Responsável 2 - Nome", "responsavel2_nome", "text", "Nome completo")}
+            {renderField("Vínculo com o participante", "vinculo_resp2", "text", "Ex: Mãe, Pai, Avó", true)}
             <div className="col-span-1">
               <Label className="text-xs font-medium">WhatsApp</Label>
-              <Input value={maskPhone(form.responsavel2_whatsapp)} onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))} placeholder="(00) 00000-0000" className="h-9 text-sm mt-1)}
+              <Input value={maskPhone(form.responsavel2_whatsapp)} onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))} placeholder="(00) 00000-0000" className="h-9 text-sm mt-1" />
             </div>
           </CardContent>
         </Card>
@@ -343,22 +342,22 @@ const ParticipanteNovoPage = () => {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Informações Complementares</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
-            {renderField("Origem/Encaminhamento" "origem_encaminhamento, "CRAS, escola...", true)}
-            {renderField("Responsável Técnico" "responsavel_tecnico, "Nome do técnico", true)}
-            {renderField("Categoria de Vulnerabilidade" "categoria_vulnerabilidade, "Ex: situação de risco", true)}
-            {renderField("Início no SCFV" "iniciou_em, "date", true)}
+            {renderField("Origem/Encaminhamento", "origem_encaminhamento", "text", "CRAS, escola...", true)}
+            {renderField("Responsável Técnico", "responsavel_tecnico", "text", "Nome do técnico", true)}
+            {renderField("Categoria de Vulnerabilidade", "categoria_vulnerabilidade", "text", "Ex: situação de risco", true)}
+            {renderField("Início no SCFV", "iniciou_em", "date", "", true)}
             <div className="col-span-2">
               <Label className="text-xs font-medium">Restrição Alimentar</Label>
-              <Textarea value={form.restricao_alimentar} onChange={(e) => set("restricao_alimentar", e.target.value)} placeholder="Alergias, intolerâncias..." className="text-sm mt-1 min-h-[60px])}
+              <Textarea value={form.restricao_alimentar} onChange={(e) => set("restricao_alimentar", e.target.value)} placeholder="Alergias, intolerâncias..." className="text-sm mt-1 min-h-[60px]" />
             </div>
             <div className="col-span-2">
               <Label className="text-xs font-medium">Laudo / Observações de Saúde</Label>
-              <Textarea value={form.laudo} onChange={(e) => set("laudo", e.target.value)} placeholder="Informações médicas relevantes..." className="text-sm mt-1 min-h-[60px])}
+              <Textarea value={form.laudo} onChange={(e) => set("laudo", e.target.value)} placeholder="Informações médicas relevantes..." className="text-sm mt-1 min-h-[60px]" />
             </div>
-            {renderField("Remédio de Uso Contínuo" "remedio_continuo, "Ex: Ritalina 10mg)}
+            {renderField("Remédio de Uso Contínuo", "remedio_continuo", "text", "Ex: Ritalina 10mg")}
             <div className="col-span-2">
               <Label className="text-xs font-medium">Outras Condições de Saúde</Label>
-              <Textarea value={form.outras_condicoes} onChange={(e) => set("outras_condicoes", e.target.value)} placeholder="Outras condições relevantes..." className="text-sm mt-1 min-h-[60px])}
+              <Textarea value={form.outras_condicoes} onChange={(e) => set("outras_condicoes", e.target.value)} placeholder="Outras condições relevantes..." className="text-sm mt-1 min-h-[60px]" />
             </div>
           </CardContent>
         </Card>
