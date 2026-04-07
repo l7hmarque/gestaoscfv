@@ -8,9 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { saveAs } from "file-saver";
-import { sysEloFileName } from "@/lib/fileNaming";
-import * as XLSX from "xlsx-js-style";
+import { exportAllListasPresenca } from "@/lib/exportListaPresenca";
 import { exportAllListasPresenca } from "@/lib/exportListaPresenca";
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
