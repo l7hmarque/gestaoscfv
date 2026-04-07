@@ -54,6 +54,7 @@ const TurmaNovaPage = () => {
   const [batchFaixas, setBatchFaixas] = useState<string[]>([]);
   const [batchPeriodos, setBatchPeriodos] = useState<string[]>([]);
   const [batchDias, setBatchDias] = useState<string[]>([]);
+  const [batchCombosDias, setBatchCombosDias] = useState<Record<string, string[]>>({});
   const [batchEducadorId, setBatchEducadorId] = useState("");
   const [batchTipo, setBatchTipo] = useState("ordinaria");
   const [batchSaving, setBatchSaving] = useState(false);
