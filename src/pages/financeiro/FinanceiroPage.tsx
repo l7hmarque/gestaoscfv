@@ -1153,6 +1153,33 @@ export default function FinanceiroPage() {
           <DocumentosPrestacaoTab />
         </TabsContent>
       </Tabs>
+
+      {/* Delete confirmation with justificativa */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={v => { if (!v) { setDeleteTarget(null); setDeleteJustificativa(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.label}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs">Justificativa *</Label>
+            <Textarea
+              placeholder="Informe o motivo da exclusão..."
+              value={deleteJustificativa}
+              onChange={e => setDeleteJustificativa(e.target.value)}
+              className="text-sm"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteLoading}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteRow} disabled={deleteLoading || !deleteJustificativa.trim()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteLoading ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
