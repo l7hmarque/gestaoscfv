@@ -475,8 +475,20 @@ export default function FinanceiroPage() {
     toast.success(`${despesas.length} despesas exportadas para SIT`);
   };
 
+  // === GERAR REO ===
+  const generateREO = async (formato: "docx" | "xlsx") => {
+    setReoLoading(true);
+    const [, m] = mesRef.split("-");
+    const { data, error } = await supabase.functions.invoke("generate-reo", {
+      body: { mes: Number(m), ano: Number(mesRef.split("-")[0]), formato },
+    });
+    setReoLoading(false);
+    if (error || data?.error) { toast.error(data?.error || "Erro ao gerar REO"); return; }
+    if (data?.url) window.open(data.url, "_blank");
+    toast.success(`REO (${formato.toUpperCase()}) gerado com sucesso`);
+  };
+
   // === PRESTAÇÃO DE CONTAS ===
-  
 
   const generatePrestacaoContas = async (formato: "pdf" | "xlsx") => {
     setPcLoading(true);
