@@ -11,12 +11,11 @@ import { toast } from "sonner";
 import { saveAs } from "file-saver";
 import { sysEloFileName } from "@/lib/fileNaming";
 import * as XLSX from "xlsx-js-style";
-import { format } from "date-fns";
+import { exportAllListasPresenca } from "@/lib/exportListaPresenca";
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const faixaLabel: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
 const diasLabel: Record<string, string> = { seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb" };
-const DIAS_MAP: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
 interface TurmaRow {
