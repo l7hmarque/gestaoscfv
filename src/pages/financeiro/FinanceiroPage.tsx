@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuditLog } from "@/hooks/useAuditLog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -78,6 +80,7 @@ const emptyLoteLine = (): LoteLine => ({
 });
 
 export default function FinanceiroPage() {
+  const { log: auditLog } = useAuditLog();
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [parcelas, setParcelas] = useState<Parcela[]>([]);
   const [despesas, setDespesas] = useState<Despesa[]>([]);
@@ -98,6 +101,11 @@ export default function FinanceiroPage() {
   // Edit despesa
   const [editDesp, setEditDesp] = useState<Despesa | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+
+  // Delete with justificativa
+  const [deleteTarget, setDeleteTarget] = useState<{ table: string; id: string; label: string } | null>(null);
+  const [deleteJustificativa, setDeleteJustificativa] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Batch entry
   const [loteLines, setLoteLines] = useState<LoteLine[]>([emptyLoteLine()]);
@@ -204,9 +212,22 @@ export default function FinanceiroPage() {
     load();
   };
 
-  const deleteRow = async (table: string, id: string) => {
-    await (supabase.from as any)(table).delete().eq("id", id);
-    toast.success("Removido");
+  const confirmDeleteRow = async () => {
+    if (!deleteTarget) return;
+    if (!deleteJustificativa.trim()) { toast.error("Informe a justificativa"); return; }
+    setDeleteLoading(true);
+    await auditLog({
+      acao: "exclusão",
+      tabela: deleteTarget.table,
+      registro_id: deleteTarget.id,
+      detalhes: deleteTarget.label,
+      justificativa: deleteJustificativa.trim(),
+    });
+    await (supabase.from as any)(deleteTarget.table).delete().eq("id", deleteTarget.id);
+    setDeleteLoading(false);
+    setDeleteTarget(null);
+    setDeleteJustificativa("");
+    toast.success("Removido com registro de auditoria");
     load();
   };
 
@@ -818,7 +839,7 @@ export default function FinanceiroPage() {
                           {d.comprovante_url ? "Pago ✓" : "Aguardando ⏳"}
                         </Badge>
                       </TableCell>
-                      <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); deleteRow("despesas", d.id); }}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
+                      <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); setDeleteTarget({ table: "despesas", id: d.id, label: `Despesa: ${d.descricao} - ${fmt(Number(d.valor))}` }); }}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
                     </TableRow>
                   ))}
                   {despesas.length === 0 && <TableRow><TableCell colSpan={8} className="text-xs text-center text-muted-foreground py-6">Nenhuma despesa neste mês</TableCell></TableRow>}
@@ -912,7 +933,7 @@ export default function FinanceiroPage() {
                     <TableCell className="text-xs">{p.numero_parcela}</TableCell>
                     <TableCell className="text-xs text-right font-medium">{fmt(Number(p.valor))}</TableCell>
                     <TableCell className="text-xs">{p.data_recebimento}</TableCell>
-                    <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteRow("parcelas_financeiras", p.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
+                    <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setDeleteTarget({ table: "parcelas_financeiras", id: p.id, label: `Parcela ${p.numero_parcela}: ${fmt(Number(p.valor))}` })}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
                   </TableRow>
                 ))}
                 {parcelas.length === 0 && <TableRow><TableCell colSpan={4} className="text-xs text-center text-muted-foreground py-6">Nenhuma parcela cadastrada</TableCell></TableRow>}
@@ -949,7 +970,7 @@ export default function FinanceiroPage() {
                     <TableCell className="text-xs font-mono">{c.codigo}</TableCell>
                     <TableCell className="text-xs">{c.descricao}</TableCell>
                     <TableCell className="text-xs text-right">{fmt(Number(c.valor_previsto))}</TableCell>
-                    <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteRow("categorias_financeiras", c.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
+                    <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setDeleteTarget({ table: "categorias_financeiras", id: c.id, label: `Categoria ${c.codigo}: ${c.descricao}` })}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
                   </TableRow>
                 ))}
                 {categorias.length === 0 && <TableRow><TableCell colSpan={4} className="text-xs text-center text-muted-foreground py-6">Nenhuma categoria cadastrada</TableCell></TableRow>}
@@ -988,7 +1009,7 @@ export default function FinanceiroPage() {
                   <TableRow key={e.id}>
                     <TableCell className="text-xs">{e.categoria_id ? (catMap.get(e.categoria_id)?.descricao || "—") : "—"}</TableCell>
                     <TableCell className="text-xs text-right font-medium">{fmt(Number(e.valor))}</TableCell>
-                    <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteRow("estornos", e.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
+                    <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setDeleteTarget({ table: "estornos", id: e.id, label: `Estorno: ${fmt(Number(e.valor))}` })}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
                   </TableRow>
                 ))}
                 {estornos.length === 0 && <TableRow><TableCell colSpan={3} className="text-xs text-center text-muted-foreground py-6">Nenhum estorno neste mês</TableCell></TableRow>}
@@ -1133,6 +1154,33 @@ export default function FinanceiroPage() {
           <DocumentosPrestacaoTab />
         </TabsContent>
       </Tabs>
+
+      {/* Delete confirmation with justificativa */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={v => { if (!v) { setDeleteTarget(null); setDeleteJustificativa(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.label}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs">Justificativa *</Label>
+            <Textarea
+              placeholder="Informe o motivo da exclusão..."
+              value={deleteJustificativa}
+              onChange={e => setDeleteJustificativa(e.target.value)}
+              className="text-sm"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteLoading}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteRow} disabled={deleteLoading || !deleteJustificativa.trim()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteLoading ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

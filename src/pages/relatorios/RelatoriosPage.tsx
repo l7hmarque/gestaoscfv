@@ -11,9 +11,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuditLog } from "@/hooks/useAuditLog";
 import { toast } from "sonner";
 
 const OBJ_LABELS: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
@@ -30,6 +32,7 @@ interface RankedActivity {
 
 const RelatoriosPage = () => {
   const { user } = useAuth();
+  const { log: auditLog } = useAuditLog();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [ranking, setRanking] = useState<RankedActivity[]>([]);
@@ -44,6 +47,7 @@ const RelatoriosPage = () => {
   const [bulkSearching, setBulkSearching] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [bulkJustificativa, setBulkJustificativa] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -128,8 +132,16 @@ const RelatoriosPage = () => {
   const handleBulkDelete = async () => {
     const ids = Array.from(bulkSelected);
     if (ids.length === 0) return;
+    if (!bulkJustificativa.trim()) { toast.error("Informe a justificativa"); return; }
     setBulkDeleting(true);
     try {
+      await auditLog({
+        acao: "exclusão em lote",
+        tabela: "relatorios_atividade",
+        registro_id: ids.join(","),
+        detalhes: `${ids.length} relatório(s) excluído(s)`,
+        justificativa: bulkJustificativa.trim(),
+      });
       await Promise.all([
         supabase.from("relatorio_presenca").delete().in("relatorio_id", ids),
         supabase.from("relatorio_fotos").delete().in("relatorio_id", ids),
@@ -142,6 +154,7 @@ const RelatoriosPage = () => {
       setBulkResults([]);
       setBulkSelected(new Set());
       setConfirmOpen(false);
+      setBulkJustificativa("");
       loadData();
     } catch (e: any) {
       toast.error(e.message || "Erro ao excluir");
@@ -341,9 +354,13 @@ const RelatoriosPage = () => {
               Serão excluídos {bulkSelected.size} relatório(s) e todos os dados vinculados (presença, fotos, turmas). Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs">Justificativa *</Label>
+            <Textarea placeholder="Motivo da exclusão..." value={bulkJustificativa} onChange={e => setBulkJustificativa(e.target.value)} className="text-sm" />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={bulkDeleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDelete} disabled={bulkDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={handleBulkDelete} disabled={bulkDeleting || !bulkJustificativa.trim()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {bulkDeleting ? "Excluindo..." : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>

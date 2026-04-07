@@ -35,42 +35,85 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   if (datas.length === 0) return null;
 
   const sorted = [...members].sort((a, b) => a.nome.localeCompare(b.nome));
-  const totalCols = 2 + datas.length; // Nº + Nome + datas
+  const totalCols = 2 + datas.length;
 
   // --- Styles ---
   const border = { style: "thin" as const, color: { rgb: "000000" } };
   const borders = { top: border, bottom: border, left: border, right: border };
+  const borderLight = { style: "thin" as const, color: { rgb: "AAAAAA" } };
+  const bordersLight = { top: borderLight, bottom: borderLight, left: borderLight, right: borderLight };
   const noBorder = { top: { style: "thin" as const, color: { rgb: "FFFFFF" } }, bottom: { style: "thin" as const, color: { rgb: "FFFFFF" } }, left: { style: "thin" as const, color: { rgb: "FFFFFF" } }, right: { style: "thin" as const, color: { rgb: "FFFFFF" } } };
 
-  const titleStyle = { font: { bold: true, sz: 12 }, alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true }, border: noBorder };
-  const subtitleStyle = { font: { bold: true, sz: 10 }, alignment: { horizontal: "center" as const, vertical: "center" as const }, border: noBorder };
-  const infoStyle = { font: { sz: 9 }, alignment: { horizontal: "left" as const, vertical: "center" as const }, border: noBorder };
-  const infoRightStyle = { font: { sz: 9 }, alignment: { horizontal: "right" as const, vertical: "center" as const }, border: noBorder };
-  const hdrStyle = { font: { bold: true, color: { rgb: "FFFFFF" }, sz: 8 }, fill: { fgColor: { rgb: "1A5276" } }, border: borders, alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true } };
+  // Header styles with borders
+  const institutionStyle = {
+    font: { bold: true, sz: 11, color: { rgb: "1A5276" } },
+    alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
+    border: bordersLight,
+    fill: { fgColor: { rgb: "EBF5FB" } },
+  };
+  const subtitleStyle = {
+    font: { bold: true, sz: 9, color: { rgb: "2C3E50" } },
+    alignment: { horizontal: "center" as const, vertical: "center" as const },
+    border: bordersLight,
+    fill: { fgColor: { rgb: "EBF5FB" } },
+  };
+  const titleStyle = {
+    font: { bold: true, sz: 13, color: { rgb: "FFFFFF" } },
+    alignment: { horizontal: "center" as const, vertical: "center" as const },
+    border: borders,
+    fill: { fgColor: { rgb: "1A5276" } },
+  };
+  const turmaNameStyle = {
+    font: { bold: true, sz: 12 },
+    alignment: { horizontal: "center" as const, vertical: "center" as const },
+    border: bordersLight,
+    fill: { fgColor: { rgb: "D5F5E3" } },
+  };
+  const infoStyle = {
+    font: { sz: 9 },
+    alignment: { horizontal: "center" as const, vertical: "center" as const },
+    border: bordersLight,
+    fill: { fgColor: { rgb: "FAFAFA" } },
+  };
+  const hdrStyle = {
+    font: { bold: true, color: { rgb: "FFFFFF" }, sz: 8 },
+    fill: { fgColor: { rgb: "1A5276" } },
+    border: borders,
+    alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
+  };
   const cellStyle = { border: borders, alignment: { vertical: "center" as const }, font: { sz: 8 } };
   const cellCenterStyle = { border: borders, alignment: { horizontal: "center" as const, vertical: "center" as const }, font: { sz: 8 } };
-  const signStyle = { font: { sz: 9 }, alignment: { horizontal: "center" as const, vertical: "center" as const }, border: noBorder };
+  const signStyle = {
+    font: { sz: 9, italic: true },
+    alignment: { horizontal: "center" as const, vertical: "center" as const },
+    border: { top: border, bottom: noBorder.bottom, left: noBorder.left, right: noBorder.right },
+  };
 
   // Build AOA
   const rows: any[][] = [];
 
-  // Row 0: Institution name (merged)
+  // Row 0: Institution
   rows.push(["Sociedade Civil Nossa Senhora Aparecida"]);
   // Row 1: CAIA
   rows.push(["Centro de Atenção Integral ao Adolescente - CAIA Medianeira"]);
-  // Row 2: blank
+  // Row 2: blank separator
   rows.push([""]);
   // Row 3: Title
   rows.push([`LISTA DE PRESENÇA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`]);
-  // Row 4: Turma info line
-  const turmaInfo = `Turma: ${turma.nome}`;
-  const periodoInfo = turma.periodo ? `Período: ${periodoLabel[turma.periodo] || turma.periodo}` : "";
-  const faixaInfo = turma.faixa_etaria ? `Faixa: ${faixaLabel[turma.faixa_etaria] || turma.faixa_etaria}` : "";
-  rows.push([turmaInfo]);
-  // Row 5: Educador + Bairro
-  const educadorInfo = turma.profiles?.nome ? `Educador(a): ${turma.profiles.nome}` : "";
-  const bairroInfo = turma.bairros?.nome ? `Bairro: ${turma.bairros.nome}` : "";
-  rows.push([educadorInfo]);
+  // Row 4: Turma name (large and bold)
+  rows.push([`${turma.nome}`]);
+  // Row 5: Info line
+  const periodoInfo = turma.periodo ? periodoLabel[turma.periodo] || turma.periodo : "";
+  const faixaInfo = turma.faixa_etaria ? faixaLabel[turma.faixa_etaria] || turma.faixa_etaria : "";
+  const educadorInfo = turma.profiles?.nome || "";
+  const bairroInfo = turma.bairros?.nome || "";
+  const infoParts = [
+    periodoInfo && `Período: ${periodoInfo}`,
+    faixaInfo && `Faixa: ${faixaInfo}`,
+    educadorInfo && `Educador(a): ${educadorInfo}`,
+    bairroInfo && `Bairro: ${bairroInfo}`,
+  ].filter(Boolean).join("  ·  ");
+  rows.push([infoParts]);
   // Row 6: blank separator
   rows.push([""]);
 
@@ -83,21 +126,18 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
     rows.push([i + 1, m.nome, ...datas.map(() => "")]);
   });
 
-  // Blank row after data
+  // Blank row + signature
+  rows.push([]);
   const signRow = headerStartRow + 1 + sorted.length + 1;
-  rows.push([]); // blank
-
-  // Signature row
-  rows.push(["", "Assinatura do(a) Educador(a): _________________________________________"]);
+  rows.push(["", `Assinatura do(a) Educador(a): ${"_".repeat(60)}`]);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
 
-  // Merges for header rows (span all columns)
+  // Merges for header rows
   const merges: XLSX.Range[] = [];
   for (let r = 0; r <= 6; r++) {
     merges.push({ s: { r, c: 0 }, e: { r, c: totalCols - 1 } });
   }
-  // Signature merge
   merges.push({ s: { r: signRow, c: 1 }, e: { r: signRow, c: totalCols - 1 } });
   ws["!merges"] = merges;
 
@@ -108,12 +148,13 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
       const addr = XLSX.utils.encode_cell({ r, c });
       if (!ws[addr]) ws[addr] = { v: "", t: "s" };
 
-      if (r === 0) ws[addr].s = titleStyle;
+      if (r === 0) ws[addr].s = institutionStyle;
       else if (r === 1) ws[addr].s = subtitleStyle;
-      else if (r === 2 || r === 6) ws[addr].s = { border: noBorder };
-      else if (r === 3) ws[addr].s = { ...subtitleStyle, font: { bold: true, sz: 11 } };
-      else if (r === 4) ws[addr].s = infoStyle;
+      else if (r === 2) ws[addr].s = { border: bordersLight, fill: { fgColor: { rgb: "FFFFFF" } } };
+      else if (r === 3) ws[addr].s = titleStyle;
+      else if (r === 4) ws[addr].s = turmaNameStyle;
       else if (r === 5) ws[addr].s = infoStyle;
+      else if (r === 6) ws[addr].s = { border: bordersLight, fill: { fgColor: { rgb: "FFFFFF" } } };
       else if (r === headerStartRow) ws[addr].s = hdrStyle;
       else if (r > headerStartRow && r < headerStartRow + 1 + sorted.length) {
         ws[addr].s = c === 0 ? cellCenterStyle : (c >= 2 ? cellCenterStyle : cellStyle);
@@ -125,28 +166,16 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
     }
   }
 
-  // Add periodo/faixa info to row 4 (right side)
-  const extraInfo = [periodoInfo, faixaInfo].filter(Boolean).join("   |   ");
-  if (extraInfo && totalCols > 3) {
-    // Put in merged header, already merged. Append to turma info
-    const addr4 = XLSX.utils.encode_cell({ r: 4, c: 0 });
-    ws[addr4] = { v: `${turmaInfo}     |     ${extraInfo}`, t: "s", s: infoStyle };
-  }
-
-  // Add bairro to row 5
-  if (bairroInfo) {
-    const addr5 = XLSX.utils.encode_cell({ r: 5, c: 0 });
-    ws[addr5] = { v: `${educadorInfo}     |     ${bairroInfo}`, t: "s", s: infoStyle };
-  }
-
-  // Column widths for landscape A4
+  // Column widths
   ws["!cols"] = [{ wch: 4 }, { wch: 32 }, ...datas.map(() => ({ wch: 6 }))];
 
   // Row heights
   ws["!rows"] = [];
-  ws["!rows"][0] = { hpt: 20 };
+  ws["!rows"][0] = { hpt: 22 };
   ws["!rows"][1] = { hpt: 16 };
-  ws["!rows"][3] = { hpt: 18 };
+  ws["!rows"][3] = { hpt: 22 };
+  ws["!rows"][4] = { hpt: 22 };
+  ws["!rows"][5] = { hpt: 16 };
   for (let r = headerStartRow + 1; r < headerStartRow + 1 + sorted.length; r++) {
     ws["!rows"][r] = { hpt: 18 };
   }
