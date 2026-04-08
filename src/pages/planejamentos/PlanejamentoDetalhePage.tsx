@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Pencil, Save, X, Printer, FileText, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, Pencil, Save, X, Printer, Download } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
