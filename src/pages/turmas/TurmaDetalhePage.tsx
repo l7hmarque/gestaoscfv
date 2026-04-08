@@ -375,11 +375,19 @@ const TurmaDetalhePage = () => {
                 <SelectContent><SelectItem value="ordinaria">Ordinária</SelectItem><SelectItem value="extraordinaria">Extraordinária</SelectItem></SelectContent>
               </Select>
             </div>
-            <div><Label className="text-xs">Bairro</Label>
-              <Select value={form.bairro_id || ""} onValueChange={(v) => setForm({ ...form, bairro_id: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="—" /></SelectTrigger>
-                <SelectContent>{bairros.filter(b => isBairroSCFV(b.nome)).map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
-              </Select>
+            <div><Label className="text-xs mb-2 block">Bairro</Label>
+              <div className="flex flex-wrap gap-3">
+                {bairros.filter(b => isBairroSCFV(b.nome)).map(b => (
+                  <label key={b.id} className="flex items-center gap-1.5 cursor-pointer">
+                    <Checkbox checked={(form.bairro_ids || []).includes(b.id)} onCheckedChange={() => {
+                      const arr = form.bairro_ids || [];
+                      const next = arr.includes(b.id) ? arr.filter((v: string) => v !== b.id) : [...arr, b.id];
+                      setForm({ ...form, bairro_ids: next, bairro_id: next[0] || "" });
+                    }} />
+                    <span className="text-sm">{b.nome}</span>
+                  </label>
+                ))}
+              </div>
             </div>
             <div className="col-span-1 sm:col-span-2"><Label className="text-xs">Educador</Label>
               <Select value={form.educador_id || ""} onValueChange={(v) => setForm({ ...form, educador_id: v })}>
