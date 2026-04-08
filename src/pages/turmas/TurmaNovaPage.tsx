@@ -88,27 +88,21 @@ const TurmaNovaPage = () => {
     if (!nome.trim()) { toast.error("Nome da turma é obrigatório"); return; }
     setSaving(true);
 
-    // Create one turma per combination of selected faixas × bairros
-    const faixas = faixasEtarias.length > 0 ? faixasEtarias : [""];
-    const bairrosToUse = bairroIds.length > 0 ? bairroIds : [""];
-    const rows = [];
-    for (const faixa of faixas) {
-      for (const bid of bairrosToUse) {
-        const payload: Record<string, unknown> = {
-          nome, periodo, tipo, dias_semana: diasSemana,
-        };
-        if (faixa) payload.faixa_etaria = faixa;
-        if (bid) payload.bairro_id = bid;
-        if (educadorId) payload.educador_id = educadorId;
-        if (oficina) payload.oficina = oficina === "outra_oficina" && oficinaNome ? oficinaNome : oficina;
-        rows.push(payload);
-      }
-    }
+    const payload: Record<string, unknown> = {
+      nome, periodo, tipo, dias_semana: diasSemana,
+      faixas_etarias: faixasEtarias,
+      bairro_ids: bairroIds,
+    };
+    // Compatibility: set single-value fields to first selected value
+    if (faixasEtarias.length > 0) payload.faixa_etaria = faixasEtarias[0];
+    if (bairroIds.length > 0) payload.bairro_id = bairroIds[0];
+    if (educadorId) payload.educador_id = educadorId;
+    if (oficina) payload.oficina = oficina === "outra_oficina" && oficinaNome ? oficinaNome : oficina;
 
-    const { error } = await supabase.from("turmas").insert(rows as any);
+    const { error } = await supabase.from("turmas").insert([payload] as any);
     setSaving(false);
     if (error) { toast.error("Erro: " + error.message); return; }
-    toast.success(rows.length > 1 ? `${rows.length} turma(s) criada(s)!` : "Turma criada!");
+    toast.success("Turma criada!");
     navigate("/turmas");
   };
 

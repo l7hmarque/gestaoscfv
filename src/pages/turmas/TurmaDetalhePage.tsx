@@ -82,7 +82,7 @@ const TurmaDetalhePage = () => {
     setAllParticipantes(ap || []);
     setBairros(b || []);
     setEducadores(e || []);
-    if (t) setForm({ nome: t.nome, periodo: t.periodo, faixa_etaria: t.faixa_etaria || "", tipo: t.tipo, bairro_id: t.bairro_id || "", educador_id: t.educador_id || "", dias_semana: t.dias_semana || [], ativa: t.ativa, oficina: t.oficina || "", nome_grupo: t.nome_grupo || "" });
+    if (t) setForm({ nome: t.nome, periodo: t.periodo, faixa_etaria: t.faixa_etaria || "", faixas_etarias: t.faixas_etarias || [], tipo: t.tipo, bairro_id: t.bairro_id || "", bairro_ids: t.bairro_ids || [], educador_id: t.educador_id || "", dias_semana: t.dias_semana || [], ativa: t.ativa, oficina: t.oficina || "", nome_grupo: t.nome_grupo || "" });
 
     // Load attendance for alerts
     if (membersList.length > 0) {
@@ -170,6 +170,12 @@ const TurmaDetalhePage = () => {
     if (!payload.bairro_id) payload.bairro_id = null;
     if (!payload.educador_id) payload.educador_id = null;
     if (!payload.faixa_etaria) payload.faixa_etaria = null;
+    // Ensure arrays are saved
+    payload.faixas_etarias = form.faixas_etarias || [];
+    payload.bairro_ids = form.bairro_ids || [];
+    // Sync single-value fields for compatibility
+    if ((form.faixas_etarias || []).length > 0) payload.faixa_etaria = form.faixas_etarias[0];
+    if ((form.bairro_ids || []).length > 0) payload.bairro_id = form.bairro_ids[0];
     const { error } = await supabase.from("turmas").update(payload as any).eq("id", id!);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
@@ -278,7 +284,12 @@ const TurmaDetalhePage = () => {
             <div className="flex gap-1.5 mt-0.5 flex-wrap">
               <Badge variant={turma.ativa ? "default" : "secondary"} className="text-[10px]">{turma.ativa ? "Ativa" : "Inativa"}</Badge>
               {turma.periodo && <Badge variant="outline" className="text-[10px]">{periodoLabel[turma.periodo]}</Badge>}
-              {turma.faixa_etaria && <Badge variant="outline" className="text-[10px]">{faixaLabel[turma.faixa_etaria]}</Badge>}
+              {(turma.faixas_etarias && turma.faixas_etarias.length > 0
+                ? turma.faixas_etarias
+                : turma.faixa_etaria ? [turma.faixa_etaria] : []
+              ).map((f: string) => (
+                <Badge key={f} variant="outline" className="text-[10px]">{faixaLabel[f] || f}</Badge>
+              ))}
               {alertMembers.length > 0 && (
                 <Badge variant="destructive" className="text-[10px] gap-1"><AlertTriangle className="h-3 w-3" />{alertMembers.length} alerta(s)</Badge>
               )}
@@ -350,11 +361,19 @@ const TurmaDetalhePage = () => {
                 <SelectContent><SelectItem value="manha">Manhã</SelectItem><SelectItem value="tarde">Tarde</SelectItem><SelectItem value="integral">Integral</SelectItem></SelectContent>
               </Select>
             </div>
-            <div><Label className="text-xs">Faixa Etária</Label>
-              <Select value={form.faixa_etaria || ""} onValueChange={(v) => setForm({ ...form, faixa_etaria: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="—" /></SelectTrigger>
-                <SelectContent><SelectItem value="6-8">6-8</SelectItem><SelectItem value="9-11">9-11</SelectItem><SelectItem value="12-17">12-17</SelectItem><SelectItem value="idosos">Idosos</SelectItem></SelectContent>
-              </Select>
+            <div><Label className="text-xs mb-2 block">Faixa Etária</Label>
+              <div className="flex flex-wrap gap-3">
+                {[{ value: "6-8", label: "6-8 anos" }, { value: "9-11", label: "9-11 anos" }, { value: "12-17", label: "12-17 anos" }, { value: "idosos", label: "Idosos" }].map(f => (
+                  <label key={f.value} className="flex items-center gap-1.5 cursor-pointer">
+                    <Checkbox checked={(form.faixas_etarias || []).includes(f.value)} onCheckedChange={() => {
+                      const arr = form.faixas_etarias || [];
+                      const next = arr.includes(f.value) ? arr.filter((v: string) => v !== f.value) : [...arr, f.value];
+                      setForm({ ...form, faixas_etarias: next, faixa_etaria: next[0] || "" });
+                    }} />
+                    <span className="text-sm">{f.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
             <div><Label className="text-xs">Tipo</Label>
               <Select value={form.tipo || "ordinaria"} onValueChange={(v) => setForm({ ...form, tipo: v })}>
@@ -362,11 +381,19 @@ const TurmaDetalhePage = () => {
                 <SelectContent><SelectItem value="ordinaria">Ordinária</SelectItem><SelectItem value="extraordinaria">Extraordinária</SelectItem></SelectContent>
               </Select>
             </div>
-            <div><Label className="text-xs">Bairro</Label>
-              <Select value={form.bairro_id || ""} onValueChange={(v) => setForm({ ...form, bairro_id: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="—" /></SelectTrigger>
-                <SelectContent>{bairros.filter(b => isBairroSCFV(b.nome)).map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
-              </Select>
+            <div><Label className="text-xs mb-2 block">Bairro</Label>
+              <div className="flex flex-wrap gap-3">
+                {bairros.filter(b => isBairroSCFV(b.nome)).map(b => (
+                  <label key={b.id} className="flex items-center gap-1.5 cursor-pointer">
+                    <Checkbox checked={(form.bairro_ids || []).includes(b.id)} onCheckedChange={() => {
+                      const arr = form.bairro_ids || [];
+                      const next = arr.includes(b.id) ? arr.filter((v: string) => v !== b.id) : [...arr, b.id];
+                      setForm({ ...form, bairro_ids: next, bairro_id: next[0] || "" });
+                    }} />
+                    <span className="text-sm">{b.nome}</span>
+                  </label>
+                ))}
+              </div>
             </div>
             <div className="col-span-1 sm:col-span-2"><Label className="text-xs">Educador</Label>
               <Select value={form.educador_id || ""} onValueChange={(v) => setForm({ ...form, educador_id: v })}>
