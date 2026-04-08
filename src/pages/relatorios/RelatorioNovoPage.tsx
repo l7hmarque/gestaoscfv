@@ -457,10 +457,37 @@ const RelatorioNovoPage = () => {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Educador</Label>
-              <Select value={form.educador_id} onValueChange={v => setForm(f => ({ ...f, educador_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>{educadores.map(e => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}</SelectContent>
-              </Select>
+              <Popover open={educadorOpen} onOpenChange={setEducadorOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={educadorOpen} className="w-full justify-between text-sm font-normal">
+                    {form.educador_id ? educadores.find(e => e.id === form.educador_id)?.nome || "Selecionar" : "Selecionar educador..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar educador..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum educador encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        {educadores.map(e => (
+                          <CommandItem
+                            key={e.id}
+                            value={e.nome}
+                            onSelect={() => {
+                              setForm(f => ({ ...f, educador_id: e.id }));
+                              setEducadorOpen(false);
+                            }}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", form.educador_id === e.id ? "opacity-100" : "opacity-0")} />
+                            {e.nome}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <div className="space-y-1">
