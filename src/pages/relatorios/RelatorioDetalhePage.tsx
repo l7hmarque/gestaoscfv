@@ -255,12 +255,36 @@ const RelatorioDetalhePage = () => {
 
   // ---- EDIT MODE FUNCTIONS ----
   const enterEditMode = async () => {
-    // Load all turmas for selection
-    const { data: turmas } = await supabase.from("turmas").select("id, nome, ativa").eq("ativa", true).order("nome");
+    const [{ data: turmas }, { data: educadores }, { data: roles }] = await Promise.all([
+      supabase.from("turmas").select("id, nome, ativa").eq("ativa", true).order("nome"),
+      supabase.from("profiles").select("id, nome, user_id"),
+      supabase.from("user_roles").select("user_id, role"),
+    ]);
     setAllTurmas(turmas || []);
+    // Filter educadores by role
+    const eduUserIds = new Set((roles || []).filter((r: any) => r.role === "educador" || r.role === "coordenacao").map((r: any) => r.user_id));
+    setAllEducadores((educadores || []).filter((p: any) => eduUserIds.has(p.user_id)));
     setSelectedTurmaIds([...turmaIds]);
+    // Populate edit form from item
+    setEditForm({
+      nome_atividade: item?.nome_atividade || "",
+      data: item?.data ? new Date(item.data + "T12:00:00") : null,
+      dia_semana: item?.dia_semana || "",
+      educador_id: item?.educador_id || "",
+      tipo_atividade: Array.isArray(item?.tipo_atividade) ? item.tipo_atividade : [],
+      tipo_atividade_detalhe: item?.tipo_atividade_detalhe || "",
+      iniciativa: item?.iniciativa || 3,
+      autonomia: item?.autonomia || 3,
+      colaboracao: item?.colaboracao || 3,
+      comunicacao: item?.comunicacao || 3,
+      respeito_mutuo: item?.respeito_mutuo || 3,
+      engajamento: Array.isArray(item?.engajamento) ? item.engajamento : [],
+      situacoes_relevantes: Array.isArray(item?.situacoes_relevantes) ? item.situacoes_relevantes : [],
+      objetivo_alcancado: item?.objetivo_alcancado || "",
+      intervencoes: item?.intervencoes || "",
+      observacoes: item?.observacoes || "",
+    });
     setEditMode(true);
-    // Load participants for current turmas
     await loadParticipantsForTurmas([...turmaIds]);
   };
 
