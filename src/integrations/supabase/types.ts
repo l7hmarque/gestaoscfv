@@ -1433,21 +1433,24 @@ export type Database = {
         Row: {
           id: string
           justificativa: string | null
-          participante_id: string
+          nome_avulso: string | null
+          participante_id: string | null
           presente: boolean | null
           relatorio_id: string
         }
         Insert: {
           id?: string
           justificativa?: string | null
-          participante_id: string
+          nome_avulso?: string | null
+          participante_id?: string | null
           presente?: boolean | null
           relatorio_id: string
         }
         Update: {
           id?: string
           justificativa?: string | null
-          participante_id?: string
+          nome_avulso?: string | null
+          participante_id?: string | null
           presente?: boolean | null
           relatorio_id?: string
         }
