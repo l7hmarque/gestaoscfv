@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
-import { ArrowLeft, Printer, Instagram, Copy, Share2, Download, X, Trash2, Plus, Search, Link2 } from "lucide-react";
+import { ArrowLeft, Printer, Instagram, Copy, Share2, Download, X, Trash2, Plus, Search, Link2, Pencil, Check, Users } from "lucide-react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,7 @@ const RelatorioDetalhePage = () => {
   const { user } = useAuth();
   const [item, setItem] = useState<any>(null);
   const [turmaNames, setTurmaNames] = useState<string[]>([]);
+  const [turmaIds, setTurmaIds] = useState<string[]>([]);
   const [fotos, setFotos] = useState<any[]>([]);
   const [presenca, setPresenca] = useState<any[]>([]);
   const [planejamentoLink, setPlanejamentoLink] = useState<{ id: string; titulo: string } | null>(null);
@@ -67,6 +69,15 @@ const RelatorioDetalhePage = () => {
   const [linkSearch, setLinkSearch] = useState("");
   const [linkResults, setLinkResults] = useState<any[]>([]);
   const [linking, setLinking] = useState(false);
+
+  // Edit mode state (coordenação only)
+  const [editMode, setEditMode] = useState(false);
+  const [allTurmas, setAllTurmas] = useState<any[]>([]);
+  const [selectedTurmaIds, setSelectedTurmaIds] = useState<string[]>([]);
+  const [editParticipants, setEditParticipants] = useState<any[]>([]);
+  const [editPresencaMap, setEditPresencaMap] = useState<Record<string, boolean>>({});
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [loadingEditParticipants, setLoadingEditParticipants] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -98,6 +109,8 @@ const RelatorioDetalhePage = () => {
       ]);
       if (r.data) {
         setItem(r.data);
+        const tIds = r.data.relatorio_turmas?.map((rt: any) => rt.turma_id).filter(Boolean) || [];
+        setTurmaIds(tIds);
         setTurmaNames(r.data.relatorio_turmas?.map((rt: any) => rt.turmas?.nome).filter(Boolean) || []);
         if (r.data.planejamento_id) {
           const { data: plan } = await supabase.from("planejamentos").select("id, titulo").eq("id", r.data.planejamento_id).single();
@@ -145,14 +158,12 @@ const RelatorioDetalhePage = () => {
       num_matriculados: total,
       pct_adesao: parseFloat(pct.toFixed(1)),
     }).eq("id", id);
-    // refresh local item
     const { data: updated } = await supabase.from("relatorios_atividade").select("num_participantes, num_ausentes, num_matriculados, pct_adesao").eq("id", id).single();
     if (updated) setItem((prev: any) => ({ ...prev, ...updated }));
   };
 
   const handleAddFromCadastro = async (participanteId: string) => {
     if (!id) return;
-    // Check if already exists
     const existing = presenca.find(p => p.participante_id === participanteId);
     if (existing) { toast.error("Participante já está na lista"); return; }
     setAdding(true);
@@ -199,6 +210,113 @@ const RelatorioDetalhePage = () => {
     setLinkSearch("");
     setLinking(false);
     toast.success("Participante vinculado com sucesso!");
+  };
+
+  // ---- EDIT MODE FUNCTIONS ----
+  const enterEditMode = async () => {
+    // Load all turmas for selection
+    const { data: turmas } = await supabase.from("turmas").select("id, nome, ativa").eq("ativa", true).order("nome");
+    setAllTurmas(turmas || []);
+    setSelectedTurmaIds([...turmaIds]);
+    setEditMode(true);
+    // Load participants for current turmas
+    await loadParticipantsForTurmas([...turmaIds]);
+  };
+
+  const loadParticipantsForTurmas = async (tIds: string[]) => {
+    setLoadingEditParticipants(true);
+    if (tIds.length === 0) {
+      setEditParticipants([]);
+      setEditPresencaMap({});
+      setLoadingEditParticipants(false);
+      return;
+    }
+    // Get all participants linked to selected turmas
+    const { data: tp } = await supabase.from("turma_participantes").select("participante_id, participantes(id, nome_completo, status)").in("turma_id", tIds);
+    // Deduplicate
+    const uniqueMap = new Map<string, any>();
+    (tp || []).forEach((row: any) => {
+      if (row.participantes && !uniqueMap.has(row.participantes.id)) {
+        uniqueMap.set(row.participantes.id, row.participantes);
+      }
+    });
+    const participants = Array.from(uniqueMap.values()).sort((a, b) => a.nome_completo.localeCompare(b.nome_completo));
+    setEditParticipants(participants);
+
+    // Build presenca map from existing relatorio_presenca
+    const map: Record<string, boolean> = {};
+    presenca.forEach(p => {
+      if (p.participante_id) map[p.participante_id] = !!p.presente;
+    });
+    // For new participants not in presenca, default to false
+    participants.forEach(p => {
+      if (!(p.id in map)) map[p.id] = false;
+    });
+    setEditPresencaMap(map);
+    setLoadingEditParticipants(false);
+  };
+
+  const handleTurmaToggle = async (turmaId: string) => {
+    const newIds = selectedTurmaIds.includes(turmaId)
+      ? selectedTurmaIds.filter(t => t !== turmaId)
+      : [...selectedTurmaIds, turmaId];
+    setSelectedTurmaIds(newIds);
+    await loadParticipantsForTurmas(newIds);
+  };
+
+  const handlePresencaToggle = (participanteId: string) => {
+    setEditPresencaMap(prev => ({ ...prev, [participanteId]: !prev[participanteId] }));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!id) return;
+    setSavingEdit(true);
+    try {
+      // 1. Update relatorio_turmas: delete old, insert new
+      await supabase.from("relatorio_turmas").delete().eq("relatorio_id", id);
+      if (selectedTurmaIds.length > 0) {
+        await supabase.from("relatorio_turmas").insert(
+          selectedTurmaIds.map(turma_id => ({ relatorio_id: id, turma_id }))
+        );
+      }
+
+      // 2. Update presença: upsert for all participants in editPresencaMap
+      // Keep existing avulso entries untouched
+      const existingAvulsos = presenca.filter(p => !p.participante_id && p.nome_avulso);
+      
+      // Delete only non-avulso presença entries
+      const nonAvulsoIds = presenca.filter(p => p.participante_id).map(p => p.id);
+      if (nonAvulsoIds.length > 0) {
+        await supabase.from("relatorio_presenca").delete().in("id", nonAvulsoIds);
+      }
+
+      // Insert new presença entries for all participants in the map
+      const inserts = Object.entries(editPresencaMap).map(([participante_id, presente]) => ({
+        relatorio_id: id,
+        participante_id,
+        presente,
+      }));
+      if (inserts.length > 0) {
+        await supabase.from("relatorio_presenca").insert(inserts as any);
+      }
+
+      // 3. Recalc counters
+      await recalcCounters();
+
+      // 4. Refresh turma names
+      const { data: newTurmaData } = await supabase.from("relatorio_turmas").select("turma_id, turmas(nome)").eq("relatorio_id", id);
+      const newNames = (newTurmaData || []).map((rt: any) => rt.turmas?.nome).filter(Boolean);
+      setTurmaNames(newNames);
+      setTurmaIds(selectedTurmaIds);
+
+      await fetchPresenca();
+      setEditMode(false);
+      toast.success("Relatório atualizado com sucesso!");
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao salvar edições");
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const generateInstagramPost = async () => {
@@ -287,6 +405,12 @@ const RelatorioDetalhePage = () => {
           <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate">{item.nome_atividade || "Relatório"}</h1>
         </div>
         <div className="flex gap-1 flex-wrap">
+          {isCoordenacao && !editMode && (
+            <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={enterEditMode}>
+              <Pencil className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Editar</span>
+            </Button>
+          )}
           {isCoordenacao && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -333,6 +457,85 @@ const RelatorioDetalhePage = () => {
           </Button>
         </div>
       </div>
+
+      {/* EDIT MODE */}
+      {editMode && (
+        <Card className="border-primary/50 bg-primary/5">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2"><Pencil className="h-4 w-4" /> Modo Edição</CardTitle>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" className="text-xs" onClick={() => setEditMode(false)} disabled={savingEdit}>Cancelar</Button>
+                <Button size="sm" className="text-xs gap-1" onClick={handleSaveEdit} disabled={savingEdit}>
+                  <Check className="h-3.5 w-3.5" /> {savingEdit ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Turma Selection */}
+            <div>
+              <h3 className="text-sm font-medium text-foreground mb-2 flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> Turmas vinculadas</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-40 overflow-y-auto border rounded-md p-2">
+                {allTurmas.map(t => (
+                  <label key={t.id} className="flex items-center gap-2 text-sm py-1 px-1 rounded hover:bg-accent/50 cursor-pointer">
+                    <Checkbox
+                      checked={selectedTurmaIds.includes(t.id)}
+                      onCheckedChange={() => handleTurmaToggle(t.id)}
+                    />
+                    <span className="truncate">{t.nome}</span>
+                  </label>
+                ))}
+              </div>
+              {selectedTurmaIds.length === 0 && <p className="text-xs text-muted-foreground mt-1">Selecione ao menos uma turma</p>}
+            </div>
+
+            {/* Participant Attendance */}
+            <div>
+              <h3 className="text-sm font-medium text-foreground mb-2">Presença dos participantes ({editParticipants.length})</h3>
+              {loadingEditParticipants ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span className="ml-2 text-xs text-muted-foreground">Carregando...</span>
+                </div>
+              ) : editParticipants.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">Nenhum participante nas turmas selecionadas</p>
+              ) : (
+                <>
+                  <div className="flex gap-2 mb-2">
+                    <Button variant="outline" size="sm" className="text-[10px] h-6" onClick={() => {
+                      const all: Record<string, boolean> = {};
+                      editParticipants.forEach(p => all[p.id] = true);
+                      setEditPresencaMap(prev => ({ ...prev, ...all }));
+                    }}>Marcar todos</Button>
+                    <Button variant="outline" size="sm" className="text-[10px] h-6" onClick={() => {
+                      const all: Record<string, boolean> = {};
+                      editParticipants.forEach(p => all[p.id] = false);
+                      setEditPresencaMap(prev => ({ ...prev, ...all }));
+                    }}>Desmarcar todos</Button>
+                  </div>
+                  <div className="space-y-0.5 max-h-60 overflow-y-auto border rounded-md p-2">
+                    {editParticipants.map(p => (
+                      <label key={p.id} className="flex items-center justify-between gap-2 text-sm py-1 px-1 rounded hover:bg-accent/50 cursor-pointer">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Checkbox
+                            checked={!!editPresencaMap[p.id]}
+                            onCheckedChange={() => handlePresencaToggle(p.id)}
+                          />
+                          <span className="truncate text-xs sm:text-sm">{p.nome_completo}</span>
+                        </div>
+                        <Badge variant={editPresencaMap[p.id] ? "default" : "secondary"} className="text-[9px] shrink-0">
+                          {editPresencaMap[p.id] ? "Presente" : "Ausente"}
+                        </Badge>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex gap-2 flex-wrap text-xs text-muted-foreground">
         <span>📅 {format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy")}</span>
@@ -417,44 +620,46 @@ const RelatorioDetalhePage = () => {
       )}
 
       {/* Presença */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Presença ({presenca.length})</CardTitle>
-            <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => { setAddOpen(true); setAddTab("buscar"); setSearchQuery(""); setNomeAvulso(""); }}>
-              <Plus className="h-3.5 w-3.5" /> Adicionar
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {presenca.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Nenhum participante registrado</p>
-          ) : (
-            <div className="space-y-1 max-h-60 overflow-y-auto print:max-h-none">
-              {presenca.map((p: any) => {
-                const nome = p.participantes?.nome_completo || p.nome_avulso || "—";
-                const isAvulso = !p.participante_id && p.nome_avulso;
-                return (
-                  <div key={p.id} className="flex items-center justify-between text-sm py-1 border-b border-border/50 last:border-0 gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-xs sm:text-sm truncate">{nome}</span>
-                      {isAvulso && <Badge variant="outline" className="text-[9px] shrink-0 border-amber-500 text-amber-600">Avulso</Badge>}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {isAvulso && (
-                        <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[10px] gap-0.5 text-primary" onClick={() => { setLinkTarget(p); setLinkSearch(""); setLinkResults([]); }}>
-                          <Link2 className="h-3 w-3" /> Vincular
-                        </Button>
-                      )}
-                      <Badge variant={p.presente ? "default" : "secondary"} className="text-[10px]">{p.presente ? "Presente" : "Ausente"}</Badge>
-                    </div>
-                  </div>
-                );
-              })}
+      {!editMode && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Presença ({presenca.length})</CardTitle>
+              <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => { setAddOpen(true); setAddTab("buscar"); setSearchQuery(""); setNomeAvulso(""); }}>
+                <Plus className="h-3.5 w-3.5" /> Adicionar
+              </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            {presenca.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhum participante registrado</p>
+            ) : (
+              <div className="space-y-1 max-h-60 overflow-y-auto print:max-h-none">
+                {presenca.map((p: any) => {
+                  const nome = p.participantes?.nome_completo || p.nome_avulso || "—";
+                  const isAvulso = !p.participante_id && p.nome_avulso;
+                  return (
+                    <div key={p.id} className="flex items-center justify-between text-sm py-1 border-b border-border/50 last:border-0 gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs sm:text-sm truncate">{nome}</span>
+                        {isAvulso && <Badge variant="outline" className="text-[9px] shrink-0 border-amber-500 text-amber-600">Avulso</Badge>}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isAvulso && (
+                          <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[10px] gap-0.5 text-primary" onClick={() => { setLinkTarget(p); setLinkSearch(""); setLinkResults([]); }}>
+                            <Link2 className="h-3 w-3" /> Vincular
+                          </Button>
+                        )}
+                        <Badge variant={p.presente ? "default" : "secondary"} className="text-[10px]">{p.presente ? "Presente" : "Ausente"}</Badge>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Fotos */}
       {fotos.length > 0 && (
