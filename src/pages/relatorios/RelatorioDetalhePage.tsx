@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Printer, FileText, FileSpreadsheet, Instagram, Copy, Share2, Download, X, Trash2 } from "lucide-react";
+import { ArrowLeft, Printer, Instagram, Copy, Share2, Download, X, Trash2 } from "lucide-react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -205,19 +205,16 @@ const RelatorioDetalhePage = () => {
             <Printer className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Imprimir</span>
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1 text-xs"><FileText className="h-3.5 w-3.5" />Exportar</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => exportRelatorioDocx(item, turmaNames, presenca, fotos)} className="text-xs gap-2">
-                <FileSpreadsheet className="h-3.5 w-3.5" /> DOCX
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportRelatorioPdf(item, turmaNames, presenca).catch(() => {})} className="text-xs gap-2">
-                <FileText className="h-3.5 w-3.5" /> PDF
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={async () => {
+            toast.info("Gerando DOCX + PDF...");
+            await Promise.all([
+              exportRelatorioDocx(item, turmaNames, presenca, fotos),
+              exportRelatorioPdf(item, turmaNames, presenca).catch(() => {}),
+            ]);
+            toast.success("Downloads concluídos!");
+          }}>
+            <Download className="h-3.5 w-3.5" />Exportar Tudo
+          </Button>
         </div>
       </div>
 

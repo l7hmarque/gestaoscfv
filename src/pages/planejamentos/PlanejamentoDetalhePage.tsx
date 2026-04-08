@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Pencil, Save, X, Printer, FileText, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, Pencil, Save, X, Printer, Download } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+
 import { exportPlanejamentoDocx, exportPlanejamentoPdf } from "@/hooks/useDocumentExport";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { TIPOS_ATIVIDADE, tipoAtividadeLabels } from "@/lib/constants";
@@ -115,19 +115,16 @@ const PlanejamentoDetalhePage = () => {
               <Button variant="outline" size="sm" className="gap-1" onClick={() => window.print()}>
                 <Printer className="h-3.5 w-3.5" />Imprimir
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1"><FileText className="h-3.5 w-3.5" />Exportar</Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => exportPlanejamentoDocx(item, turmaNames)} className="text-xs gap-2">
-                    <FileSpreadsheet className="h-3.5 w-3.5" /> DOCX
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => exportPlanejamentoPdf(item, turmaNames).catch(() => {})} className="text-xs gap-2">
-                    <FileText className="h-3.5 w-3.5" /> PDF
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Button variant="outline" size="sm" className="gap-1" onClick={async () => {
+                toast.info("Gerando DOCX + PDF...");
+                await Promise.all([
+                  exportPlanejamentoDocx(item, turmaNames),
+                  exportPlanejamentoPdf(item, turmaNames).catch(() => {}),
+                ]);
+                toast.success("Downloads concluídos!");
+              }}>
+                <Download className="h-3.5 w-3.5" />Exportar Tudo
+              </Button>
             </>
           )}
         </div>

@@ -1,5 +1,5 @@
 import {
-  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, MessageSquare, Newspaper, HeartHandshake, DollarSign, Globe,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -28,8 +28,7 @@ const menuGroups = [
   {
     label: "Comunicação",
     items: [
-      { title: "Mural", url: "/mural", icon: MessageSquare },
-      { title: "Feed", url: "/feed", icon: Newspaper },
+      { title: "Feed / Mural", url: "/feed", icon: Newspaper },
     ],
   },
   {
