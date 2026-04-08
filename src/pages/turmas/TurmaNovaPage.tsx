@@ -41,9 +41,9 @@ const TurmaNovaPage = () => {
   const [educadores, setEducadores] = useState<Tables<"profiles">[]>([]);
   const [nome, setNome] = useState("");
   const [periodo, setPeriodo] = useState("manha");
-  const [faixaEtaria, setFaixaEtaria] = useState("");
+  const [faixasEtarias, setFaixasEtarias] = useState<string[]>([]);
   const [tipo, setTipo] = useState("ordinaria");
-  const [bairroId, setBairroId] = useState("");
+  const [bairroIds, setBairroIds] = useState<string[]>([]);
   const [educadorId, setEducadorId] = useState("");
   const [diasSemana, setDiasSemana] = useState<string[]>([]);
   const [oficina, setOficina] = useState("");
