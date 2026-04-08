@@ -74,10 +74,12 @@ const TurmasPage = () => {
     if (error) { toast.error("Erro ao excluir: " + error.message); setDeleting(false); return; }
 
     // Audit log
-    if (profile) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: prof } = await supabase.from("profiles").select("nome, user_id").eq("user_id", user.id).single();
       await supabase.from("audit_log").insert({
-        user_id: profile.user_id,
-        user_nome: profile.nome,
+        user_id: user.id,
+        user_nome: prof?.nome || user.email,
         tabela: "turmas",
         acao: "exclusao",
         registro_id: deleteTarget.id,
