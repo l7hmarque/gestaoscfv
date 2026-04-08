@@ -532,11 +532,8 @@ const EquipeTecnicaPage = () => {
                 <Badge variant="secondary" className="text-xs h-9 px-3">{relAtendimentos.length} atendimento(s)</Badge>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => generateRelatorioEquipe("xlsx")} disabled={relAtendimentos.length === 0} className="gap-1">
-                  <FileSpreadsheet className="h-3.5 w-3.5" />Exportar XLSX
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => generateRelatorioEquipe("pdf")} disabled={relAtendimentos.length === 0} className="gap-1">
-                  <Download className="h-3.5 w-3.5" />Exportar PDF
+                <Button variant="outline" size="sm" onClick={() => { generateRelatorioEquipe("xlsx"); generateRelatorioEquipe("pdf"); }} disabled={relAtendimentos.length === 0} className="gap-1">
+                  <Download className="h-3.5 w-3.5" />Exportar Tudo
                 </Button>
               </div>
 
