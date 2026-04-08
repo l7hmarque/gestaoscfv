@@ -1,11 +1,12 @@
-import { useEffect, useState, useCallback } from "react";
-import { ArrowLeft, Printer, Instagram, Copy, Share2, Download, X, Trash2, Plus, Search, Link2, Pencil, Check, Users } from "lucide-react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { ArrowLeft, Printer, Instagram, Copy, Share2, Download, X, Trash2, Plus, Search, Link2, Pencil, Check, Users, ChevronsUpDown } from "lucide-react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -14,12 +15,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Calendar } from "@/components/ui/calendar";
 import { exportRelatorioDocx, exportRelatorioPdf } from "@/hooks/useDocumentExport";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { TIPOS_ATIVIDADE } from "@/lib/constants";
 
 const LIKERT_LABELS = ["", "Muito Baixo", "Baixo", "Moderado", "Alto", "Excepcional"];
 const OBJ_LABELS: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
+const ENGAJAMENTO_OPT = ["Grupo participativo", "Grupo disperso", "Boa interação entre participantes", "Necessitou intervenção do educador"];
+const SITUACOES_OPT = ["Nenhuma ocorrência", "Conflito entre participantes", "Situação de vulnerabilidade identificada", "Encaminhamento necessário", "Comunicação com família/responsável"];
+const DIAS_SEMANA_MAP = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
 function LikertDisplay({ label, value }: { label: string; value: number | null }) {
   const v = value || 0;
@@ -33,6 +42,25 @@ function LikertDisplay({ label, value }: { label: string; value: number | null }
           ))}
         </div>
         <span className="text-xs text-muted-foreground w-20 text-right">{LIKERT_LABELS[v]}</span>
+      </div>
+    </div>
+  );
+}
+
+function LikertFieldEdit({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map(n => (
+          <button key={n} type="button" onClick={() => onChange(n)} className={cn(
+            "flex-1 py-1.5 rounded text-xs font-medium transition-colors border",
+            value === n ? "bg-primary text-primary-foreground border-primary" : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+          )}>{n}</button>
+        ))}
+      </div>
+      <div className="flex justify-between text-[10px] text-muted-foreground px-1">
+        <span>{LIKERT_LABELS[1]}</span><span>{LIKERT_LABELS[5]}</span>
       </div>
     </div>
   );
@@ -78,6 +106,38 @@ const RelatorioDetalhePage = () => {
   const [editPresencaMap, setEditPresencaMap] = useState<Record<string, boolean>>({});
   const [savingEdit, setSavingEdit] = useState(false);
   const [loadingEditParticipants, setLoadingEditParticipants] = useState(false);
+
+  // Full edit form state
+  const [editForm, setEditForm] = useState({
+    nome_atividade: "",
+    data: null as Date | null,
+    dia_semana: "",
+    educador_id: "",
+    tipo_atividade: [] as string[],
+    tipo_atividade_detalhe: "",
+    iniciativa: 3,
+    autonomia: 3,
+    colaboracao: 3,
+    comunicacao: 3,
+    respeito_mutuo: 3,
+    engajamento: [] as string[],
+    situacoes_relevantes: [] as string[],
+    objetivo_alcancado: "",
+    intervencoes: "",
+    observacoes: "",
+  });
+  const [allEducadores, setAllEducadores] = useState<any[]>([]);
+  const [educadorOpen, setEducadorOpen] = useState(false);
+
+  const editScoreElo = useMemo(() => {
+    const s = (editForm.iniciativa + editForm.autonomia + editForm.colaboracao + editForm.comunicacao + editForm.respeito_mutuo) / 5;
+    return s.toFixed(2);
+  }, [editForm.iniciativa, editForm.autonomia, editForm.colaboracao, editForm.comunicacao, editForm.respeito_mutuo]);
+
+  const editNeedsDetail = editForm.tipo_atividade.some(v => {
+    const t = TIPOS_ATIVIDADE.find(ta => ta.value === v);
+    return t && "hasDetail" in t && t.hasDetail;
+  });
 
   useEffect(() => {
     if (user) {
@@ -214,12 +274,36 @@ const RelatorioDetalhePage = () => {
 
   // ---- EDIT MODE FUNCTIONS ----
   const enterEditMode = async () => {
-    // Load all turmas for selection
-    const { data: turmas } = await supabase.from("turmas").select("id, nome, ativa").eq("ativa", true).order("nome");
+    const [{ data: turmas }, { data: educadores }, { data: roles }] = await Promise.all([
+      supabase.from("turmas").select("id, nome, ativa").eq("ativa", true).order("nome"),
+      supabase.from("profiles").select("id, nome, user_id"),
+      supabase.from("user_roles").select("user_id, role"),
+    ]);
     setAllTurmas(turmas || []);
+    // Filter educadores by role
+    const eduUserIds = new Set((roles || []).filter((r: any) => r.role === "educador" || r.role === "coordenacao").map((r: any) => r.user_id));
+    setAllEducadores((educadores || []).filter((p: any) => eduUserIds.has(p.user_id)));
     setSelectedTurmaIds([...turmaIds]);
+    // Populate edit form from item
+    setEditForm({
+      nome_atividade: item?.nome_atividade || "",
+      data: item?.data ? new Date(item.data + "T12:00:00") : null,
+      dia_semana: item?.dia_semana || "",
+      educador_id: item?.educador_id || "",
+      tipo_atividade: Array.isArray(item?.tipo_atividade) ? item.tipo_atividade : [],
+      tipo_atividade_detalhe: item?.tipo_atividade_detalhe || "",
+      iniciativa: item?.iniciativa || 3,
+      autonomia: item?.autonomia || 3,
+      colaboracao: item?.colaboracao || 3,
+      comunicacao: item?.comunicacao || 3,
+      respeito_mutuo: item?.respeito_mutuo || 3,
+      engajamento: Array.isArray(item?.engajamento) ? item.engajamento : [],
+      situacoes_relevantes: Array.isArray(item?.situacoes_relevantes) ? item.situacoes_relevantes : [],
+      objetivo_alcancado: item?.objetivo_alcancado || "",
+      intervencoes: item?.intervencoes || "",
+      observacoes: item?.observacoes || "",
+    });
     setEditMode(true);
-    // Load participants for current turmas
     await loadParticipantsForTurmas([...turmaIds]);
   };
 
@@ -272,6 +356,29 @@ const RelatorioDetalhePage = () => {
     if (!id) return;
     setSavingEdit(true);
     try {
+      // 0. Update main report fields
+      const scoreElo = (editForm.iniciativa + editForm.autonomia + editForm.colaboracao + editForm.comunicacao + editForm.respeito_mutuo) / 5;
+      const { error: updateErr } = await supabase.from("relatorios_atividade").update({
+        nome_atividade: editForm.nome_atividade,
+        data: editForm.data ? format(editForm.data, "yyyy-MM-dd") : item.data,
+        dia_semana: editForm.dia_semana,
+        educador_id: editForm.educador_id || null,
+        tipo_atividade: editForm.tipo_atividade,
+        tipo_atividade_detalhe: editForm.tipo_atividade_detalhe || null,
+        iniciativa: editForm.iniciativa,
+        autonomia: editForm.autonomia,
+        colaboracao: editForm.colaboracao,
+        comunicacao: editForm.comunicacao,
+        respeito_mutuo: editForm.respeito_mutuo,
+        score_elo: parseFloat(scoreElo.toFixed(2)),
+        engajamento: editForm.engajamento,
+        situacoes_relevantes: editForm.situacoes_relevantes,
+        objetivo_alcancado: editForm.objetivo_alcancado || null,
+        intervencoes: editForm.intervencoes || null,
+        observacoes: editForm.observacoes || null,
+      } as any).eq("id", id);
+      if (updateErr) throw updateErr;
+
       // 1. Update relatorio_turmas: delete old, insert new
       await supabase.from("relatorio_turmas").delete().eq("relatorio_id", id);
       if (selectedTurmaIds.length > 0) {
@@ -280,17 +387,11 @@ const RelatorioDetalhePage = () => {
         );
       }
 
-      // 2. Update presença: upsert for all participants in editPresencaMap
-      // Keep existing avulso entries untouched
-      const existingAvulsos = presenca.filter(p => !p.participante_id && p.nome_avulso);
-      
-      // Delete only non-avulso presença entries
+      // 2. Update presença
       const nonAvulsoIds = presenca.filter(p => p.participante_id).map(p => p.id);
       if (nonAvulsoIds.length > 0) {
         await supabase.from("relatorio_presenca").delete().in("id", nonAvulsoIds);
       }
-
-      // Insert new presença entries for all participants in the map
       const inserts = Object.entries(editPresencaMap).map(([participante_id, presente]) => ({
         relatorio_id: id,
         participante_id,
@@ -303,8 +404,14 @@ const RelatorioDetalhePage = () => {
       // 3. Recalc counters
       await recalcCounters();
 
-      // 4. Refresh turma names
-      const { data: newTurmaData } = await supabase.from("relatorio_turmas").select("turma_id, turmas(nome)").eq("relatorio_id", id);
+      // 4. Refresh data
+      const [{ data: updatedReport }, { data: newTurmaData }] = await Promise.all([
+        supabase.from("relatorios_atividade")
+          .select("*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome)")
+          .eq("id", id).single(),
+        supabase.from("relatorio_turmas").select("turma_id, turmas(nome)").eq("relatorio_id", id),
+      ]);
+      if (updatedReport) setItem(updatedReport);
       const newNames = (newTurmaData || []).map((rt: any) => rt.turmas?.nome).filter(Boolean);
       setTurmaNames(newNames);
       setTurmaIds(selectedTurmaIds);
@@ -473,16 +580,156 @@ const RelatorioDetalhePage = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Info Geral */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Data</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-sm", !editForm.data && "text-muted-foreground")}>
+                      {editForm.data ? format(editForm.data, "dd/MM/yyyy") : "Selecionar"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={editForm.data || undefined} onSelect={d => {
+                      if (d) setEditForm(f => ({ ...f, data: d, dia_semana: DIAS_SEMANA_MAP[d.getDay()] }));
+                    }} className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Dia da Semana</Label>
+                <Input value={editForm.dia_semana} readOnly className="bg-muted/50 text-sm" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Nome da Atividade</Label>
+              <Input value={editForm.nome_atividade} onChange={e => setEditForm(f => ({ ...f, nome_atividade: e.target.value }))} />
+            </div>
+
+            {/* Educador combobox */}
+            <div className="space-y-1">
+              <Label className="text-xs">Educador</Label>
+              <Popover open={educadorOpen} onOpenChange={setEducadorOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={educadorOpen} className="w-full justify-between text-sm font-normal">
+                    {editForm.educador_id ? allEducadores.find(e => e.id === editForm.educador_id)?.nome || "Selecionar" : "Selecionar educador..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar educador..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum educador encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        {allEducadores.map(e => (
+                          <CommandItem key={e.id} value={e.nome} onSelect={() => { setEditForm(f => ({ ...f, educador_id: e.id })); setEducadorOpen(false); }}>
+                            <Check className={cn("mr-2 h-4 w-4", editForm.educador_id === e.id ? "opacity-100" : "opacity-0")} />
+                            {e.nome}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Tipo de Atividade */}
+            <div className="space-y-1">
+              <Label className="text-xs">Tipo de Atividade</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {TIPOS_ATIVIDADE.map(ta => (
+                  <label key={ta.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox checked={editForm.tipo_atividade.includes(ta.value)} onCheckedChange={() => setEditForm(f => ({
+                      ...f, tipo_atividade: f.tipo_atividade.includes(ta.value)
+                        ? f.tipo_atividade.filter(v => v !== ta.value)
+                        : [...f.tipo_atividade, ta.value]
+                    }))} />
+                    {ta.label}
+                  </label>
+                ))}
+              </div>
+              {editNeedsDetail && (
+                <Input value={editForm.tipo_atividade_detalhe} onChange={e => setEditForm(f => ({ ...f, tipo_atividade_detalhe: e.target.value }))} placeholder="Especifique" className="mt-2 text-sm" />
+              )}
+            </div>
+
+            {/* Competências */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium">Competências (Likert 1-5)</Label>
+                <span className="text-sm font-semibold text-primary">ELO: {editScoreElo}</span>
+              </div>
+              <LikertFieldEdit label="Iniciativa" value={editForm.iniciativa} onChange={v => setEditForm(f => ({ ...f, iniciativa: v }))} />
+              <LikertFieldEdit label="Autonomia" value={editForm.autonomia} onChange={v => setEditForm(f => ({ ...f, autonomia: v }))} />
+              <LikertFieldEdit label="Colaboração" value={editForm.colaboracao} onChange={v => setEditForm(f => ({ ...f, colaboracao: v }))} />
+              <LikertFieldEdit label="Comunicação" value={editForm.comunicacao} onChange={v => setEditForm(f => ({ ...f, comunicacao: v }))} />
+              <LikertFieldEdit label="Respeito Mútuo" value={editForm.respeito_mutuo} onChange={v => setEditForm(f => ({ ...f, respeito_mutuo: v }))} />
+            </div>
+
+            {/* Engajamento */}
+            <div className="space-y-1">
+              <Label className="text-xs">Engajamento</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                {ENGAJAMENTO_OPT.map(opt => (
+                  <label key={opt} className="flex items-center gap-2 text-xs cursor-pointer">
+                    <Checkbox checked={editForm.engajamento.includes(opt)} onCheckedChange={() => setEditForm(f => ({
+                      ...f, engajamento: f.engajamento.includes(opt) ? f.engajamento.filter(v => v !== opt) : [...f.engajamento, opt]
+                    }))} />
+                    {opt}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Situações Relevantes */}
+            <div className="space-y-1">
+              <Label className="text-xs">Situações Relevantes</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                {SITUACOES_OPT.map(opt => (
+                  <label key={opt} className="flex items-center gap-2 text-xs cursor-pointer">
+                    <Checkbox checked={editForm.situacoes_relevantes.includes(opt)} onCheckedChange={() => setEditForm(f => ({
+                      ...f, situacoes_relevantes: f.situacoes_relevantes.includes(opt) ? f.situacoes_relevantes.filter(v => v !== opt) : [...f.situacoes_relevantes, opt]
+                    }))} />
+                    {opt}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Objetivo */}
+            <div className="space-y-1">
+              <Label className="text-xs">Objetivo Alcançado</Label>
+              <Select value={editForm.objetivo_alcancado} onValueChange={v => setEditForm(f => ({ ...f, objetivo_alcancado: v }))}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="alcancado">Alcançado</SelectItem>
+                  <SelectItem value="parcial">Parcial</SelectItem>
+                  <SelectItem value="nao_alcancado">Não Alcançado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Intervenções e Observações */}
+            <div className="space-y-1">
+              <Label className="text-xs">Intervenções</Label>
+              <Textarea value={editForm.intervencoes} onChange={e => setEditForm(f => ({ ...f, intervencoes: e.target.value }))} rows={2} className="text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Observações</Label>
+              <Textarea value={editForm.observacoes} onChange={e => setEditForm(f => ({ ...f, observacoes: e.target.value }))} rows={2} className="text-sm" />
+            </div>
+
             {/* Turma Selection */}
             <div>
               <h3 className="text-sm font-medium text-foreground mb-2 flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> Turmas vinculadas</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-40 overflow-y-auto border rounded-md p-2">
                 {allTurmas.map(t => (
                   <label key={t.id} className="flex items-center gap-2 text-sm py-1 px-1 rounded hover:bg-accent/50 cursor-pointer">
-                    <Checkbox
-                      checked={selectedTurmaIds.includes(t.id)}
-                      onCheckedChange={() => handleTurmaToggle(t.id)}
-                    />
+                    <Checkbox checked={selectedTurmaIds.includes(t.id)} onCheckedChange={() => handleTurmaToggle(t.id)} />
                     <span className="truncate">{t.nome}</span>
                   </label>
                 ))}
@@ -518,10 +765,7 @@ const RelatorioDetalhePage = () => {
                     {editParticipants.map(p => (
                       <label key={p.id} className="flex items-center justify-between gap-2 text-sm py-1 px-1 rounded hover:bg-accent/50 cursor-pointer">
                         <div className="flex items-center gap-2 min-w-0">
-                          <Checkbox
-                            checked={!!editPresencaMap[p.id]}
-                            onCheckedChange={() => handlePresencaToggle(p.id)}
-                          />
+                          <Checkbox checked={!!editPresencaMap[p.id]} onCheckedChange={() => handlePresencaToggle(p.id)} />
                           <span className="truncate text-xs sm:text-sm">{p.nome_completo}</span>
                         </div>
                         <Badge variant={editPresencaMap[p.id] ? "default" : "secondary"} className="text-[9px] shrink-0">
