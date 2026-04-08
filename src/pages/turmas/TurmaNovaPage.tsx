@@ -87,17 +87,28 @@ const TurmaNovaPage = () => {
     if (guardDemo(isDemo)) return;
     if (!nome.trim()) { toast.error("Nome da turma é obrigatório"); return; }
     setSaving(true);
-    const payload: Record<string, unknown> = {
-      nome, periodo, tipo, dias_semana: diasSemana,
-    };
-    if (faixaEtaria) payload.faixa_etaria = faixaEtaria;
-    if (bairroId) payload.bairro_id = bairroId;
-    if (educadorId) payload.educador_id = educadorId;
-    if (oficina) payload.oficina = oficina === "outra_oficina" && oficinaNome ? oficinaNome : oficina;
-    const { error } = await supabase.from("turmas").insert(payload as any);
+
+    // Create one turma per combination of selected faixas × bairros
+    const faixas = faixasEtarias.length > 0 ? faixasEtarias : [""];
+    const bairrosToUse = bairroIds.length > 0 ? bairroIds : [""];
+    const rows = [];
+    for (const faixa of faixas) {
+      for (const bid of bairrosToUse) {
+        const payload: Record<string, unknown> = {
+          nome, periodo, tipo, dias_semana: diasSemana,
+        };
+        if (faixa) payload.faixa_etaria = faixa;
+        if (bid) payload.bairro_id = bid;
+        if (educadorId) payload.educador_id = educadorId;
+        if (oficina) payload.oficina = oficina === "outra_oficina" && oficinaNome ? oficinaNome : oficina;
+        rows.push(payload);
+      }
+    }
+
+    const { error } = await supabase.from("turmas").insert(rows as any);
     setSaving(false);
     if (error) { toast.error("Erro: " + error.message); return; }
-    toast.success("Turma criada!");
+    toast.success(rows.length > 1 ? `${rows.length} turma(s) criada(s)!` : "Turma criada!");
     navigate("/turmas");
   };
 
