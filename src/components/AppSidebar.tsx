@@ -28,8 +28,7 @@ const menuGroups = [
   {
     label: "Comunicação",
     items: [
-      { title: "Mural", url: "/mural", icon: MessageSquare },
-      { title: "Feed", url: "/feed", icon: Newspaper },
+      { title: "Feed / Mural", url: "/feed", icon: Newspaper },
     ],
   },
   {
