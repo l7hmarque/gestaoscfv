@@ -580,16 +580,156 @@ function LikertField({ label, value, onChange }: { label: string; value: number;
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Info Geral */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Data</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-sm", !editForm.data && "text-muted-foreground")}>
+                      {editForm.data ? format(editForm.data, "dd/MM/yyyy") : "Selecionar"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={editForm.data || undefined} onSelect={d => {
+                      if (d) setEditForm(f => ({ ...f, data: d, dia_semana: DIAS_SEMANA_MAP[d.getDay()] }));
+                    }} className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Dia da Semana</Label>
+                <Input value={editForm.dia_semana} readOnly className="bg-muted/50 text-sm" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Nome da Atividade</Label>
+              <Input value={editForm.nome_atividade} onChange={e => setEditForm(f => ({ ...f, nome_atividade: e.target.value }))} />
+            </div>
+
+            {/* Educador combobox */}
+            <div className="space-y-1">
+              <Label className="text-xs">Educador</Label>
+              <Popover open={educadorOpen} onOpenChange={setEducadorOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={educadorOpen} className="w-full justify-between text-sm font-normal">
+                    {editForm.educador_id ? allEducadores.find(e => e.id === editForm.educador_id)?.nome || "Selecionar" : "Selecionar educador..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar educador..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum educador encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        {allEducadores.map(e => (
+                          <CommandItem key={e.id} value={e.nome} onSelect={() => { setEditForm(f => ({ ...f, educador_id: e.id })); setEducadorOpen(false); }}>
+                            <Check className={cn("mr-2 h-4 w-4", editForm.educador_id === e.id ? "opacity-100" : "opacity-0")} />
+                            {e.nome}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Tipo de Atividade */}
+            <div className="space-y-1">
+              <Label className="text-xs">Tipo de Atividade</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {TIPOS_ATIVIDADE.map(ta => (
+                  <label key={ta.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox checked={editForm.tipo_atividade.includes(ta.value)} onCheckedChange={() => setEditForm(f => ({
+                      ...f, tipo_atividade: f.tipo_atividade.includes(ta.value)
+                        ? f.tipo_atividade.filter(v => v !== ta.value)
+                        : [...f.tipo_atividade, ta.value]
+                    }))} />
+                    {ta.label}
+                  </label>
+                ))}
+              </div>
+              {editNeedsDetail && (
+                <Input value={editForm.tipo_atividade_detalhe} onChange={e => setEditForm(f => ({ ...f, tipo_atividade_detalhe: e.target.value }))} placeholder="Especifique" className="mt-2 text-sm" />
+              )}
+            </div>
+
+            {/* Competências */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium">Competências (Likert 1-5)</Label>
+                <span className="text-sm font-semibold text-primary">ELO: {editScoreElo}</span>
+              </div>
+              <LikertFieldEdit label="Iniciativa" value={editForm.iniciativa} onChange={v => setEditForm(f => ({ ...f, iniciativa: v }))} />
+              <LikertFieldEdit label="Autonomia" value={editForm.autonomia} onChange={v => setEditForm(f => ({ ...f, autonomia: v }))} />
+              <LikertFieldEdit label="Colaboração" value={editForm.colaboracao} onChange={v => setEditForm(f => ({ ...f, colaboracao: v }))} />
+              <LikertFieldEdit label="Comunicação" value={editForm.comunicacao} onChange={v => setEditForm(f => ({ ...f, comunicacao: v }))} />
+              <LikertFieldEdit label="Respeito Mútuo" value={editForm.respeito_mutuo} onChange={v => setEditForm(f => ({ ...f, respeito_mutuo: v }))} />
+            </div>
+
+            {/* Engajamento */}
+            <div className="space-y-1">
+              <Label className="text-xs">Engajamento</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                {ENGAJAMENTO_OPT.map(opt => (
+                  <label key={opt} className="flex items-center gap-2 text-xs cursor-pointer">
+                    <Checkbox checked={editForm.engajamento.includes(opt)} onCheckedChange={() => setEditForm(f => ({
+                      ...f, engajamento: f.engajamento.includes(opt) ? f.engajamento.filter(v => v !== opt) : [...f.engajamento, opt]
+                    }))} />
+                    {opt}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Situações Relevantes */}
+            <div className="space-y-1">
+              <Label className="text-xs">Situações Relevantes</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                {SITUACOES_OPT.map(opt => (
+                  <label key={opt} className="flex items-center gap-2 text-xs cursor-pointer">
+                    <Checkbox checked={editForm.situacoes_relevantes.includes(opt)} onCheckedChange={() => setEditForm(f => ({
+                      ...f, situacoes_relevantes: f.situacoes_relevantes.includes(opt) ? f.situacoes_relevantes.filter(v => v !== opt) : [...f.situacoes_relevantes, opt]
+                    }))} />
+                    {opt}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Objetivo */}
+            <div className="space-y-1">
+              <Label className="text-xs">Objetivo Alcançado</Label>
+              <Select value={editForm.objetivo_alcancado} onValueChange={v => setEditForm(f => ({ ...f, objetivo_alcancado: v }))}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="alcancado">Alcançado</SelectItem>
+                  <SelectItem value="parcial">Parcial</SelectItem>
+                  <SelectItem value="nao_alcancado">Não Alcançado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Intervenções e Observações */}
+            <div className="space-y-1">
+              <Label className="text-xs">Intervenções</Label>
+              <Textarea value={editForm.intervencoes} onChange={e => setEditForm(f => ({ ...f, intervencoes: e.target.value }))} rows={2} className="text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Observações</Label>
+              <Textarea value={editForm.observacoes} onChange={e => setEditForm(f => ({ ...f, observacoes: e.target.value }))} rows={2} className="text-sm" />
+            </div>
+
             {/* Turma Selection */}
             <div>
               <h3 className="text-sm font-medium text-foreground mb-2 flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> Turmas vinculadas</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-40 overflow-y-auto border rounded-md p-2">
                 {allTurmas.map(t => (
                   <label key={t.id} className="flex items-center gap-2 text-sm py-1 px-1 rounded hover:bg-accent/50 cursor-pointer">
-                    <Checkbox
-                      checked={selectedTurmaIds.includes(t.id)}
-                      onCheckedChange={() => handleTurmaToggle(t.id)}
-                    />
+                    <Checkbox checked={selectedTurmaIds.includes(t.id)} onCheckedChange={() => handleTurmaToggle(t.id)} />
                     <span className="truncate">{t.nome}</span>
                   </label>
                 ))}
@@ -625,10 +765,7 @@ function LikertField({ label, value, onChange }: { label: string; value: number;
                     {editParticipants.map(p => (
                       <label key={p.id} className="flex items-center justify-between gap-2 text-sm py-1 px-1 rounded hover:bg-accent/50 cursor-pointer">
                         <div className="flex items-center gap-2 min-w-0">
-                          <Checkbox
-                            checked={!!editPresencaMap[p.id]}
-                            onCheckedChange={() => handlePresencaToggle(p.id)}
-                          />
+                          <Checkbox checked={!!editPresencaMap[p.id]} onCheckedChange={() => handlePresencaToggle(p.id)} />
                           <span className="truncate text-xs sm:text-sm">{p.nome_completo}</span>
                         </div>
                         <Badge variant={editPresencaMap[p.id] ? "default" : "secondary"} className="text-[9px] shrink-0">
