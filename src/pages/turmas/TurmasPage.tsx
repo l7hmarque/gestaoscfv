@@ -19,6 +19,7 @@ interface TurmaRow {
   id: string; nome: string; periodo: string | null; faixa_etaria: string | null;
   tipo: string | null; ativa: boolean | null; dias_semana: string[] | null;
   educador_id: string | null; bairro_id: string | null;
+  faixas_etarias?: string[] | null; bairro_ids?: string[] | null;
   profiles?: { nome: string } | null; bairros?: { nome: string } | null;
   participante_count: number;
 }
