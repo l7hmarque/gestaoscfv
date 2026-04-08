@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ArrowLeft, Save, Loader2, Upload, X } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Upload, X, Check, ChevronsUpDown } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,7 @@ const RelatorioNovoPage = () => {
   const [planejamentos, setPlanejamentos] = useState<any[]>([]);
   const [participantesTurma, setParticipantesTurma] = useState<any[]>([]);
   const [fotos, setFotos] = useState<File[]>([]);
+  const [educadorOpen, setEducadorOpen] = useState(false);
 
   const [form, setForm] = useState({
     data: null as Date | null,
@@ -95,12 +97,22 @@ const RelatorioNovoPage = () => {
   // Load base data
   useEffect(() => {
     const fetchBase = async () => {
-      const [t, e] = await Promise.all([
+      const [t, e, r] = await Promise.all([
         supabase.from("turmas").select("id, nome, educador_id, oficina").eq("ativa", true).order("nome"),
-        supabase.from("profiles").select("id, nome"),
+        supabase.from("profiles").select("id, nome, user_id"),
+        supabase.from("user_roles").select("user_id, role"),
       ]);
       if (t.data) setTurmas(t.data);
-      if (e.data) setEducadores(e.data);
+      // Filter to only educators and coordenacao
+      const educadorUserIds = new Set(
+        (r.data || [])
+          .filter((ur: any) => ur.role === "educador" || ur.role === "coordenacao")
+          .map((ur: any) => ur.user_id)
+      );
+      if (e.data) {
+        // profiles.user_id matches user_roles.user_id
+        setEducadores(e.data.filter((p: any) => educadorUserIds.has(p.user_id)));
+      }
 
       // Pre-populate from query params (e.g. from TurmaDetalhePage)
       const turmaId = searchParams.get("turma");
@@ -445,10 +457,37 @@ const RelatorioNovoPage = () => {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Educador</Label>
-              <Select value={form.educador_id} onValueChange={v => setForm(f => ({ ...f, educador_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>{educadores.map(e => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}</SelectContent>
-              </Select>
+              <Popover open={educadorOpen} onOpenChange={setEducadorOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={educadorOpen} className="w-full justify-between text-sm font-normal">
+                    {form.educador_id ? educadores.find(e => e.id === form.educador_id)?.nome || "Selecionar" : "Selecionar educador..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar educador..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum educador encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        {educadores.map(e => (
+                          <CommandItem
+                            key={e.id}
+                            value={e.nome}
+                            onSelect={() => {
+                              setForm(f => ({ ...f, educador_id: e.id }));
+                              setEducadorOpen(false);
+                            }}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", form.educador_id === e.id ? "opacity-100" : "opacity-0")} />
+                            {e.nome}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <div className="space-y-1">
