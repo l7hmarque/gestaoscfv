@@ -1,36 +1,41 @@
+## Plano: Adicionar nomes manualmente na presença do relatório + vincular ao cadastro
 
+### Problema
 
-## Plano: Turma unificada com múltiplas faixas etárias e bairros
-
-### Problema atual
-O campo `faixa_etaria` (enum único) e `bairro_id` (UUID único) na tabela `turmas` só suportam um valor cada. Por isso, ao marcar várias opções no formulário individual, o sistema cria uma turma separada por combinação.
+Participantes com dados desatualizados (bairro, período, status) não aparecem nas turmas corretas para relatórios. Precisamos permitir adicionar nomes avulsos na presença de relatórios já finalizados, e futuramente vincular esses nomes ao cadastro real.
 
 ### Solução
 
-**1. Migração de banco de dados**
-- Adicionar coluna `faixas_etarias text[]` na tabela `turmas` (array de faixas)
-- Adicionar coluna `bairro_ids uuid[]` na tabela `turmas` (array de bairros)
-- Manter as colunas originais (`faixa_etaria`, `bairro_id`) para compatibilidade com turmas existentes e com a geração em lote
+**1. Migração: coluna `nome_avulso` em `relatorio_presenca**`
 
-**2. Formulário individual (`TurmaNovaPage.tsx`)**
-- No `handleSubmit`, criar apenas UMA turma, salvando as faixas selecionadas em `faixas_etarias[]` e os bairros selecionados em `bairro_ids[]`
-- Preencher `faixa_etaria` e `bairro_id` com o primeiro valor de cada array (compatibilidade)
+- Adicionar `nome_avulso text` (nullable) na tabela `relatorio_presenca`
+- Tornar `participante_id` nullable (hoje é NOT NULL) para permitir entradas sem cadastro
+- Isso permite registros com `participante_id = null` + `nome_avulso = "João Silva"` ou com ambos preenchidos
 
-**3. Exibição nas páginas**
-- `TurmasPage.tsx`: exibir múltiplas badges de faixa etária e bairro quando existirem os arrays
-- `TurmaDetalhePage.tsx`: exibir todas as faixas/bairros, e na edição permitir alterar os arrays
-- Listas de presença e exportações: usar os arrays quando disponíveis, fallback para campos singulares
+**2. Na página de detalhe do relatório (`RelatorioDetalhePage.tsx`)**
 
-**4. Vínculo de participantes**
-- Na página da turma, ao adicionar participantes, considerar todas as faixas etárias do array para filtrar participantes compatíveis
-- Presença digital: participantes de qualquer faixa/bairro do array são elegíveis
+- Botão "Adicionar Participante" abaixo da lista de presença
+- Dialog com dois modos:
+  - **Buscar no cadastro**: campo de busca que filtra `participantes` por nome, seleciona e insere `relatorio_presenca` com `participante_id` + `presente = true`
+  - **Nome avulso**: campo de texto livre para digitar o nome, insere com `participante_id = null` + `nome_avulso`
+- Ao adicionar, também insere na tabela `presenca` (frequência oficial) se houver turma vinculada
+- Exibição: mostrar `nome_avulso` quando `participante_id` for null, com badge "Avulso"
+
+**3. Vincular nome avulso ao cadastro**
+
+- Na lista de presença, entradas avulsas terão botão "Vincular"
+- Abre busca de participantes, ao selecionar: atualiza `participante_id` e limpa `nome_avulso`
+- Isso herda automaticamente todos os dados de turmas/presença do participante
+- Essa funcao sera habilitada inclusive em relatorios e listas de presencas anteriores a esse update
+
+**4. Atualizar contadores**
+
+- Ao adicionar/vincular, recalcular `num_participantes`, `num_ausentes`, `pct_adesao` no relatório
 
 ### Arquivos afetados
-| Arquivo | Mudança |
-|---|---|
-| Migração SQL | Adicionar `faixas_etarias text[]` e `bairro_ids uuid[]` |
-| `src/pages/turmas/TurmaNovaPage.tsx` | Individual: criar 1 turma com arrays |
-| `src/pages/turmas/TurmasPage.tsx` | Exibir múltiplas badges |
-| `src/pages/turmas/TurmaDetalhePage.tsx` | Edição e exibição com arrays |
-| `src/pages/presenca/PresencaPage.tsx` | Considerar arrays na filtragem |
 
+
+| Arquivo                                         | Mudança                                                   |
+| ----------------------------------------------- | --------------------------------------------------------- |
+| Migração SQL                                    | `nome_avulso text`, `participante_id` nullable            |
+| `src/pages/relatorios/RelatorioDetalhePage.tsx` | Botão adicionar, dialog busca/avulso, vincular, recálculo |
