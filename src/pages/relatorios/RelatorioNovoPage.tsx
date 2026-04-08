@@ -64,6 +64,7 @@ const RelatorioNovoPage = () => {
   const [planejamentos, setPlanejamentos] = useState<any[]>([]);
   const [participantesTurma, setParticipantesTurma] = useState<any[]>([]);
   const [fotos, setFotos] = useState<File[]>([]);
+  const [educadorOpen, setEducadorOpen] = useState(false);
 
   const [form, setForm] = useState({
     data: null as Date | null,
