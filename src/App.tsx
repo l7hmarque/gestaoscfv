@@ -33,7 +33,6 @@ import MatriculaPublicaPage from "./pages/matricula/MatriculaPublicaPage";
 import FamiliaLoginPage from "./pages/familia/FamiliaLoginPage";
 import FamiliaDashboardPage from "./pages/familia/FamiliaDashboardPage";
 import FormularioRespostaPage from "./pages/familia/FormularioRespostaPage";
-import MuralPage from "./pages/mural/MuralPage";
 import FeedPage from "./pages/feed/FeedPage";
 import EquipeTecnicaPage from "./pages/equipe-tecnica/EquipeTecnicaPage";
 import FinanceiroPage from "./pages/financeiro/FinanceiroPage";
