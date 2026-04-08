@@ -98,7 +98,7 @@ const RelatorioNovoPage = () => {
     const fetchBase = async () => {
       const [t, e, r] = await Promise.all([
         supabase.from("turmas").select("id, nome, educador_id, oficina").eq("ativa", true).order("nome"),
-        supabase.from("profiles").select("id, nome"),
+        supabase.from("profiles").select("id, nome, user_id"),
         supabase.from("user_roles").select("user_id, role"),
       ]);
       if (t.data) setTurmas(t.data);
