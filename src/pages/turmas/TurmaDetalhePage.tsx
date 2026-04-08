@@ -355,11 +355,19 @@ const TurmaDetalhePage = () => {
                 <SelectContent><SelectItem value="manha">Manhã</SelectItem><SelectItem value="tarde">Tarde</SelectItem><SelectItem value="integral">Integral</SelectItem></SelectContent>
               </Select>
             </div>
-            <div><Label className="text-xs">Faixa Etária</Label>
-              <Select value={form.faixa_etaria || ""} onValueChange={(v) => setForm({ ...form, faixa_etaria: v })}>
-                <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="—" /></SelectTrigger>
-                <SelectContent><SelectItem value="6-8">6-8</SelectItem><SelectItem value="9-11">9-11</SelectItem><SelectItem value="12-17">12-17</SelectItem><SelectItem value="idosos">Idosos</SelectItem></SelectContent>
-              </Select>
+            <div><Label className="text-xs mb-2 block">Faixa Etária</Label>
+              <div className="flex flex-wrap gap-3">
+                {[{ value: "6-8", label: "6-8 anos" }, { value: "9-11", label: "9-11 anos" }, { value: "12-17", label: "12-17 anos" }, { value: "idosos", label: "Idosos" }].map(f => (
+                  <label key={f.value} className="flex items-center gap-1.5 cursor-pointer">
+                    <Checkbox checked={(form.faixas_etarias || []).includes(f.value)} onCheckedChange={() => {
+                      const arr = form.faixas_etarias || [];
+                      const next = arr.includes(f.value) ? arr.filter((v: string) => v !== f.value) : [...arr, f.value];
+                      setForm({ ...form, faixas_etarias: next, faixa_etaria: next[0] || "" });
+                    }} />
+                    <span className="text-sm">{f.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
             <div><Label className="text-xs">Tipo</Label>
               <Select value={form.tipo || "ordinaria"} onValueChange={(v) => setForm({ ...form, tipo: v })}>
