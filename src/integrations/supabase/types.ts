@@ -1838,10 +1838,12 @@ export type Database = {
         Row: {
           ativa: boolean | null
           bairro_id: string | null
+          bairro_ids: string[] | null
           created_at: string | null
           dias_semana: string[] | null
           educador_id: string | null
           faixa_etaria: Database["public"]["Enums"]["faixa_etaria_enum"] | null
+          faixas_etarias: string[] | null
           id: string
           nome: string
           nome_grupo: string | null
@@ -1853,10 +1855,12 @@ export type Database = {
         Insert: {
           ativa?: boolean | null
           bairro_id?: string | null
+          bairro_ids?: string[] | null
           created_at?: string | null
           dias_semana?: string[] | null
           educador_id?: string | null
           faixa_etaria?: Database["public"]["Enums"]["faixa_etaria_enum"] | null
+          faixas_etarias?: string[] | null
           id?: string
           nome: string
           nome_grupo?: string | null
@@ -1868,10 +1872,12 @@ export type Database = {
         Update: {
           ativa?: boolean | null
           bairro_id?: string | null
+          bairro_ids?: string[] | null
           created_at?: string | null
           dias_semana?: string[] | null
           educador_id?: string | null
           faixa_etaria?: Database["public"]["Enums"]["faixa_etaria_enum"] | null
+          faixas_etarias?: string[] | null
           id?: string
           nome?: string
           nome_grupo?: string | null
