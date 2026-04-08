@@ -41,9 +41,9 @@ const TurmaNovaPage = () => {
   const [educadores, setEducadores] = useState<Tables<"profiles">[]>([]);
   const [nome, setNome] = useState("");
   const [periodo, setPeriodo] = useState("manha");
-  const [faixaEtaria, setFaixaEtaria] = useState("");
+  const [faixasEtarias, setFaixasEtarias] = useState<string[]>([]);
   const [tipo, setTipo] = useState("ordinaria");
-  const [bairroId, setBairroId] = useState("");
+  const [bairroIds, setBairroIds] = useState<string[]>([]);
   const [educadorId, setEducadorId] = useState("");
   const [diasSemana, setDiasSemana] = useState<string[]>([]);
   const [oficina, setOficina] = useState("");
@@ -87,17 +87,28 @@ const TurmaNovaPage = () => {
     if (guardDemo(isDemo)) return;
     if (!nome.trim()) { toast.error("Nome da turma é obrigatório"); return; }
     setSaving(true);
-    const payload: Record<string, unknown> = {
-      nome, periodo, tipo, dias_semana: diasSemana,
-    };
-    if (faixaEtaria) payload.faixa_etaria = faixaEtaria;
-    if (bairroId) payload.bairro_id = bairroId;
-    if (educadorId) payload.educador_id = educadorId;
-    if (oficina) payload.oficina = oficina === "outra_oficina" && oficinaNome ? oficinaNome : oficina;
-    const { error } = await supabase.from("turmas").insert(payload as any);
+
+    // Create one turma per combination of selected faixas × bairros
+    const faixas = faixasEtarias.length > 0 ? faixasEtarias : [""];
+    const bairrosToUse = bairroIds.length > 0 ? bairroIds : [""];
+    const rows = [];
+    for (const faixa of faixas) {
+      for (const bid of bairrosToUse) {
+        const payload: Record<string, unknown> = {
+          nome, periodo, tipo, dias_semana: diasSemana,
+        };
+        if (faixa) payload.faixa_etaria = faixa;
+        if (bid) payload.bairro_id = bid;
+        if (educadorId) payload.educador_id = educadorId;
+        if (oficina) payload.oficina = oficina === "outra_oficina" && oficinaNome ? oficinaNome : oficina;
+        rows.push(payload);
+      }
+    }
+
+    const { error } = await supabase.from("turmas").insert(rows as any);
     setSaving(false);
     if (error) { toast.error("Erro: " + error.message); return; }
-    toast.success("Turma criada!");
+    toast.success(rows.length > 1 ? `${rows.length} turma(s) criada(s)!` : "Turma criada!");
     navigate("/turmas");
   };
 
@@ -235,13 +246,15 @@ const TurmaNovaPage = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs font-medium">Faixa Etária</Label>
-                  <Select value={faixaEtaria} onValueChange={setFaixaEtaria}>
-                    <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                    <SelectContent>
-                      {FAIXAS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-xs font-medium mb-2 block">Faixa Etária</Label>
+                  <div className="flex flex-wrap gap-3">
+                    {FAIXAS.map(f => (
+                      <label key={f.value} className="flex items-center gap-1.5 cursor-pointer">
+                        <Checkbox checked={faixasEtarias.includes(f.value)} onCheckedChange={() => toggleArray(faixasEtarias, f.value, setFaixasEtarias)} />
+                        <span className="text-sm">{f.label}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <Label className="text-xs font-medium">Tipo</Label>
@@ -253,12 +266,16 @@ const TurmaNovaPage = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label className="text-xs font-medium">Bairro</Label>
-                  <Select value={bairroId} onValueChange={setBairroId}>
-                    <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                    <SelectContent>{scfvBairros.map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}</SelectContent>
-                  </Select>
+                <div className="col-span-2">
+                  <Label className="text-xs font-medium mb-2 block">Bairro</Label>
+                  <div className="flex flex-wrap gap-3">
+                    {scfvBairros.map(b => (
+                      <label key={b.id} className="flex items-center gap-1.5 cursor-pointer">
+                        <Checkbox checked={bairroIds.includes(b.id)} onCheckedChange={() => toggleArray(bairroIds, b.id, setBairroIds)} />
+                        <span className="text-sm">{b.nome}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
                 <div className="col-span-2">
                   <Label className="text-xs font-medium">Educador</Label>
