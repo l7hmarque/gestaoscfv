@@ -88,6 +88,38 @@ const RelatorioDetalhePage = () => {
   const [savingEdit, setSavingEdit] = useState(false);
   const [loadingEditParticipants, setLoadingEditParticipants] = useState(false);
 
+  // Full edit form state
+  const [editForm, setEditForm] = useState({
+    nome_atividade: "",
+    data: null as Date | null,
+    dia_semana: "",
+    educador_id: "",
+    tipo_atividade: [] as string[],
+    tipo_atividade_detalhe: "",
+    iniciativa: 3,
+    autonomia: 3,
+    colaboracao: 3,
+    comunicacao: 3,
+    respeito_mutuo: 3,
+    engajamento: [] as string[],
+    situacoes_relevantes: [] as string[],
+    objetivo_alcancado: "",
+    intervencoes: "",
+    observacoes: "",
+  });
+  const [allEducadores, setAllEducadores] = useState<any[]>([]);
+  const [educadorOpen, setEducadorOpen] = useState(false);
+
+  const editScoreElo = useMemo(() => {
+    const s = (editForm.iniciativa + editForm.autonomia + editForm.colaboracao + editForm.comunicacao + editForm.respeito_mutuo) / 5;
+    return s.toFixed(2);
+  }, [editForm.iniciativa, editForm.autonomia, editForm.colaboracao, editForm.comunicacao, editForm.respeito_mutuo]);
+
+  const editNeedsDetail = editForm.tipo_atividade.some(v => {
+    const t = TIPOS_ATIVIDADE.find(ta => ta.value === v);
+    return t && "hasDetail" in t && t.hasDetail;
+  });
+
   useEffect(() => {
     if (user) {
       supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "coordenacao").then(({ data }) => {
