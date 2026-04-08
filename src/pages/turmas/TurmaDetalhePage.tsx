@@ -278,7 +278,12 @@ const TurmaDetalhePage = () => {
             <div className="flex gap-1.5 mt-0.5 flex-wrap">
               <Badge variant={turma.ativa ? "default" : "secondary"} className="text-[10px]">{turma.ativa ? "Ativa" : "Inativa"}</Badge>
               {turma.periodo && <Badge variant="outline" className="text-[10px]">{periodoLabel[turma.periodo]}</Badge>}
-              {turma.faixa_etaria && <Badge variant="outline" className="text-[10px]">{faixaLabel[turma.faixa_etaria]}</Badge>}
+              {(turma.faixas_etarias && turma.faixas_etarias.length > 0
+                ? turma.faixas_etarias
+                : turma.faixa_etaria ? [turma.faixa_etaria] : []
+              ).map((f: string) => (
+                <Badge key={f} variant="outline" className="text-[10px]">{faixaLabel[f] || f}</Badge>
+              ))}
               {alertMembers.length > 0 && (
                 <Badge variant="destructive" className="text-[10px] gap-1"><AlertTriangle className="h-3 w-3" />{alertMembers.length} alerta(s)</Badge>
               )}
