@@ -96,12 +96,22 @@ const RelatorioNovoPage = () => {
   // Load base data
   useEffect(() => {
     const fetchBase = async () => {
-      const [t, e] = await Promise.all([
+      const [t, e, r] = await Promise.all([
         supabase.from("turmas").select("id, nome, educador_id, oficina").eq("ativa", true).order("nome"),
         supabase.from("profiles").select("id, nome"),
+        supabase.from("user_roles").select("user_id, role"),
       ]);
       if (t.data) setTurmas(t.data);
-      if (e.data) setEducadores(e.data);
+      // Filter to only educators and coordenacao
+      const educadorUserIds = new Set(
+        (r.data || [])
+          .filter((ur: any) => ur.role === "educador" || ur.role === "coordenacao")
+          .map((ur: any) => ur.user_id)
+      );
+      if (e.data) {
+        // profiles.user_id matches user_roles.user_id
+        setEducadores(e.data.filter((p: any) => educadorUserIds.has(p.user_id)));
+      }
 
       // Pre-populate from query params (e.g. from TurmaDetalhePage)
       const turmaId = searchParams.get("turma");
