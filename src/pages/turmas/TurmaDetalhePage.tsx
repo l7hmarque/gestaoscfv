@@ -82,7 +82,7 @@ const TurmaDetalhePage = () => {
     setAllParticipantes(ap || []);
     setBairros(b || []);
     setEducadores(e || []);
-    if (t) setForm({ nome: t.nome, periodo: t.periodo, faixa_etaria: t.faixa_etaria || "", tipo: t.tipo, bairro_id: t.bairro_id || "", educador_id: t.educador_id || "", dias_semana: t.dias_semana || [], ativa: t.ativa, oficina: t.oficina || "", nome_grupo: t.nome_grupo || "" });
+    if (t) setForm({ nome: t.nome, periodo: t.periodo, faixa_etaria: t.faixa_etaria || "", faixas_etarias: t.faixas_etarias || [], tipo: t.tipo, bairro_id: t.bairro_id || "", bairro_ids: t.bairro_ids || [], educador_id: t.educador_id || "", dias_semana: t.dias_semana || [], ativa: t.ativa, oficina: t.oficina || "", nome_grupo: t.nome_grupo || "" });
 
     // Load attendance for alerts
     if (membersList.length > 0) {
