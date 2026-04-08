@@ -40,7 +40,6 @@ const TurmasPage = () => {
   const [deleting, setDeleting] = useState(false);
 
   const isDemo = useIsDemo();
-  const { profile } = useAuth();
 
   useEffect(() => { fetchTurmas(); }, []);
 
