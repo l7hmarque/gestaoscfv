@@ -1,14 +1,18 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Download } from "lucide-react";
+import { Plus, Users, Download, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { exportAllListasPresenca } from "@/lib/exportListaPresenca";
+import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const faixaLabel: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
@@ -31,6 +35,11 @@ const TurmasPage = () => {
   const [exportMes, setExportMes] = useState(String(new Date().getMonth() + 1));
   const [exportAno, setExportAno] = useState(String(new Date().getFullYear()));
   const [exporting, setExporting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<TurmaRow | null>(null);
+  const [deleteJustificativa, setDeleteJustificativa] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const isDemo = useIsDemo();
 
   useEffect(() => { fetchTurmas(); }, []);
 
@@ -44,6 +53,46 @@ const TurmasPage = () => {
       setTurmas(data.map((t, i) => ({ ...t, participante_count: counts[i].count || 0 } as TurmaRow)));
     }
     setLoading(false);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    if (guardDemo(isDemo)) return;
+    if (!deleteJustificativa.trim()) { toast.error("Justificativa é obrigatória"); return; }
+    setDeleting(true);
+
+    // Clean up related data first
+    await Promise.all([
+      supabase.from("turma_participantes").delete().eq("turma_id", deleteTarget.id),
+      supabase.from("presenca").delete().eq("turma_id", deleteTarget.id),
+      supabase.from("relatorio_turmas").delete().eq("turma_id", deleteTarget.id),
+      supabase.from("planejamento_turmas").delete().eq("turma_id", deleteTarget.id),
+      supabase.from("chamadas_assinadas").delete().eq("turma_id", deleteTarget.id),
+    ]);
+
+    const { error } = await supabase.from("turmas").delete().eq("id", deleteTarget.id);
+    if (error) { toast.error("Erro ao excluir: " + error.message); setDeleting(false); return; }
+
+    // Audit log
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: prof } = await supabase.from("profiles").select("nome, user_id").eq("user_id", user.id).single();
+      await supabase.from("audit_log").insert({
+        user_id: user.id,
+        user_nome: prof?.nome || user.email,
+        tabela: "turmas",
+        acao: "exclusao",
+        registro_id: deleteTarget.id,
+        detalhes: `Turma "${deleteTarget.nome}" excluída`,
+        justificativa: deleteJustificativa.trim(),
+      });
+    }
+
+    toast.success(`Turma "${deleteTarget.nome}" excluída`);
+    setDeleteTarget(null);
+    setDeleteJustificativa("");
+    setDeleting(false);
+    fetchTurmas();
   };
 
   const exportAllListas = async () => {
@@ -118,6 +167,28 @@ const TurmasPage = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteJustificativa(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir turma "{deleteTarget?.nome}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação é irreversível. Todos os vínculos de participantes, registros de presença, relatórios e planejamentos vinculados serão removidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div>
+            <Label className="text-xs font-medium">Justificativa *</Label>
+            <Input value={deleteJustificativa} onChange={e => setDeleteJustificativa(e.target.value)} placeholder="Motivo da exclusão..." className="mt-1 h-9 text-sm" />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting || !deleteJustificativa.trim()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {loading ? (
         <div className="flex justify-center py-12"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
       ) : turmas.length === 0 ? (
@@ -125,11 +196,11 @@ const TurmasPage = () => {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {turmas.map((t) => (
-            <Link key={t.id} to={`/turmas/${t.id}`}>
-              <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+            <Card key={t.id} className="hover:shadow-md transition-shadow h-full relative group">
+              <Link to={`/turmas/${t.id}`}>
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-start justify-between">
-                    <h3 className="text-sm font-semibold text-foreground">{t.nome}</h3>
+                    <h3 className="text-sm font-semibold text-foreground pr-6">{t.nome}</h3>
                     <Badge variant={t.ativa ? "default" : "secondary"} className="text-[10px]">{t.ativa ? "Ativa" : "Inativa"}</Badge>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -152,8 +223,16 @@ const TurmasPage = () => {
                     {t.profiles?.nome && <span className="text-xs text-muted-foreground truncate max-w-[120px]">{t.profiles.nome}</span>}
                   </div>
                 </CardContent>
-              </Card>
-            </Link>
+              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget(t); }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </Card>
           ))}
         </div>
       )}
