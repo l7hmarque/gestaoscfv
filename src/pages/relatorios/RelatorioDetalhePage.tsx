@@ -1,16 +1,18 @@
-import { useEffect, useState } from "react";
-import { ArrowLeft, Printer, Instagram, Copy, Share2, Download, X, Trash2 } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { ArrowLeft, Printer, Instagram, Copy, Share2, Download, X, Trash2, Plus, Search, Link2 } from "lucide-react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { exportRelatorioDocx, exportRelatorioPdf } from "@/hooks/useDocumentExport";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,6 +54,20 @@ const RelatorioDetalhePage = () => {
   const [isCoordenacao, setIsCoordenacao] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Add participant dialog state
+  const [addOpen, setAddOpen] = useState(false);
+  const [addTab, setAddTab] = useState<string>("buscar");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [nomeAvulso, setNomeAvulso] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  // Link avulso dialog state
+  const [linkTarget, setLinkTarget] = useState<any>(null);
+  const [linkSearch, setLinkSearch] = useState("");
+  const [linkResults, setLinkResults] = useState<any[]>([]);
+  const [linking, setLinking] = useState(false);
+
   useEffect(() => {
     if (user) {
       supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "coordenacao").then(({ data }) => {
@@ -60,30 +76,130 @@ const RelatorioDetalhePage = () => {
     }
   }, [user]);
 
+  const fetchPresenca = useCallback(async () => {
+    if (!id) return;
+    const { data } = await supabase.from("relatorio_presenca").select("*, participantes(nome_completo)").eq("relatorio_id", id);
+    if (data) {
+      setPresenca(data.sort((a: any, b: any) => {
+        const nA = a.participantes?.nome_completo || a.nome_avulso || "";
+        const nB = b.participantes?.nome_completo || b.nome_avulso || "";
+        return nA.localeCompare(nB);
+      }));
+    }
+  }, [id]);
+
   useEffect(() => {
     const fetch = async () => {
-      const [r, f, p] = await Promise.all([
+      const [r, f] = await Promise.all([
         supabase.from("relatorios_atividade")
           .select("*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome)")
           .eq("id", id).single(),
         supabase.from("relatorio_fotos").select("*").eq("relatorio_id", id).order("ordem"),
-        supabase.from("relatorio_presenca").select("*, participantes(nome_completo)").eq("relatorio_id", id),
       ]);
       if (r.data) {
         setItem(r.data);
         setTurmaNames(r.data.relatorio_turmas?.map((rt: any) => rt.turmas?.nome).filter(Boolean) || []);
-        // Fetch linked planejamento title
         if (r.data.planejamento_id) {
           const { data: plan } = await supabase.from("planejamentos").select("id, titulo").eq("id", r.data.planejamento_id).single();
           if (plan) setPlanejamentoLink(plan);
         }
       }
       if (f.data) setFotos(f.data);
-      if (p.data) setPresenca(p.data.sort((a: any, b: any) => (a.participantes?.nome_completo || "").localeCompare(b.participantes?.nome_completo || "")));
+      await fetchPresenca();
       setLoading(false);
     };
     fetch();
-  }, [id]);
+  }, [id, fetchPresenca]);
+
+  // Search participants for add dialog
+  useEffect(() => {
+    if (addTab !== "buscar" || searchQuery.length < 2) { setSearchResults([]); return; }
+    const timer = setTimeout(async () => {
+      const { data } = await supabase.from("participantes").select("id, nome_completo, status").ilike("nome_completo", `%${searchQuery}%`).limit(10);
+      setSearchResults(data || []);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, addTab]);
+
+  // Search participants for link dialog
+  useEffect(() => {
+    if (!linkTarget || linkSearch.length < 2) { setLinkResults([]); return; }
+    const timer = setTimeout(async () => {
+      const { data } = await supabase.from("participantes").select("id, nome_completo, status").ilike("nome_completo", `%${linkSearch}%`).limit(10);
+      setLinkResults(data || []);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [linkSearch, linkTarget]);
+
+  const recalcCounters = async () => {
+    if (!id) return;
+    const { data: allP } = await supabase.from("relatorio_presenca").select("presente").eq("relatorio_id", id);
+    if (!allP) return;
+    const total = allP.length;
+    const presentes = allP.filter(p => p.presente).length;
+    const ausentes = total - presentes;
+    const pct = total > 0 ? (presentes / total) * 100 : 0;
+    await supabase.from("relatorios_atividade").update({
+      num_participantes: presentes,
+      num_ausentes: ausentes,
+      num_matriculados: total,
+      pct_adesao: parseFloat(pct.toFixed(1)),
+    }).eq("id", id);
+    // refresh local item
+    const { data: updated } = await supabase.from("relatorios_atividade").select("num_participantes, num_ausentes, num_matriculados, pct_adesao").eq("id", id).single();
+    if (updated) setItem((prev: any) => ({ ...prev, ...updated }));
+  };
+
+  const handleAddFromCadastro = async (participanteId: string) => {
+    if (!id) return;
+    // Check if already exists
+    const existing = presenca.find(p => p.participante_id === participanteId);
+    if (existing) { toast.error("Participante já está na lista"); return; }
+    setAdding(true);
+    const { error } = await supabase.from("relatorio_presenca").insert({
+      relatorio_id: id,
+      participante_id: participanteId,
+      presente: true,
+    } as any);
+    if (error) { toast.error(error.message); setAdding(false); return; }
+    await fetchPresenca();
+    await recalcCounters();
+    setAdding(false);
+    setSearchQuery("");
+    toast.success("Participante adicionado!");
+  };
+
+  const handleAddAvulso = async () => {
+    if (!id || !nomeAvulso.trim()) return;
+    setAdding(true);
+    const { error } = await supabase.from("relatorio_presenca").insert({
+      relatorio_id: id,
+      participante_id: null,
+      nome_avulso: nomeAvulso.trim(),
+      presente: true,
+    } as any);
+    if (error) { toast.error(error.message); setAdding(false); return; }
+    await fetchPresenca();
+    await recalcCounters();
+    setAdding(false);
+    setNomeAvulso("");
+    toast.success("Nome avulso adicionado!");
+  };
+
+  const handleLinkAvulso = async (participanteId: string) => {
+    if (!linkTarget) return;
+    setLinking(true);
+    const { error } = await supabase.from("relatorio_presenca").update({
+      participante_id: participanteId,
+      nome_avulso: null,
+    } as any).eq("id", linkTarget.id);
+    if (error) { toast.error(error.message); setLinking(false); return; }
+    await fetchPresenca();
+    setLinkTarget(null);
+    setLinkSearch("");
+    setLinking(false);
+    toast.success("Participante vinculado com sucesso!");
+  };
 
   const generateInstagramPost = async () => {
     if (!item) return;
@@ -301,21 +417,44 @@ const RelatorioDetalhePage = () => {
       )}
 
       {/* Presença */}
-      {presenca.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">Presença</CardTitle></CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Presença ({presenca.length})</CardTitle>
+            <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => { setAddOpen(true); setAddTab("buscar"); setSearchQuery(""); setNomeAvulso(""); }}>
+              <Plus className="h-3.5 w-3.5" /> Adicionar
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {presenca.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Nenhum participante registrado</p>
+          ) : (
             <div className="space-y-1 max-h-60 overflow-y-auto print:max-h-none">
-              {presenca.map((p: any) => (
-                <div key={p.id} className="flex items-center justify-between text-sm py-1 border-b border-border/50 last:border-0">
-                  <span className="text-xs sm:text-sm">{p.participantes?.nome_completo}</span>
-                  <Badge variant={p.presente ? "default" : "secondary"} className="text-[10px]">{p.presente ? "Presente" : "Ausente"}</Badge>
-                </div>
-              ))}
+              {presenca.map((p: any) => {
+                const nome = p.participantes?.nome_completo || p.nome_avulso || "—";
+                const isAvulso = !p.participante_id && p.nome_avulso;
+                return (
+                  <div key={p.id} className="flex items-center justify-between text-sm py-1 border-b border-border/50 last:border-0 gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-xs sm:text-sm truncate">{nome}</span>
+                      {isAvulso && <Badge variant="outline" className="text-[9px] shrink-0 border-amber-500 text-amber-600">Avulso</Badge>}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isAvulso && (
+                        <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[10px] gap-0.5 text-primary" onClick={() => { setLinkTarget(p); setLinkSearch(""); setLinkResults([]); }}>
+                          <Link2 className="h-3 w-3" /> Vincular
+                        </Button>
+                      )}
+                      <Badge variant={p.presente ? "default" : "secondary"} className="text-[10px]">{p.presente ? "Presente" : "Ausente"}</Badge>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {/* Fotos */}
       {fotos.length > 0 && (
@@ -361,6 +500,65 @@ const RelatorioDetalhePage = () => {
           </button>
         </div>
       )}
+
+      {/* Add Participant Dialog */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle className="text-base">Adicionar Participante</DialogTitle></DialogHeader>
+          <Tabs value={addTab} onValueChange={setAddTab}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="buscar" className="text-xs gap-1"><Search className="h-3 w-3" /> Buscar no cadastro</TabsTrigger>
+              <TabsTrigger value="avulso" className="text-xs gap-1"><Plus className="h-3 w-3" /> Nome avulso</TabsTrigger>
+            </TabsList>
+            <TabsContent value="buscar" className="space-y-3 mt-3">
+              <Input placeholder="Buscar por nome..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} autoFocus />
+              {searchResults.length > 0 && (
+                <div className="border rounded-md max-h-48 overflow-y-auto">
+                  {searchResults.map(p => (
+                    <button key={p.id} className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between border-b last:border-0" disabled={adding} onClick={() => handleAddFromCadastro(p.id)}>
+                      <span>{p.nome_completo}</span>
+                      <Badge variant={p.status === "ativo" ? "default" : "secondary"} className="text-[9px]">{p.status}</Badge>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {searchQuery.length >= 2 && searchResults.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">Nenhum participante encontrado</p>
+              )}
+            </TabsContent>
+            <TabsContent value="avulso" className="space-y-3 mt-3">
+              <Input placeholder="Nome completo..." value={nomeAvulso} onChange={e => setNomeAvulso(e.target.value)} autoFocus />
+              <p className="text-xs text-muted-foreground">O nome será adicionado como avulso. Você poderá vincular a um cadastro depois.</p>
+              <Button size="sm" className="w-full" disabled={!nomeAvulso.trim() || adding} onClick={handleAddAvulso}>
+                {adding ? "Adicionando..." : "Adicionar Nome Avulso"}
+              </Button>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Link Avulso Dialog */}
+      <Dialog open={!!linkTarget} onOpenChange={open => { if (!open) setLinkTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle className="text-base">Vincular "{linkTarget?.nome_avulso}" ao cadastro</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="Buscar participante cadastrado..." value={linkSearch} onChange={e => setLinkSearch(e.target.value)} autoFocus />
+            {linkResults.length > 0 && (
+              <div className="border rounded-md max-h-48 overflow-y-auto">
+                {linkResults.map(p => (
+                  <button key={p.id} className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between border-b last:border-0" disabled={linking} onClick={() => handleLinkAvulso(p.id)}>
+                    <span>{p.nome_completo}</span>
+                    <Badge variant={p.status === "ativo" ? "default" : "secondary"} className="text-[9px]">{p.status}</Badge>
+                  </button>
+                ))}
+              </div>
+            )}
+            {linkSearch.length >= 2 && linkResults.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-2">Nenhum participante encontrado</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Instagram Post Dialog */}
       <Dialog open={instaOpen} onOpenChange={setInstaOpen}>
