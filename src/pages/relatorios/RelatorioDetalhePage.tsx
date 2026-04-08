@@ -47,6 +47,25 @@ function LikertDisplay({ label, value }: { label: string; value: number | null }
   );
 }
 
+function LikertFieldEdit({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map(n => (
+          <button key={n} type="button" onClick={() => onChange(n)} className={cn(
+            "flex-1 py-1.5 rounded text-xs font-medium transition-colors border",
+            value === n ? "bg-primary text-primary-foreground border-primary" : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+          )}>{n}</button>
+        ))}
+      </div>
+      <div className="flex justify-between text-[10px] text-muted-foreground px-1">
+        <span>{LIKERT_LABELS[1]}</span><span>{LIKERT_LABELS[5]}</span>
+      </div>
+    </div>
+  );
+}
+
 const RelatorioDetalhePage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
