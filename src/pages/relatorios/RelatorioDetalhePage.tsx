@@ -205,19 +205,16 @@ const RelatorioDetalhePage = () => {
             <Printer className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Imprimir</span>
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1 text-xs"><FileText className="h-3.5 w-3.5" />Exportar</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => exportRelatorioDocx(item, turmaNames, presenca, fotos)} className="text-xs gap-2">
-                <FileSpreadsheet className="h-3.5 w-3.5" /> DOCX
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportRelatorioPdf(item, turmaNames, presenca).catch(() => {})} className="text-xs gap-2">
-                <FileText className="h-3.5 w-3.5" /> PDF
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={async () => {
+            toast.info("Gerando DOCX + PDF...");
+            await Promise.all([
+              exportRelatorioDocx(item, turmaNames, presenca, fotos),
+              exportRelatorioPdf(item, turmaNames, presenca).catch(() => {}),
+            ]);
+            toast.success("Downloads concluídos!");
+          }}>
+            <Download className="h-3.5 w-3.5" />Exportar Tudo
+          </Button>
         </div>
       </div>
 
