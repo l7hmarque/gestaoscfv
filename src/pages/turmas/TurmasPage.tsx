@@ -134,7 +134,12 @@ const TurmasPage = () => {
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {t.periodo && <Badge variant="outline" className="text-[10px]">{periodoLabel[t.periodo]}</Badge>}
-                    {t.faixa_etaria && <Badge variant="outline" className="text-[10px]">{faixaLabel[t.faixa_etaria] || t.faixa_etaria}</Badge>}
+                    {(t.faixas_etarias && t.faixas_etarias.length > 0
+                      ? t.faixas_etarias
+                      : t.faixa_etaria ? [t.faixa_etaria] : []
+                    ).map(f => (
+                      <Badge key={f} variant="outline" className="text-[10px]">{faixaLabel[f] || f}</Badge>
+                    ))}
                     {t.tipo === "extraordinaria" && <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">Extra</Badge>}
                   </div>
                   {t.dias_semana && t.dias_semana.length > 0 && (

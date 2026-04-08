@@ -170,6 +170,12 @@ const TurmaDetalhePage = () => {
     if (!payload.bairro_id) payload.bairro_id = null;
     if (!payload.educador_id) payload.educador_id = null;
     if (!payload.faixa_etaria) payload.faixa_etaria = null;
+    // Ensure arrays are saved
+    payload.faixas_etarias = form.faixas_etarias || [];
+    payload.bairro_ids = form.bairro_ids || [];
+    // Sync single-value fields for compatibility
+    if ((form.faixas_etarias || []).length > 0) payload.faixa_etaria = form.faixas_etarias[0];
+    if ((form.bairro_ids || []).length > 0) payload.bairro_id = form.bairro_ids[0];
     const { error } = await supabase.from("turmas").update(payload as any).eq("id", id!);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
