@@ -337,6 +337,29 @@ const RelatorioDetalhePage = () => {
     if (!id) return;
     setSavingEdit(true);
     try {
+      // 0. Update main report fields
+      const scoreElo = (editForm.iniciativa + editForm.autonomia + editForm.colaboracao + editForm.comunicacao + editForm.respeito_mutuo) / 5;
+      const { error: updateErr } = await supabase.from("relatorios_atividade").update({
+        nome_atividade: editForm.nome_atividade,
+        data: editForm.data ? format(editForm.data, "yyyy-MM-dd") : item.data,
+        dia_semana: editForm.dia_semana,
+        educador_id: editForm.educador_id || null,
+        tipo_atividade: editForm.tipo_atividade,
+        tipo_atividade_detalhe: editForm.tipo_atividade_detalhe || null,
+        iniciativa: editForm.iniciativa,
+        autonomia: editForm.autonomia,
+        colaboracao: editForm.colaboracao,
+        comunicacao: editForm.comunicacao,
+        respeito_mutuo: editForm.respeito_mutuo,
+        score_elo: parseFloat(scoreElo.toFixed(2)),
+        engajamento: editForm.engajamento,
+        situacoes_relevantes: editForm.situacoes_relevantes,
+        objetivo_alcancado: editForm.objetivo_alcancado || null,
+        intervencoes: editForm.intervencoes || null,
+        observacoes: editForm.observacoes || null,
+      } as any).eq("id", id);
+      if (updateErr) throw updateErr;
+
       // 1. Update relatorio_turmas: delete old, insert new
       await supabase.from("relatorio_turmas").delete().eq("relatorio_id", id);
       if (selectedTurmaIds.length > 0) {
@@ -345,17 +368,11 @@ const RelatorioDetalhePage = () => {
         );
       }
 
-      // 2. Update presença: upsert for all participants in editPresencaMap
-      // Keep existing avulso entries untouched
-      const existingAvulsos = presenca.filter(p => !p.participante_id && p.nome_avulso);
-      
-      // Delete only non-avulso presença entries
+      // 2. Update presença
       const nonAvulsoIds = presenca.filter(p => p.participante_id).map(p => p.id);
       if (nonAvulsoIds.length > 0) {
         await supabase.from("relatorio_presenca").delete().in("id", nonAvulsoIds);
       }
-
-      // Insert new presença entries for all participants in the map
       const inserts = Object.entries(editPresencaMap).map(([participante_id, presente]) => ({
         relatorio_id: id,
         participante_id,
@@ -368,8 +385,14 @@ const RelatorioDetalhePage = () => {
       // 3. Recalc counters
       await recalcCounters();
 
-      // 4. Refresh turma names
-      const { data: newTurmaData } = await supabase.from("relatorio_turmas").select("turma_id, turmas(nome)").eq("relatorio_id", id);
+      // 4. Refresh data
+      const [{ data: updatedReport }, { data: newTurmaData }] = await Promise.all([
+        supabase.from("relatorios_atividade")
+          .select("*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome)")
+          .eq("id", id).single(),
+        supabase.from("relatorio_turmas").select("turma_id, turmas(nome)").eq("relatorio_id", id),
+      ]);
+      if (updatedReport) setItem(updatedReport);
       const newNames = (newTurmaData || []).map((rt: any) => rt.turmas?.nome).filter(Boolean);
       setTurmaNames(newNames);
       setTurmaIds(selectedTurmaIds);
