@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Printer, FileText, FileSpreadsheet, Instagram, Copy, Share2, Download, X, Trash2 } from "lucide-react";
+import { ArrowLeft, Printer, Instagram, Copy, Share2, Download, X, Trash2 } from "lucide-react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
