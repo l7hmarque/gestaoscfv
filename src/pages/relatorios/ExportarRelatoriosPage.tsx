@@ -92,6 +92,26 @@ function applyHeaderStyle(ws: XLSX.WorkSheet, row: number, colCount: number) {
   }
 }
 
+/** Prepend 3-line institutional header + blank row to any sheet data array */
+function addInstHeader(rows: any[][], title: string): any[][] {
+  return [
+    ["Sociedade Civil Nossa Senhora Aparecida"],
+    ["Centro de Atenção Integral ao Adolescente - Medianeira"],
+    [title],
+    [],
+    ...rows,
+  ];
+}
+
+/** Style institutional header rows (first 3) */
+function applyInstStyle(ws: XLSX.WorkSheet) {
+  const instStyle = { font: { bold: true, sz: 14 }, alignment: { horizontal: "center" as const } };
+  for (let r = 0; r < 3; r++) {
+    const addr = XLSX.utils.encode_cell({ r, c: 0 });
+    if (ws[addr]) ws[addr].s = instStyle;
+  }
+}
+
 /** Helper to enrich presencas with relatorio_presenca fallback */
 function enrichPresencas(
   presencas: any[],
