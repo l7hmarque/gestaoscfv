@@ -172,6 +172,23 @@ Deno.serve(async (req: Request) => {
     const plansMes = planejamentos.filter((p: any) => p.data_aplicacao?.startsWith(prefix));
     const relsMes = relatorios.filter((r: any) => r.data?.startsWith(prefix));
 
+    // Enrich presenca with relatorio_presenca fallback
+    const presencaKeys = new Set(presenca.map((p: any) => `${p.participante_id}_${p.data}_${p.turma_id}`));
+    for (const r of relsMes) {
+      const rTurmas = relatorioTurmas.filter((rt: any) => rt.relatorio_id === r.id);
+      const rPres = relatorioPresencas.filter((rp: any) => rp.relatorio_id === r.id);
+      for (const rt of rTurmas) {
+        for (const rp of rPres) {
+          if (!rp.presente || !rp.participante_id) continue;
+          const key = `${rp.participante_id}_${r.data}_${rt.turma_id}`;
+          if (!presencaKeys.has(key)) {
+            presenca.push({ participante_id: rp.participante_id, data: r.data, turma_id: rt.turma_id, presente: true, id: rp.id });
+            presencaKeys.add(key);
+          }
+        }
+      }
+    }
+
     const atividadesRows: DocxTableRow[] = [];
     // Header
     atividadesRows.push(new DocxTableRow({
