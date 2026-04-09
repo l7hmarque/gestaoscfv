@@ -91,28 +91,42 @@ export default function DashboardRelatorioMensalTab() {
   const [generating, setGenerating] = useState(false);
   const [generatingLocal, setGeneratingLocal] = useState(false);
   const [generatingReo, setGeneratingReo] = useState(false);
-  const [generatingReoXlsx, setGeneratingReoXlsx] = useState(false);
   const [generatingFull, setGeneratingFull] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
-  const generateReo = async (formato: "docx" | "xlsx" = "docx") => {
-    const isXlsx = formato === "xlsx";
-    if (isXlsx) setGeneratingReoXlsx(true); else setGeneratingReo(true);
+  const downloadFromUrl = async (url: string, filename: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke("generate-reo", {
-        body: { mes, ano, formato },
-      });
-      if (error) throw error;
-      if (data?.url) {
-        window.open(data.url, "_blank");
-        toast.success(`REO (${formato.toUpperCase()}) gerado com sucesso!`);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Download falhou`);
+      const blob = await response.blob();
+      saveAs(blob, filename);
+    } catch {
+      window.open(url, "_blank");
+    }
+  };
+
+  const generateReo = async () => {
+    setGeneratingReo(true);
+    try {
+      const [docxRes, xlsxRes] = await Promise.all([
+        supabase.functions.invoke("generate-reo", { body: { mes, ano, formato: "docx" } }),
+        supabase.functions.invoke("generate-reo", { body: { mes, ano, formato: "xlsx" } }),
+      ]);
+
+      const downloads: Promise<void>[] = [];
+      if (docxRes.data?.url) downloads.push(downloadFromUrl(docxRes.data.url, docxRes.data.fileName || `REO_${ano}-${mes}.docx`));
+      if (xlsxRes.data?.url) downloads.push(downloadFromUrl(xlsxRes.data.url, xlsxRes.data.fileName || `REO_${ano}-${mes}.xlsx`));
+
+      if (downloads.length > 0) {
+        await Promise.all(downloads);
+        toast.success(`REO gerado! (${downloads.length} arquivo(s))`);
       } else {
-        throw new Error("URL não retornada");
+        throw new Error(docxRes.data?.error || xlsxRes.data?.error || "Erro desconhecido");
       }
     } catch (err: any) {
       toast.error("Erro ao gerar REO: " + (err.message || "Erro desconhecido"));
     } finally {
-      if (isXlsx) setGeneratingReoXlsx(false); else setGeneratingReo(false);
+      setGeneratingReo(false);
     }
   };
 
@@ -868,7 +882,7 @@ export default function DashboardRelatorioMensalTab() {
     }
   };
 
-  const anyGenerating = generating || generatingLocal || generatingFull || generatingReo || generatingReoXlsx || generatingPdf;
+  const anyGenerating = generating || generatingLocal || generatingFull || generatingReo || generatingPdf;
 
   return (
     <div className="space-y-4">
@@ -893,62 +907,33 @@ export default function DashboardRelatorioMensalTab() {
         </CardContent>
       </Card>
 
-      {/* Local XLSX — primary */}
+      {/* Relatório Mensal — XLSX + PDF */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4" /> Relatório Mensal — XLSX (local)
+            <FileSpreadsheet className="h-4 w-4" /> Relatório Mensal
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Gera planilha completa no navegador com: resumo, atividades propostas × desenvolvidas, metas por bairro,
-            monitoramento, atendimentos técnicos e matrizes de frequência por turma.
-            <strong> Recomendado para desktop.</strong>
+            Planilha completa com resumo, atividades, metas por bairro, monitoramento, atendimentos técnicos
+            e matrizes de frequência por turma. Também gera PDF institucional.
           </p>
-          <Button onClick={generateLocal} disabled={anyGenerating}>
-            {generatingLocal ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando...</> : <><Download className="h-4 w-4 mr-1" />Gerar XLSX (local)</>}
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={generateLocal} disabled={anyGenerating}>
+              {generatingLocal ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando...</> : <><Download className="h-4 w-4 mr-1" />Exportar XLSX</>}
+            </Button>
+            <Button onClick={generatePdf} disabled={anyGenerating} variant="outline">
+              {generatingPdf ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando...</> : <><FileText className="h-4 w-4 mr-1" />Exportar PDF</>}
+            </Button>
+            <Button onClick={generateBackground} disabled={anyGenerating} variant="ghost" size="sm" className="text-xs">
+              {generating ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />...</> : "XLSX (servidor)"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Professional PDF */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <FileText className="h-4 w-4" /> Relatório Mensal — PDF Profissional
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Relatório em PDF com design institucional, cabeçalho com dados da Prefeitura/CAIA,
-            tabelas estilizadas e linguagem técnica. Ideal para <strong>impressão e prestação de contas</strong>.
-          </p>
-          <Button onClick={generatePdf} disabled={anyGenerating} variant="outline">
-            {generatingPdf ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando PDF...</> : <><FileText className="h-4 w-4 mr-1" />Gerar PDF Profissional</>}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Server XLSX — for mobile */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4" /> Relatório Mensal — XLSX (servidor)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Mesmos dados do XLSX local, mas gerado no servidor em segundo plano.
-            <strong> Use em celular/tablet</strong> ou se a geração local apresentar problemas.
-          </p>
-          <Button onClick={generateBackground} disabled={anyGenerating} variant="outline" size="sm">
-            {generating ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando...</> : <><Download className="h-4 w-4 mr-1" />Gerar XLSX (servidor)</>}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Full report */}
+      {/* Relatório Completo */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -958,7 +943,7 @@ export default function DashboardRelatorioMensalTab() {
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
             XLSX com todos os meses que contêm dados — do primeiro registro ao mais recente.
-            Inclui aba "Consolidado" com totais gerais. <strong>Gerado no servidor.</strong>
+            Inclui aba "Consolidado" com totais gerais.
           </p>
           <Button onClick={generateFullReport} disabled={anyGenerating} variant="outline" size="sm">
             {generatingFull ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando...</> : <><FileSpreadsheet className="h-4 w-4 mr-1" />Gerar Relatório Completo</>}
@@ -975,18 +960,12 @@ export default function DashboardRelatorioMensalTab() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            DOCX institucional com atividades propostas × desenvolvidas, equipe técnica,
-            metas, recursos humanos, monitoramento, execução financeira e anexos fotográficos.
-            <strong> Gerado no servidor.</strong>
+            DOCX + XLSX institucional com atividades, equipe técnica, metas, RH, monitoramento,
+            financeiro, fotos e listas de presença preenchidas.
           </p>
-          <div className="flex gap-2 flex-wrap">
-            <Button onClick={() => generateReo("docx")} disabled={anyGenerating} variant="outline" size="sm">
-              {generatingReo ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando REO...</> : <><FileText className="h-4 w-4 mr-1" />Gerar REO (DOCX)</>}
-            </Button>
-            <Button onClick={() => generateReo("xlsx")} disabled={anyGenerating} variant="outline" size="sm">
-              {generatingReoXlsx ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando REO...</> : <><FileSpreadsheet className="h-4 w-4 mr-1" />Gerar REO (XLSX)</>}
-            </Button>
-          </div>
+          <Button onClick={generateReo} disabled={anyGenerating}>
+            {generatingReo ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando REO...</> : <><Download className="h-4 w-4 mr-1" />Exportar REO (DOCX + XLSX)</>}
+          </Button>
         </CardContent>
       </Card>
     </div>
