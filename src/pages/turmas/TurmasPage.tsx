@@ -38,6 +38,7 @@ const TurmasPage = () => {
   const [deleteTarget, setDeleteTarget] = useState<TurmaRow | null>(null);
   const [deleteJustificativa, setDeleteJustificativa] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [isCoordenacao, setIsCoordenacao] = useState(false);
 
   const isDemo = useIsDemo();
 
