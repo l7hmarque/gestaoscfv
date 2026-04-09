@@ -661,6 +661,7 @@ Deno.serve(async (req: Request) => {
           wsFin[addr].s = { ...cellStyle };
         }
       }
+      autoFitCols(wsFin);
       XLSX.utils.book_append_sheet(wb, wsFin, "Financeiro");
 
       const buf = new Uint8Array(XLSX.write(wb, { bookType: "xlsx", type: "array" }));
