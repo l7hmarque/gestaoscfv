@@ -1,93 +1,86 @@
 
 
-## Plano: Corrigir contagem de atendidos no REO + Unificar página de exportação de relatórios
+## Plano: 4 melhorias — REO unificado, cabeçalho institucional XLSX, exclusão de atendimentos, página de configurações
 
-### Problema 1: REO não contabiliza crianças atendidas no Comparativo
+### 1. REO unificado entre Financeiro e Exportar Relatórios
 
-A Edge Function `generate-reo` conta presenças apenas da tabela `presenca`, mas a frequência no sistema é registrada prioritariamente via `relatorio_presenca`. A função **não busca** `relatorio_presenca` nem faz o merge (fallback) que a geração local do Relatório Mensal já faz corretamente. Resultado: contagem zerada no Comparativo (seção 1.3 Metas).
+**Problema**: O REO gerado no Financeiro e na página de Exportar Relatórios podem divergir.
 
-**Correção na Edge Function `generate-reo/index.ts`:**
-- Adicionar `fetchAll(supabase, "relatorio_presenca")` ao Promise.all
-- Após carregar `presenca`, enriquecer com dados de `relatorio_presenca` + `relatorio_turmas` (mesma lógica de merge já usada em `DashboardRelatorioMensalTab.tsx` linhas 168-182)
-- Isso garante que `countUniqueParts` encontre os participantes presentes
+**Solução**: Ambos já chamam a mesma edge function `generate-reo`. Garantir que o `FinanceiroPage` use exatamente a mesma chamada (`supabase.functions.invoke("generate-reo")`) e remover qualquer lógica local duplicada de geração de REO no financeiro. Ambas as páginas passarão os mesmos parâmetros para a edge function, garantindo dados idênticos e atualizados.
 
-### Problema 2: Exportação de relatórios dispersa
+### 2. Cabeçalho institucional em todos os XLSX
 
-Atualmente, os botões de geração de relatórios estão espalhados entre:
-- `DashboardRelatorioMensalTab` (aba "Relatórios" do Dashboard) — XLSX local, XLSX servidor, PDF, REO DOCX, REO XLSX, Relatório Completo
-- `FinanceiroPage` — Prestação de Contas PDF+XLSX, REO DOCX+XLSX, RCA
-- `PresencaExportarPage` — Matrizes de frequência e listas de presença
+**Problema**: Os relatórios XLSX não possuem cabeçalho institucional padronizado.
 
-**Solução: Criar página unificada `ExportarRelatoriosPage`** em `/relatorios/exportar`
+**Solução**: Em todos os locais que geram XLSX (ExportarRelatoriosPage, FinanceiroPage, EquipeTecnicaPage, e a edge function generate-reo), adicionar nas 3 primeiras linhas de cada aba:
 
-A página terá um seletor de mês/ano e 3 seções:
+```
+Linha 1: "Sociedade Civil Nossa Senhora Aparecida"
+Linha 2: "Centro de Atenção Integral ao Adolescente - Medianeira"  
+Linha 3: [Título da aba/seção]
+```
 
-**1. Relatório de Execução do Objeto (REO)**
-- Botão único "Exportar REO" que gera DOCX + XLSX + PDF simultaneamente
-- O DOCX e XLSX já existem via edge function; PDF será gerado localmente
-- Incluir matrizes de frequência preenchidas (mesma lógica do Relatório Mensal) embutidas no relatório
-- Unificar local/servidor: tentar local primeiro, fallback para servidor automaticamente
+Com estilização: negrito, fonte maior, merge de colunas, e separação visual antes dos dados.
 
-**2. Relatório de Prestação de Contas**
-- Botão único "Exportar Prestação de Contas" que gera XLSX + PDF simultaneamente
-- Migrar lógica de `FinanceiroPage.generatePrestacaoContas`
+**Arquivos afetados**:
+- `src/pages/relatorios/ExportarRelatoriosPage.tsx` — todas as abas do relatório mensal e prestação de contas
+- `src/pages/financeiro/FinanceiroPage.tsx` — prestação de contas XLSX
+- `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx` — relatório da equipe técnica XLSX
+- `supabase/functions/generate-reo/index.ts` — abas do REO XLSX
 
-**3. Relatório Completo Anual**
-- Seletor de ano (em vez de mês)
-- Gera um REO consolidado com todos os meses do ano selecionado
-- Usa a edge function `generate-relatorio-mensal` com `{ completo: true }` adaptada para escopo anual
+Criar uma função helper `addInstitutionalHeader(ws, title, colCount)` reutilizável.
 
-**Unificação local/servidor:**
-Cada botão de exportação tenta gerar localmente primeiro (`try/catch`); se falhar (ex: mobile, memória), chama automaticamente a edge function equivalente, sem dois botões separados.
+### 3. Exclusão de atendimentos na Equipe Técnica
 
-### Arquivos afetados
+**Problema**: Não existe opção de deletar atendimentos. Super admin (coordenação) deve poder deletar sem justificativa; equipe técnica com justificativa.
 
-| Arquivo | Mudança |
+**Solução** em `EquipeTecnicaPage.tsx`:
+- Adicionar coluna "Ações" na tabela de atendimentos com botão de exclusão
+- Verificar role do usuário (`coordenacao` ou `tecnico`) via `user_roles`
+- Se `coordenacao`: deletar direto, sem justificativa obrigatória
+- Se `tecnico`: abrir dialog com campo de justificativa obrigatório
+- Registrar no `audit_log` com ação `exclusao_atendimento`
+- RLS já permite delete para `tecnico` e `coordenacao`
+
+### 4. Página de Configurações Gerais (Super Admin)
+
+**Problema**: Não existe uma página centralizada de configurações do sistema.
+
+**Solução**: Criar `/configuracoes` com acesso restrito a `coordenacao`, contendo:
+
+| Seção | Funcionalidade |
 |---|---|
-| `supabase/functions/generate-reo/index.ts` | Buscar `relatorio_presenca`, fazer merge com `presenca` para corrigir contagem |
-| `src/pages/relatorios/ExportarRelatoriosPage.tsx` | **Novo** — página unificada de exportação |
-| `src/App.tsx` | Adicionar rota `/relatorios/exportar` |
-| `src/components/AppSidebar.tsx` | Adicionar link para a nova página (se necessário) |
-| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Simplificar — redirecionar para a nova página ou manter resumido |
+| **Instituição** | Nome da entidade, endereço, CNPJ, logo (upload), dados do convênio |
+| **Bairros e Metas** | CRUD de bairros SCFV e metas por bairro (crianças manhã/tarde, idosos) — atualmente hardcoded |
+| **Pontos de Transporte** | Gerenciar pontos e horários (já existe parcialmente) |
+| **Tipos de Atividade** | Gerenciar lista de tipos de atendimento e atividades |
+| **Perfis e Cargos** | Visualizar profissionais ativos, alterar cargos |
+| **Templates DOCX** | Migrar a funcionalidade de upload de templates que está na aba Admin do Dashboard |
+| **Segurança** | Timeout de sessão, configurações de auditoria |
+| **Backup/Exportação** | Exportação completa do banco de dados |
 
-### Detalhes técnicos
+**Nota**: Nesta primeira versão, implementar as seções **Instituição** (com tabela `configuracoes_gerais` no banco) e **Bairros e Metas** (migrar de constantes hardcoded para tabela). As demais seções serão planejadas para iterações futuras, mantendo os placeholders visíveis.
 
-**Merge de presença no REO (edge function):**
-```typescript
-// Após fetchAll
-const relatorioPresencas = await fetchAll(supabase, "relatorio_presenca");
+**Novos recursos de banco**:
+- Tabela `configuracoes_gerais` (chave-valor) para dados institucionais
+- Migrar `METAS_BAIRRO` e `BAIRROS_SCFV` de constantes hardcoded para a tabela `bairros` (adicionar colunas `meta_criancas_manha`, `meta_criancas_tarde`, `meta_idosos`)
 
-// Enrich presenca with relatorio_presenca fallback
-const presencaKeys = new Set(presenca.map(p => `${p.participante_id}_${p.data}_${p.turma_id}`));
-for (const r of relsMes) {
-  const rTurmas = relatorioTurmas.filter(rt => rt.relatorio_id === r.id);
-  const rPres = relatorioPresencas.filter(rp => rp.relatorio_id === r.id);
-  for (const rt of rTurmas) {
-    for (const rp of rPres) {
-      if (!rp.presente || !rp.participante_id) continue;
-      const key = `${rp.participante_id}_${r.data}_${rt.turma_id}`;
-      if (!presencaKeys.has(key)) {
-        presenca.push({ participante_id: rp.participante_id, data: r.data, turma_id: rt.turma_id, presente: true });
-        presencaKeys.add(key);
-      }
-    }
-  }
-}
-```
+**Arquivos afetados**:
+- `src/pages/configuracoes/ConfiguracoesPage.tsx` — **novo**
+- `src/App.tsx` — nova rota `/configuracoes`
+- `src/components/AppSidebar.tsx` — novo link "Configurações" na seção Gestão
+- Migration SQL para `configuracoes_gerais` e colunas de metas em `bairros`
 
-**Lógica unificada local/servidor:**
-```typescript
-const exportarREO = async () => {
-  setLoading(true);
-  try {
-    // Tenta local primeiro
-    await generateLocalREO(mes, ano);
-  } catch {
-    // Fallback para servidor
-    const { data } = await supabase.functions.invoke("generate-reo", { body: { mes, ano, formato: "docx" } });
-    if (data?.url) window.open(data.url, "_blank");
-  }
-  setLoading(false);
-};
-```
+### Resumo de arquivos
+
+| Arquivo | Ação |
+|---|---|
+| `supabase/functions/generate-reo/index.ts` | Cabeçalho institucional nas abas XLSX |
+| `src/pages/relatorios/ExportarRelatoriosPage.tsx` | Cabeçalho institucional + garantir REO via edge function |
+| `src/pages/financeiro/FinanceiroPage.tsx` | Cabeçalho institucional XLSX + unificar REO |
+| `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx` | Cabeçalho institucional + exclusão de atendimentos com role check |
+| `src/pages/configuracoes/ConfiguracoesPage.tsx` | **Novo** — página de configurações |
+| `src/App.tsx` | Rota `/configuracoes` |
+| `src/components/AppSidebar.tsx` | Link configurações |
+| Migration SQL | Tabela `configuracoes_gerais` + colunas de metas em `bairros` |
 
