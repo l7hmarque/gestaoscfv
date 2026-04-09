@@ -16,6 +16,7 @@ import autoTable from "jspdf-autotable";
 import { BAIRROS_SCFV, calcFaixaFromDate, calcAge } from "@/lib/constants";
 import { sysEloFileName } from "@/lib/fileNaming";
 import { format } from "date-fns";
+import { autoFitColumns } from "@/lib/xlsxAutoFit";
 
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
