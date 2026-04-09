@@ -1,77 +1,167 @@
-## Plano: Correções REO, Exportação de Relatórios e Dashboard
 
-### Problemas identificados e correções
+## Auditoria Completa do Sistema — Gaps, Falhas e Otimizações
 
----
-
-### 1. REO DOCX e XLSX não baixam / falham silenciosamente
-
-**Problema**: O edge function `generate-reo` parece funcionar (sem logs de erro), mas os arquivos não abrem. Investigando o código, o DOCX é gerado corretamente com `tableWidth = 9360` (linha 828), mas a chamada no `ExportarRelatoriosPage` usa `Promise.all` para DOCX+XLSX simultaneamente — se uma falha silenciosa ocorre no `window.open`, o toast de sucesso aparece mas o download não acontece. Também, o signed URL pode expirar ou o popup blocker impede.
-
-**Correção**: 
-
-- Testar o edge function diretamente para confirmar se retorna URL válida
-- Trocar `window.open` por `fetch` + download direto via `saveAs` para evitar popup blocker
-- Adicionar melhor tratamento de erros com logs detalhados
-
-### 2. XLSX do REO sem abas de presença preenchida
-
-**Problema**: O formato XLSX do REO (linhas 516-678) não inclui abas de presença por turma. Só tem: Atividades, Equipe Técnica, Metas, RH, Monitoramento, Financeiro. O DOCX tem o Anexo II com listas de presença, mas o XLSX não.
-
-**Correção**: Adicionar abas de presença por turma no XLSX do REO, usando a mesma lógica do DOCX (linhas 746-891): para cada turma ativa, gerar uma aba com a matriz de frequência preenchida (datas nas colunas, participantes nas linhas, ✓ para presente, estilo com quadradinho preto).
-
-### 3. PDF do REO não é gerado
-
-**Problema**: Não existe lógica para gerar PDF do REO. O edge function só suporta "docx" e "xlsx". O PDF deveria ser gerado a partir do DOCX.
-
-**Correção**: No client-side (`ExportarRelatoriosPage`), após baixar o DOCX do REO, não é possível converter DOCX→PDF no browser. A solução é adicionar suporte a PDF no edge function usando `jsPDF` no Deno, ou informar ao usuário para converter manualmente. Alternativa prática: gerar um PDF separado via `jsPDF` + `autoTable` no servidor com o mesmo conteúdo do REO (sem anexo de fotos).
-
-### 4. Exportação individual do relatório gera 2 DOCX + lista grotesca + undefined
-
-**Problema** (em `RelatorioDetalhePage.tsx` linha 555-560):
-
-```js
-await Promise.all([
-  exportRelatorioDocx(item, turmaNames, presenca, fotos),
-  exportRelatorioPdf(item, turmaNames, presenca).catch(() => {}),
-]);
-```
-
-A função `exportRelatorioPdf` (linha 522-531) tenta usar template DOCX e, quando encontra, gera um DOCX em vez de PDF, resultando em 2 DOCX downloads. A lista de presença no fallback DOCX (linha 467-499) está no formato correto com tabela, mas a versão template (linha 365-370) usa loop PRESENCA com ☑/☐ que é a "lista grotesca".
-
-**Problemas de undefined**: Os campos como `item.profiles?.nome` passam undefined quando o template não tem tag mapping, e o `safeStr` está implementado mas não aplicado em todos os lugares (ex: `item.dia_semana || "—"` na linha 548 do PDF).
-
-**Correções**:
-
-- `exportRelatorioPdf`: Remover a tentativa de usar template DOCX e ir direto para jsPDF com a lista de presença formatada (tabela bonita com ✓/vazio, cores condicionais)
-- Aplicar `safeStr` em todos os campos do PDF que usam `|| "—"`
-- No fallback DOCX, a lista já está boa (formato REO), manter assim
-
-### 5. Dashboard Relatório Mensal — muitos botões
-
-**Problema**: A página tem 5 cards separados: XLSX local, PDF profissional, XLSX servidor, Relatório Completo, REO. É confuso.
-
-**Correção**: Consolidar em 2-3 cards:
-
-- **Relatório Mensal** (um botão "Exportar" que gera XLSX + PDF simultaneamente)
-- **Relatório Completo** (todo o período, servidor)
-- **REO** (um botão que gera DOCX + XLSX + PDF)
-
-### 6. Listas de presença preenchidas em todos os REO
-
-**Problema**: As listas de presença no XLSX do REO não existem. No DOCX estão com ✓ mas o user quer "quadradinho preto" (■).
-
-**Correção**: Usar ■ (U+25A0) para presente e em branco para ausentes.
+### Análise realizada
+Auditei: 45 tabelas, 18 warnings do linter, todas as rotas, FKs, índices, RLS policies, padrões de fetch, arquitetura de componentes, edge functions, e fluxo de dados.
 
 ---
 
-### Arquivos alterados
+## PARTE 1 — BUGS E FALHAS ATIVAS
 
+### 1.1. Página PresencaHistoricoPage é um stub vazio
+- Arquivo: `src/pages/presenca/PresencaHistoricoPage.tsx`
+- A página apenas mostra texto estático "Histórico mensal será carregado do banco de dados" — nenhuma funcionalidade implementada
+- **Porém**: a rota nem está registrada no `App.tsx`, então não é acessível — código morto
 
-| Arquivo                                               | Mudança                                                                                           |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `supabase/functions/generate-reo/index.ts`            | Adicionar abas de presença por turma no XLSX; usar ■/□; deploy                                    |
-| `src/hooks/useDocumentExport.ts`                      | Corrigir `exportRelatorioPdf` para gerar PDF direto (não DOCX); aplicar safeStr em tudo; usar ■/□ |
-| `src/pages/relatorios/ExportarRelatoriosPage.tsx`     | Trocar `window.open` por fetch+saveAs; melhor error handling                                      |
-| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Consolidar UI: 3 cards com botões unificados                                                      |
-| `src/pages/relatorios/RelatorioDetalhePage.tsx`       | Ajustar chamada de export para não duplicar DOCX                                                  |
+### 1.2. `fetchAllRows` usa `(supabase.from as any)` — sem type safety
+- Em `fetchAllRows`, `useAuditLog`, `EquipeTecnicaPage`, e `FinanceiroPage`
+- Bypass completo de tipos TypeScript. Se tabela não existir, falha silenciosamente
+- **Fix**: Adicionar as tabelas faltantes (`busca_ativa_registros`, `audit_log`) ao type generator ou usar tipagem genérica
+
+### 1.3. Dashboard carrega TODAS as presenças sem filtro
+- `useDashboardData.ts` linha 44: `fetchAllRows("presenca", { select: "id, presente" })`
+- Atualmente 0 registros, mas ao crescer (ex: 10.000+), carregará tudo só pra calcular taxa de frequência
+- **Fix**: Usar `count` com filtro server-side ou agregar com RPC
+
+### 1.4. REO/Relatório Mensal fazem 11 fetchAllRows em paralelo
+- `DashboardRelatorioMensalTab.tsx` linhas 163-175: carrega TODAS as linhas de 11 tabelas simultaneamente
+- Com dados reais, isso pode consumir centenas de MB de memória e travar o browser
+- **Fix**: Mover lógica pesada para edge function (já existe `generate-relatorio-mensal`), eliminar fetch duplicado client-side
+
+### 1.5. TurmasPage faz N+1 queries para contar participantes
+- Linha 68-70: Para cada turma, faz uma query separada `select("id", { count: "exact", head: true })`
+- Com 21 turmas = 22 queries
+- **Fix**: Uma única query `turma_participantes` com `group by turma_id` e join
+
+### 1.6. Nenhum índice em colunas de busca frequente
+Colunas usadas em filtros/joins que não possuem índice dedicado:
+- `presenca.participante_id` — usado em quase toda exportação
+- `presenca.data` — filtrado por range em relatórios mensais
+- `presenca.turma_id` — join frequente
+- `atendimentos.participante_id`
+- `despesas.mes_referencia`
+- `relatorios_atividade.data`
+- `relatorios_atividade.educador_id`
+- `audit_log.created_at`
+- `recados.destinatario_id`
+- `participantes.status`
+
+O único índice composto existente é `presenca(turma_id, participante_id, data)` — bom, mas faltam os individuais.
+
+---
+
+## PARTE 2 — SEGURANÇA
+
+### 2.1. 12+ RLS policies com `true` em INSERT/UPDATE/DELETE
+Tabelas afetadas: `participantes`, `presenca`, `planejamento_turmas`, `relatorio_presenca`, `relatorio_turmas`, `relatorio_fotos`, `participante_documentos`
+
+Qualquer usuário autenticado (incluindo visitantes recém-criados) pode inserir, atualizar e deletar nesses. Embora existam policies "Deny visitante", a combinação de `USING (true)` com `USING (NOT has_role('visitante'))` — ambas PERMISSIVE — cria um OR lógico, significando que a policy `true` prevalece e visitantes TAMBÉM podem operar.
+
+**Fix**: Converter as policies "Deny visitante" de PERMISSIVE para RESTRICTIVE, ou remover as policies `true` e substituir por checks mais específicos.
+
+### 2.2. DevPage protegida apenas por senha client-side
+- `const DEV_PASSWORD = "leoleo"` — hardcoded e trivial
+- A rota `/dev` não está dentro do `ProtectedRoute`, permitindo acesso sem autenticação
+- Permite gerenciar roles de qualquer usuário
+- **Fix**: Mover `/dev` para dentro de `ProtectedRoute` e validar `has_role('coordenacao')` server-side
+
+### 2.3. Tabelas sem foreign keys reportadas pelo linter como "No foreign keys"
+Na verdade as FKs EXISTEM (confirmei via pg_constraint), mas o schema exporter do Supabase não as detecta — provavelmente foram criadas sem `REFERENCES` na migration original e adicionadas depois. Não é um bug funcional.
+
+---
+
+## PARTE 3 — DATA RELATIONSHIP GAPS
+
+### 3.1. Tabela `presenca` tem 0 registros vs `relatorio_presenca` com 63
+- A presença real é registrada via `relatorio_presenca` (atrelada a relatórios de atividade), não pela tabela `presenca`
+- A tabela `presenca` é usada pela `PresencaPage` (registro manual), que foi "ocultada" do menu
+- O dashboard calcula `taxaFrequenciaGeral` usando `presenca` (0 registros) — resultado: **0% sempre**
+- **Fix**: Dashboard e REO devem também considerar `relatorio_presenca` + `relatorio_turmas` como fonte de dados de frequência
+
+### 3.2. `totalParticipantesAlerta` é sempre 0
+- `useDashboardData.ts` linha 141: `totalParticipantesAlerta: 0` — hardcoded
+- Deveria calcular baseado em faltas consecutivas (lógica já existe na Busca Ativa)
+- **Fix**: Calcular com base na mesma lógica de detecção da `EquipeTecnicaPage`
+
+### 3.3. `audit_log` não tem FK para `profiles` ou `auth.users`
+- `user_id` é UUID mas sem constraint — aceita qualquer valor
+- Logs de auditoria podem conter user_ids inválidos
+- **Fix**: Adicionar FK para `auth.users(id)` com ON DELETE SET NULL
+
+### 3.4. `recados.numero` usa sequence mas sem concurrency protection
+- Sequence `recados_numero_seq` pode gerar gaps sob concorrência, mas isso é aceitável para numeração
+- Não é um bug, apenas uma observação
+
+---
+
+## PARTE 4 — PERFORMANCE
+
+### 4.1. Sem code splitting / lazy loading
+- `App.tsx` importa TODOS os 30+ page components staticamente
+- Bundle inicial inclui toda a lógica de financeiro, relatórios, export, charts
+- **Fix**: `React.lazy()` + `Suspense` para cada rota — reduz bundle inicial em ~60-70%
+
+### 4.2. Bibliotecas pesadas importadas globalmente
+- `xlsx-js-style`, `docx`, `jspdf`, `jspdf-autotable`, `docxtemplater`, `pizzip`, `recharts`
+- Todas carregadas no bundle principal mesmo quando usuário só acessa o dashboard
+- **Fix**: Dynamic `import()` nas funções de export (já estão em handlers async, fácil de converter)
+
+### 4.3. `DashboardRelatorioMensalTab` duplica dados entre `generateLocal` e `generateFullReport`
+- Ambas funções fazem `fetchAllRows` das mesmas 10-11 tabelas
+- Nenhuma usa cache do React Query
+- **Fix**: Extrair para um hook com `useQuery`, reutilizar dados
+
+### 4.4. Feed carrega 100 posts + todas as fotos/reações/comentários
+- `FeedPage.tsx` linha 57-61: 5 queries sem filtro de limite nas tabelas de fotos/reações/comentários
+- Com crescimento, vai carregar milhares de registros de fotos
+- **Fix**: Paginação + filtro por `feed_post_id IN (últimos 100 post ids)`
+
+---
+
+## PARTE 5 — CÓDIGO MORTO / REDUNDÂNCIAS
+
+### 5.1. Rotas duplicadas
+- `/mural` e `/feed` apontam para o mesmo `FeedPage` — linha 100-101 do App.tsx
+- `PresencaHistoricoPage` importada mas rota não registrada
+
+### 5.2. `PresencaPage` e `PresencaExportarPage` ocultas do menu
+- Existem no router mas não aparecem no `AppSidebar`
+- Se são intencionalmente ocultas, ok. Caso contrário, código órfão
+
+### 5.3. Vários `useEffect` sem cleanup que fazem fetches em components de página
+- Padrão repetido: `useEffect(() => { loadAll(); }, [])` sem cancelamento
+- Se o usuário navega rapidamente, state updates acontecem em componentes desmontados
+
+---
+
+## PLANO DE CORREÇÕES PRIORIZADAS
+
+### Fase 1 — Crítico (Segurança + Bugs de dados)
+1. **Corrigir RLS policies** — Converter 7 policies "Deny visitante" de PERMISSIVE para RESTRICTIVE
+2. **Proteger /dev** — Mover para dentro de ProtectedRoute + role check
+3. **Fix taxa de frequência** — Dashboard usar `relatorio_presenca` ao invés de `presenca` vazia
+4. **Fix `totalParticipantesAlerta`** — Calcular com base em faltas reais
+
+### Fase 2 — Performance
+5. **Adicionar índices** — 10 índices nas colunas mais consultadas
+6. **Lazy loading de rotas** — `React.lazy()` em todas as páginas
+7. **Dynamic imports** — xlsx/docx/jspdf importados só quando usado
+8. **Fix N+1 em TurmasPage** — Query única para contagem
+
+### Fase 3 — Limpeza
+9. **Remover código morto** — PresencaHistoricoPage, rota /mural duplicada
+10. **Paginação no Feed** — Limitar fotos/reações ao subset visível
+
+---
+
+### Arquivos alterados (estimativa)
+
+| Arquivo | Mudança |
+|---|---|
+| Migration SQL | 10 CREATE INDEX + 1 ALTER RLS policies |
+| `src/App.tsx` | React.lazy para todas as rotas |
+| `src/hooks/useDashboardData.ts` | Usar relatorio_presenca; calcular alerta real |
+| `src/pages/turmas/TurmasPage.tsx` | Eliminar N+1 |
+| `src/pages/feed/FeedPage.tsx` | Limitar fetch de fotos/reações |
+| `src/pages/presenca/PresencaHistoricoPage.tsx` | Remover |
+| RLS migration | Converter 7 policies PERMISSIVE→RESTRICTIVE |
