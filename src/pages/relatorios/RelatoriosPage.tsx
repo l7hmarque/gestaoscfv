@@ -51,6 +51,14 @@ const RelatoriosPage = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [bulkJustificativa, setBulkJustificativa] = useState("");
 
+  // Export state
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportDateFrom, setExportDateFrom] = useState("");
+  const [exportDateTo, setExportDateTo] = useState("");
+  const [exportEducador, setExportEducador] = useState("todos");
+  const [exporting, setExporting] = useState(false);
+  const [educadores, setEducadores] = useState<any[]>([]);
+
   useEffect(() => {
     if (user) {
       supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "coordenacao").then(({ data }) => {
