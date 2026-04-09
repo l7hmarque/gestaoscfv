@@ -236,7 +236,10 @@ const EquipeTecnicaPage = () => {
       const cell = { border: { top: border, bottom: border, left: border, right: border } };
       const wb = XLSX.utils.book_new();
       const rows: any[][] = [
+        ["Sociedade Civil Nossa Senhora Aparecida"],
+        ["Centro de Atenção Integral ao Adolescente - Medianeira"],
         ["RELATÓRIO DE ATIVIDADES DA EQUIPE TÉCNICA"],
+        [],
         ["Período: " + periodoLabel],
         ["Gerado em: " + new Date().toLocaleString("pt-BR")],
         [],
@@ -256,11 +259,10 @@ const EquipeTecnicaPage = () => {
       ws["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 28 }, { wch: 20 }, { wch: 40 }, { wch: 30 }];
       // Style header row
       for (let c = 0; c < 6; c++) {
-        const addr = XLSX.utils.encode_cell({ r: 4, c });
+        const addr = XLSX.utils.encode_cell({ r: 7, c });
         if (ws[addr]) ws[addr].s = hdr;
       }
-      // Style data cells
-      for (let r = 5; r < rows.length; r++) {
+      for (let r = 8; r < rows.length; r++) {
         for (let c = 0; c < 6; c++) {
           const addr = XLSX.utils.encode_cell({ r, c });
           if (ws[addr]) ws[addr].s = cell;
