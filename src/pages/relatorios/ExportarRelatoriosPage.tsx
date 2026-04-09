@@ -763,10 +763,12 @@ export default function ExportarRelatoriosPage() {
       </Card>
 
       <Tabs defaultValue="reo" className="space-y-4">
-        <TabsList className="grid grid-cols-4 w-full">
+        <TabsList className="grid grid-cols-6 w-full">
           <TabsTrigger value="reo">REO</TabsTrigger>
           <TabsTrigger value="mensal">Rel. Mensal</TabsTrigger>
           <TabsTrigger value="pc">Prest. Contas</TabsTrigger>
+          <TabsTrigger value="atividades">Atividades</TabsTrigger>
+          <TabsTrigger value="atendimentos">Atend. Técnicos</TabsTrigger>
           <TabsTrigger value="anual">Anual</TabsTrigger>
         </TabsList>
 
