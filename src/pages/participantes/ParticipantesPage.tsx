@@ -150,6 +150,16 @@ const ParticipantesPage = () => {
     fetchData();
   };
 
+  // Quick period change
+  const handlePeriodoChange = async (p: Tables<"participantes">, newPeriodo: string) => {
+    if (guardDemo(isDemo)) return;
+    const { error } = await supabase.from("participantes").update({ periodo: newPeriodo } as any).eq("id", p.id);
+    if (error) { toast.error(error.message); return; }
+    await auditLog({ acao: "alteração de período", tabela: "participantes", registro_id: p.id, detalhes: `Período: ${periodoLabel[p.periodo || ""] || "—"} → ${periodoLabel[newPeriodo]}` });
+    toast.success(`Período alterado para ${periodoLabel[newPeriodo]}`);
+    fetchData();
+  };
+
   // Quick status change
   const handleStatusChange = async (p: Tables<"participantes">, newStatus: string) => {
     if (guardDemo(isDemo)) return;
