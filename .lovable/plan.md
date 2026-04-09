@@ -1,42 +1,48 @@
 
 
-## Plano: Exportação em lote + melhorias nos documentos exportados
+## Plano: Atalhos de exportação + gestão de equipe + correção REO
 
-### 3 mudanças principais
-
----
-
-### 1. Exportação em lote na página de Relatórios (`RelatoriosPage.tsx`)
-
-Adicionar nova aba "Exportar" ou dialog com:
-- **Seletor de intervalo de datas** (de/até)
-- **Filtro de educador** (combobox com opção "Todos")
-- **Botão único "Exportar Todos"** que gera simultaneamente:
-  - **DOCX**: Um documento com todos os relatórios do período + listas de presença preenchidas (tabela, formato REO)
-  - **PDF**: Mesmo conteúdo em PDF via jsPDF
-  - **XLSX**: Planilha com aba de resumo + abas de lista de presença preenchida por turma
-
-O botão busca os relatórios filtrados, carrega presença/fotos/turmas de cada um, e chama as funções de exportação em paralelo (Promise.all). Progresso exibido com toast.
-
-**Dados necessários**: `relatorios_atividade` + `relatorio_presenca` + `relatorio_turmas` + `relatorio_fotos` + `profiles` (educadores) — tudo via queries Supabase client-side.
+### 3 frentes de trabalho
 
 ---
 
-### 2. Melhorar exportação individual do relatório (`useDocumentExport.ts`)
+### 1. Corrigir erro do REO (`generate-reo/index.ts`)
 
-Na função `exportRelatorioDocx` e `exportRelatorioPdf`, substituir a lista de presença atual (Nº / Nome / ☑/☐ / Justificativa) por uma **tabela no formato do REO**: cabeçalho institucional, nome da turma, colunas de data com ✓ para presente. Uma tabela por turma vinculada ao relatório.
+**Problema**: A variável `tableWidth` é usada nas linhas 830, 945, 956 mas nunca é definida. Isso causa `500: tableWidth is not defined`.
 
-Isso requer buscar os dados de `presenca` (tabela principal) para a data do relatório e turmas vinculadas, além do `relatorio_presenca` já existente.
+**Correção**: Adicionar `const tableWidth = 9360;` (largura padrão de página A4 com margens de 1440 DXA = 12240 - 2×1440) logo antes do bloco que a utiliza.
 
 ---
 
-### 3. Eliminar "Undefined" em todos os documentos exportados
+### 2. Adicionar atalhos de exportação (`ExportarRelatoriosPage.tsx`)
 
-Revisar `useDocumentExport.ts`:
-- Na função `infoRow`: já usa `value || "—"`, mas o problema pode vir de valores que são literalmente a string `"undefined"` passados como parâmetro
-- Na função `buildRelatorioTemplateData`: campos como `item.profiles?.nome` podem ser `undefined` e passados diretamente
-- Adicionar sanitização: criar helper `safe(v)` que retorna `""` se o valor for `undefined`, `null`, ou a string `"undefined"`/`"Undefined"`
-- Aplicar em `exportRelatorioDocx`, `exportRelatorioPdf`, `exportPlanejamentoDocx`, `exportPlanejamentoPdf`, e nos templates de dados
+Adicionar 2 novas abas/cards na página:
+
+- **Relatórios de Atividades + Listas de Presença**: Reutilizar a função `exportBulkRelatorios` do `useBulkRelatorioExport.ts` já existente, com seletor de intervalo de datas e filtro de educador. Um botão gera DOCX + PDF + XLSX.
+
+- **Relatório de Atendimentos Técnicos**: Reutilizar a lógica já existente em `EquipeTecnicaPage.tsx` (função `generateRelatorioEquipe`), extraindo para um hook ou simplesmente replicando a query de atendimentos + exportação PDF/XLSX com filtro de datas.
+
+A `TabsList` passará de 4 para 6 abas (ou cards adicionais dentro de uma aba existente).
+
+---
+
+### 3. Gestão de equipe nas Configurações (`ConfiguracoesPage.tsx`)
+
+Na aba "Equipe", expandir a tabela para incluir:
+
+- **Toggle ativo/inativo**: Switch para ativar/desativar conta (já existe `profiles.ativo`)
+- **Carga horária**: Input editável (já existe `profiles.carga_horaria`)
+- **Data de início**: Input date (já existe `profiles.data_inicio`)
+- **Salário**: Novo campo (precisa migration)
+- **Data de desligamento**: Novo campo (precisa migration)
+
+**Migration necessária**: Adicionar 2 colunas na tabela `profiles`:
+```sql
+ALTER TABLE public.profiles ADD COLUMN salario numeric DEFAULT NULL;
+ALTER TABLE public.profiles ADD COLUMN data_desligamento date DEFAULT NULL;
+```
+
+Esses campos serão usados na seção "1.4. Recursos Humanos" do REO (já existente no edge function, mas com dados estáticos).
 
 ---
 
@@ -44,14 +50,8 @@ Revisar `useDocumentExport.ts`:
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/relatorios/RelatoriosPage.tsx` | Adicionar dialog/aba de exportação em lote com filtro de datas e educador |
-| `src/hooks/useDocumentExport.ts` | (1) Substituir lista de presença por tabela formato REO; (2) Adicionar funções de exportação em lote; (3) Sanitizar undefined→branco |
-
-### Detalhes técnicos
-
-- Helper `safeStr(v)`: `return (v == null || v === "undefined" || v === "Undefined") ? "" : String(v)`
-- Exportação em lote XLSX: usa `xlsx-js-style` com múltiplas abas (Resumo + 1 aba por turma com presença preenchida)
-- Exportação em lote DOCX: concatena seções com PageBreak entre relatórios, cada um com sua tabela de presença
-- Exportação em lote PDF: jsPDF com addPage entre relatórios
-- Filtro de educador: query `profiles` com roles educador/coordenacao, Select com opção "Todos"
+| `supabase/functions/generate-reo/index.ts` | Definir `const tableWidth = 9360` |
+| `src/pages/relatorios/ExportarRelatoriosPage.tsx` | Adicionar 2 cards: exportação de atividades em lote + atendimentos técnicos |
+| `src/pages/configuracoes/ConfiguracoesPage.tsx` | Expandir aba Equipe com toggle ativo, carga horária, datas, salário |
+| Migration | `profiles`: adicionar `salario` (numeric) e `data_desligamento` (date) |
 
