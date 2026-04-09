@@ -23,8 +23,6 @@ export interface DashboardData {
   totalParticipantesAlerta: number;
 }
 
-// calcAge imported from constants
-
 function monthKey(d: string) {
   return d.slice(0, 7);
 }
@@ -35,13 +33,13 @@ export function useDashboardData() {
   const { data, isLoading: loading } = useQuery({
     queryKey: ["dashboard-data"],
     queryFn: async (): Promise<DashboardData> => {
-      const [parts_raw, turmas_raw, rels, plans, bairrosData, presencaAll] = await Promise.all([
+      const [parts_raw, turmas_raw, rels, plans, bairrosData, relPresenca] = await Promise.all([
         fetchAllRows("participantes", { select: "*" }),
         fetchAllRows("turmas", { select: "*" }),
         fetchAllRows("relatorios_atividade", { select: "*, profiles!relatorios_atividade_educador_id_fkey(nome)", order: { column: "data" } }),
-        fetchAllRows("planejamentos", { select: "*" }),
+        fetchAllRows("planejamentos", { select: "id" }),
         fetchAllRows("bairros", { select: "id, nome" }),
-        fetchAllRows("presenca", { select: "id, presente" }),
+        fetchAllRows("relatorio_presenca", { select: "id, presente, participante_id, relatorio_id" }),
       ]);
 
       const parts = (parts_raw || []).filter((p: any) => p.status === "ativo");
@@ -106,9 +104,32 @@ export function useDashboardData() {
       const allElo = rels.filter((r: any) => r.score_elo != null).map((r: any) => Number(r.score_elo));
       const allAdesao = rels.filter((r: any) => r.pct_adesao != null).map((r: any) => Number(r.pct_adesao));
 
-      const totalPresencaRecords = presencaAll.length;
-      const totalPresentes = presencaAll.filter((p: any) => p.presente).length;
+      // Taxa de frequência usando relatorio_presenca (dados reais)
+      const totalPresencaRecords = relPresenca.length;
+      const totalPresentes = relPresenca.filter((p: any) => p.presente).length;
       const taxaFrequencia = totalPresencaRecords > 0 ? (totalPresentes / totalPresencaRecords) * 100 : 0;
+
+      // Calcular participantes em alerta (3+ faltas consecutivas recentes)
+      const faltasPorParticipante: Record<string, number> = {};
+      const presencaPorParticipante: Record<string, { presente: boolean; relatorio_id: string }[]> = {};
+      relPresenca.forEach((rp: any) => {
+        if (!rp.participante_id) return;
+        if (!presencaPorParticipante[rp.participante_id]) presencaPorParticipante[rp.participante_id] = [];
+        presencaPorParticipante[rp.participante_id].push(rp);
+      });
+
+      const activePartIds = new Set(parts.map((p: any) => p.id));
+      let alertCount = 0;
+      Object.entries(presencaPorParticipante).forEach(([pid, records]) => {
+        if (!activePartIds.has(pid)) return;
+        // Count consecutive absences from end
+        let consecutive = 0;
+        for (let i = records.length - 1; i >= 0; i--) {
+          if (!records[i].presente) consecutive++;
+          else break;
+        }
+        if (consecutive >= 3) alertCount++;
+      });
 
       const topEd = Object.entries(educadorCount)
         .sort((a, b) => b[1] - a[1])
@@ -138,7 +159,7 @@ export function useDashboardData() {
         objetivos: Object.entries(objMap).map(([status, count]) => ({ status, count })),
         taxaFrequenciaGeral: Number(taxaFrequencia.toFixed(1)),
         topEducadores: topEd,
-        totalParticipantesAlerta: 0,
+        totalParticipantesAlerta: alertCount,
       };
     },
     staleTime: 5 * 60 * 1000,
