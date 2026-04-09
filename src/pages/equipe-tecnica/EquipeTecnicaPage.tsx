@@ -656,6 +656,36 @@ const EquipeTecnicaPage = () => {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Delete Atendimento Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Atendimento</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget && `${partName(deleteTarget.participante_id)} — ${tipoLabel(deleteTarget.tipo)} — ${deleteTarget.data_atendimento}`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {!isCoordenacao && (
+            <div className="space-y-2">
+              <Label className="text-xs">Justificativa (obrigatória)</Label>
+              <Textarea value={deleteJustificativa} onChange={e => setDeleteJustificativa(e.target.value)} placeholder="Motivo da exclusão..." className="min-h-[80px]" />
+            </div>
+          )}
+          {isCoordenacao && (
+            <div className="space-y-2">
+              <Label className="text-xs">Justificativa (opcional)</Label>
+              <Textarea value={deleteJustificativa} onChange={e => setDeleteJustificativa(e.target.value)} placeholder="Motivo da exclusão (opcional)..." className="min-h-[60px]" />
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setDeleteTarget(null); setDeleteJustificativa(""); }}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAtendimento} disabled={deleteLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteLoading ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

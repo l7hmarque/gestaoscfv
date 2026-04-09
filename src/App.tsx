@@ -44,6 +44,7 @@ import SiteNoticiasPage from "./pages/site/SiteNoticiasPage";
 import SiteConteudosPage from "./pages/site/SiteConteudosPage";
 import SiteContatoPage from "./pages/site/SiteContatoPage";
 import SiteAdminPage from "./pages/site-admin/SiteAdminPage";
+import ConfiguracoesPage from "./pages/configuracoes/ConfiguracoesPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -101,6 +102,7 @@ const App = () => (
                 <Route path="/equipe-tecnica" element={<EquipeTecnicaPage />} />
                 <Route path="/financeiro" element={<FinanceiroPage />} />
                 <Route path="/site-admin" element={<SiteAdminPage />} />
+                <Route path="/configuracoes" element={<ConfiguracoesPage />} />
               </Route>
               <Route path="/dev" element={<DevPage />} />
               <Route path="/matricula" element={<MatriculaPublicaPage />} />
