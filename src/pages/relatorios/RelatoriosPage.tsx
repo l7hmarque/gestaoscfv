@@ -60,6 +60,16 @@ const RelatoriosPage = () => {
   const [educadores, setEducadores] = useState<any[]>([]);
 
   useEffect(() => {
+    // Load educadores for export filter
+    supabase.from("user_roles").select("user_id, role").in("role", ["educador", "coordenacao"]).then(async ({ data: roles }) => {
+      if (!roles?.length) return;
+      const userIds = [...new Set(roles.map(r => r.user_id))];
+      const { data: profs } = await supabase.from("profiles").select("id, nome, user_id").in("user_id", userIds);
+      setEducadores(profs || []);
+    });
+  }, []);
+
+  useEffect(() => {
     if (user) {
       supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "coordenacao").then(({ data }) => {
         setIsCoordenacao((data?.length || 0) > 0);
