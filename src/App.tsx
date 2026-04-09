@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -7,55 +8,64 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppLayout } from "@/components/AppLayout";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import LoginPage from "./pages/auth/LoginPage";
-import ParticipantesPage from "./pages/participantes/ParticipantesPage";
-import ParticipanteNovoPage from "./pages/participantes/ParticipanteNovoPage";
-import ParticipanteImportarPage from "./pages/participantes/ParticipanteImportarPage";
-import ParticipantePerfilPage from "./pages/participantes/ParticipantePerfilPage";
-import TurmasPage from "./pages/turmas/TurmasPage";
-import TurmaNovaPage from "./pages/turmas/TurmaNovaPage";
-import TurmaDetalhePage from "./pages/turmas/TurmaDetalhePage";
-import PresencaPage from "./pages/presenca/PresencaPage";
-import PresencaExportarPage from "./pages/presenca/PresencaExportarPage";
-import PlanejamentosPage from "./pages/planejamentos/PlanejamentosPage";
-import PlanejamentoNovoPage from "./pages/planejamentos/PlanejamentoNovoPage";
-import PlanejamentoDetalhePage from "./pages/planejamentos/PlanejamentoDetalhePage";
-import RelatoriosPage from "./pages/relatorios/RelatoriosPage";
-import RelatorioNovoPage from "./pages/relatorios/RelatorioNovoPage";
-import RelatorioDetalhePage from "./pages/relatorios/RelatorioDetalhePage";
-import ExportarRelatoriosPage from "./pages/relatorios/ExportarRelatoriosPage";
-import BancoDadosPage from "./pages/banco-dados/BancoDadosPage";
-import DashboardPage from "./pages/dashboard/DashboardPage";
-import ProfissionalPerfilPage from "./pages/profissional/ProfissionalPerfilPage";
-import DevPage from "./pages/dev/DevPage";
-import MatriculaPublicaPage from "./pages/matricula/MatriculaPublicaPage";
-import FamiliaLoginPage from "./pages/familia/FamiliaLoginPage";
-import FamiliaDashboardPage from "./pages/familia/FamiliaDashboardPage";
-import FormularioRespostaPage from "./pages/familia/FormularioRespostaPage";
-import FeedPage from "./pages/feed/FeedPage";
-import EquipeTecnicaPage from "./pages/equipe-tecnica/EquipeTecnicaPage";
-import FinanceiroPage from "./pages/financeiro/FinanceiroPage";
-import SiteLayout from "./components/SiteLayout";
-import SiteHomePage from "./pages/site/SiteHomePage";
-import SiteIndicadoresPage from "./pages/site/SiteIndicadoresPage";
-import SiteNoticiasPage from "./pages/site/SiteNoticiasPage";
-import SiteConteudosPage from "./pages/site/SiteConteudosPage";
-import SiteContatoPage from "./pages/site/SiteContatoPage";
-import SiteAdminPage from "./pages/site-admin/SiteAdminPage";
-import ConfiguracoesPage from "./pages/configuracoes/ConfiguracoesPage";
+
+// Lazy-loaded pages
+const Index = lazy(() => import("./pages/Index"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
+const ParticipantesPage = lazy(() => import("./pages/participantes/ParticipantesPage"));
+const ParticipanteNovoPage = lazy(() => import("./pages/participantes/ParticipanteNovoPage"));
+const ParticipanteImportarPage = lazy(() => import("./pages/participantes/ParticipanteImportarPage"));
+const ParticipantePerfilPage = lazy(() => import("./pages/participantes/ParticipantePerfilPage"));
+const TurmasPage = lazy(() => import("./pages/turmas/TurmasPage"));
+const TurmaNovaPage = lazy(() => import("./pages/turmas/TurmaNovaPage"));
+const TurmaDetalhePage = lazy(() => import("./pages/turmas/TurmaDetalhePage"));
+const PresencaPage = lazy(() => import("./pages/presenca/PresencaPage"));
+const PresencaExportarPage = lazy(() => import("./pages/presenca/PresencaExportarPage"));
+const PlanejamentosPage = lazy(() => import("./pages/planejamentos/PlanejamentosPage"));
+const PlanejamentoNovoPage = lazy(() => import("./pages/planejamentos/PlanejamentoNovoPage"));
+const PlanejamentoDetalhePage = lazy(() => import("./pages/planejamentos/PlanejamentoDetalhePage"));
+const RelatoriosPage = lazy(() => import("./pages/relatorios/RelatoriosPage"));
+const RelatorioNovoPage = lazy(() => import("./pages/relatorios/RelatorioNovoPage"));
+const RelatorioDetalhePage = lazy(() => import("./pages/relatorios/RelatorioDetalhePage"));
+const ExportarRelatoriosPage = lazy(() => import("./pages/relatorios/ExportarRelatoriosPage"));
+const BancoDadosPage = lazy(() => import("./pages/banco-dados/BancoDadosPage"));
+const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
+const ProfissionalPerfilPage = lazy(() => import("./pages/profissional/ProfissionalPerfilPage"));
+const DevPage = lazy(() => import("./pages/dev/DevPage"));
+const MatriculaPublicaPage = lazy(() => import("./pages/matricula/MatriculaPublicaPage"));
+const FamiliaLoginPage = lazy(() => import("./pages/familia/FamiliaLoginPage"));
+const FamiliaDashboardPage = lazy(() => import("./pages/familia/FamiliaDashboardPage"));
+const FormularioRespostaPage = lazy(() => import("./pages/familia/FormularioRespostaPage"));
+const FeedPage = lazy(() => import("./pages/feed/FeedPage"));
+const EquipeTecnicaPage = lazy(() => import("./pages/equipe-tecnica/EquipeTecnicaPage"));
+const FinanceiroPage = lazy(() => import("./pages/financeiro/FinanceiroPage"));
+const SiteLayout = lazy(() => import("./components/SiteLayout"));
+const SiteHomePage = lazy(() => import("./pages/site/SiteHomePage"));
+const SiteIndicadoresPage = lazy(() => import("./pages/site/SiteIndicadoresPage"));
+const SiteNoticiasPage = lazy(() => import("./pages/site/SiteNoticiasPage"));
+const SiteConteudosPage = lazy(() => import("./pages/site/SiteConteudosPage"));
+const SiteContatoPage = lazy(() => import("./pages/site/SiteContatoPage"));
+const SiteAdminPage = lazy(() => import("./pages/site-admin/SiteAdminPage"));
+const ConfiguracoesPage = lazy(() => import("./pages/configuracoes/ConfiguracoesPage"));
+const MuralPage = lazy(() => import("./pages/mural/MuralPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 min — evita refetch desnecessário
-      gcTime: 10 * 60 * 1000,   // 10 min cache
+      staleTime: 5 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
       retry: 1,
       refetchOnWindowFocus: false,
     },
   },
 });
+
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+  </div>
+);
 
 const App = () => (
   <ErrorBoundary>
@@ -65,52 +75,54 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              {/* Site público */}
-              <Route path="/site" element={<SiteLayout />}>
-                <Route index element={<SiteHomePage />} />
-                <Route path="indicadores" element={<SiteIndicadoresPage />} />
-                <Route path="noticias" element={<SiteNoticiasPage />} />
-                <Route path="conteudos" element={<SiteConteudosPage />} />
-                <Route path="contato" element={<SiteContatoPage />} />
-              </Route>
-              {/* Sistema interno */}
-              <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                <Route path="/" element={<Index />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/banco-de-dados" element={<BancoDadosPage />} />
-                <Route path="/participantes" element={<ParticipantesPage />} />
-                <Route path="/participantes/novo" element={<ParticipanteNovoPage />} />
-                <Route path="/participantes/importar" element={<ParticipanteImportarPage />} />
-                <Route path="/participantes/:id" element={<ParticipantePerfilPage />} />
-                <Route path="/turmas" element={<TurmasPage />} />
-                <Route path="/turmas/nova" element={<TurmaNovaPage />} />
-                <Route path="/turmas/:id" element={<TurmaDetalhePage />} />
-                <Route path="/presenca" element={<PresencaPage />} />
-                <Route path="/presenca/exportar" element={<PresencaExportarPage />} />
-                <Route path="/planejamentos" element={<PlanejamentosPage />} />
-                <Route path="/planejamentos/novo" element={<PlanejamentoNovoPage />} />
-                <Route path="/planejamentos/:id" element={<PlanejamentoDetalhePage />} />
-                <Route path="/relatorios" element={<RelatoriosPage />} />
-                <Route path="/relatorios/novo" element={<RelatorioNovoPage />} />
-                <Route path="/relatorios/:id" element={<RelatorioDetalhePage />} />
-                <Route path="/relatorios/exportar" element={<ExportarRelatoriosPage />} />
-                <Route path="/profissional/:id" element={<ProfissionalPerfilPage />} />
-                <Route path="/mural" element={<FeedPage />} />
-                <Route path="/feed" element={<FeedPage />} />
-                <Route path="/equipe-tecnica" element={<EquipeTecnicaPage />} />
-                <Route path="/financeiro" element={<FinanceiroPage />} />
-                <Route path="/site-admin" element={<SiteAdminPage />} />
-                <Route path="/configuracoes" element={<ConfiguracoesPage />} />
-              </Route>
-              <Route path="/dev" element={<DevPage />} />
-              <Route path="/matricula" element={<MatriculaPublicaPage />} />
-              <Route path="/familia" element={<FamiliaLoginPage />} />
-              <Route path="/familia/painel" element={<FamiliaDashboardPage />} />
-              <Route path="/familia/formulario/:id" element={<FormularioRespostaPage />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                {/* Site público */}
+                <Route path="/site" element={<SiteLayout />}>
+                  <Route index element={<SiteHomePage />} />
+                  <Route path="indicadores" element={<SiteIndicadoresPage />} />
+                  <Route path="noticias" element={<SiteNoticiasPage />} />
+                  <Route path="conteudos" element={<SiteConteudosPage />} />
+                  <Route path="contato" element={<SiteContatoPage />} />
+                </Route>
+                {/* Sistema interno */}
+                <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/banco-de-dados" element={<BancoDadosPage />} />
+                  <Route path="/participantes" element={<ParticipantesPage />} />
+                  <Route path="/participantes/novo" element={<ParticipanteNovoPage />} />
+                  <Route path="/participantes/importar" element={<ParticipanteImportarPage />} />
+                  <Route path="/participantes/:id" element={<ParticipantePerfilPage />} />
+                  <Route path="/turmas" element={<TurmasPage />} />
+                  <Route path="/turmas/nova" element={<TurmaNovaPage />} />
+                  <Route path="/turmas/:id" element={<TurmaDetalhePage />} />
+                  <Route path="/presenca" element={<PresencaPage />} />
+                  <Route path="/presenca/exportar" element={<PresencaExportarPage />} />
+                  <Route path="/planejamentos" element={<PlanejamentosPage />} />
+                  <Route path="/planejamentos/novo" element={<PlanejamentoNovoPage />} />
+                  <Route path="/planejamentos/:id" element={<PlanejamentoDetalhePage />} />
+                  <Route path="/relatorios" element={<RelatoriosPage />} />
+                  <Route path="/relatorios/novo" element={<RelatorioNovoPage />} />
+                  <Route path="/relatorios/:id" element={<RelatorioDetalhePage />} />
+                  <Route path="/relatorios/exportar" element={<ExportarRelatoriosPage />} />
+                  <Route path="/profissional/:id" element={<ProfissionalPerfilPage />} />
+                  <Route path="/mural" element={<MuralPage />} />
+                  <Route path="/feed" element={<FeedPage />} />
+                  <Route path="/equipe-tecnica" element={<EquipeTecnicaPage />} />
+                  <Route path="/financeiro" element={<FinanceiroPage />} />
+                  <Route path="/site-admin" element={<SiteAdminPage />} />
+                  <Route path="/configuracoes" element={<ConfiguracoesPage />} />
+                  <Route path="/dev" element={<DevPage />} />
+                </Route>
+                <Route path="/matricula" element={<MatriculaPublicaPage />} />
+                <Route path="/familia" element={<FamiliaLoginPage />} />
+                <Route path="/familia/painel" element={<FamiliaDashboardPage />} />
+                <Route path="/familia/formulario/:id" element={<FormularioRespostaPage />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
