@@ -1319,6 +1319,7 @@ export type Database = {
           cargo: string | null
           cpf: string | null
           created_at: string | null
+          data_desligamento: string | null
           data_inicio: string | null
           email: string | null
           endereco: string | null
@@ -1329,6 +1330,7 @@ export type Database = {
           rg: string | null
           rg_data_expedicao: string | null
           rg_orgao_expedidor: string | null
+          salario: number | null
           telefone: string | null
           updated_at: string | null
           user_id: string
@@ -1339,6 +1341,7 @@ export type Database = {
           cargo?: string | null
           cpf?: string | null
           created_at?: string | null
+          data_desligamento?: string | null
           data_inicio?: string | null
           email?: string | null
           endereco?: string | null
@@ -1349,6 +1352,7 @@ export type Database = {
           rg?: string | null
           rg_data_expedicao?: string | null
           rg_orgao_expedidor?: string | null
+          salario?: number | null
           telefone?: string | null
           updated_at?: string | null
           user_id: string
@@ -1359,6 +1363,7 @@ export type Database = {
           cargo?: string | null
           cpf?: string | null
           created_at?: string | null
+          data_desligamento?: string | null
           data_inicio?: string | null
           email?: string | null
           endereco?: string | null
@@ -1369,6 +1374,7 @@ export type Database = {
           rg?: string | null
           rg_data_expedicao?: string | null
           rg_orgao_expedidor?: string | null
+          salario?: number | null
           telefone?: string | null
           updated_at?: string | null
           user_id?: string
