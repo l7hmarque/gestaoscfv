@@ -24,8 +24,8 @@ serve(async (req) => {
       .order("data_lancamento");
 
     if (!despesas || despesas.length === 0) {
-      return new Response(JSON.stringify({ error: "Nenhuma despesa encontrada neste mês." }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ error: "Nenhuma despesa encontrada neste mês.", fallback: true }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
