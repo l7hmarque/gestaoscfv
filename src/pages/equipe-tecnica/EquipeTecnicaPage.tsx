@@ -525,29 +525,35 @@ const EquipeTecnicaPage = () => {
           <div className="border rounded-lg overflow-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">Data</TableHead>
-                  <TableHead className="text-xs">Participante</TableHead>
-                  <TableHead className="text-xs">Tipo</TableHead>
-                  <TableHead className="text-xs">Profissional</TableHead>
-                  <TableHead className="text-xs">Resumo</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAtd.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum atendimento registrado</TableCell></TableRow>
-                ) : filteredAtd.map(a => (
-                  <TableRow key={a.id}>
-                    <TableCell className="text-xs">{a.data_atendimento}</TableCell>
-                    <TableCell className="text-xs font-medium">
-                      <Link to={`/participantes/${a.participante_id}`} className="text-primary hover:underline">{partName(a.participante_id)}</Link>
-                    </TableCell>
-                    <TableCell><Badge variant="secondary" className="text-[10px]">{tipoLabel(a.tipo)}</Badge></TableCell>
-                    <TableCell className="text-xs">{profName(a.profissional_id)}</TableCell>
-                    <TableCell className="text-xs max-w-[200px] truncate">{a.descricao}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
+                 <TableRow>
+                   <TableHead className="text-xs">Data</TableHead>
+                   <TableHead className="text-xs">Participante</TableHead>
+                   <TableHead className="text-xs">Tipo</TableHead>
+                   <TableHead className="text-xs">Profissional</TableHead>
+                   <TableHead className="text-xs">Resumo</TableHead>
+                   <TableHead className="text-xs w-10"></TableHead>
+                 </TableRow>
+               </TableHeader>
+               <TableBody>
+                 {filteredAtd.length === 0 ? (
+                   <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum atendimento registrado</TableCell></TableRow>
+                 ) : filteredAtd.map(a => (
+                   <TableRow key={a.id}>
+                     <TableCell className="text-xs">{a.data_atendimento}</TableCell>
+                     <TableCell className="text-xs font-medium">
+                       <Link to={`/participantes/${a.participante_id}`} className="text-primary hover:underline">{partName(a.participante_id)}</Link>
+                     </TableCell>
+                     <TableCell><Badge variant="secondary" className="text-[10px]">{tipoLabel(a.tipo)}</Badge></TableCell>
+                     <TableCell className="text-xs">{profName(a.profissional_id)}</TableCell>
+                     <TableCell className="text-xs max-w-[200px] truncate">{a.descricao}</TableCell>
+                     <TableCell>
+                       <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => { setDeleteTarget(a); setDeleteDialogOpen(true); }}>
+                         <Trash2 className="h-3.5 w-3.5" />
+                       </Button>
+                     </TableCell>
+                   </TableRow>
+                 ))}
+               </TableBody>
             </Table>
           </div>
         </TabsContent>
