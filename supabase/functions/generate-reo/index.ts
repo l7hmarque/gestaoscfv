@@ -678,170 +678,220 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // ── Fetch photos (DOCX only) ──
+    // ── ANEXO I - REGISTROS FOTOGRÁFICOS (DOCX only) ──
     const relIdsMes = new Set(relsMes.map((r: any) => r.id));
     const fotosMes = relatorioFotos.filter((f: any) => relIdsMes.has(f.relatorio_id));
 
     const photoChildren: (Paragraph | DocxTable)[] = [];
     if (fotosMes.length > 0) {
-      photoChildren.push(sectionTitle("ANEXOS I - REGISTROS FOTOGRÁFICOS"));
+      photoChildren.push(new Paragraph({
+        spacing: { before: 300, after: 300 },
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: "ANEXO I - REGISTROS FOTOGRÁFICOS", bold: true, font: "Arial", size: 26 })],
+      }));
 
-      for (let i = 0; i < fotosMes.length; i++) {
-        const foto = fotosMes[i];
-        try {
-          const url = foto.foto_url.startsWith("http")
-            ? foto.foto_url
-            : `${supabaseUrl}/storage/v1/object/public/fotos-relatorios/${foto.foto_url}`;
-          const resp = await fetch(url);
-          if (!resp.ok) continue;
-          const buf = await resp.arrayBuffer();
-          const ext = url.toLowerCase().includes(".png") ? "png" : "jpg";
-          photoChildren.push(new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { before: 200, after: 200 },
-            children: [
-              new ImageRun({
-                type: ext as "png" | "jpg",
-                data: new Uint8Array(buf),
-                transformation: { width: 450, height: 340 },
-                altText: { title: `Foto ${i + 1}`, description: `Registro fotográfico ${i + 1}`, name: `foto_${i + 1}` },
-              }),
-            ],
-          }));
-          photoChildren.push(new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: `Foto ${i + 1}`, font: "Arial", size: 16, italics: true })],
-          }));
-        } catch { /* skip photo on error */ }
+      // Group photos by relatorio
+      const fotosByRelatorio = new Map<string, any[]>();
+      for (const f of fotosMes) {
+        if (!fotosByRelatorio.has(f.relatorio_id)) fotosByRelatorio.set(f.relatorio_id, []);
+        fotosByRelatorio.get(f.relatorio_id)!.push(f);
+      }
+
+      let photoCount = 0;
+      for (const [relId, fotos] of fotosByRelatorio) {
+        const rel = relsMes.find((r: any) => r.id === relId);
+        const relLabel = rel ? `${rel.nome_atividade || "Atividade"} — ${rel.data ? new Date(rel.data + "T12:00:00").toLocaleDateString("pt-BR") : ""}` : "Atividade";
+
+        photoChildren.push(new Paragraph({
+          spacing: { before: 200, after: 100 },
+          children: [new TextRun({ text: relLabel, bold: true, font: "Arial", size: 20 })],
+        }));
+
+        for (const foto of fotos) {
+          try {
+            const url = foto.foto_url.startsWith("http")
+              ? foto.foto_url
+              : `${supabaseUrl}/storage/v1/object/public/fotos-relatorios/${foto.foto_url}`;
+            const resp = await fetch(url);
+            if (!resp.ok) continue;
+            const buf = await resp.arrayBuffer();
+            const ext = url.toLowerCase().includes(".png") ? "png" : "jpg";
+            photoCount++;
+            photoChildren.push(new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 150, after: 80 },
+              children: [
+                new ImageRun({
+                  type: ext as "png" | "jpg",
+                  data: new Uint8Array(buf),
+                  transformation: { width: 420, height: 315 },
+                  altText: { title: `Foto ${photoCount}`, description: `Registro fotográfico ${photoCount}`, name: `foto_${photoCount}` },
+                }),
+              ],
+            }));
+            photoChildren.push(new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 100 },
+              children: [new TextRun({ text: `Foto ${photoCount}`, font: "Arial", size: 16, italics: true })],
+            }));
+            // Page break every 2 photos
+            if (photoCount % 2 === 0) {
+              photoChildren.push(new Paragraph({ children: [new PageBreak()] }));
+            }
+          } catch { /* skip */ }
+        }
       }
     }
 
-    // ── Build DOCX ──
-    const tableWidth = 9360; // US Letter content width
+    // ── ANEXO II - LISTAS DE PRESENÇA (DOCX only) ──
+    const DIAS_MAP_REO: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
+    const presencaChildren: (Paragraph | DocxTable)[] = [];
+    const turmasAtivas = turmas.filter((t: any) => t.ativa);
 
-    const doc = new Document({
-      styles: {
-        default: { document: { run: { font: "Arial", size: 20 } } },
-      },
-      sections: [{
-        properties: {
-          page: {
-            size: { width: 12240, height: 15840 },
-            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
-          },
-        },
-        headers: {
-          default: new Header({
-            children: [new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [new TextRun({ text: "Sociedade Civil Nossa Senhora Aparecida", font: "Arial", size: 18, bold: true })],
-            })],
-          }),
-        },
-        footers: {
-          default: new Footer({
-            children: [new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [new TextRun({ children: [PageNumber.CURRENT], font: "Arial", size: 16 })],
-            })],
-          }),
-        },
-        children: [
-          // ── Title ──
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 300 },
-            children: [new TextRun({ text: "RELATÓRIO DE EXECUÇÃO DO OBJETO E DE EXECUÇÃO FINANCEIRA", bold: true, font: "Arial", size: 28 })],
-          }),
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 100 },
-            children: [new TextRun({ text: "Termo de Colaboração/Fomento nº 001/2022", font: "Arial", size: 20 })],
-          }),
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 400 },
-            children: [new TextRun({ text: `Execução: ${mesNome?.toUpperCase()}/${anoNum}`, font: "Arial", size: 20, bold: true })],
-          }),
+    if (turmasAtivas.length > 0) {
+      presencaChildren.push(new Paragraph({
+        spacing: { before: 300, after: 300 },
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: "ANEXO II - LISTAS DE PRESENÇA", bold: true, font: "Arial", size: 26 })],
+      }));
 
-          // ── 1. Execução do Objeto ──
-          sectionTitle("1. EXECUÇÃO DO OBJETO"),
-          new Paragraph({
-            spacing: { after: 200 },
-            children: [new TextRun({ text: "Em atendimento, inciso I do caput do artigo 66 da Lei Federal nº 13.019/2014 e suas alterações, esta organização da sociedade civil, elaborou o relatório a seguir, a partir do cronograma acordado.", font: "Arial", size: 18 })],
-          }),
+      for (let ti = 0; ti < turmasAtivas.length; ti++) {
+        const turma = turmasAtivas[ti];
+        const diasSemana: string[] = turma.dias_semana || [];
+        const diasNum = diasSemana.map((d: string) => DIAS_MAP_REO[d.toLowerCase()]).filter((n: number) => n !== undefined);
 
-          sectionTitle("1.1. Atividades, oficinas e/ou projetos desenvolvidos para o cumprimento do objeto:"),
-          new DocxTable({ width: { size: tableWidth, type: WidthType.DXA }, columnWidths: [2800, 2500, 2200, 1860], rows: atividadesRows }),
-          subNote("¹ Preencher este campo caso a atividade não tenha sido realizada no mês."),
+        // Build dates for the month based on turma's dias_semana
+        const datas: string[] = [];
+        const datasDate: Date[] = [];
+        const d = new Date(anoNum, mesNum - 1, 1);
+        while (d.getMonth() === mesNum - 1) {
+          if (diasNum.includes(d.getDay())) {
+            datas.push(`${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`);
+            datasDate.push(new Date(d));
+          }
+          d.setDate(d.getDate() + 1);
+        }
+        if (datas.length === 0) continue;
 
-          new Paragraph({ children: [new PageBreak()] }),
+        // Get members for this turma
+        const tpMembers = turmaParticipantes.filter((tp: any) => tp.turma_id === turma.id);
+        const memberParts = tpMembers.map((tp: any) => partMap[tp.participante_id]).filter(Boolean);
+        const sorted = [...memberParts].sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo));
+        if (sorted.length === 0) continue;
 
-          sectionTitle("1.2. Atividades, serviços e ações da Equipe Técnica - Psicólogo(a) e Assistente Social"),
-          new DocxTable({ width: { size: 7060, type: WidthType.DXA }, columnWidths: [5200, 1860], rows: equipeRows }),
+        // Get attendance data for this turma in this month
+        const turmaPresenca = presencaMes.filter((p: any) => p.turma_id === turma.id);
+        const presencaSet = new Set(turmaPresenca.map((p: any) => `${p.participante_id}_${p.data}`));
 
-          new Paragraph({ children: [new PageBreak()] }),
+        // Educator name
+        const educador = profiles.find((p: any) => p.id === turma.educador_id);
+        const bairroNome = bairroMap[turma.bairro_id] || "";
 
-          sectionTitle("1.3. Comparativo"),
-          new DocxTable({ width: { size: tableWidth, type: WidthType.DXA }, columnWidths: [3800, 1100, 2200, 2260], rows: metasRows }),
-          subNote("² Descrever o motivo que ensejou o não alcance das metas e quais as providências adotadas pela Entidade em relação a sanar esta questão."),
+        // Page break between turmas (not before first)
+        if (ti > 0) {
+          presencaChildren.push(new Paragraph({ children: [new PageBreak()] }));
+        }
 
-          new Paragraph({ children: [new PageBreak()] }),
+        // Institutional header
+        presencaChildren.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 40 },
+          children: [new TextRun({ text: "Sociedade Civil Nossa Senhora Aparecida", bold: true, font: "Arial", size: 18, color: "1A5276" })],
+        }));
+        presencaChildren.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 },
+          children: [new TextRun({ text: "Centro de Atenção Integral ao Adolescente - CAIA Medianeira", font: "Arial", size: 16, color: "2C3E50" })],
+        }));
+        presencaChildren.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 60 },
+          children: [new TextRun({ text: `LISTA DE PRESENÇA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`, bold: true, font: "Arial", size: 22 })],
+        }));
+        presencaChildren.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 40 },
+          children: [new TextRun({ text: turma.nome, bold: true, font: "Arial", size: 20 })],
+        }));
+        const infoParts = [
+          educador?.nome && `Educador(a): ${educador.nome}`,
+          bairroNome && `Bairro: ${bairroNome}`,
+          turma.periodo && `Período: ${turma.periodo === "manha" ? "Manhã" : turma.periodo === "tarde" ? "Tarde" : "Integral"}`,
+        ].filter(Boolean).join("  ·  ");
+        presencaChildren.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+          children: [new TextRun({ text: infoParts, font: "Arial", size: 16, italics: true })],
+        }));
 
-          sectionTitle("1.4. Recursos Humanos Envolvidos³"),
-          new DocxTable({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [3600, 2600, 1800], rows: rhRows }),
-          subNote("³ Constar a equipe informada no Plano de Trabalho."),
+        // Build table
+        const numColW = 500;
+        const nameColW = 3200;
+        const remainingW = tableWidth - numColW - nameColW;
+        const dateColW = Math.max(Math.floor(remainingW / datas.length), 400);
 
-          sectionTitle("1.5. Monitoramento e Avaliação"),
-          new DocxTable({ width: { size: 7360, type: WidthType.DXA }, columnWidths: [2800, 2400, 1000, 1160], rows: monitorRows }),
+        // Header row
+        const headerCells = [
+          headerCell("Nº", numColW, { shading: "1A5276" }),
+          headerCell("Nome do Participante", nameColW, { shading: "1A5276" }),
+          ...datas.map(dt => headerCell(dt, dateColW, { shading: "1A5276" })),
+        ];
+        const tableRows: DocxTableRow[] = [new DocxTableRow({ children: headerCells })];
 
-          new Paragraph({ children: [new PageBreak()] }),
+        // Data rows
+        for (let mi = 0; mi < sorted.length; mi++) {
+          const member = sorted[mi];
+          const isDesligado = member.status === "desligado";
+          const cells = [
+            dataCell(String(mi + 1), numColW, { alignment: AlignmentType.CENTER }),
+            new DocxTableCell({
+              borders: cellBorders,
+              margins: cellMargins,
+              width: { size: nameColW, type: WidthType.DXA },
+              children: [new Paragraph({
+                children: [new TextRun({
+                  text: isDesligado ? `${member.nome_completo} (D)` : member.nome_completo,
+                  font: "Arial", size: 16,
+                  strike: isDesligado,
+                  color: isDesligado ? "999999" : undefined,
+                })],
+              })],
+            }),
+            ...datasDate.map(dt => {
+              const dateStr = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+              const key = `${member.id}_${dateStr}`;
+              const presente = presencaSet.has(key);
+              return dataCell(
+                isDesligado ? "—" : (presente ? "✓" : ""),
+                dateColW,
+                { alignment: AlignmentType.CENTER }
+              );
+            }),
+          ];
+          tableRows.push(new DocxTableRow({ children: cells }));
+        }
 
-          // ── 2. Execução Financeira ──
-          sectionTitle("2. EXECUÇÃO FINANCEIRA"),
-          new Paragraph({
-            spacing: { after: 200 },
-            children: [new TextRun({ text: "Em atendimento, inciso II do caput do artigo 66 da Lei Federal nº 13.019/2014 e suas alterações, esta organização da sociedade civil, elaborou o relatório a seguir, a partir do cronograma acordado.", font: "Arial", size: 18 })],
-          }),
+        const colWidths = [numColW, nameColW, ...datas.map(() => dateColW)];
+        const totalTableW = colWidths.reduce((a, b) => a + b, 0);
 
-          sectionTitle("2.1. Valores transferidos"),
-          new DocxTable({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [2400, 2800, 2800], rows: parcelasRows }),
+        presencaChildren.push(new DocxTable({
+          width: { size: totalTableW, type: WidthType.DXA },
+          columnWidths: colWidths,
+          rows: tableRows,
+        }));
 
-          new Paragraph({ children: [new PageBreak()] }),
+        // Signature line
+        presencaChildren.push(new Paragraph({
+          spacing: { before: 400 },
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: `Assinatura do(a) Educador(a): ${"_".repeat(50)}`, font: "Arial", size: 18, italics: true })],
+        }));
+      }
+    }
 
-          sectionTitle("2.2. Despesas Efetuadas no mês"),
-          new DocxTable({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [1600, 4200, 2200], rows: despesasRows }),
-
-          new Paragraph({ children: [new PageBreak()] }),
-
-          sectionTitle("2.3. Resumo financeiro"),
-          new DocxTable({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [4500, 3500], rows: resumoRows }),
-
-          sectionTitle("2.4 Saldo atualizado por categoria econômica"),
-          new DocxTable({ width: { size: 9000, type: WidthType.DXA }, columnWidths: [1600, 2200, 1400, 1400, 1200, 1200], rows: catRows }),
-          subNote("⁵ Considerar o valor gasto estimado de todos os meses."),
-          subNote("⁶ Para se chegar ao saldo disponível é necessário realizar a seguinte equação: Valor previsto – valor gasto + valor estornado."),
-
-          new Paragraph({ children: [new PageBreak()] }),
-
-          // ── Signature ──
-          new Paragraph({ spacing: { before: 600 }, children: [] }),
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { before: 600 },
-            children: [new TextRun({ text: "RAÚL OSCAR SENA VÉLEZ", bold: true, font: "Arial", size: 20 })],
-          }),
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: "PRESIDENTE", font: "Arial", size: 20 })],
-          }),
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: "CPF: 801.780.489-09", font: "Arial", size: 18 })],
-          }),
-
-          // ── Photos ──
+          // ── Annexes ──
           ...(photoChildren.length > 0 ? [new Paragraph({ children: [new PageBreak()] }), ...photoChildren] : []),
+          ...(presencaChildren.length > 0 ? [new Paragraph({ children: [new PageBreak()] }), ...presencaChildren] : []),
         ],
       }],
     });
