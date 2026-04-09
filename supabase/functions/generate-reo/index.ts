@@ -146,7 +146,7 @@ Deno.serve(async (req: Request) => {
     // ── Fetch all data ──
     const [participantes, turmas, turmaParticipantes, presenca, planejamentos, relatorios,
            atendimentos, profiles, bairros, categorias, despesas, parcelas, estornos,
-           relatorioTurmas, relatorioFotos] = await Promise.all([
+           relatorioTurmas, relatorioFotos, relatorioPresencas] = await Promise.all([
       fetchAll(supabase, "participantes"),
       fetchAll(supabase, "turmas"),
       fetchAll(supabase, "turma_participantes"),
@@ -162,6 +162,7 @@ Deno.serve(async (req: Request) => {
       fetchAll(supabase, "estornos"),
       fetchAll(supabase, "relatorio_turmas"),
       fetchAll(supabase, "relatorio_fotos"),
+      fetchAll(supabase, "relatorio_presenca"),
     ]);
 
     const bairroMap = Object.fromEntries(bairros.map((b: any) => [b.id, b.nome]));
