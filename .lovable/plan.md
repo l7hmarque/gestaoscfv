@@ -1,57 +1,80 @@
+## Plano: Logs completos no Super Admin + Busca Ativa para Equipe Técnica
 
+### 1. Logs completos e exportáveis nas Configurações (`ConfiguracoesPage.tsx`)
 
-## Plano: Atalhos de exportação + gestão de equipe + correção REO
+Atualmente a aba "Sistema" mostra apenas as últimas 50 entradas do `audit_log`. Vamos expandir:
 
-### 3 frentes de trabalho
+- **Criar aba dedicada "Auditoria"** na TabsList (nova aba entre "Equipe" e "Sistema")
+- **Carregar todos os logs** (sem limit 50), com paginação client-side (50 por página)
+- **Filtros**: por data (de/até), por usuário, por ação, por tabela
+- **Exibir todas as colunas**: data, usuário, ação, tabela, registro_id, detalhes, justificativa
+- **Botão "Exportar Auditoria"** que gera simultaneamente:
+  - **XLSX** com estilo institucional (cabeçalho, bordas, auto-fit) — formato admissível para auditoria
+  - **PDF** em landscape com tabela completa via jsPDF + autoTable
+- Remover o preview de auditoria da aba "Sistema" (pois agora terá aba própria)
 
----
+### 2. Aba "Busca Ativa" na Equipe Técnica (`EquipeTecnicaPage.tsx`)
 
-### 1. Corrigir erro do REO (`generate-reo/index.ts`)
+Nova aba na TabsList com quadro visual (cards/kanban):
 
-**Problema**: A variável `tableWidth` é usada nas linhas 830, 945, 956 mas nunca é definida. Isso causa `500: tableWidth is not defined`.
+**Detecção automática** de participantes que precisam de busca ativa:
 
-**Correção**: Adicionar `const tableWidth = 9360;` (largura padrão de página A4 com margens de 1440 DXA = 12240 - 2×1440) logo antes do bloco que a utiliza.
+- Participantes **inativos/desligados** recentes (últimos 60 dias)
+- Participantes ativos com **2+ faltas consecutivas** (baseado na tabela `presenca`)
 
----
+**Quadro visual** (grid de cards, não tabela):
 
-### 2. Adicionar atalhos de exportação (`ExportarRelatoriosPage.tsx`)
+- Cada card mostra: foto (se houver), nome, status, bairro, faltas recentes, responsável/telefone
+- Card clicável abre **Sheet lateral (miniatura do perfil)** com:
+  - Dados pessoais (nome, nascimento, escola, bairro)
+  - Responsáveis + telefones (para contato imediato)
+  - Histórico de presença recente (últimos 30 dias)
+  - Atendimentos anteriores relacionados (busca_ativa, visita_domiciliar)
+  - Botão "Registrar Busca Ativa" que cria atendimento do tipo `busca_ativa` diretamente, com opcao de descrever detalhes da busca ativa, marcar acoes realizadas (contato whatsapp, contato telefonico, visita domiciliar, contato com a rede, e opcoes de status: busca ativa em andamento, vai retornar/ja retornou, encaminhar pra desligamento.
 
-Adicionar 2 novas abas/cards na página:
+**Acompanhamento**:
 
-- **Relatórios de Atividades + Listas de Presença**: Reutilizar a função `exportBulkRelatorios` do `useBulkRelatorioExport.ts` já existente, com seletor de intervalo de datas e filtro de educador. Um botão gera DOCX + PDF + XLSX.
+- Mostrar badge se já teve busca ativa registrada e quando
+- Filtros: por status (todos / só inativos / só com faltas), por bairro
 
-- **Relatório de Atendimentos Técnicos**: Reutilizar a lógica já existente em `EquipeTecnicaPage.tsx` (função `generateRelatorioEquipe`), extraindo para um hook ou simplesmente replicando a query de atendimentos + exportação PDF/XLSX com filtro de datas.
+**Exportar Relatório de Busca Ativa**:
 
-A `TabsList` passará de 4 para 6 abas (ou cards adicionais dentro de uma aba existente).
+- Botão que gera PDF landscape com a lista dos participantes detectados, dados dos responsáveis e status das buscas realizadas (reutilizando o formato já existente no `TurmaDetalhePage`)
 
----
+### 3. Tabela de acompanhamento de Busca Ativa (migration)
 
-### 3. Gestão de equipe nas Configurações (`ConfiguracoesPage.tsx`)
+Criar tabela `busca_ativa_registros` para rastrear o acompanhamento:
 
-Na aba "Equipe", expandir a tabela para incluir:
-
-- **Toggle ativo/inativo**: Switch para ativar/desativar conta (já existe `profiles.ativo`)
-- **Carga horária**: Input editável (já existe `profiles.carga_horaria`)
-- **Data de início**: Input date (já existe `profiles.data_inicio`)
-- **Salário**: Novo campo (precisa migration)
-- **Data de desligamento**: Novo campo (precisa migration)
-
-**Migration necessária**: Adicionar 2 colunas na tabela `profiles`:
 ```sql
-ALTER TABLE public.profiles ADD COLUMN salario numeric DEFAULT NULL;
-ALTER TABLE public.profiles ADD COLUMN data_desligamento date DEFAULT NULL;
+CREATE TABLE public.busca_ativa_registros (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  participante_id uuid NOT NULL,
+  profissional_id uuid NOT NULL,
+  data_registro date NOT NULL DEFAULT CURRENT_DATE,
+  tipo_contato text NOT NULL DEFAULT 'telefone',
+  descricao text NOT NULL DEFAULT '',
+  resultado text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.busca_ativa_registros ENABLE ROW LEVEL SECURITY;
+-- RLS: tecnico ou coordenacao CRUD
+CREATE POLICY "Tecnico ou coord manage busca_ativa" ON public.busca_ativa_registros
+  FOR ALL TO authenticated
+  USING (has_role(auth.uid(), 'tecnico') OR has_role(auth.uid(), 'coordenacao'))
+  WITH CHECK (has_role(auth.uid(), 'tecnico') OR has_role(auth.uid(), 'coordenacao'));
+CREATE POLICY "Authenticated select busca_ativa" ON public.busca_ativa_registros
+  FOR SELECT TO authenticated USING (true);
 ```
 
-Esses campos serão usados na seção "1.4. Recursos Humanos" do REO (já existente no edge function, mas com dados estáticos).
+Isso permite registrar tentativas de contato (telefone, visita, WhatsApp), resultado, e gerar relatório posterior.
 
 ---
 
 ### Arquivos alterados
 
-| Arquivo | Mudança |
-|---|---|
-| `supabase/functions/generate-reo/index.ts` | Definir `const tableWidth = 9360` |
-| `src/pages/relatorios/ExportarRelatoriosPage.tsx` | Adicionar 2 cards: exportação de atividades em lote + atendimentos técnicos |
-| `src/pages/configuracoes/ConfiguracoesPage.tsx` | Expandir aba Equipe com toggle ativo, carga horária, datas, salário |
-| Migration | `profiles`: adicionar `salario` (numeric) e `data_desligamento` (date) |
 
+| Arquivo                                          | Mudança                                                                                  |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `src/pages/configuracoes/ConfiguracoesPage.tsx`  | Nova aba "Auditoria" com logs completos, filtros e exportação XLSX/PDF                   |
+| `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx` | Nova aba "Busca Ativa" com quadro de cards, sheet de perfil e registro de acompanhamento |
+| Migration                                        | Criar tabela `busca_ativa_registros` com RLS                                             |
