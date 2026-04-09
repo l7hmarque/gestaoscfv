@@ -825,6 +825,7 @@ Deno.serve(async (req: Request) => {
         }));
 
         // Build table
+        const tableWidth = 9360;
         const numColW = 500;
         const nameColW = 3200;
         const remainingW = tableWidth - numColW - nameColW;

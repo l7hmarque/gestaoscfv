@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileSpreadsheet, Download, FileText, Loader2, Calendar } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { FileSpreadsheet, Download, FileText, Loader2, Calendar, ClipboardList, Users } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
@@ -15,8 +16,9 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { BAIRROS_SCFV, calcFaixaFromDate, calcAge } from "@/lib/constants";
 import { sysEloFileName } from "@/lib/fileNaming";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
+import { useBulkRelatorioExport } from "@/hooks/useBulkRelatorioExport";
 
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
