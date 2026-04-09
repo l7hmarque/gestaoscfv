@@ -8,16 +8,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuditLog } from "@/hooks/useAuditLog";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { toast } from "sonner";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet } from "lucide-react";
+import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
@@ -54,24 +56,34 @@ const EquipeTecnicaPage = () => {
   const [relDataFim, setRelDataFim] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [form, setForm] = useState({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "" });
   const [myProfileId, setMyProfileId] = useState("");
+  const [userRoles, setUserRoles] = useState<string[]>([]);
+  const { log: auditLog } = useAuditLog();
+
+  // Delete state
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [deleteJustificativa, setDeleteJustificativa] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }] = await Promise.all([
+    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }, { data: roles }] = await Promise.all([
       supabase.from("atendimentos").select("*").order("data_atendimento", { ascending: false }),
       supabase.from("participantes").select("id, nome_completo, status, data_nascimento, bairro_id, periodo, laudo, categoria_vulnerabilidade").order("nome_completo"),
       supabase.from("profiles").select("id, nome, cargo, user_id"),
       supabase.from("presenca").select("participante_id, data, presente").gte("data", format(subDays(new Date(), 90), "yyyy-MM-dd")),
       supabase.from("turmas").select("id, nome, dias_semana").eq("ativa", true),
       supabase.from("turma_participantes").select("turma_id"),
+      supabase.from("user_roles").select("role"),
     ]);
     setAtendimentos(atd || []);
     setParticipantes(part || []);
     setProfiles(prof || []);
     setPresenca(pres || []);
     setTurmas(turm || []);
+    setUserRoles((roles || []).map((r: any) => r.role));
 
     const tpMap: Record<string, number> = {};
     (tp || []).forEach((row: any) => {
@@ -84,6 +96,32 @@ const EquipeTecnicaPage = () => {
       if (me) setMyProfileId(me.id);
     }
     setLoading(false);
+  };
+
+  const isCoordenacao = userRoles.includes("coordenacao");
+
+  const handleDeleteAtendimento = async () => {
+    if (!deleteTarget) return;
+    if (!isCoordenacao && !deleteJustificativa.trim()) {
+      toast.error("Justificativa obrigatória para exclusão");
+      return;
+    }
+    setDeleteLoading(true);
+    await auditLog({
+      acao: "exclusao_atendimento",
+      tabela: "atendimentos",
+      registro_id: deleteTarget.id,
+      detalhes: `${partName(deleteTarget.participante_id)} — ${tipoLabel(deleteTarget.tipo)} — ${deleteTarget.data_atendimento}`,
+      justificativa: isCoordenacao ? (deleteJustificativa.trim() || "Exclusão pela coordenação") : deleteJustificativa.trim(),
+    });
+    const { error } = await supabase.from("atendimentos").delete().eq("id", deleteTarget.id);
+    setDeleteLoading(false);
+    if (error) { toast.error("Erro ao excluir: " + error.message); return; }
+    toast.success("Atendimento excluído com registro de auditoria");
+    setDeleteTarget(null);
+    setDeleteJustificativa("");
+    setDeleteDialogOpen(false);
+    loadAll();
   };
 
   const handleCreate = async () => {
