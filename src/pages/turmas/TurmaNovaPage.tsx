@@ -99,10 +99,44 @@ const TurmaNovaPage = () => {
     if (educadorId) payload.educador_id = educadorId;
     if (oficina) payload.oficina = oficina === "outra_oficina" && oficinaNome ? oficinaNome : oficina;
 
-    const { error } = await supabase.from("turmas").insert([payload] as any);
+    const { data: turmasCriadas, error } = await supabase.from("turmas").insert([payload] as any).select();
+    if (error) { setSaving(false); toast.error("Erro: " + error.message); return; }
+
+    // Auto-vincular participantes compatíveis
+    let totalVinculados = 0;
+    if (turmasCriadas && turmasCriadas.length > 0 && bairroIds.length > 0 && faixasEtarias.length > 0) {
+      const turmaId = turmasCriadas[0].id;
+      const { data: participantes } = await supabase
+        .from("participantes")
+        .select("id, bairro_id, periodo, data_nascimento")
+        .eq("status", "ativo")
+        .in("bairro_id", bairroIds);
+
+      if (participantes && participantes.length > 0) {
+        const links: { turma_id: string; participante_id: string }[] = [];
+        for (const p of participantes) {
+          if (!p.data_nascimento) continue;
+          const faixa = calcFaixaFromDate(p.data_nascimento);
+          if (!faixasEtarias.includes(faixa)) continue;
+          if (periodo !== "integral" && p.periodo !== periodo) continue;
+          links.push({ turma_id: turmaId, participante_id: p.id });
+        }
+        if (links.length > 0) {
+          const { error: linkErr } = await supabase.from("turma_participantes").insert(links);
+          if (linkErr) {
+            toast.warning("Turma criada, mas erro ao vincular: " + linkErr.message);
+          } else {
+            totalVinculados = links.length;
+          }
+        }
+      }
+    }
+
     setSaving(false);
-    if (error) { toast.error("Erro: " + error.message); return; }
-    toast.success("Turma criada!");
+    const msg = totalVinculados > 0
+      ? `Turma criada com ${totalVinculados} participante(s) vinculado(s)!`
+      : "Turma criada!";
+    toast.success(msg);
     navigate("/turmas");
   };
 
@@ -133,7 +167,9 @@ const TurmaNovaPage = () => {
       return {
         nome: `${c.bairro.nome} — ${c.faixa} — ${periodoLabels[c.periodo] || c.periodo}`,
         bairro_id: c.bairro.id,
+        bairro_ids: [c.bairro.id],
         faixa_etaria: c.faixa,
+        faixas_etarias: [c.faixa],
         periodo: c.periodo,
         tipo: batchTipo,
         dias_semana: dias,
