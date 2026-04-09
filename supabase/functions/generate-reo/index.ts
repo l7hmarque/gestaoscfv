@@ -146,7 +146,7 @@ Deno.serve(async (req: Request) => {
     // ── Fetch all data ──
     const [participantes, turmas, turmaParticipantes, presenca, planejamentos, relatorios,
            atendimentos, profiles, bairros, categorias, despesas, parcelas, estornos,
-           relatorioTurmas, relatorioFotos] = await Promise.all([
+           relatorioTurmas, relatorioFotos, relatorioPresencas] = await Promise.all([
       fetchAll(supabase, "participantes"),
       fetchAll(supabase, "turmas"),
       fetchAll(supabase, "turma_participantes"),
@@ -162,6 +162,7 @@ Deno.serve(async (req: Request) => {
       fetchAll(supabase, "estornos"),
       fetchAll(supabase, "relatorio_turmas"),
       fetchAll(supabase, "relatorio_fotos"),
+      fetchAll(supabase, "relatorio_presenca"),
     ]);
 
     const bairroMap = Object.fromEntries(bairros.map((b: any) => [b.id, b.nome]));
@@ -170,6 +171,23 @@ Deno.serve(async (req: Request) => {
     // ── 1.1 Atividades ──
     const plansMes = planejamentos.filter((p: any) => p.data_aplicacao?.startsWith(prefix));
     const relsMes = relatorios.filter((r: any) => r.data?.startsWith(prefix));
+
+    // Enrich presenca with relatorio_presenca fallback
+    const presencaKeys = new Set(presenca.map((p: any) => `${p.participante_id}_${p.data}_${p.turma_id}`));
+    for (const r of relsMes) {
+      const rTurmas = relatorioTurmas.filter((rt: any) => rt.relatorio_id === r.id);
+      const rPres = relatorioPresencas.filter((rp: any) => rp.relatorio_id === r.id);
+      for (const rt of rTurmas) {
+        for (const rp of rPres) {
+          if (!rp.presente || !rp.participante_id) continue;
+          const key = `${rp.participante_id}_${r.data}_${rt.turma_id}`;
+          if (!presencaKeys.has(key)) {
+            presenca.push({ participante_id: rp.participante_id, data: r.data, turma_id: rt.turma_id, presente: true, id: rp.id });
+            presencaKeys.add(key);
+          }
+        }
+      }
+    }
 
     const atividadesRows: DocxTableRow[] = [];
     // Header

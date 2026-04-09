@@ -1,5 +1,5 @@
 import {
-  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -23,6 +23,7 @@ const menuGroups = [
     items: [
       { title: "Planejamento", url: "/planejamentos", icon: BookOpen },
       { title: "Relatórios", url: "/relatorios", icon: FileText },
+      { title: "Exportar Relatórios", url: "/relatorios/exportar", icon: FileDown },
     ],
   },
   {
