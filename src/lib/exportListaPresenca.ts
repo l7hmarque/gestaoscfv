@@ -50,13 +50,13 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   const institutionStyle = {
     font: { bold: true, sz: 11, color: { rgb: "1A5276" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
-    border: bordersLight,
+    border: borders,
     fill: { fgColor: { rgb: "EBF5FB" } },
   };
   const subtitleStyle = {
     font: { bold: true, sz: 9, color: { rgb: "2C3E50" } },
-    alignment: { horizontal: "center" as const, vertical: "center" as const },
-    border: bordersLight,
+    alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
+    border: borders,
     fill: { fgColor: { rgb: "EBF5FB" } },
   };
   const titleStyle = {
@@ -180,12 +180,19 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
     }
   }
 
-  // Column widths — auto-fit name column based on content
+  // Column widths — auto-fit name column based on content, ensure header text fits
   const maxNameLen = Math.max(20, ...orderedMembers.map(m => {
     const label = m.desligado ? `${m.nome} (D${m.data_desligamento ? " " + m.data_desligamento : ""})` : m.nome;
     return label.length;
   }));
-  ws["!cols"] = [{ wch: 4 }, { wch: Math.min(maxNameLen + 2, 55) }, ...datas.map(() => ({ wch: 6 }))];
+  let nameColWidth = Math.min(maxNameLen + 2, 55);
+  // Ensure total width is enough to fit the institutional header text (~58 chars)
+  const minTotalWidth = 60;
+  const currentTotalWidth = 4 + nameColWidth + datas.length * 6;
+  if (currentTotalWidth < minTotalWidth) {
+    nameColWidth += (minTotalWidth - currentTotalWidth);
+  }
+  ws["!cols"] = [{ wch: 4 }, { wch: nameColWidth }, ...datas.map(() => ({ wch: 6 }))];
 
   // Row heights
   ws["!rows"] = [];

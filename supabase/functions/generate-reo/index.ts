@@ -678,47 +678,217 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // ── Fetch photos (DOCX only) ──
+    // ── ANEXO I - REGISTROS FOTOGRÁFICOS (DOCX only) ──
     const relIdsMes = new Set(relsMes.map((r: any) => r.id));
     const fotosMes = relatorioFotos.filter((f: any) => relIdsMes.has(f.relatorio_id));
 
     const photoChildren: (Paragraph | DocxTable)[] = [];
     if (fotosMes.length > 0) {
-      photoChildren.push(sectionTitle("ANEXOS I - REGISTROS FOTOGRÁFICOS"));
+      photoChildren.push(new Paragraph({
+        spacing: { before: 300, after: 300 },
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: "ANEXO I - REGISTROS FOTOGRÁFICOS", bold: true, font: "Arial", size: 26 })],
+      }));
 
-      for (let i = 0; i < fotosMes.length; i++) {
-        const foto = fotosMes[i];
-        try {
-          const url = foto.foto_url.startsWith("http")
-            ? foto.foto_url
-            : `${supabaseUrl}/storage/v1/object/public/fotos-relatorios/${foto.foto_url}`;
-          const resp = await fetch(url);
-          if (!resp.ok) continue;
-          const buf = await resp.arrayBuffer();
-          const ext = url.toLowerCase().includes(".png") ? "png" : "jpg";
-          photoChildren.push(new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { before: 200, after: 200 },
-            children: [
-              new ImageRun({
-                type: ext as "png" | "jpg",
-                data: new Uint8Array(buf),
-                transformation: { width: 450, height: 340 },
-                altText: { title: `Foto ${i + 1}`, description: `Registro fotográfico ${i + 1}`, name: `foto_${i + 1}` },
-              }),
-            ],
-          }));
-          photoChildren.push(new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: `Foto ${i + 1}`, font: "Arial", size: 16, italics: true })],
-          }));
-        } catch { /* skip photo on error */ }
+      // Group photos by relatorio
+      const fotosByRelatorio = new Map<string, any[]>();
+      for (const f of fotosMes) {
+        if (!fotosByRelatorio.has(f.relatorio_id)) fotosByRelatorio.set(f.relatorio_id, []);
+        fotosByRelatorio.get(f.relatorio_id)!.push(f);
+      }
+
+      let photoCount = 0;
+      for (const [relId, fotos] of fotosByRelatorio) {
+        const rel = relsMes.find((r: any) => r.id === relId);
+        const relLabel = rel ? `${rel.nome_atividade || "Atividade"} — ${rel.data ? new Date(rel.data + "T12:00:00").toLocaleDateString("pt-BR") : ""}` : "Atividade";
+
+        photoChildren.push(new Paragraph({
+          spacing: { before: 200, after: 100 },
+          children: [new TextRun({ text: relLabel, bold: true, font: "Arial", size: 20 })],
+        }));
+
+        for (const foto of fotos) {
+          try {
+            const url = foto.foto_url.startsWith("http")
+              ? foto.foto_url
+              : `${supabaseUrl}/storage/v1/object/public/fotos-relatorios/${foto.foto_url}`;
+            const resp = await fetch(url);
+            if (!resp.ok) continue;
+            const buf = await resp.arrayBuffer();
+            const ext = url.toLowerCase().includes(".png") ? "png" : "jpg";
+            photoCount++;
+            photoChildren.push(new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 150, after: 80 },
+              children: [
+                new ImageRun({
+                  type: ext as "png" | "jpg",
+                  data: new Uint8Array(buf),
+                  transformation: { width: 420, height: 315 },
+                  altText: { title: `Foto ${photoCount}`, description: `Registro fotográfico ${photoCount}`, name: `foto_${photoCount}` },
+                }),
+              ],
+            }));
+            photoChildren.push(new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 100 },
+              children: [new TextRun({ text: `Foto ${photoCount}`, font: "Arial", size: 16, italics: true })],
+            }));
+            // Page break every 2 photos
+            if (photoCount % 2 === 0) {
+              photoChildren.push(new Paragraph({ children: [new PageBreak()] }));
+            }
+          } catch { /* skip */ }
+        }
       }
     }
 
-    // ── Build DOCX ──
-    const tableWidth = 9360; // US Letter content width
+    // ── ANEXO II - LISTAS DE PRESENÇA (DOCX only) ──
+    const DIAS_MAP_REO: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
+    const presencaChildren: (Paragraph | DocxTable)[] = [];
+    const turmasAtivas = turmas.filter((t: any) => t.ativa);
 
+    if (turmasAtivas.length > 0) {
+      presencaChildren.push(new Paragraph({
+        spacing: { before: 300, after: 300 },
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: "ANEXO II - LISTAS DE PRESENÇA", bold: true, font: "Arial", size: 26 })],
+      }));
+
+      for (let ti = 0; ti < turmasAtivas.length; ti++) {
+        const turma = turmasAtivas[ti];
+        const diasSemana: string[] = turma.dias_semana || [];
+        const diasNum = diasSemana.map((d: string) => DIAS_MAP_REO[d.toLowerCase()]).filter((n: number) => n !== undefined);
+
+        // Build dates for the month based on turma's dias_semana
+        const datas: string[] = [];
+        const datasDate: Date[] = [];
+        const d = new Date(anoNum, mesNum - 1, 1);
+        while (d.getMonth() === mesNum - 1) {
+          if (diasNum.includes(d.getDay())) {
+            datas.push(`${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`);
+            datasDate.push(new Date(d));
+          }
+          d.setDate(d.getDate() + 1);
+        }
+        if (datas.length === 0) continue;
+
+        // Get members for this turma
+        const tpMembers = turmaParticipantes.filter((tp: any) => tp.turma_id === turma.id);
+        const memberParts = tpMembers.map((tp: any) => partMap[tp.participante_id]).filter(Boolean);
+        const sorted = [...memberParts].sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo));
+        if (sorted.length === 0) continue;
+
+        // Get attendance data for this turma in this month
+        const turmaPresenca = presencaMes.filter((p: any) => p.turma_id === turma.id);
+        const presencaSet = new Set(turmaPresenca.map((p: any) => `${p.participante_id}_${p.data}`));
+
+        // Educator name
+        const educador = profiles.find((p: any) => p.id === turma.educador_id);
+        const bairroNome = bairroMap[turma.bairro_id] || "";
+
+        // Page break between turmas (not before first)
+        if (ti > 0) {
+          presencaChildren.push(new Paragraph({ children: [new PageBreak()] }));
+        }
+
+        // Institutional header
+        presencaChildren.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 40 },
+          children: [new TextRun({ text: "Sociedade Civil Nossa Senhora Aparecida", bold: true, font: "Arial", size: 18, color: "1A5276" })],
+        }));
+        presencaChildren.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 },
+          children: [new TextRun({ text: "Centro de Atenção Integral ao Adolescente - CAIA Medianeira", font: "Arial", size: 16, color: "2C3E50" })],
+        }));
+        presencaChildren.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 60 },
+          children: [new TextRun({ text: `LISTA DE PRESENÇA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`, bold: true, font: "Arial", size: 22 })],
+        }));
+        presencaChildren.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 40 },
+          children: [new TextRun({ text: turma.nome, bold: true, font: "Arial", size: 20 })],
+        }));
+        const infoParts = [
+          educador?.nome && `Educador(a): ${educador.nome}`,
+          bairroNome && `Bairro: ${bairroNome}`,
+          turma.periodo && `Período: ${turma.periodo === "manha" ? "Manhã" : turma.periodo === "tarde" ? "Tarde" : "Integral"}`,
+        ].filter(Boolean).join("  ·  ");
+        presencaChildren.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+          children: [new TextRun({ text: infoParts, font: "Arial", size: 16, italics: true })],
+        }));
+
+        // Build table
+        const numColW = 500;
+        const nameColW = 3200;
+        const remainingW = tableWidth - numColW - nameColW;
+        const dateColW = Math.max(Math.floor(remainingW / datas.length), 400);
+
+        // Header row
+        const headerCells = [
+          headerCell("Nº", numColW, { shading: "1A5276" }),
+          headerCell("Nome do Participante", nameColW, { shading: "1A5276" }),
+          ...datas.map(dt => headerCell(dt, dateColW, { shading: "1A5276" })),
+        ];
+        const tableRows: DocxTableRow[] = [new DocxTableRow({ children: headerCells })];
+
+        // Data rows
+        for (let mi = 0; mi < sorted.length; mi++) {
+          const member = sorted[mi];
+          const isDesligado = member.status === "desligado";
+          const cells = [
+            dataCell(String(mi + 1), numColW, { alignment: AlignmentType.CENTER }),
+            new DocxTableCell({
+              borders: cellBorders,
+              margins: cellMargins,
+              width: { size: nameColW, type: WidthType.DXA },
+              children: [new Paragraph({
+                children: [new TextRun({
+                  text: isDesligado ? `${member.nome_completo} (D)` : member.nome_completo,
+                  font: "Arial", size: 16,
+                  strike: isDesligado,
+                  color: isDesligado ? "999999" : undefined,
+                })],
+              })],
+            }),
+            ...datasDate.map(dt => {
+              const dateStr = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+              const key = `${member.id}_${dateStr}`;
+              const presente = presencaSet.has(key);
+              return dataCell(
+                isDesligado ? "—" : (presente ? "✓" : ""),
+                dateColW,
+                { alignment: AlignmentType.CENTER }
+              );
+            }),
+          ];
+          tableRows.push(new DocxTableRow({ children: cells }));
+        }
+
+        const colWidths = [numColW, nameColW, ...datas.map(() => dateColW)];
+        const totalTableW = colWidths.reduce((a, b) => a + b, 0);
+
+        presencaChildren.push(new DocxTable({
+          width: { size: totalTableW, type: WidthType.DXA },
+          columnWidths: colWidths,
+          rows: tableRows,
+        }));
+
+        // Signature line
+        presencaChildren.push(new Paragraph({
+          spacing: { before: 400 },
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: `Assinatura do(a) Educador(a): ${"_".repeat(50)}`, font: "Arial", size: 18, italics: true })],
+        }));
+      }
+    }
+    // ── Build DOCX ──
     const doc = new Document({
       styles: {
         default: { document: { run: { font: "Arial", size: 20 } } },
@@ -840,8 +1010,9 @@ Deno.serve(async (req: Request) => {
             children: [new TextRun({ text: "CPF: 801.780.489-09", font: "Arial", size: 18 })],
           }),
 
-          // ── Photos ──
+          // ── Annexes ──
           ...(photoChildren.length > 0 ? [new Paragraph({ children: [new PageBreak()] }), ...photoChildren] : []),
+          ...(presencaChildren.length > 0 ? [new Paragraph({ children: [new PageBreak()] }), ...presencaChildren] : []),
         ],
       }],
     });
