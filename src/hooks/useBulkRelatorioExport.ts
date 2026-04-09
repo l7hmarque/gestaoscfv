@@ -134,14 +134,27 @@ export async function exportBulkRelatorios({ dateFrom, dateTo, educadorId }: Bul
     fotosByRel.set(rf.relatorio_id, arr);
   });
 
-  // Generate all formats in parallel
-  await Promise.all([
+  // Generate all formats in parallel — use allSettled so one failure doesn't block others
+  const results = await Promise.allSettled([
     generateBulkDocx(filtered, presencaByRel, turmasByRel, fotosByRel, dateFrom, dateTo),
     generateBulkPdf(filtered, presencaByRel, turmasByRel, dateFrom, dateTo),
     generateBulkXlsx(filtered, presencaByRel, turmasByRel, dateFrom, dateTo),
   ]);
 
-  toast.success(`${filtered.length} relatório(s) exportados em DOCX, PDF e XLSX!`);
+  const formatNames = ["DOCX", "PDF", "XLSX"];
+  const failed = results
+    .map((r, i) => r.status === "rejected" ? formatNames[i] : null)
+    .filter(Boolean);
+  
+  if (failed.length > 0) {
+    console.error("Export failures:", results.filter(r => r.status === "rejected"));
+    toast.error(`Falha ao gerar: ${failed.join(", ")}`);
+  }
+  
+  const succeeded = formatNames.length - failed.length;
+  if (succeeded > 0) {
+    toast.success(`${filtered.length} relatório(s) exportados em ${formatNames.filter(f => !failed.includes(f)).join(", ")}!`);
+  }
 }
 
 async function generateBulkDocx(

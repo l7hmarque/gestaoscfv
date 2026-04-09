@@ -379,12 +379,22 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
   
   if (template) {
     try {
+      // Remove PRESENCA from template data so template doesn't render ugly list
       const baseData = buildRelatorioTemplateData(item, turmaNames, presenca);
+      delete baseData.PRESENCA;
+      baseData.HAS_PRESENCA = false;
       const tagMappings = await loadTagMappings("relatorio.docx");
       const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
-      saveAs(blob, `SysELO_Relatorio_${fileTimestamp()}.docx`);
-      return;
+      
+      // If there's presença, we need to append the nice table to the template output
+      if (presenca.length > 0) {
+        // Can't easily append to docxtemplater output, so fall through to full fallback
+        console.info("Template used but presença table generated via fallback code.");
+      } else {
+        saveAs(blob, `SysELO_Relatorio_${fileTimestamp()}.docx`);
+        return;
+      }
     } catch (e) {
       console.error("Template fill failed, generating fallback DOCX:", e);
       toast.error("Modelo institucional com erro. Exportando versão padrão.");
@@ -544,14 +554,14 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
   const engOptions = ["Grupo participativo", "Grupo disperso", "Boa interação entre participantes", "Necessitou intervenção do educador"];
   doc.setFontSize(9); doc.setFont("helvetica", "bold");
   doc.text("Engajamento:", 14, y); y += 4; doc.setFont("helvetica", "normal"); doc.setFontSize(8);
-  doc.text(engOptions.map(opt => `${item.engajamento?.includes(opt) ? "☑" : "☐"} ${opt}`).join("   "), 14, y, { maxWidth: 180 });
+  doc.text(engOptions.map(opt => `${item.engajamento?.includes(opt) ? "[X]" : "[ ]"} ${opt}`).join("   "), 14, y, { maxWidth: 180 });
   y += 6;
 
   // Situações
   const sitOptions = ["Nenhuma ocorrência", "Conflito entre participantes", "Situação de vulnerabilidade identificada", "Encaminhamento necessário", "Comunicação com família/responsável"];
   doc.setFontSize(9); doc.setFont("helvetica", "bold");
   doc.text("Situações Relevantes:", 14, y); y += 4; doc.setFont("helvetica", "normal"); doc.setFontSize(8);
-  doc.text(sitOptions.map(opt => `${item.situacoes_relevantes?.includes(opt) ? "☑" : "☐"} ${opt}`).join("   "), 14, y, { maxWidth: 180 });
+  doc.text(sitOptions.map(opt => `${item.situacoes_relevantes?.includes(opt) ? "[X]" : "[ ]"} ${opt}`).join("   "), 14, y, { maxWidth: 180 });
   y += 8;
 
   // Competências
@@ -622,13 +632,13 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     autoTable(doc, {
       startY: py,
       head: [["Nº", "Nome do Participante", "Presença", "Justificativa"]],
-      body: presenca.map((p, i) => [i + 1, p.participantes?.nome_completo || "", p.presente ? "☑ Presente" : "☐ Ausente", p.justificativa || ""]),
+      body: presenca.map((p, i) => [i + 1, p.participantes?.nome_completo || "", p.presente ? "Presente" : "Ausente", p.justificativa || ""]),
       headStyles: { fillColor: [26, 82, 118], fontSize: 7, textColor: [255, 255, 255] },
       styles: { fontSize: 7, cellPadding: 2 },
       columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 20, halign: "center" } },
       didParseCell: (data: any) => {
         if (data.section === "body" && data.column.index === 2) {
-          const isPresente = data.cell.raw?.toString().includes("☑");
+          const isPresente = data.cell.raw === "Presente";
           data.cell.styles.fillColor = isPresente ? [232, 245, 233] : [255, 235, 238];
           data.cell.styles.textColor = isPresente ? [46, 125, 50] : [198, 40, 40];
           data.cell.styles.fontStyle = "bold";
