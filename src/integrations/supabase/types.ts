@@ -125,6 +125,54 @@ export type Database = {
         }
         Relationships: []
       }
+      busca_ativa_registros: {
+        Row: {
+          created_at: string
+          data_registro: string
+          descricao: string
+          id: string
+          participante_id: string
+          profissional_id: string
+          resultado: string | null
+          tipo_contato: string
+        }
+        Insert: {
+          created_at?: string
+          data_registro?: string
+          descricao?: string
+          id?: string
+          participante_id: string
+          profissional_id: string
+          resultado?: string | null
+          tipo_contato?: string
+        }
+        Update: {
+          created_at?: string
+          data_registro?: string
+          descricao?: string
+          id?: string
+          participante_id?: string
+          profissional_id?: string
+          resultado?: string | null
+          tipo_contato?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "busca_ativa_registros_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "participantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "busca_ativa_registros_profissional_id_fkey"
+            columns: ["profissional_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categorias_financeiras: {
         Row: {
           codigo: string
