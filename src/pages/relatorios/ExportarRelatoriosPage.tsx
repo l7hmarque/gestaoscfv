@@ -468,17 +468,17 @@ export default function ExportarRelatoriosPage() {
 
       // XLSX
       const wb = XLSX.utils.book_new();
-      const resumoRows = [
-        ["PRESTAÇÃO DE CONTAS — " + mesLabel],
-        ["Gerado em: " + new Date().toLocaleString("pt-BR")],
-        [],
+      const resumoRows = addInstHeader([
         ["Item", "Valor"],
         ["Total Recebido (Parcelas)", totalRec],
         ["Despesas no Mês", totalDesp],
         ["Estornos no Mês", totalEst],
         ["Saldo Acumulado", saldoPC],
-      ];
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumoRows), "Resumo");
+      ], "PRESTAÇÃO DE CONTAS — " + mesLabel);
+      const wsResumoPC = XLSX.utils.aoa_to_sheet(resumoRows);
+      wsResumoPC["!cols"] = [{ wch: 35 }, { wch: 20 }];
+      applyInstStyle(wsResumoPC);
+      XLSX.utils.book_append_sheet(wb, wsResumoPC, "Resumo");
 
       const despRows: any[] = [["Código", "Descrição", "Fornecedor", "CNPJ/CPF", "Tipo Doc", "Nº Doc", "Valor", "Data", "Status"]];
       despMes.sort((a: any, b: any) => a.data_lancamento.localeCompare(b.data_lancamento)).forEach((d: any) => {
