@@ -38,10 +38,21 @@ const TurmasPage = () => {
   const [deleteTarget, setDeleteTarget] = useState<TurmaRow | null>(null);
   const [deleteJustificativa, setDeleteJustificativa] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [isCoordenacao, setIsCoordenacao] = useState(false);
 
   const isDemo = useIsDemo();
 
   useEffect(() => { fetchTurmas(); }, []);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "coordenacao").then(({ data }) => {
+          setIsCoordenacao((data?.length || 0) > 0);
+        });
+      }
+    });
+  }, []);
 
   const fetchTurmas = async () => {
     setLoading(true);
@@ -58,7 +69,7 @@ const TurmasPage = () => {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     if (guardDemo(isDemo)) return;
-    if (!deleteJustificativa.trim()) { toast.error("Justificativa é obrigatória"); return; }
+    if (!isCoordenacao && !deleteJustificativa.trim()) { toast.error("Justificativa é obrigatória"); return; }
     setDeleting(true);
 
     // Remove only participant links (turma_participantes) to allow deletion
@@ -171,13 +182,21 @@ const TurmasPage = () => {
               Esta ação é irreversível. Os vínculos de participantes serão removidos, mas registros de presença, relatórios e planejamentos serão preservados como histórico.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div>
-            <Label className="text-xs font-medium">Justificativa *</Label>
-            <Input value={deleteJustificativa} onChange={e => setDeleteJustificativa(e.target.value)} placeholder="Motivo da exclusão..." className="mt-1 h-9 text-sm" />
-          </div>
+          {!isCoordenacao && (
+            <div>
+              <Label className="text-xs font-medium">Justificativa *</Label>
+              <Input value={deleteJustificativa} onChange={e => setDeleteJustificativa(e.target.value)} placeholder="Motivo da exclusão..." className="mt-1 h-9 text-sm" />
+            </div>
+          )}
+          {isCoordenacao && (
+            <div>
+              <Label className="text-xs font-medium">Justificativa (opcional)</Label>
+              <Input value={deleteJustificativa} onChange={e => setDeleteJustificativa(e.target.value)} placeholder="Motivo da exclusão..." className="mt-1 h-9 text-sm" />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={deleting || !deleteJustificativa.trim()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={handleDelete} disabled={deleting || (!isCoordenacao && !deleteJustificativa.trim())} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {deleting ? "Excluindo..." : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
