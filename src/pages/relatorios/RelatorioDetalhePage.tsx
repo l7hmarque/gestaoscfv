@@ -553,16 +553,26 @@ const RelatorioDetalhePage = () => {
             <span className="hidden sm:inline">Imprimir</span>
           </Button>
           <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={async () => {
-            toast.info("Gerando DOCX...");
-            await exportRelatorioDocx(item, turmaNames, presenca, fotos);
-            toast.success("DOCX gerado!");
+            try {
+              toast.info("Gerando DOCX...");
+              await exportRelatorioDocx(item, turmaNames, presenca, fotos);
+              toast.success("DOCX gerado!");
+            } catch (e) {
+              console.error("Erro ao gerar DOCX:", e);
+              toast.error("Erro ao gerar DOCX. Tente novamente.");
+            }
           }}>
             <Download className="h-3.5 w-3.5" />Exportar DOCX
           </Button>
           <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={async () => {
-            toast.info("Gerando PDF...");
-            await exportRelatorioPdf(item, turmaNames, presenca);
-            toast.success("PDF gerado!");
+            try {
+              toast.info("Gerando PDF...");
+              await exportRelatorioPdf(item, turmaNames, presenca);
+              toast.success("PDF gerado!");
+            } catch (e) {
+              console.error("Erro ao gerar PDF:", e);
+              toast.error("Erro ao gerar PDF. Tente novamente.");
+            }
           }}>
             <FileText className="h-3.5 w-3.5" />Exportar PDF
           </Button>
