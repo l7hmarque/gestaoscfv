@@ -246,6 +246,12 @@ function headerParagraphs(): Paragraph[] {
   ];
 }
 
+/** Sanitize undefined/null/"undefined"/"Undefined" → "" */
+function safeStr(v: any, fallback = "—"): string {
+  if (v == null || v === "undefined" || v === "Undefined" || v === "") return fallback;
+  return String(v);
+}
+
 function infoRow(label: string, value: string | null | undefined): TableRow {
   return new TableRow({
     children: [
@@ -256,7 +262,7 @@ function infoRow(label: string, value: string | null | undefined): TableRow {
       }),
       new TableCell({
         width: { size: 6560, type: WidthType.DXA }, borders, margins: cellMargins,
-        children: [new Paragraph({ children: [new TextRun({ text: value || "—", size: 18, font: "Arial" })] })],
+        children: [new Paragraph({ children: [new TextRun({ text: safeStr(value), size: 18, font: "Arial" })] })],
       }),
     ],
   });
