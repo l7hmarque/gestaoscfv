@@ -44,6 +44,16 @@ const TurmasPage = () => {
 
   useEffect(() => { fetchTurmas(); }, []);
 
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "coordenacao").then(({ data }) => {
+          setIsCoordenacao((data?.length || 0) > 0);
+        });
+      }
+    });
+  }, []);
+
   const fetchTurmas = async () => {
     setLoading(true);
     const { data } = await supabase.from("turmas").select("*, profiles(nome), bairros(nome)").order("nome");
