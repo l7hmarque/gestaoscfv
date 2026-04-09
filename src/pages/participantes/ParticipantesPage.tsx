@@ -150,6 +150,16 @@ const ParticipantesPage = () => {
     fetchData();
   };
 
+  // Quick period change
+  const handlePeriodoChange = async (p: Tables<"participantes">, newPeriodo: string) => {
+    if (guardDemo(isDemo)) return;
+    const { error } = await supabase.from("participantes").update({ periodo: newPeriodo } as any).eq("id", p.id);
+    if (error) { toast.error(error.message); return; }
+    await auditLog({ acao: "alteração de período", tabela: "participantes", registro_id: p.id, detalhes: `Período: ${periodoLabel[p.periodo || ""] || "—"} → ${periodoLabel[newPeriodo]}` });
+    toast.success(`Período alterado para ${periodoLabel[newPeriodo]}`);
+    fetchData();
+  };
+
   // Quick status change
   const handleStatusChange = async (p: Tables<"participantes">, newStatus: string) => {
     if (guardDemo(isDemo)) return;
@@ -429,7 +439,21 @@ const ParticipantesPage = () => {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{displayAge(p.data_nascimento)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{bairroNome && BAIRROS_SCFV.includes(bairroNome) ? bairroNome : "—"}</TableCell>
-                    <TableCell className="text-sm">{p.periodo ? periodoLabel[p.periodo] || p.periodo : "—"}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Select
+                        value={p.periodo || ""}
+                        onValueChange={(v) => handlePeriodoChange(p, v)}
+                      >
+                        <SelectTrigger className="h-6 text-[10px] w-[90px] border-0 px-1.5">
+                          <SelectValue placeholder="—" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="manha">Manhã</SelectItem>
+                          <SelectItem value="tarde">Tarde</SelectItem>
+                          <SelectItem value="integral">Integral</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Select
                         value={p.status || "ativo"}
