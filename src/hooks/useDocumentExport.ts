@@ -646,17 +646,17 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
 
 function buildPlanejamentoTemplateData(item: any, turmaNames: string[]) {
   return {
-    TITULO: item.titulo || "—",
-    EDUCADOR: item.profiles?.nome || "—",
-    DATA_APLICACAO: item.data_aplicacao ? format(new Date(item.data_aplicacao + "T12:00:00"), "dd/MM/yyyy") : "—",
-    TURMAS: turmaNames.join(", ") || "—",
-    TEMA: item.tema || "—",
-    QUESTAO_GERADORA: item.questao_geradora || "—",
-    OBJETIVOS: item.objetivos || "—",
-    ROTEIRO: item.roteiro || "—",
-    MATERIAIS: item.materiais || "—",
-    APOIO_TECNICO: item.apoio_tecnico || "—",
-    FORMA_AVALIACAO: item.forma_avaliacao?.join(", ") || "—",
+    TITULO: safeStr(item.titulo, ""),
+    EDUCADOR: safeStr(item.profiles?.nome, ""),
+    DATA_APLICACAO: item.data_aplicacao ? format(new Date(item.data_aplicacao + "T12:00:00"), "dd/MM/yyyy") : "",
+    TURMAS: turmaNames.join(", ") || "",
+    TEMA: safeStr(item.tema, ""),
+    QUESTAO_GERADORA: safeStr(item.questao_geradora, ""),
+    OBJETIVOS: safeStr(item.objetivos, ""),
+    ROTEIRO: safeStr(item.roteiro, ""),
+    MATERIAIS: safeStr(item.materiais, ""),
+    APOIO_TECNICO: safeStr(item.apoio_tecnico, ""),
+    FORMA_AVALIACAO: item.forma_avaliacao?.join(", ") || "",
   };
 }
 
