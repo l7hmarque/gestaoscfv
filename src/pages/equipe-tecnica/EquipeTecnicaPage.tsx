@@ -48,7 +48,7 @@ const EquipeTecnicaPage = () => {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [presenca, setPresenca] = useState<any[]>([]);
   const [turmas, setTurmas] = useState<any[]>([]);
-  const [tpCountMap, setTpCountMap] = useState<Record<string, number>>({});
+  const [turmaParticipantesMap, setTurmaParticipantesMap] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filterTipo, setFilterTipo] = useState("");
@@ -76,7 +76,7 @@ const EquipeTecnicaPage = () => {
       supabase.from("profiles").select("id, nome, cargo, user_id"),
       supabase.from("presenca").select("participante_id, data, presente").gte("data", format(subDays(new Date(), 90), "yyyy-MM-dd")),
       supabase.from("turmas").select("id, nome, dias_semana").eq("ativa", true),
-      supabase.from("turma_participantes").select("turma_id"),
+      supabase.from("turma_participantes").select("turma_id, participante_id"),
       supabase.from("user_roles").select("role"),
     ]);
     setAtendimentos(atd || []);
@@ -86,11 +86,12 @@ const EquipeTecnicaPage = () => {
     setTurmas(turm || []);
     setUserRoles((roles || []).map((r: any) => r.role));
 
-    const tpMap: Record<string, number> = {};
+    const tpMap: Record<string, string[]> = {};
     (tp || []).forEach((row: any) => {
-      tpMap[row.turma_id] = (tpMap[row.turma_id] || 0) + 1;
+      if (!tpMap[row.turma_id]) tpMap[row.turma_id] = [];
+      tpMap[row.turma_id].push(row.participante_id);
     });
-    setTpCountMap(tpMap);
+    setTurmaParticipantesMap(tpMap);
 
     if (user) {
       const me = (prof || []).find((p: any) => p.user_id === user.id);
@@ -194,21 +195,22 @@ const EquipeTecnicaPage = () => {
 
   // Mapa de calor (dias da semana) — conta participantes, não turmas
   const mapaCalor = useMemo(() => {
-    const diasMap: Record<string, number> = { seg: 0, ter: 0, qua: 0, qui: 0, sex: 0 };
+    const diasSets: Record<string, Set<string>> = { seg: new Set(), ter: new Set(), qua: new Set(), qui: new Set(), sex: new Set() };
     turmas.forEach(t => {
-      const count = tpCountMap[t.id] || 0;
+      const pIds = turmaParticipantesMap[t.id] || [];
       (t.dias_semana || []).forEach((d: string) => {
         const key = d.toLowerCase().slice(0, 3);
-        if (diasMap[key] !== undefined) diasMap[key] += count;
+        if (diasSets[key]) pIds.forEach(id => diasSets[key].add(id));
       });
     });
+    const diasMap = Object.fromEntries(Object.entries(diasSets).map(([k, s]) => [k, s.size]));
     const max = Math.max(...Object.values(diasMap), 1);
     return Object.entries(diasMap).map(([dia, count]) => ({
       dia: dia === "seg" ? "Segunda" : dia === "ter" ? "Terça" : dia === "qua" ? "Quarta" : dia === "qui" ? "Quinta" : "Sexta",
       count,
       intensity: count / max,
     }));
-  }, [turmas, tpCountMap]);
+  }, [turmas, turmaParticipantesMap]);
 
   // Filtered atendimentos
   const filteredAtd = useMemo(() => {
