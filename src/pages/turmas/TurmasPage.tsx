@@ -168,7 +168,7 @@ const TurmasPage = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir turma "{deleteTarget?.nome}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação é irreversível. Todos os vínculos de participantes, registros de presença, relatórios e planejamentos vinculados serão removidos.
+              Esta ação é irreversível. Os vínculos de participantes serão removidos, mas registros de presença, relatórios e planejamentos serão preservados como histórico.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div>
