@@ -519,21 +519,36 @@ Deno.serve(async (req: Request) => {
       const border = { style: "thin", color: { rgb: "000000" } };
       const hdrStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1A5276" } }, border: { top: border, bottom: border, left: border, right: border }, alignment: { wrapText: true, vertical: "center" } };
       const cellStyle = { border: { top: border, bottom: border, left: border, right: border }, alignment: { wrapText: true, vertical: "center" } };
+      const instStyle = { font: { bold: true, sz: 14 }, alignment: { horizontal: "center" } };
 
-      function applyStyles(ws: any) {
+      function applyStyles(ws: any, headerRow = 0) {
         const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
         for (let r = range.s.r; r <= range.e.r; r++) {
           for (let c = range.s.c; c <= range.e.c; c++) {
             const addr = XLSX.utils.encode_cell({ r, c });
             if (!ws[addr]) ws[addr] = { v: "", t: "s" };
-            if (r === 0) ws[addr].s = { ...hdrStyle };
+            if (r === headerRow) ws[addr].s = { ...hdrStyle };
+            else if (r < headerRow) ws[addr].s = { ...instStyle };
             else ws[addr].s = { ...cellStyle };
           }
         }
       }
 
+      function addInstHeader(rows: any[][], title: string): any[][] {
+        return [
+          ["Sociedade Civil Nossa Senhora Aparecida"],
+          ["Centro de Atenção Integral ao Adolescente - Medianeira"],
+          [title],
+          [],
+          ...rows,
+        ];
+      }
+
       // Aba Atividades
-      const atRows = [["Atividades Propostas", "Atividades Desenvolvidas", "Resultados", "Justificativa"]];
+      const atRows = addInstHeader(
+        [["Atividades Propostas", "Atividades Desenvolvidas", "Resultados", "Justificativa"]],
+        "ATIVIDADES — REO"
+      );
       for (const plan of plansMes) {
         const matched = relsMes.filter((r: any) => r.planejamento_id === plan.id);
         atRows.push([plan.titulo || plan.tema || "-", matched.length > 0 ? `Sim (${matched.length}x)` : "Não realizada", matched.length > 0 ? (matched[0].objetivo_alcancado === "alcancado" ? "Alcançado" : matched[0].objetivo_alcancado === "parcial" ? "Parcial" : "Não") : "-", matched.length === 0 ? "Não realizada" : ""]);
@@ -543,20 +558,20 @@ Deno.serve(async (req: Request) => {
       }
       const wsAt = XLSX.utils.aoa_to_sheet(atRows);
       wsAt["!cols"] = [{ wch: 35 }, { wch: 25 }, { wch: 20 }, { wch: 25 }];
-      applyStyles(wsAt);
+      applyStyles(wsAt, 4);
       XLSX.utils.book_append_sheet(wb, wsAt, "Atividades");
 
       // Aba Equipe Técnica
-      const eqRows = [["Serviço", "Quantidade"]];
+      const eqRows = addInstHeader([["Serviço", "Quantidade"]], "EQUIPE TÉCNICA — REO");
       for (const [key, label] of servicoLabels) { eqRows.push([label, String(countByTipo[key] || 0)]); }
       eqRows.push(["TOTAL", String(totalServicos)]);
       const wsEq = XLSX.utils.aoa_to_sheet(eqRows);
       wsEq["!cols"] = [{ wch: 50 }, { wch: 15 }];
-      applyStyles(wsEq);
+      applyStyles(wsEq, 4);
       XLSX.utils.book_append_sheet(wb, wsEq, "Equipe Técnica");
 
       // Aba Metas
-      const mtRows = [["Metas Propostas", "Quantidade", "Resultados", "Justificativa"]];
+      const mtRows = addInstHeader([["Metas Propostas", "Quantidade", "Resultados", "Justificativa"]], "METAS — REO");
       for (const bairro of BAIRROS_SCFV) {
         const meta = METAS_BAIRRO[bairro];
         const manha = countUniqueParts(bairro, "manha");
@@ -570,27 +585,33 @@ Deno.serve(async (req: Request) => {
       mtRows.push(["TOTAL", String(totalGeral), "", ""]);
       const wsMt = XLSX.utils.aoa_to_sheet(mtRows);
       wsMt["!cols"] = [{ wch: 40 }, { wch: 12 }, { wch: 20 }, { wch: 25 }];
-      applyStyles(wsMt);
+      applyStyles(wsMt, 4);
       XLSX.utils.book_append_sheet(wb, wsMt, "Metas");
 
       // Aba RH
-      const rhXRows = [["Nome", "Função", "Carga Horária"]];
+      const rhXRows = addInstHeader([["Nome", "Função", "Carga Horária"]], "RECURSOS HUMANOS — REO");
       for (const p of activeProfiles) { rhXRows.push([p.nome || "", p.cargo || "", p.carga_horaria || "-"]); }
       const wsRh = XLSX.utils.aoa_to_sheet(rhXRows);
       wsRh["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 15 }];
-      applyStyles(wsRh);
+      applyStyles(wsRh, 4);
       XLSX.utils.book_append_sheet(wb, wsRh, "RH");
 
       // Aba Monitoramento
-      const moRows = [["Objetivo", "Indicador", "Meta Prevista", "Meta Atingida"]];
+      const moRows = addInstHeader([["Objetivo", "Indicador", "Meta Prevista", "Meta Atingida"]], "MONITORAMENTO — REO");
       for (const row of MONITORAMENTO_ROWS) { moRows.push([row.objetivo, row.indicador, row.meta, `${taxaGeral}%`]); }
       const wsMo = XLSX.utils.aoa_to_sheet(moRows);
       wsMo["!cols"] = [{ wch: 50 }, { wch: 45 }, { wch: 12 }, { wch: 12 }];
-      applyStyles(wsMo);
+      applyStyles(wsMo, 4);
       XLSX.utils.book_append_sheet(wb, wsMo, "Monitoramento");
 
       // Aba Financeiro
-      const finRows: any[][] = [["PARCELAS RECEBIDAS", "", ""]];
+      const finRows: any[][] = [
+        ["Sociedade Civil Nossa Senhora Aparecida", "", ""],
+        ["Centro de Atenção Integral ao Adolescente - Medianeira", "", ""],
+        ["FINANCEIRO — REO", "", ""],
+        [],
+        ["PARCELAS RECEBIDAS", "", ""],
+      ];
       finRows.push(["Nº Parcela", "Valor", "Data Recebimento"]);
       for (const p of sortedParcelas) { finRows.push([p.numero_parcela, Number(p.valor), p.data_recebimento ? new Date(p.data_recebimento + "T12:00:00").toLocaleDateString("pt-BR") : "-"]); }
       finRows.push([]);

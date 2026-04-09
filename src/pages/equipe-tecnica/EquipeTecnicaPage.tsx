@@ -8,16 +8,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuditLog } from "@/hooks/useAuditLog";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { toast } from "sonner";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet } from "lucide-react";
+import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
@@ -54,24 +56,34 @@ const EquipeTecnicaPage = () => {
   const [relDataFim, setRelDataFim] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [form, setForm] = useState({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "" });
   const [myProfileId, setMyProfileId] = useState("");
+  const [userRoles, setUserRoles] = useState<string[]>([]);
+  const { log: auditLog } = useAuditLog();
+
+  // Delete state
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [deleteJustificativa, setDeleteJustificativa] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }] = await Promise.all([
+    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }, { data: roles }] = await Promise.all([
       supabase.from("atendimentos").select("*").order("data_atendimento", { ascending: false }),
       supabase.from("participantes").select("id, nome_completo, status, data_nascimento, bairro_id, periodo, laudo, categoria_vulnerabilidade").order("nome_completo"),
       supabase.from("profiles").select("id, nome, cargo, user_id"),
       supabase.from("presenca").select("participante_id, data, presente").gte("data", format(subDays(new Date(), 90), "yyyy-MM-dd")),
       supabase.from("turmas").select("id, nome, dias_semana").eq("ativa", true),
       supabase.from("turma_participantes").select("turma_id"),
+      supabase.from("user_roles").select("role"),
     ]);
     setAtendimentos(atd || []);
     setParticipantes(part || []);
     setProfiles(prof || []);
     setPresenca(pres || []);
     setTurmas(turm || []);
+    setUserRoles((roles || []).map((r: any) => r.role));
 
     const tpMap: Record<string, number> = {};
     (tp || []).forEach((row: any) => {
@@ -84,6 +96,32 @@ const EquipeTecnicaPage = () => {
       if (me) setMyProfileId(me.id);
     }
     setLoading(false);
+  };
+
+  const isCoordenacao = userRoles.includes("coordenacao");
+
+  const handleDeleteAtendimento = async () => {
+    if (!deleteTarget) return;
+    if (!isCoordenacao && !deleteJustificativa.trim()) {
+      toast.error("Justificativa obrigatória para exclusão");
+      return;
+    }
+    setDeleteLoading(true);
+    await auditLog({
+      acao: "exclusao_atendimento",
+      tabela: "atendimentos",
+      registro_id: deleteTarget.id,
+      detalhes: `${partName(deleteTarget.participante_id)} — ${tipoLabel(deleteTarget.tipo)} — ${deleteTarget.data_atendimento}`,
+      justificativa: isCoordenacao ? (deleteJustificativa.trim() || "Exclusão pela coordenação") : deleteJustificativa.trim(),
+    });
+    const { error } = await supabase.from("atendimentos").delete().eq("id", deleteTarget.id);
+    setDeleteLoading(false);
+    if (error) { toast.error("Erro ao excluir: " + error.message); return; }
+    toast.success("Atendimento excluído com registro de auditoria");
+    setDeleteTarget(null);
+    setDeleteJustificativa("");
+    setDeleteDialogOpen(false);
+    loadAll();
   };
 
   const handleCreate = async () => {
@@ -198,7 +236,10 @@ const EquipeTecnicaPage = () => {
       const cell = { border: { top: border, bottom: border, left: border, right: border } };
       const wb = XLSX.utils.book_new();
       const rows: any[][] = [
+        ["Sociedade Civil Nossa Senhora Aparecida"],
+        ["Centro de Atenção Integral ao Adolescente - Medianeira"],
         ["RELATÓRIO DE ATIVIDADES DA EQUIPE TÉCNICA"],
+        [],
         ["Período: " + periodoLabel],
         ["Gerado em: " + new Date().toLocaleString("pt-BR")],
         [],
@@ -218,11 +259,10 @@ const EquipeTecnicaPage = () => {
       ws["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 28 }, { wch: 20 }, { wch: 40 }, { wch: 30 }];
       // Style header row
       for (let c = 0; c < 6; c++) {
-        const addr = XLSX.utils.encode_cell({ r: 4, c });
+        const addr = XLSX.utils.encode_cell({ r: 7, c });
         if (ws[addr]) ws[addr].s = hdr;
       }
-      // Style data cells
-      for (let r = 5; r < rows.length; r++) {
+      for (let r = 8; r < rows.length; r++) {
         for (let c = 0; c < 6; c++) {
           const addr = XLSX.utils.encode_cell({ r, c });
           if (ws[addr]) ws[addr].s = cell;
@@ -485,29 +525,35 @@ const EquipeTecnicaPage = () => {
           <div className="border rounded-lg overflow-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">Data</TableHead>
-                  <TableHead className="text-xs">Participante</TableHead>
-                  <TableHead className="text-xs">Tipo</TableHead>
-                  <TableHead className="text-xs">Profissional</TableHead>
-                  <TableHead className="text-xs">Resumo</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAtd.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum atendimento registrado</TableCell></TableRow>
-                ) : filteredAtd.map(a => (
-                  <TableRow key={a.id}>
-                    <TableCell className="text-xs">{a.data_atendimento}</TableCell>
-                    <TableCell className="text-xs font-medium">
-                      <Link to={`/participantes/${a.participante_id}`} className="text-primary hover:underline">{partName(a.participante_id)}</Link>
-                    </TableCell>
-                    <TableCell><Badge variant="secondary" className="text-[10px]">{tipoLabel(a.tipo)}</Badge></TableCell>
-                    <TableCell className="text-xs">{profName(a.profissional_id)}</TableCell>
-                    <TableCell className="text-xs max-w-[200px] truncate">{a.descricao}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
+                 <TableRow>
+                   <TableHead className="text-xs">Data</TableHead>
+                   <TableHead className="text-xs">Participante</TableHead>
+                   <TableHead className="text-xs">Tipo</TableHead>
+                   <TableHead className="text-xs">Profissional</TableHead>
+                   <TableHead className="text-xs">Resumo</TableHead>
+                   <TableHead className="text-xs w-10"></TableHead>
+                 </TableRow>
+               </TableHeader>
+               <TableBody>
+                 {filteredAtd.length === 0 ? (
+                   <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum atendimento registrado</TableCell></TableRow>
+                 ) : filteredAtd.map(a => (
+                   <TableRow key={a.id}>
+                     <TableCell className="text-xs">{a.data_atendimento}</TableCell>
+                     <TableCell className="text-xs font-medium">
+                       <Link to={`/participantes/${a.participante_id}`} className="text-primary hover:underline">{partName(a.participante_id)}</Link>
+                     </TableCell>
+                     <TableCell><Badge variant="secondary" className="text-[10px]">{tipoLabel(a.tipo)}</Badge></TableCell>
+                     <TableCell className="text-xs">{profName(a.profissional_id)}</TableCell>
+                     <TableCell className="text-xs max-w-[200px] truncate">{a.descricao}</TableCell>
+                     <TableCell>
+                       <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => { setDeleteTarget(a); setDeleteDialogOpen(true); }}>
+                         <Trash2 className="h-3.5 w-3.5" />
+                       </Button>
+                     </TableCell>
+                   </TableRow>
+                 ))}
+               </TableBody>
             </Table>
           </div>
         </TabsContent>
@@ -610,6 +656,36 @@ const EquipeTecnicaPage = () => {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Delete Atendimento Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Atendimento</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget && `${partName(deleteTarget.participante_id)} — ${tipoLabel(deleteTarget.tipo)} — ${deleteTarget.data_atendimento}`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {!isCoordenacao && (
+            <div className="space-y-2">
+              <Label className="text-xs">Justificativa (obrigatória)</Label>
+              <Textarea value={deleteJustificativa} onChange={e => setDeleteJustificativa(e.target.value)} placeholder="Motivo da exclusão..." className="min-h-[80px]" />
+            </div>
+          )}
+          {isCoordenacao && (
+            <div className="space-y-2">
+              <Label className="text-xs">Justificativa (opcional)</Label>
+              <Textarea value={deleteJustificativa} onChange={e => setDeleteJustificativa(e.target.value)} placeholder="Motivo da exclusão (opcional)..." className="min-h-[60px]" />
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setDeleteTarget(null); setDeleteJustificativa(""); }}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAtendimento} disabled={deleteLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteLoading ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

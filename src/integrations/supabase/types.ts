@@ -104,14 +104,23 @@ export type Database = {
       bairros: {
         Row: {
           id: string
+          meta_criancas_manha: number | null
+          meta_criancas_tarde: number | null
+          meta_idosos: number | null
           nome: string
         }
         Insert: {
           id?: string
+          meta_criancas_manha?: number | null
+          meta_criancas_tarde?: number | null
+          meta_idosos?: number | null
           nome: string
         }
         Update: {
           id?: string
+          meta_criancas_manha?: number | null
+          meta_criancas_tarde?: number | null
+          meta_idosos?: number | null
           nome?: string
         }
         Relationships: []
@@ -174,6 +183,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      configuracoes_gerais: {
+        Row: {
+          chave: string
+          created_at: string
+          id: string
+          updated_at: string
+          valor: string | null
+        }
+        Insert: {
+          chave: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          valor?: string | null
+        }
+        Update: {
+          chave?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          valor?: string | null
+        }
+        Relationships: []
       }
       conquistas: {
         Row: {
