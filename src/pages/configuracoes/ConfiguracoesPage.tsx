@@ -1,13 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Save, Building2, MapPin, Users, FileText, Shield, Database, Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import {
+  Save, Building2, MapPin, Users, FileText, Shield, Database, Loader2,
+  Bus, UserCog, Download, Clock, ScrollText, Plus, Trash2, Check, X,
+  FileCode2, History
+} from "lucide-react";
+import { useBackupExport } from "@/hooks/useBackupExport";
+import TemplateTagMapper from "@/components/TemplateTagMapper";
+import { useAuth } from "@/contexts/AuthContext";
 
 const CONFIG_KEYS = [
   { key: "nome_entidade", label: "Nome da Entidade", default: "Sociedade Civil Nossa Senhora Aparecida" },
@@ -21,25 +32,89 @@ const CONFIG_KEYS = [
   { key: "presidente_cpf", label: "CPF do Presidente", default: "801.780.489-09" },
 ];
 
+const ROLE_LABELS: Record<string, string> = {
+  coordenacao: "Coordenação",
+  educador: "Educador",
+  tecnico: "Equipe Técnica",
+  motorista: "Motorista",
+  cozinheiro: "Cozinheiro",
+  visitante: "Visitante",
+  marketing: "Marketing",
+};
+
+const ROLE_COLORS: Record<string, string> = {
+  coordenacao: "bg-primary/10 text-primary border-primary/20",
+  educador: "bg-blue-500/10 text-blue-700 border-blue-500/20",
+  tecnico: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
+  motorista: "bg-amber-500/10 text-amber-700 border-amber-500/20",
+  cozinheiro: "bg-orange-500/10 text-orange-700 border-orange-500/20",
+  visitante: "bg-muted text-muted-foreground border-border",
+  marketing: "bg-pink-500/10 text-pink-700 border-pink-500/20",
+};
+
+const BACKUP_CATEGORIES = [
+  { key: "Participantes", label: "Participantes" },
+  { key: "Turmas", label: "Turmas" },
+  { key: "Presenca", label: "Presença" },
+  { key: "Relatorios", label: "Relatórios" },
+  { key: "Planejamentos", label: "Planejamentos" },
+  { key: "Profissionais", label: "Profissionais" },
+];
+
 export default function ConfiguracoesPage() {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState("instituicao");
   const [configs, setConfigs] = useState<Record<string, string>>({});
   const [bairros, setBairros] = useState<any[]>([]);
+  const [pontosTransporte, setPontosTransporte] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [userRoles, setUserRoles] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Backup state
+  const { doBackup, loading: backupLoading } = useBackupExport();
+  const [backupCategories, setBackupCategories] = useState<string[]>(BACKUP_CATEGORIES.map(c => c.key));
+  const [backupDateFrom, setBackupDateFrom] = useState("");
+  const [backupDateTo, setBackupDateTo] = useState("");
+
+  // Template tag mapper
+  const [tagMapperOpen, setTagMapperOpen] = useState(false);
+  const [tagMapperKey, setTagMapperKey] = useState("");
+
+  // New ponto transporte
+  const [newPontoNome, setNewPontoNome] = useState("");
+  const [newPontoBairro, setNewPontoBairro] = useState("");
 
   useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: cfgData }, { data: bData }] = await Promise.all([
+    const [{ data: cfgData }, { data: bData }, { data: ptData }, { data: profData }, { data: rolesData }, { data: logData }] = await Promise.all([
       supabase.from("configuracoes_gerais").select("*"),
       supabase.from("bairros").select("*").order("nome"),
+      supabase.from("pontos_transporte").select("*, bairros(nome)").order("nome"),
+      supabase.from("profiles").select("id, nome, cargo, ativo, user_id, email, telefone").order("nome"),
+      supabase.from("user_roles").select("*"),
+      supabase.from("audit_log").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
+
     const map: Record<string, string> = {};
     CONFIG_KEYS.forEach(k => { map[k.key] = k.default; });
     (cfgData || []).forEach((c: any) => { map[c.chave] = c.valor || ""; });
     setConfigs(map);
     setBairros(bData || []);
+    setPontosTransporte(ptData || []);
+    setProfiles(profData || []);
+    setUserRoles(rolesData || []);
+    setAuditLogs(logData || []);
+
+    // Load templates from storage
+    const { data: tplFiles } = await supabase.storage.from("templates").list();
+    setTemplates((tplFiles || []).filter(f => f.name.endsWith(".docx")).map(f => f.name));
+
     setLoading(false);
   };
 
@@ -64,6 +139,46 @@ export default function ConfiguracoesPage() {
     toast.success("Meta atualizada");
   };
 
+  const togglePontoAtivo = async (id: string, ativo: boolean) => {
+    const { error } = await supabase.from("pontos_transporte").update({ ativo } as any).eq("id", id);
+    if (error) { toast.error("Erro: " + error.message); return; }
+    setPontosTransporte(prev => prev.map(p => p.id === id ? { ...p, ativo } : p));
+    toast.success(ativo ? "Ponto ativado" : "Ponto desativado");
+  };
+
+  const addPontoTransporte = async () => {
+    if (!newPontoNome.trim()) { toast.error("Nome é obrigatório"); return; }
+    const { error } = await supabase.from("pontos_transporte").insert({
+      nome: newPontoNome.trim(),
+      bairro_id: newPontoBairro || null,
+    } as any);
+    if (error) { toast.error("Erro: " + error.message); return; }
+    setNewPontoNome("");
+    setNewPontoBairro("");
+    toast.success("Ponto de transporte adicionado");
+    loadAll();
+  };
+
+  const deletePonto = async (id: string) => {
+    const { error } = await supabase.from("pontos_transporte").delete().eq("id", id);
+    if (error) { toast.error("Erro: " + error.message); return; }
+    setPontosTransporte(prev => prev.filter(p => p.id !== id));
+    toast.success("Ponto removido");
+  };
+
+  // Profiles with roles merged
+  const profilesWithRoles = useMemo(() => {
+    return profiles.map(p => {
+      const roles = userRoles.filter((r: any) => r.user_id === p.user_id).map((r: any) => r.role);
+      return { ...p, roles };
+    });
+  }, [profiles, userRoles]);
+
+  const handleBackup = () => {
+    if (backupCategories.length === 0) { toast.error("Selecione ao menos uma categoria"); return; }
+    doBackup(backupCategories, backupDateFrom || undefined, backupDateTo || undefined);
+  };
+
   if (loading) return <div className="flex justify-center py-12"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
 
   return (
@@ -73,18 +188,21 @@ export default function ConfiguracoesPage() {
         <p className="text-sm text-muted-foreground">Configurações institucionais e parâmetros do sistema</p>
       </div>
 
-      <Tabs defaultValue="instituicao" className="space-y-4">
-        <TabsList className="grid grid-cols-4 w-full max-w-lg">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
           <TabsTrigger value="instituicao"><Building2 className="h-4 w-4 mr-1" />Instituição</TabsTrigger>
-          <TabsTrigger value="bairros"><MapPin className="h-4 w-4 mr-1" />Bairros/Metas</TabsTrigger>
+          <TabsTrigger value="bairros"><MapPin className="h-4 w-4 mr-1" />Bairros</TabsTrigger>
+          <TabsTrigger value="transporte"><Bus className="h-4 w-4 mr-1" />Transporte</TabsTrigger>
           <TabsTrigger value="equipe"><Users className="h-4 w-4 mr-1" />Equipe</TabsTrigger>
           <TabsTrigger value="sistema"><Shield className="h-4 w-4 mr-1" />Sistema</TabsTrigger>
         </TabsList>
 
+        {/* INSTITUIÇÃO */}
         <TabsContent value="instituicao">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Dados Institucionais</CardTitle>
+              <CardDescription>Informações da entidade usadas em documentos e relatórios</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
@@ -107,11 +225,12 @@ export default function ConfiguracoesPage() {
           </Card>
         </TabsContent>
 
+        {/* BAIRROS E METAS */}
         <TabsContent value="bairros">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Bairros e Metas SCFV</CardTitle>
-              <p className="text-xs text-muted-foreground">Defina as metas de atendimento por bairro</p>
+              <CardDescription>Defina as metas de atendimento por bairro para acompanhamento no dashboard</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="border rounded-lg overflow-auto">
@@ -149,38 +268,269 @@ export default function ConfiguracoesPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="equipe">
+        {/* TRANSPORTE */}
+        <TabsContent value="transporte">
           <Card>
-            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Users className="h-5 w-5" />Perfis e Cargos</CardTitle></CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground py-8 text-center">Em breve: gerenciamento de cargos e permissões dos profissionais.</p>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><Bus className="h-5 w-5" />Pontos de Transporte</CardTitle>
+              <CardDescription>Gerencie os pontos de embarque e desembarque dos participantes</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Add new */}
+              <div className="flex gap-2 items-end flex-wrap">
+                <div className="flex-1 min-w-[200px]">
+                  <Label className="text-xs">Nome do Ponto</Label>
+                  <Input value={newPontoNome} onChange={e => setNewPontoNome(e.target.value)} placeholder="Ex: Praça Central" className="mt-1" />
+                </div>
+                <div className="w-[200px]">
+                  <Label className="text-xs">Bairro</Label>
+                  <Select value={newPontoBairro} onValueChange={setNewPontoBairro}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                    <SelectContent>
+                      {bairros.map(b => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={addPontoTransporte} size="sm" className="gap-1"><Plus className="h-4 w-4" />Adicionar</Button>
+              </div>
+
+              <div className="border rounded-lg overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Nome</TableHead>
+                      <TableHead className="text-xs">Bairro</TableHead>
+                      <TableHead className="text-xs text-center">Horário Manhã</TableHead>
+                      <TableHead className="text-xs text-center">Horário Tarde</TableHead>
+                      <TableHead className="text-xs text-center">Ativo</TableHead>
+                      <TableHead className="text-xs text-center w-[60px]">Ação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pontosTransporte.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground text-sm py-8">Nenhum ponto cadastrado</TableCell></TableRow>
+                    ) : pontosTransporte.map(p => (
+                      <TableRow key={p.id} className={!p.ativo ? "opacity-50" : ""}>
+                        <TableCell className="text-sm font-medium">{p.nome}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{p.bairros?.nome || "—"}</TableCell>
+                        <TableCell className="text-sm text-center">{p.horario_manha || "—"}</TableCell>
+                        <TableCell className="text-sm text-center">{p.horario_tarde || "—"}</TableCell>
+                        <TableCell className="text-center">
+                          <Switch checked={p.ativo !== false} onCheckedChange={v => togglePontoAtivo(p.id, v)} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deletePonto(p.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
+        {/* EQUIPE */}
+        <TabsContent value="equipe">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><UserCog className="h-5 w-5" />Equipe e Funções</CardTitle>
+              <CardDescription>Visão geral dos profissionais cadastrados e seus perfis de acesso</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Nome</TableHead>
+                      <TableHead className="text-xs">Cargo</TableHead>
+                      <TableHead className="text-xs">Funções</TableHead>
+                      <TableHead className="text-xs">E-mail</TableHead>
+                      <TableHead className="text-xs text-center">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {profilesWithRoles.map(p => (
+                      <TableRow key={p.id}>
+                        <TableCell className="text-sm font-medium">{p.nome}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{p.cargo || "—"}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {p.roles.length === 0 ? (
+                              <span className="text-xs text-muted-foreground">Sem função</span>
+                            ) : p.roles.map((r: string) => (
+                              <Badge key={r} variant="outline" className={`text-[10px] ${ROLE_COLORS[r] || ""}`}>
+                                {ROLE_LABELS[r] || r}
+                              </Badge>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{p.email || "—"}</TableCell>
+                        <TableCell className="text-center">
+                          {p.ativo ? (
+                            <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/20">Ativo</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/20">Inativo</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                Para cadastrar novos profissionais ou alterar funções, use a página de <strong>Banco de Dados</strong> → Profissionais.
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* SISTEMA */}
         <TabsContent value="sistema">
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid gap-4">
+            {/* Templates DOCX */}
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><FileText className="h-5 w-5" />Templates DOCX</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2"><FileCode2 className="h-5 w-5" />Templates DOCX</CardTitle>
+                <CardDescription>Gerencie os templates de documentos e seus mapeamentos de tags</CardDescription>
+              </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground py-4 text-center">Em breve: upload e gestão de templates de documentos.</p>
+                {templates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">Nenhum template encontrado no storage.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {templates.map(tpl => (
+                      <div key={tpl} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                        <div className="flex items-center gap-3">
+                          <FileText className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">{tpl}</p>
+                            <p className="text-xs text-muted-foreground">Template de {tpl.replace(".docx", "")}</p>
+                          </div>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => { setTagMapperKey(tpl); setTagMapperOpen(true); }}>
+                          <ScrollText className="h-4 w-4 mr-1" /> Mapear Tags
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
+
+            {/* Segurança e Auditoria */}
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Shield className="h-5 w-5" />Segurança</CardTitle></CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground py-4 text-center">Em breve: timeout de sessão e configurações de auditoria.</p>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2"><Shield className="h-5 w-5" />Segurança e Auditoria</CardTitle>
+                <CardDescription>Configurações de segurança e registro de atividades</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="p-4 border rounded-lg space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-sm font-medium">Timeout de Sessão</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Sessão encerrada automaticamente após 30 minutos de inatividade.</p>
+                    <Badge variant="outline" className="text-xs">30 min</Badge>
+                  </div>
+                  <div className="p-4 border rounded-lg space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-sm font-medium">RLS (Row Level Security)</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Todas as tabelas possuem políticas de segurança ativas por perfil de acesso.</p>
+                    <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-700 border-emerald-500/20">Ativo</Badge>
+                  </div>
+                </div>
+
+                {/* Audit log preview */}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <History className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-medium">Log de Auditoria (últimas 50 ações)</p>
+                  </div>
+                  {auditLogs.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">Nenhum registro de auditoria.</p>
+                  ) : (
+                    <div className="border rounded-lg overflow-auto max-h-[300px]">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs">Data</TableHead>
+                            <TableHead className="text-xs">Usuário</TableHead>
+                            <TableHead className="text-xs">Ação</TableHead>
+                            <TableHead className="text-xs">Tabela</TableHead>
+                            <TableHead className="text-xs">Detalhes</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {auditLogs.map((log: any) => (
+                            <TableRow key={log.id}>
+                              <TableCell className="text-xs whitespace-nowrap">
+                                {new Date(log.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                              </TableCell>
+                              <TableCell className="text-xs">{log.user_nome || "—"}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-[10px]">{log.acao}</Badge>
+                              </TableCell>
+                              <TableCell className="text-xs">{log.tabela}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{log.detalhes || log.justificativa || "—"}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
+
+            {/* Backup */}
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Database className="h-5 w-5" />Backup</CardTitle></CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground py-4 text-center">Em breve: exportação completa do banco de dados.</p>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2"><Database className="h-5 w-5" />Backup e Exportação</CardTitle>
+                <CardDescription>Exporte os dados do sistema em formato XLSX compactado em ZIP</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="md:col-span-2">
+                    <Label className="text-xs mb-2 block">Categorias para exportar</Label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {BACKUP_CATEGORIES.map(cat => (
+                        <label key={cat.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={backupCategories.includes(cat.key)}
+                            onCheckedChange={checked => {
+                              if (checked) setBackupCategories(prev => [...prev, cat.key]);
+                              else setBackupCategories(prev => prev.filter(c => c !== cat.key));
+                            }}
+                          />
+                          {cat.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Filtro de período (opcional)</Label>
+                    <Input type="date" value={backupDateFrom} onChange={e => setBackupDateFrom(e.target.value)} placeholder="De" />
+                    <Input type="date" value={backupDateTo} onChange={e => setBackupDateTo(e.target.value)} placeholder="Até" />
+                  </div>
+                </div>
+                <Button onClick={handleBackup} disabled={backupLoading} className="gap-2">
+                  {backupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  {backupLoading ? "Exportando..." : "Gerar Backup"}
+                </Button>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Template Tag Mapper Dialog */}
+      <TemplateTagMapper templateKey={tagMapperKey} open={tagMapperOpen} onOpenChange={setTagMapperOpen} />
     </div>
   );
 }
