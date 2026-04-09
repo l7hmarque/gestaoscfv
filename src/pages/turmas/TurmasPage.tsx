@@ -61,14 +61,9 @@ const TurmasPage = () => {
     if (!deleteJustificativa.trim()) { toast.error("Justificativa é obrigatória"); return; }
     setDeleting(true);
 
-    // Clean up related data first
-    await Promise.all([
-      supabase.from("turma_participantes").delete().eq("turma_id", deleteTarget.id),
-      supabase.from("presenca").delete().eq("turma_id", deleteTarget.id),
-      supabase.from("relatorio_turmas").delete().eq("turma_id", deleteTarget.id),
-      supabase.from("planejamento_turmas").delete().eq("turma_id", deleteTarget.id),
-      supabase.from("chamadas_assinadas").delete().eq("turma_id", deleteTarget.id),
-    ]);
+    // Remove only participant links (turma_participantes) to allow deletion
+    // Preserve presenca, relatorios, planejamentos and chamadas for historical records
+    await supabase.from("turma_participantes").delete().eq("turma_id", deleteTarget.id);
 
     const { error } = await supabase.from("turmas").delete().eq("id", deleteTarget.id);
     if (error) { toast.error("Erro ao excluir: " + error.message); setDeleting(false); return; }
