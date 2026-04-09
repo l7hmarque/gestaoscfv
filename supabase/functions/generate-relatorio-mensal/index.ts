@@ -55,6 +55,24 @@ function applyBorders(ws: any) {
   }
 }
 
+function autoFitCols(ws: any) {
+  const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+  const existing = ws["!cols"] || [];
+  const widths: number[] = [];
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    let best = existing[c]?.wch ?? 4;
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr];
+      if (!cell || cell.v == null) continue;
+      const len = String(cell.v).split("\n").reduce((mx: number, l: string) => Math.max(mx, l.length), 0);
+      if (len + 2 > best) best = len + 2;
+    }
+    widths.push(Math.min(best, 60));
+  }
+  ws["!cols"] = widths.map((w: number) => ({ wch: w }));
+}
+
 function applyHeaderStyle(ws: any, row: number, colCount: number) {
   const border = { style: "thin", color: { rgb: "000000" } };
   for (let c = 0; c < colCount; c++) {
