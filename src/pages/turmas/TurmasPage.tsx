@@ -69,7 +69,7 @@ const TurmasPage = () => {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     if (guardDemo(isDemo)) return;
-    if (!deleteJustificativa.trim()) { toast.error("Justificativa é obrigatória"); return; }
+    if (!isCoordenacao && !deleteJustificativa.trim()) { toast.error("Justificativa é obrigatória"); return; }
     setDeleting(true);
 
     // Remove only participant links (turma_participantes) to allow deletion
