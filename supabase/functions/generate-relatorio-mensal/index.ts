@@ -58,7 +58,6 @@ function applyBorders(ws: any) {
 function autoFitCols(ws: any) {
   const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
   const existing = ws["!cols"] || [];
-  autoFitCols(const existing = ws);
   const widths: number[] = [];
   for (let c = range.s.c; c <= range.e.c; c++) {
     let best = existing[c]?.wch ?? 4;
@@ -72,7 +71,7 @@ function autoFitCols(ws: any) {
     widths.push(Math.min(best, 60));
   }
   ws["!cols"] = widths.map((w: number) => ({ wch: w }));
-  autoFitCols(ws);
+}
 }
 
 function applyHeaderStyle(ws: any, row: number, colCount: number) {
