@@ -336,8 +336,8 @@ export default function ConfiguracoesPage() {
         <TabsContent value="equipe">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2"><UserCog className="h-5 w-5" />Equipe e Funções</CardTitle>
-              <CardDescription>Visão geral dos profissionais cadastrados e seus perfis de acesso</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><UserCog className="h-5 w-5" />Equipe e Gestão de RH</CardTitle>
+              <CardDescription>Gerencie status, carga horária, salário e datas dos profissionais</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="border rounded-lg overflow-auto">
@@ -347,19 +347,21 @@ export default function ConfiguracoesPage() {
                       <TableHead className="text-xs">Nome</TableHead>
                       <TableHead className="text-xs">Cargo</TableHead>
                       <TableHead className="text-xs">Funções</TableHead>
-                      <TableHead className="text-xs">E-mail</TableHead>
-                      <TableHead className="text-xs text-center">Status</TableHead>
+                      <TableHead className="text-xs text-center">Ativo</TableHead>
+                      <TableHead className="text-xs">Carga Horária</TableHead>
+                      <TableHead className="text-xs">Salário</TableHead>
+                      <TableHead className="text-xs">Data Início</TableHead>
+                      <TableHead className="text-xs">Data Desligamento</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {profilesWithRoles.map(p => (
-                      <TableRow key={p.id}>
-                        <TableCell className="text-sm font-medium">{p.nome}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{p.cargo || "—"}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
+                      <TableRow key={p.id} className={!p.ativo ? "opacity-60" : ""}>
+                        <TableCell className="text-sm font-medium">
+                          {p.nome}
+                          <div className="flex flex-wrap gap-1 mt-1">
                             {p.roles.length === 0 ? (
-                              <span className="text-xs text-muted-foreground">Sem função</span>
+                              <span className="text-[10px] text-muted-foreground">Sem função</span>
                             ) : p.roles.map((r: string) => (
                               <Badge key={r} variant="outline" className={`text-[10px] ${ROLE_COLORS[r] || ""}`}>
                                 {ROLE_LABELS[r] || r}
@@ -367,13 +369,79 @@ export default function ConfiguracoesPage() {
                             ))}
                           </div>
                         </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{p.cargo || "—"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{p.email || "—"}</TableCell>
                         <TableCell className="text-center">
-                          {p.ativo ? (
-                            <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/20">Ativo</Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/20">Inativo</Badge>
-                          )}
+                          <Switch
+                            checked={p.ativo !== false}
+                            onCheckedChange={async (v) => {
+                              const { error } = await supabase.from("profiles").update({ ativo: v } as any).eq("id", p.id);
+                              if (error) { toast.error("Erro: " + error.message); return; }
+                              setProfiles(prev => prev.map(x => x.id === p.id ? { ...x, ativo: v } : x));
+                              toast.success(v ? "Profissional ativado" : "Profissional desativado");
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            className="h-7 w-24 text-xs"
+                            defaultValue={p.carga_horaria || ""}
+                            placeholder="Ex: 40h"
+                            onBlur={async (e) => {
+                              const val = e.target.value.trim() || null;
+                              if (val === (p.carga_horaria || null)) return;
+                              const { error } = await supabase.from("profiles").update({ carga_horaria: val } as any).eq("id", p.id);
+                              if (error) { toast.error("Erro: " + error.message); return; }
+                              setProfiles(prev => prev.map(x => x.id === p.id ? { ...x, carga_horaria: val } : x));
+                              toast.success("Carga horária atualizada");
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            className="h-7 w-28 text-xs"
+                            type="number"
+                            step="0.01"
+                            defaultValue={p.salario ?? ""}
+                            placeholder="R$ 0,00"
+                            onBlur={async (e) => {
+                              const val = e.target.value.trim() ? Number(e.target.value) : null;
+                              const { error } = await supabase.from("profiles").update({ salario: val } as any).eq("id", p.id);
+                              if (error) { toast.error("Erro: " + error.message); return; }
+                              setProfiles(prev => prev.map(x => x.id === p.id ? { ...x, salario: val } : x));
+                              toast.success("Salário atualizado");
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            className="h-7 w-36 text-xs"
+                            type="date"
+                            defaultValue={p.data_inicio || ""}
+                            onBlur={async (e) => {
+                              const val = e.target.value || null;
+                              if (val === (p.data_inicio || null)) return;
+                              const { error } = await supabase.from("profiles").update({ data_inicio: val } as any).eq("id", p.id);
+                              if (error) { toast.error("Erro: " + error.message); return; }
+                              setProfiles(prev => prev.map(x => x.id === p.id ? { ...x, data_inicio: val } : x));
+                              toast.success("Data de início atualizada");
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            className="h-7 w-36 text-xs"
+                            type="date"
+                            defaultValue={p.data_desligamento || ""}
+                            onBlur={async (e) => {
+                              const val = e.target.value || null;
+                              if (val === (p.data_desligamento || null)) return;
+                              const { error } = await supabase.from("profiles").update({ data_desligamento: val } as any).eq("id", p.id);
+                              if (error) { toast.error("Erro: " + error.message); return; }
+                              setProfiles(prev => prev.map(x => x.id === p.id ? { ...x, data_desligamento: val } : x));
+                              toast.success("Data de desligamento atualizada");
+                            }}
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
