@@ -239,11 +239,7 @@ export default function ExportarRelatoriosPage() {
       const atendByTipo: Record<string, number> = {};
       filteredAtendimentos.forEach((a: any) => { const t = a.tipo || "atendimento_individual"; atendByTipo[t] = (atendByTipo[t] || 0) + 1; });
 
-      const resumoData = [
-        ["RELATÓRIO MENSAL — SysELO SCFV"],
-        [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
-        [`Data de geração: ${new Date().toLocaleString("pt-BR")}`],
-        [],
+      const resumoData = addInstHeader([
         ["ATENDIDOS NO MÊS", atendidosFiltered.length],
         [],
         ["POR BAIRRO"],
@@ -260,9 +256,10 @@ export default function ExportarRelatoriosPage() {
         [],
         ["ATENDIMENTOS TÉCNICOS NO MÊS", filteredAtendimentos.length],
         ...Object.entries(atendByTipo).map(([t, c]) => [TIPO_ATENDIMENTO_LABELS[t] || t, c]),
-      ];
+      ], `RELATÓRIO MENSAL — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
       const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
       wsResumo["!cols"] = [{ wch: 40 }, { wch: 15 }];
+      applyInstStyle(wsResumo);
       XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
 
       // Atividades
@@ -273,13 +270,13 @@ export default function ExportarRelatoriosPage() {
         atividadesRows.push([proposta, r.nome_atividade || "", r.analise_ia || "", ""]);
       });
       if (!atividadesRows.length) atividadesRows.push(["Nenhuma atividade registrada", "", "", ""]);
-      const wsAtiv = XLSX.utils.aoa_to_sheet([
-        ["ATIVIDADES PROPOSTAS x DESENVOLVIDAS"], [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`], [],
+      const wsAtiv = XLSX.utils.aoa_to_sheet(addInstHeader([
         ["Atividades Propostas", "Atividades Desenvolvidas", "Resultados Alcançados", "Justificativas"],
         ...atividadesRows,
-      ]);
+      ], `ATIVIDADES — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
       wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
-      applyHeaderStyle(wsAtiv, 3, 4);
+      applyInstStyle(wsAtiv);
+      applyHeaderStyle(wsAtiv, 4, 4);
       applyBorders(wsAtiv);
       XLSX.utils.book_append_sheet(wb, wsAtiv, "Atividades");
 
@@ -315,13 +312,13 @@ export default function ExportarRelatoriosPage() {
         totalCriancas += totalBairro; totalMeta += metaBairro;
       });
       metasRows.push(["TOTAL", `${totalCriancas}/${totalMeta}`, `${totalMeta > 0 ? Math.round((totalCriancas/totalMeta)*100) : 0}%`, ""]);
-      const wsMetas = XLSX.utils.aoa_to_sheet([
-        ["METAS — ACOMPANHAMENTO"], [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`], [],
+      const wsMetas = XLSX.utils.aoa_to_sheet(addInstHeader([
         ["Metas Propostas", "Quant.", "Resultados Alcançados", "Justificativa"],
         ...metasRows,
-      ]);
+      ], `METAS — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
       wsMetas["!cols"] = [{ wch: 55 }, { wch: 35 }, { wch: 50 }, { wch: 25 }];
-      applyHeaderStyle(wsMetas, 3, 4);
+      applyInstStyle(wsMetas);
+      applyHeaderStyle(wsMetas, 4, 4);
       applyBorders(wsMetas);
       XLSX.utils.book_append_sheet(wb, wsMetas, "Metas");
 
@@ -329,16 +326,16 @@ export default function ExportarRelatoriosPage() {
       const totalPresReg = activePresencas.length;
       const totalPres = activePresencas.filter((p: any) => p.presente).length;
       const pctGeral = totalPresReg > 0 ? Math.round((totalPres / totalPresReg) * 100) : 0;
-      const wsMonitor = XLSX.utils.aoa_to_sheet([
-        ["MONITORAMENTO E AVALIAÇÃO"], [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`], [],
+      const wsMonitor = XLSX.utils.aoa_to_sheet(addInstHeader([
         ["Objetivo", "Indicador", "Meta Prevista", "Meta Atingida"],
         ["Assegurar espaços de referência para o convívio grupal", "Participação nas atividades", "100%", `${pctGeral}%`],
         ["Desenvolvimento de potencialidades e habilidades", "Participação em atividades culturais e esportivas", "100%", `${pctGeral}%`],
         ["Inserção e permanência no sistema educacional", "Matrícula, rendimento e frequência", "100%", `${pctGeral}%`],
         ["Acesso a benefícios socioassistenciais", "Quantidade de beneficiários", "100%", "100%"],
-      ]);
+      ], `MONITORAMENTO — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
       wsMonitor["!cols"] = [{ wch: 60 }, { wch: 45 }, { wch: 15 }, { wch: 15 }];
-      applyHeaderStyle(wsMonitor, 3, 4);
+      applyInstStyle(wsMonitor);
+      applyHeaderStyle(wsMonitor, 4, 4);
       applyBorders(wsMonitor);
       XLSX.utils.book_append_sheet(wb, wsMonitor, "Monitoramento");
 
