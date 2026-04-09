@@ -183,6 +183,18 @@ const RelatoriosPage = () => {
     }
   };
 
+  const handleExport = async () => {
+    if (!exportDateFrom || !exportDateTo) { toast.error("Preencha ambas as datas"); return; }
+    setExporting(true);
+    try {
+      await exportBulkRelatorios({ dateFrom: exportDateFrom, dateTo: exportDateTo, educadorId: exportEducador });
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao exportar");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -191,6 +203,9 @@ const RelatoriosPage = () => {
           <p className="text-sm text-muted-foreground">Registrar e acompanhar atividades realizadas</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={() => setExportOpen(true)}>
+            <Download className="h-4 w-4" />Exportar
+          </Button>
           {isCoordenacao && (
             <Button variant="outline" size="sm" className="gap-1 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setBulkOpen(true)}>
               <Trash2 className="h-4 w-4" />Excluir em Lote
