@@ -182,13 +182,21 @@ const TurmasPage = () => {
               Esta ação é irreversível. Os vínculos de participantes serão removidos, mas registros de presença, relatórios e planejamentos serão preservados como histórico.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div>
-            <Label className="text-xs font-medium">Justificativa *</Label>
-            <Input value={deleteJustificativa} onChange={e => setDeleteJustificativa(e.target.value)} placeholder="Motivo da exclusão..." className="mt-1 h-9 text-sm" />
-          </div>
+          {!isCoordenacao && (
+            <div>
+              <Label className="text-xs font-medium">Justificativa *</Label>
+              <Input value={deleteJustificativa} onChange={e => setDeleteJustificativa(e.target.value)} placeholder="Motivo da exclusão..." className="mt-1 h-9 text-sm" />
+            </div>
+          )}
+          {isCoordenacao && (
+            <div>
+              <Label className="text-xs font-medium">Justificativa (opcional)</Label>
+              <Input value={deleteJustificativa} onChange={e => setDeleteJustificativa(e.target.value)} placeholder="Motivo da exclusão..." className="mt-1 h-9 text-sm" />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={deleting || !deleteJustificativa.trim()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={handleDelete} disabled={deleting || (!isCoordenacao && !deleteJustificativa.trim())} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {deleting ? "Excluindo..." : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
