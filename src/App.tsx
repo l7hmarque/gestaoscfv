@@ -25,6 +25,7 @@ import PlanejamentoDetalhePage from "./pages/planejamentos/PlanejamentoDetalhePa
 import RelatoriosPage from "./pages/relatorios/RelatoriosPage";
 import RelatorioNovoPage from "./pages/relatorios/RelatorioNovoPage";
 import RelatorioDetalhePage from "./pages/relatorios/RelatorioDetalhePage";
+import ExportarRelatoriosPage from "./pages/relatorios/ExportarRelatoriosPage";
 import BancoDadosPage from "./pages/banco-dados/BancoDadosPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
 import ProfissionalPerfilPage from "./pages/profissional/ProfissionalPerfilPage";
@@ -93,6 +94,7 @@ const App = () => (
                 <Route path="/relatorios" element={<RelatoriosPage />} />
                 <Route path="/relatorios/novo" element={<RelatorioNovoPage />} />
                 <Route path="/relatorios/:id" element={<RelatorioDetalhePage />} />
+                <Route path="/relatorios/exportar" element={<ExportarRelatoriosPage />} />
                 <Route path="/profissional/:id" element={<ProfissionalPerfilPage />} />
                 <Route path="/mural" element={<FeedPage />} />
                 <Route path="/feed" element={<FeedPage />} />
