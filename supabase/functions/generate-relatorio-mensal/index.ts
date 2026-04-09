@@ -72,7 +72,6 @@ function autoFitCols(ws: any) {
   }
   ws["!cols"] = widths.map((w: number) => ({ wch: w }));
 }
-}
 
 function applyHeaderStyle(ws: any, row: number, colCount: number) {
   const border = { style: "thin", color: { rgb: "000000" } };
