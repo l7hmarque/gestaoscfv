@@ -1,46 +1,50 @@
 
+## Plano: Recados na Equipe Técnica + Atalho "Meu Perfil"
 
-## Plano: Corrigir Erros de Exportação DOCX/PDF
+### Resumo
+Adicionar uma seção de cards de recados no dashboard da Equipe Técnica (recados enviados para técnicos/coordenação), com status atualizável. Adicionar um campo `status` na tabela `recados` para rastrear o andamento. Implementar atalho "Meu Perfil" no header e sidebar.
 
-### Problemas identificados
+---
 
-1. **App crash ("encountered an error")**: `Promise.all` na exportação em lote (`useBulkRelatorioExport.ts` L138-142) — se DOCX ou PDF falha, o erro propaga e crashea o app inteiro. O XLSX baixa porque termina antes do crash.
+### 1. Migração: Adicionar campo `status` na tabela `recados`
 
-2. **PDF com "& Presente" / "& Ausente"**: Os caracteres Unicode `☑` e `☐` (L625 de `useDocumentExport.ts`) não são suportados pela fonte `helvetica` do jsPDF. O autoTable tenta renderizar e produz artefatos com `&` (HTML entities).
+Adicionar coluna `status` (text, default `'pendente'`) para controlar o fluxo de trabalho dos recados na equipe técnica. Valores: `pendente`, `em_andamento`, `concluido`.
 
-3. **DOCX com lista feia**: Quando existe template `relatorio.docx` no storage (L378-392), o sistema usa Docxtemplater com a variável `PRESENCA` (L365-370) que gera uma lista simples com `☑/☐`. O fallback (L467-499) tem a tabela bonita com cabeçalho colorido, cores condicionais e assinatura — mas nunca é usado quando o template existe.
+```sql
+ALTER TABLE public.recados ADD COLUMN status text NOT NULL DEFAULT 'pendente';
+```
 
-### Correções
+### 2. Cards de Recados no Dashboard da Equipe Técnica
 
-| Arquivo | Correção |
+No `EquipeTecnicaPage.tsx`, dentro da tab "Dashboard" (após os KPI cards e antes dos gráficos):
+
+- Carregar recados destinados a perfis com role `tecnico` ou `coordenacao` (qualquer destinatário técnico, não só o logado)
+- Exibir como cards com: remetente, participante vinculado (se houver), conteúdo, data, status atual (badge colorido)
+- Select para atualizar status (`pendente` → `em_andamento` → `concluido`)
+- Ao atualizar status, gravar no banco + criar notificação (o remetente já vê via NotificationBell pois o canal realtime de recados dispara refresh)
+
+### 3. Notificação para o remetente
+
+O `NotificationBell` já escuta `postgres_changes` na tabela `recados`. Quando o status é atualizado, o remetente verá o recado atualizado automaticamente na lista de notificações. Ajustar o `NotificationBell` para mostrar o badge de status quando existir, e exibir texto como "Status atualizado: Em andamento" no detail dialog.
+
+### 4. Acompanhamento na página do profissional
+
+No `ProfissionalPerfilPage.tsx`, adicionar uma seção/tab "Recados Enviados" que lista os recados enviados por aquele profissional com o status atual de cada um (badge colorido).
+
+### 5. Atalho "Meu Perfil"
+
+- No `AppLayout.tsx` header: adicionar um botão/avatar "Meu Perfil" que busca o `profile.id` do usuário logado e navega para `/profissional/:id`
+- No `AppSidebar.tsx` footer: adicionar link "Meu Perfil" antes do botão "Sair", com ícone `User`
+
+---
+
+### Arquivos alterados
+
+| Arquivo | Mudança |
 |---|---|
-| `src/hooks/useDocumentExport.ts` | (1) `exportRelatorioPdf`: trocar `☑ Presente`/`☐ Ausente` por `Presente`/`Ausente` como texto simples, mantendo cores de fundo condicionais. (2) `exportRelatorioDocx`: forçar fallback para presença mesmo quando template existe — usar template só para o corpo do relatório, não para a lista de presença. (3) Envolver cada export em try/catch individual. |
-| `src/hooks/useBulkRelatorioExport.ts` | (1) Trocar `Promise.all` por `Promise.allSettled` para que falha de um formato não impeça os outros. (2) Reportar erros individuais via toast. |
-| `src/pages/relatorios/RelatorioDetalhePage.tsx` | Envolver cada botão de export em try/catch individual (já separados, só adicionar catch com toast.error). |
-
-### Detalhes técnicos
-
-**PDF — presença sem Unicode:**
-```typescript
-// Antes (quebra):
-body: presenca.map((p, i) => [i + 1, nome, p.presente ? "☑ Presente" : "☐ Ausente", ...])
-
-// Depois (funciona):
-body: presenca.map((p, i) => [i + 1, nome, p.presente ? "Presente" : "Ausente", ...])
-// Cor de fundo e texto já aplicados via didParseCell
-```
-
-**DOCX — sempre usar tabela bonita para presença:**
-Na `exportRelatorioDocx`, após gerar o corpo do relatório via template, sempre gerar a lista de presença via código (fallback), nunca via loop `{#PRESENCA}` do template.
-
-**Bulk — Promise.allSettled:**
-```typescript
-const results = await Promise.allSettled([
-  generateBulkDocx(...),
-  generateBulkPdf(...),
-  generateBulkXlsx(...),
-]);
-const failed = results.filter(r => r.status === "rejected");
-if (failed.length) toast.error(`${failed.length} formato(s) falharam`);
-```
-
+| Migração SQL | `ALTER TABLE recados ADD COLUMN status text DEFAULT 'pendente'` |
+| `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx` | Carregar recados para técnicos, exibir cards com status, permitir update |
+| `src/components/NotificationBell.tsx` | Mostrar status do recado no detail dialog |
+| `src/pages/profissional/ProfissionalPerfilPage.tsx` | Adicionar tab/seção "Recados Enviados" com status |
+| `src/components/AppLayout.tsx` | Adicionar botão "Meu Perfil" no header |
+| `src/components/AppSidebar.tsx` | Adicionar link "Meu Perfil" no footer |
