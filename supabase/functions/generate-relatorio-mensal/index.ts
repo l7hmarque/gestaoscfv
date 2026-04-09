@@ -55,6 +55,24 @@ function applyBorders(ws: any) {
   }
 }
 
+function autoFitCols(ws: any) {
+  const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+  const existing = ws["!cols"] || [];
+  const widths: number[] = [];
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    let best = existing[c]?.wch ?? 4;
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr];
+      if (!cell || cell.v == null) continue;
+      const len = String(cell.v).split("\n").reduce((mx: number, l: string) => Math.max(mx, l.length), 0);
+      if (len + 2 > best) best = len + 2;
+    }
+    widths.push(Math.min(best, 60));
+  }
+  ws["!cols"] = widths.map((w: number) => ({ wch: w }));
+}
+
 function applyHeaderStyle(ws: any, row: number, colCount: number) {
   const border = { style: "thin", color: { rgb: "000000" } };
   for (let c = 0; c < colCount; c++) {
@@ -171,6 +189,7 @@ function generateMonthSheets(
   const sn1 = truncSheet(`Resumo${suffix}`, usedSheetNames);
   const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
   wsResumo["!cols"] = [{ wch: 40 }, { wch: 15 }];
+  autoFitCols(wsResumo);
   XLSX.utils.book_append_sheet(wb, wsResumo, sn1);
 
   // Sheet: Atividades
@@ -185,6 +204,7 @@ function generateMonthSheets(
   const sn2 = truncSheet(`Ativ${suffix}`, usedSheetNames);
   const wsAtiv = XLSX.utils.aoa_to_sheet(atividadesData);
   wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
+  autoFitCols(wsAtiv);
   applyHeaderStyle(wsAtiv, 3, 4);
   applyBorders(wsAtiv);
   XLSX.utils.book_append_sheet(wb, wsAtiv, sn2);
@@ -238,6 +258,7 @@ function generateMonthSheets(
   const sn3 = truncSheet(`Metas${suffix}`, usedSheetNames);
   const wsMetas = XLSX.utils.aoa_to_sheet(metasData);
   wsMetas["!cols"] = [{ wch: 55 }, { wch: 35 }, { wch: 50 }, { wch: 25 }];
+  autoFitCols(wsMetas);
   applyHeaderStyle(wsMetas, 3, 4);
   applyBorders(wsMetas);
   XLSX.utils.book_append_sheet(wb, wsMetas, sn3);
@@ -261,6 +282,7 @@ function generateMonthSheets(
   const sn4 = truncSheet(`Monitor${suffix}`, usedSheetNames);
   const wsMonitor = XLSX.utils.aoa_to_sheet(monitorData);
   wsMonitor["!cols"] = [{ wch: 60 }, { wch: 45 }, { wch: 15 }, { wch: 15 }];
+  autoFitCols(wsMonitor);
   applyHeaderStyle(wsMonitor, 3, 4);
   applyBorders(wsMonitor);
   XLSX.utils.book_append_sheet(wb, wsMonitor, sn4);
@@ -276,6 +298,7 @@ function generateMonthSheets(
     const sn5 = truncSheet(`Atend${suffix}`, usedSheetNames);
     const wsAtend = XLSX.utils.aoa_to_sheet(atendData);
     wsAtend["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 30 }, { wch: 20 }, { wch: 50 }, { wch: 30 }];
+    autoFitCols(wsAtend);
     applyHeaderStyle(wsAtend, 3, 6);
     applyBorders(wsAtend);
     XLSX.utils.book_append_sheet(wb, wsAtend, sn5);
@@ -327,6 +350,7 @@ function generateMonthSheets(
     const sheetData = [header1, header2, header3, [], colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]];
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
     ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...datas.map(() => ({ wch: 6 }))];
+    autoFitCols(ws);
     applyHeaderStyle(ws, 4, colHeaders.length);
 
     const dataStartRow = 5;
@@ -448,6 +472,7 @@ Deno.serve(async (req: Request) => {
       ];
       const wsC = XLSX.utils.aoa_to_sheet(consolidadoData);
       wsC["!cols"] = [{ wch: 45 }, { wch: 15 }];
+      autoFitCols(wsC);
       const snC = truncSheet("Consolidado", usedSheetNames);
       XLSX.utils.book_append_sheet(wb, wsC, snC);
 

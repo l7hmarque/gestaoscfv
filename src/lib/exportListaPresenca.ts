@@ -180,8 +180,12 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
     }
   }
 
-  // Column widths
-  ws["!cols"] = [{ wch: 4 }, { wch: 32 }, ...datas.map(() => ({ wch: 6 }))];
+  // Column widths — auto-fit name column based on content
+  const maxNameLen = Math.max(20, ...orderedMembers.map(m => {
+    const label = m.desligado ? `${m.nome} (D${m.data_desligamento ? " " + m.data_desligamento : ""})` : m.nome;
+    return label.length;
+  }));
+  ws["!cols"] = [{ wch: 4 }, { wch: Math.min(maxNameLen + 2, 55) }, ...datas.map(() => ({ wch: 6 }))];
 
   // Row heights
   ws["!rows"] = [];

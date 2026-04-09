@@ -25,6 +25,7 @@ import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { sysEloFileName } from "@/lib/fileNaming";
+import { autoFitColumns } from "@/lib/xlsxAutoFit";
 
 const TIPOS_ATENDIMENTO = [
   { value: "visita_domiciliar", label: "Visita Domiciliar" },
@@ -257,6 +258,7 @@ const EquipeTecnicaPage = () => {
       });
       const ws = XLSX.utils.aoa_to_sheet(rows);
       ws["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 28 }, { wch: 20 }, { wch: 40 }, { wch: 30 }];
+      autoFitColumns(ws, { min: 10 });
       // Style header row
       for (let c = 0; c < 6; c++) {
         const addr = XLSX.utils.encode_cell({ r: 7, c });

@@ -16,6 +16,7 @@ import autoTable from "jspdf-autotable";
 import { BAIRROS_SCFV, calcFaixaFromDate, calcAge } from "@/lib/constants";
 import { sysEloFileName } from "@/lib/fileNaming";
 import { format } from "date-fns";
+import { autoFitColumns } from "@/lib/xlsxAutoFit";
 
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -259,6 +260,7 @@ export default function ExportarRelatoriosPage() {
       ], `RELATÓRIO MENSAL — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
       const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
       wsResumo["!cols"] = [{ wch: 40 }, { wch: 15 }];
+      autoFitColumns(wsResumo);
       applyInstStyle(wsResumo);
       XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
 
@@ -275,6 +277,7 @@ export default function ExportarRelatoriosPage() {
         ...atividadesRows,
       ], `ATIVIDADES — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
       wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
+      autoFitColumns(wsAtiv);
       applyInstStyle(wsAtiv);
       applyHeaderStyle(wsAtiv, 4, 4);
       applyBorders(wsAtiv);
@@ -317,6 +320,7 @@ export default function ExportarRelatoriosPage() {
         ...metasRows,
       ], `METAS — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
       wsMetas["!cols"] = [{ wch: 55 }, { wch: 35 }, { wch: 50 }, { wch: 25 }];
+      autoFitColumns(wsMetas);
       applyInstStyle(wsMetas);
       applyHeaderStyle(wsMetas, 4, 4);
       applyBorders(wsMetas);
@@ -334,6 +338,7 @@ export default function ExportarRelatoriosPage() {
         ["Acesso a benefícios socioassistenciais", "Quantidade de beneficiários", "100%", "100%"],
       ], `MONITORAMENTO — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
       wsMonitor["!cols"] = [{ wch: 60 }, { wch: 45 }, { wch: 15 }, { wch: 15 }];
+      autoFitColumns(wsMonitor);
       applyInstStyle(wsMonitor);
       applyHeaderStyle(wsMonitor, 4, 4);
       applyBorders(wsMonitor);
@@ -391,6 +396,8 @@ export default function ExportarRelatoriosPage() {
         ];
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
         ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...datas.map(() => ({ wch: 6 }))];
+        // Auto-fit name column
+        autoFitColumns(ws, { max: 55 });
         applyHeaderStyle(ws, 8, colHeaders.length);
         const dataStartRow = 9;
         tParts.forEach((p: any, pIdx: number) => {
@@ -477,6 +484,7 @@ export default function ExportarRelatoriosPage() {
       ], "PRESTAÇÃO DE CONTAS — " + mesLabel);
       const wsResumoPC = XLSX.utils.aoa_to_sheet(resumoRows);
       wsResumoPC["!cols"] = [{ wch: 35 }, { wch: 20 }];
+      autoFitColumns(wsResumoPC);
       applyInstStyle(wsResumoPC);
       XLSX.utils.book_append_sheet(wb, wsResumoPC, "Resumo");
 
@@ -492,6 +500,7 @@ export default function ExportarRelatoriosPage() {
       });
       const wsD = XLSX.utils.aoa_to_sheet(despRows);
       wsD["!cols"] = [{ wch: 12 }, { wch: 30 }, { wch: 20 }, { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 16 }];
+      autoFitColumns(wsD);
       XLSX.utils.book_append_sheet(wb, wsD, "Despesas");
 
       const catRows: any[] = [["Código", "Descrição", "Previsto", "Gasto", "Estornado", "Saldo"]];
