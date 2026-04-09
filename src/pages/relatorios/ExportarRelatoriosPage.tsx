@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileSpreadsheet, Download, FileText, Loader2, Calendar } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { FileSpreadsheet, Download, FileText, Loader2, Calendar, ClipboardList, Users } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
@@ -15,8 +16,9 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { BAIRROS_SCFV, calcFaixaFromDate, calcAge } from "@/lib/constants";
 import { sysEloFileName } from "@/lib/fileNaming";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
+import { exportBulkRelatorios } from "@/hooks/useBulkRelatorioExport";
 
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -148,9 +150,28 @@ export default function ExportarRelatoriosPage() {
   const [loadingRelMensal, setLoadingRelMensal] = useState(false);
   const [loadingPC, setLoadingPC] = useState(false);
   const [loadingAnual, setLoadingAnual] = useState(false);
+  const [loadingAtividades, setLoadingAtividades] = useState(false);
+  const [loadingAtendimentos, setLoadingAtendimentos] = useState(false);
+
+  // Atividades bulk export state
+  const [ativDateFrom, setAtivDateFrom] = useState(format(startOfMonth(now), "yyyy-MM-dd"));
+  const [ativDateTo, setAtivDateTo] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
+  const [ativEducadorId, setAtivEducadorId] = useState("__all__");
+  const [educadores, setEducadores] = useState<any[]>([]);
+
+  // Atendimentos export state
+  const [atendDateFrom, setAtendDateFrom] = useState(format(startOfMonth(now), "yyyy-MM-dd"));
+  const [atendDateTo, setAtendDateTo] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
 
   const mesRef = `${ano}-${mes}`;
   const mesNum = parseInt(mes);
+
+  // Load educadores on mount
+  useEffect(() => {
+    supabase.from("profiles").select("id, nome, cargo").order("nome").then(({ data }) => {
+      setEducadores(data || []);
+    });
+  }, []);
 
   // ===================== REO =====================
   const exportarREO = async () => {
@@ -579,7 +600,137 @@ export default function ExportarRelatoriosPage() {
     }
   };
 
-  const anyLoading = loadingReo || loadingRelMensal || loadingPC || loadingAnual;
+  // ===================== Atividades em Lote =====================
+  const exportarAtividadesLote = async () => {
+    setLoadingAtividades(true);
+    try {
+      await exportBulkRelatorios({
+        dateFrom: ativDateFrom,
+        dateTo: ativDateTo,
+        educadorId: ativEducadorId === "__all__" ? undefined : ativEducadorId,
+      });
+      toast.success("Relatórios de atividades exportados!");
+    } catch (err: any) {
+      toast.error("Erro: " + (err.message || "Erro desconhecido"));
+    } finally {
+      setLoadingAtividades(false);
+    }
+  };
+
+  // ===================== Atendimentos Técnicos =====================
+  const exportarAtendimentosTecnicos = async () => {
+    setLoadingAtendimentos(true);
+    try {
+      const [{ data: atendimentos }, { data: profilesData }, { data: participantesData }] = await Promise.all([
+        supabase.from("atendimentos").select("*").gte("data_atendimento", atendDateFrom).lte("data_atendimento", atendDateTo).order("data_atendimento"),
+        supabase.from("profiles").select("id, nome, cargo"),
+        supabase.from("participantes").select("id, nome_completo"),
+      ]);
+
+      const atds = atendimentos || [];
+      if (atds.length === 0) { toast.error("Nenhum atendimento no período"); setLoadingAtendimentos(false); return; }
+
+      const profMap = new Map((profilesData || []).map((p: any) => [p.id, p.nome]));
+      const partMap = new Map((participantesData || []).map((p: any) => [p.id, p.nome_completo]));
+      const tipoLabel = (v: string) => TIPO_ATENDIMENTO_LABELS[v] || v;
+      const periodoLabel = `${format(new Date(atendDateFrom + "T12:00:00"), "dd/MM/yyyy")} a ${format(new Date(atendDateTo + "T12:00:00"), "dd/MM/yyyy")}`;
+
+      // XLSX
+      const border = { style: "thin" as const, color: { rgb: "000000" } };
+      const hdr = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1565C0" } }, border: { top: border, bottom: border, left: border, right: border } };
+      const cellS = { border: { top: border, bottom: border, left: border, right: border } };
+      const wb = XLSX.utils.book_new();
+      const rows: any[][] = [
+        ["Sociedade Civil Nossa Senhora Aparecida"],
+        ["Centro de Atenção Integral ao Adolescente - Medianeira"],
+        ["RELATÓRIO DE ATIVIDADES DA EQUIPE TÉCNICA"],
+        [],
+        ["Período: " + periodoLabel],
+        ["Gerado em: " + new Date().toLocaleString("pt-BR")],
+        [],
+        ["Data", "Profissional", "Participante", "Tipo", "Descrição", "Encaminhamento"],
+      ];
+      atds.forEach((a: any) => {
+        rows.push([
+          format(new Date(a.data_atendimento + "T12:00:00"), "dd/MM/yyyy"),
+          profMap.get(a.profissional_id) || "—",
+          partMap.get(a.participante_id) || "—",
+          tipoLabel(a.tipo),
+          a.descricao || "",
+          a.encaminhamento || "",
+        ]);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 28 }, { wch: 20 }, { wch: 40 }, { wch: 30 }];
+      autoFitColumns(ws, { min: 10 });
+      for (let c = 0; c < 6; c++) {
+        const addr = XLSX.utils.encode_cell({ r: 7, c });
+        if (ws[addr]) ws[addr].s = hdr;
+      }
+      for (let r = 8; r < rows.length; r++) {
+        for (let c = 0; c < 6; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c });
+          if (ws[addr]) ws[addr].s = cellS;
+        }
+      }
+      XLSX.utils.book_append_sheet(wb, ws, "Atendimentos");
+
+      // Resumo por tipo
+      const tipoMap: Record<string, number> = {};
+      atds.forEach((a: any) => { tipoMap[tipoLabel(a.tipo)] = (tipoMap[tipoLabel(a.tipo)] || 0) + 1; });
+      const resumoRows: any[][] = [["Tipo", "Quantidade"]];
+      Object.entries(tipoMap).forEach(([tipo, qt]) => resumoRows.push([tipo, qt]));
+      resumoRows.push(["TOTAL", atds.length]);
+      const wsR = XLSX.utils.aoa_to_sheet(resumoRows);
+      wsR["!cols"] = [{ wch: 25 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, wsR, "Resumo");
+      const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      saveAs(new Blob([buf]), sysEloFileName("RelEquipeTecnica", "xlsx"));
+
+      // PDF
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      doc.setFontSize(14);
+      doc.text("RELATÓRIO DE ATIVIDADES DA EQUIPE TÉCNICA", 14, 15);
+      doc.setFontSize(9);
+      doc.text("Período: " + periodoLabel, 14, 22);
+      doc.text("Gerado em: " + new Date().toLocaleString("pt-BR"), 14, 27);
+      autoTable(doc, {
+        startY: 32,
+        head: [["Data", "Profissional", "Participante", "Tipo", "Descrição", "Encaminhamento"]],
+        body: atds.map((a: any) => [
+          format(new Date(a.data_atendimento + "T12:00:00"), "dd/MM/yyyy"),
+          profMap.get(a.profissional_id) || "—",
+          partMap.get(a.participante_id) || "—",
+          tipoLabel(a.tipo),
+          a.descricao || "—",
+          a.encaminhamento || "—",
+        ]),
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        headStyles: { fillColor: [21, 101, 192], fontSize: 7 },
+        alternateRowStyles: { fillColor: [240, 240, 240] },
+        columnStyles: { 4: { cellWidth: 60 }, 5: { cellWidth: 40 } },
+      });
+      const lastY = (doc as any).lastAutoTable?.finalY || 100;
+      doc.setFontSize(11);
+      doc.text("Resumo por Tipo", 14, lastY + 8);
+      autoTable(doc, {
+        startY: lastY + 12,
+        head: [["Tipo", "Quantidade"]],
+        body: [...Object.entries(tipoMap).map(([t, q]) => [t, String(q)]), ["TOTAL", String(atds.length)]],
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [21, 101, 192] },
+      });
+      doc.save(sysEloFileName("RelEquipeTecnica", "pdf"));
+
+      toast.success("Relatório da equipe técnica gerado (XLSX + PDF)!");
+    } catch (err: any) {
+      toast.error("Erro: " + (err.message || "Erro desconhecido"));
+    } finally {
+      setLoadingAtendimentos(false);
+    }
+  };
+
+  const anyLoading = loadingReo || loadingRelMensal || loadingPC || loadingAnual || loadingAtividades || loadingAtendimentos;
 
   return (
     <div className="space-y-6">
@@ -612,10 +763,12 @@ export default function ExportarRelatoriosPage() {
       </Card>
 
       <Tabs defaultValue="reo" className="space-y-4">
-        <TabsList className="grid grid-cols-4 w-full">
+        <TabsList className="grid grid-cols-6 w-full">
           <TabsTrigger value="reo">REO</TabsTrigger>
           <TabsTrigger value="mensal">Rel. Mensal</TabsTrigger>
           <TabsTrigger value="pc">Prest. Contas</TabsTrigger>
+          <TabsTrigger value="atividades">Atividades</TabsTrigger>
+          <TabsTrigger value="atendimentos">Atend. Técnicos</TabsTrigger>
           <TabsTrigger value="anual">Anual</TabsTrigger>
         </TabsList>
 
@@ -679,6 +832,78 @@ export default function ExportarRelatoriosPage() {
               <Button onClick={exportarPrestacaoContas} disabled={anyLoading} className="gap-2">
                 {loadingPC ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 Exportar Prestação de Contas (PDF + XLSX)
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Atividades em Lote */}
+        <TabsContent value="atividades">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ClipboardList className="h-5 w-5" /> Relatórios de Atividades + Listas de Presença
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Exporta todos os relatórios de atividades do período selecionado com listas de presença preenchidas.
+                Gera <strong>DOCX + PDF + XLSX</strong> simultaneamente.
+              </p>
+              <div className="flex flex-wrap gap-3 items-end">
+                <div>
+                  <Label className="text-xs">Data Início</Label>
+                  <Input type="date" value={ativDateFrom} onChange={e => setAtivDateFrom(e.target.value)} className="h-9 text-sm mt-1 w-44" />
+                </div>
+                <div>
+                  <Label className="text-xs">Data Fim</Label>
+                  <Input type="date" value={ativDateTo} onChange={e => setAtivDateTo(e.target.value)} className="h-9 text-sm mt-1 w-44" />
+                </div>
+                <div>
+                  <Label className="text-xs">Educador</Label>
+                  <Select value={ativEducadorId} onValueChange={setAtivEducadorId}>
+                    <SelectTrigger className="w-[200px] mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">Todos</SelectItem>
+                      {educadores.map(e => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button onClick={exportarAtividadesLote} disabled={anyLoading} className="gap-2">
+                {loadingAtividades ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Exportar Atividades (DOCX + PDF + XLSX)
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Atendimentos Técnicos */}
+        <TabsContent value="atendimentos">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-5 w-5" /> Relatório de Atendimentos Técnicos
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Exporta os atendimentos técnicos (Assistente Social / Psicólogo) do período selecionado.
+                Gera <strong>XLSX + PDF</strong> simultaneamente.
+              </p>
+              <div className="flex flex-wrap gap-3 items-end">
+                <div>
+                  <Label className="text-xs">Data Início</Label>
+                  <Input type="date" value={atendDateFrom} onChange={e => setAtendDateFrom(e.target.value)} className="h-9 text-sm mt-1 w-44" />
+                </div>
+                <div>
+                  <Label className="text-xs">Data Fim</Label>
+                  <Input type="date" value={atendDateTo} onChange={e => setAtendDateTo(e.target.value)} className="h-9 text-sm mt-1 w-44" />
+                </div>
+              </div>
+              <Button onClick={exportarAtendimentosTecnicos} disabled={anyLoading} className="gap-2">
+                {loadingAtendimentos ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Exportar Atendimentos (XLSX + PDF)
               </Button>
             </CardContent>
           </Card>
