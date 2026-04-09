@@ -3,6 +3,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { saveAs } from "file-saver";
 import { sysEloFileName } from "@/lib/fileNaming";
+import { autoFitColumns } from "@/lib/xlsxAutoFit";
 
 export { sysEloFileName as exportFileName };
 
@@ -13,6 +14,7 @@ export function exportXLSX(data: Record<string, any>[], headers: { key: string; 
     return obj;
   });
   const ws = XLSX.utils.json_to_sheet(rows);
+  autoFitColumns(ws);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, category);
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
@@ -45,6 +47,7 @@ export function generateXLSXBuffer(data: Record<string, any>[], headers: { key: 
     return obj;
   });
   const ws = XLSX.utils.json_to_sheet(rows);
+  autoFitColumns(ws);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   return new Uint8Array(XLSX.write(wb, { bookType: "xlsx", type: "array" }));
