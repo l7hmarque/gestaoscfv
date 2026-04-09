@@ -18,7 +18,7 @@ import { BAIRROS_SCFV, calcFaixaFromDate, calcAge } from "@/lib/constants";
 import { sysEloFileName } from "@/lib/fileNaming";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
-import { useBulkRelatorioExport } from "@/hooks/useBulkRelatorioExport";
+import { exportBulkRelatorios } from "@/hooks/useBulkRelatorioExport";
 
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -150,9 +150,28 @@ export default function ExportarRelatoriosPage() {
   const [loadingRelMensal, setLoadingRelMensal] = useState(false);
   const [loadingPC, setLoadingPC] = useState(false);
   const [loadingAnual, setLoadingAnual] = useState(false);
+  const [loadingAtividades, setLoadingAtividades] = useState(false);
+  const [loadingAtendimentos, setLoadingAtendimentos] = useState(false);
+
+  // Atividades bulk export state
+  const [ativDateFrom, setAtivDateFrom] = useState(format(startOfMonth(now), "yyyy-MM-dd"));
+  const [ativDateTo, setAtivDateTo] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
+  const [ativEducadorId, setAtivEducadorId] = useState("__all__");
+  const [educadores, setEducadores] = useState<any[]>([]);
+
+  // Atendimentos export state
+  const [atendDateFrom, setAtendDateFrom] = useState(format(startOfMonth(now), "yyyy-MM-dd"));
+  const [atendDateTo, setAtendDateTo] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
 
   const mesRef = `${ano}-${mes}`;
   const mesNum = parseInt(mes);
+
+  // Load educadores on mount
+  useEffect(() => {
+    supabase.from("profiles").select("id, nome, cargo").order("nome").then(({ data }) => {
+      setEducadores(data || []);
+    });
+  }, []);
 
   // ===================== REO =====================
   const exportarREO = async () => {
