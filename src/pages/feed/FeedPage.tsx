@@ -53,13 +53,19 @@ const FeedPage = () => {
   const isDemo = useIsDemo();
 
   const fetchAll = async () => {
-    const [{ data: p }, { data: f }, { data: r }, { data: c }, { data: m }] = await Promise.all([
+    // First fetch posts to get IDs, then fetch related data only for those posts
+    const [{ data: p }, { data: m }] = await Promise.all([
       supabase.from("feed_posts").select("*").neq("tipo", "conquista").order("created_at", { ascending: false }).limit(100),
-      supabase.from("feed_fotos").select("*"),
-      supabase.from("feed_reacoes").select("*"),
-      supabase.from("feed_comentarios").select("*").order("created_at"),
-      supabase.from("mural_posts").select("*").order("fixado", { ascending: false }).order("created_at", { ascending: false }),
+      supabase.from("mural_posts").select("*").order("fixado", { ascending: false }).order("created_at", { ascending: false }).limit(50),
     ]);
+    const postIds = (p || []).map((x: any) => x.id);
+    const [{ data: f }, { data: r }, { data: c }] = postIds.length > 0
+      ? await Promise.all([
+          supabase.from("feed_fotos").select("*").in("feed_post_id", postIds),
+          supabase.from("feed_reacoes").select("*").in("feed_post_id", postIds),
+          supabase.from("feed_comentarios").select("*").in("feed_post_id", postIds).order("created_at"),
+        ])
+      : [{ data: [] }, { data: [] }, { data: [] }];
     setPosts(p || []);
     setMuralPosts(m || []);
     const fMap: Record<string, any[]> = {};

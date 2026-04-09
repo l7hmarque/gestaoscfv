@@ -63,12 +63,14 @@ const TurmasPage = () => {
 
   const fetchTurmas = async () => {
     setLoading(true);
-    const { data } = await supabase.from("turmas").select("*, profiles(nome), bairros(nome)").order("nome");
+    const [{ data }, { data: tpData }] = await Promise.all([
+      supabase.from("turmas").select("*, profiles(nome), bairros(nome)").order("nome"),
+      supabase.from("turma_participantes").select("turma_id"),
+    ]);
     if (data) {
-      const counts = await Promise.all(data.map((t) =>
-        supabase.from("turma_participantes").select("id", { count: "exact", head: true }).eq("turma_id", t.id)
-      ));
-      setTurmas(data.map((t, i) => ({ ...t, participante_count: counts[i].count || 0 } as TurmaRow)));
+      const countMap: Record<string, number> = {};
+      (tpData || []).forEach((tp: any) => { countMap[tp.turma_id] = (countMap[tp.turma_id] || 0) + 1; });
+      setTurmas(data.map((t) => ({ ...t, participante_count: countMap[t.id] || 0 } as TurmaRow)));
     }
     setLoading(false);
   };
