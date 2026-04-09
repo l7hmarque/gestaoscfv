@@ -14,11 +14,18 @@ import { Switch } from "@/components/ui/switch";
 import {
   Save, Building2, MapPin, Users, FileText, Shield, Database, Loader2,
   Bus, UserCog, Download, Clock, ScrollText, Plus, Trash2, Check, X,
-  FileCode2, History
+  FileCode2, History, Search, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { useBackupExport } from "@/hooks/useBackupExport";
 import TemplateTagMapper from "@/components/TemplateTagMapper";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchAllRows } from "@/lib/fetchAllRows";
+import * as XLSX from "xlsx-js-style";
+import { saveAs } from "file-saver";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { sysEloFileName } from "@/lib/fileNaming";
+import { autoFitColumns } from "@/lib/xlsxAutoFit";
 
 const CONFIG_KEYS = [
   { key: "nome_entidade", label: "Nome da Entidade", default: "Sociedade Civil Nossa Senhora Aparecida" },
@@ -61,6 +68,8 @@ const BACKUP_CATEGORIES = [
   { key: "Profissionais", label: "Profissionais" },
 ];
 
+const AUDIT_PAGE_SIZE = 50;
+
 export default function ConfiguracoesPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("instituicao");
@@ -69,10 +78,19 @@ export default function ConfiguracoesPage() {
   const [pontosTransporte, setPontosTransporte] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [userRoles, setUserRoles] = useState<any[]>([]);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [templates, setTemplates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Audit state
+  const [allAuditLogs, setAllAuditLogs] = useState<any[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditPage, setAuditPage] = useState(0);
+  const [auditFilterUser, setAuditFilterUser] = useState("");
+  const [auditFilterAcao, setAuditFilterAcao] = useState("");
+  const [auditFilterTabela, setAuditFilterTabela] = useState("");
+  const [auditFilterDe, setAuditFilterDe] = useState("");
+  const [auditFilterAte, setAuditFilterAte] = useState("");
 
   // Backup state
   const { doBackup, loading: backupLoading } = useBackupExport();
@@ -92,13 +110,12 @@ export default function ConfiguracoesPage() {
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: cfgData }, { data: bData }, { data: ptData }, { data: profData }, { data: rolesData }, { data: logData }] = await Promise.all([
+    const [{ data: cfgData }, { data: bData }, { data: ptData }, { data: profData }, { data: rolesData }] = await Promise.all([
       supabase.from("configuracoes_gerais").select("*"),
       supabase.from("bairros").select("*").order("nome"),
       supabase.from("pontos_transporte").select("*, bairros(nome)").order("nome"),
       supabase.from("profiles").select("id, nome, cargo, ativo, user_id, email, telefone, carga_horaria, data_inicio, salario, data_desligamento").order("nome"),
       supabase.from("user_roles").select("*"),
-      supabase.from("audit_log").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
 
     const map: Record<string, string> = {};
@@ -109,13 +126,127 @@ export default function ConfiguracoesPage() {
     setPontosTransporte(ptData || []);
     setProfiles(profData || []);
     setUserRoles(rolesData || []);
-    setAuditLogs(logData || []);
 
     // Load templates from storage
     const { data: tplFiles } = await supabase.storage.from("templates").list();
     setTemplates((tplFiles || []).filter(f => f.name.endsWith(".docx")).map(f => f.name));
 
     setLoading(false);
+  };
+
+  // Load audit logs on demand when tab is opened
+  const loadAuditLogs = async () => {
+    if (allAuditLogs.length > 0) return;
+    setAuditLoading(true);
+    try {
+      const rows = await fetchAllRows("audit_log", { order: { column: "created_at", ascending: false } });
+      setAllAuditLogs(rows);
+    } catch (e: any) {
+      toast.error("Erro ao carregar logs: " + e.message);
+    }
+    setAuditLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === "auditoria") loadAuditLogs();
+  }, [activeTab]);
+
+  // Filtered audit logs
+  const filteredAuditLogs = useMemo(() => {
+    return allAuditLogs.filter(log => {
+      if (auditFilterUser && auditFilterUser !== "__all__" && log.user_nome !== auditFilterUser) return false;
+      if (auditFilterAcao && auditFilterAcao !== "__all__" && log.acao !== auditFilterAcao) return false;
+      if (auditFilterTabela && auditFilterTabela !== "__all__" && log.tabela !== auditFilterTabela) return false;
+      if (auditFilterDe) {
+        const logDate = log.created_at.slice(0, 10);
+        if (logDate < auditFilterDe) return false;
+      }
+      if (auditFilterAte) {
+        const logDate = log.created_at.slice(0, 10);
+        if (logDate > auditFilterAte) return false;
+      }
+      return true;
+    });
+  }, [allAuditLogs, auditFilterUser, auditFilterAcao, auditFilterTabela, auditFilterDe, auditFilterAte]);
+
+  const auditPageCount = Math.max(1, Math.ceil(filteredAuditLogs.length / AUDIT_PAGE_SIZE));
+  const auditPageLogs = filteredAuditLogs.slice(auditPage * AUDIT_PAGE_SIZE, (auditPage + 1) * AUDIT_PAGE_SIZE);
+
+  // Unique values for filters
+  const auditUsers = useMemo(() => [...new Set(allAuditLogs.map(l => l.user_nome).filter(Boolean))].sort(), [allAuditLogs]);
+  const auditAcoes = useMemo(() => [...new Set(allAuditLogs.map(l => l.acao).filter(Boolean))].sort(), [allAuditLogs]);
+  const auditTabelas = useMemo(() => [...new Set(allAuditLogs.map(l => l.tabela).filter(Boolean))].sort(), [allAuditLogs]);
+
+  const exportAuditoria = () => {
+    if (filteredAuditLogs.length === 0) { toast.error("Nenhum registro para exportar"); return; }
+
+    const fmtDate = (iso: string) => new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+    // XLSX
+    const border = { style: "thin" as const, color: { rgb: "000000" } };
+    const hdr = { font: { bold: true, color: { rgb: "FFFFFF" }, sz: 10 }, fill: { fgColor: { rgb: "1565C0" } }, border: { top: border, bottom: border, left: border, right: border } };
+    const cell = { border: { top: border, bottom: border, left: border, right: border }, font: { sz: 9 } };
+    const wb = XLSX.utils.book_new();
+    const rows: any[][] = [
+      ["REGISTRO DE AUDITORIA DO SISTEMA"],
+      [`Gerado em: ${new Date().toLocaleString("pt-BR")} — Total: ${filteredAuditLogs.length} registros`],
+      [],
+      ["Data/Hora", "Usuário", "Ação", "Tabela", "Registro ID", "Detalhes", "Justificativa"],
+    ];
+    filteredAuditLogs.forEach(log => {
+      rows.push([
+        fmtDate(log.created_at),
+        log.user_nome || "—",
+        log.acao,
+        log.tabela,
+        log.registro_id || "—",
+        log.detalhes || "—",
+        log.justificativa || "—",
+      ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    for (let c = 0; c < 7; c++) {
+      const addr = XLSX.utils.encode_cell({ r: 3, c });
+      if (ws[addr]) ws[addr].s = hdr;
+    }
+    for (let r = 4; r < rows.length; r++) {
+      for (let c = 0; c < 7; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        if (ws[addr]) ws[addr].s = cell;
+      }
+    }
+    autoFitColumns(ws, { min: 10, max: 50 });
+    XLSX.utils.book_append_sheet(wb, ws, "Auditoria");
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    saveAs(new Blob([buf]), sysEloFileName("Auditoria", "xlsx"));
+
+    // PDF
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    doc.setFontSize(14);
+    doc.text("REGISTRO DE AUDITORIA DO SISTEMA", 14, 15);
+    doc.setFontSize(8);
+    doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")} — Total: ${filteredAuditLogs.length} registros`, 14, 21);
+
+    autoTable(doc, {
+      startY: 26,
+      head: [["Data/Hora", "Usuário", "Ação", "Tabela", "Registro ID", "Detalhes", "Justificativa"]],
+      body: filteredAuditLogs.map(log => [
+        fmtDate(log.created_at),
+        log.user_nome || "—",
+        log.acao,
+        log.tabela,
+        log.registro_id || "—",
+        log.detalhes || "—",
+        log.justificativa || "—",
+      ]),
+      styles: { fontSize: 6, cellPadding: 1.2 },
+      headStyles: { fillColor: [21, 101, 192], fontSize: 6 },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      columnStyles: { 5: { cellWidth: 55 }, 6: { cellWidth: 35 } },
+    });
+    doc.save(sysEloFileName("Auditoria", "pdf"));
+
+    toast.success("Auditoria exportada em XLSX + PDF!");
   };
 
   const saveConfigs = async () => {
@@ -189,11 +320,12 @@ export default function ConfiguracoesPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+        <TabsList className="grid grid-cols-6 w-full max-w-3xl">
           <TabsTrigger value="instituicao"><Building2 className="h-4 w-4 mr-1" />Instituição</TabsTrigger>
           <TabsTrigger value="bairros"><MapPin className="h-4 w-4 mr-1" />Bairros</TabsTrigger>
           <TabsTrigger value="transporte"><Bus className="h-4 w-4 mr-1" />Transporte</TabsTrigger>
           <TabsTrigger value="equipe"><Users className="h-4 w-4 mr-1" />Equipe</TabsTrigger>
+          <TabsTrigger value="auditoria"><History className="h-4 w-4 mr-1" />Auditoria</TabsTrigger>
           <TabsTrigger value="sistema"><Shield className="h-4 w-4 mr-1" />Sistema</TabsTrigger>
         </TabsList>
 
@@ -276,7 +408,6 @@ export default function ConfiguracoesPage() {
               <CardDescription>Gerencie os pontos de embarque e desembarque dos participantes</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Add new */}
               <div className="flex gap-2 items-end flex-wrap">
                 <div className="flex-1 min-w-[200px]">
                   <Label className="text-xs">Nome do Ponto</Label>
@@ -455,6 +586,116 @@ export default function ConfiguracoesPage() {
           </Card>
         </TabsContent>
 
+        {/* AUDITORIA */}
+        <TabsContent value="auditoria">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><History className="h-5 w-5" />Log de Auditoria Completo</CardTitle>
+              <CardDescription>Todos os registros de auditoria do sistema com filtros e exportação para fins de prestação de contas</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Filters */}
+              <div className="flex flex-wrap gap-2 items-end">
+                <div>
+                  <Label className="text-xs">De</Label>
+                  <Input type="date" value={auditFilterDe} onChange={e => { setAuditFilterDe(e.target.value); setAuditPage(0); }} className="h-8 text-xs mt-1 w-36" />
+                </div>
+                <div>
+                  <Label className="text-xs">Até</Label>
+                  <Input type="date" value={auditFilterAte} onChange={e => { setAuditFilterAte(e.target.value); setAuditPage(0); }} className="h-8 text-xs mt-1 w-36" />
+                </div>
+                <div>
+                  <Label className="text-xs">Usuário</Label>
+                  <Select value={auditFilterUser} onValueChange={v => { setAuditFilterUser(v); setAuditPage(0); }}>
+                    <SelectTrigger className="h-8 text-xs mt-1 w-40"><SelectValue placeholder="Todos" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">Todos</SelectItem>
+                      {auditUsers.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Ação</Label>
+                  <Select value={auditFilterAcao} onValueChange={v => { setAuditFilterAcao(v); setAuditPage(0); }}>
+                    <SelectTrigger className="h-8 text-xs mt-1 w-44"><SelectValue placeholder="Todas" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">Todas</SelectItem>
+                      {auditAcoes.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Tabela</Label>
+                  <Select value={auditFilterTabela} onValueChange={v => { setAuditFilterTabela(v); setAuditPage(0); }}>
+                    <SelectTrigger className="h-8 text-xs mt-1 w-40"><SelectValue placeholder="Todas" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">Todas</SelectItem>
+                      {auditTabelas.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button variant="outline" size="sm" className="h-8 gap-1" onClick={exportAuditoria} disabled={filteredAuditLogs.length === 0}>
+                  <Download className="h-3.5 w-3.5" />Exportar Auditoria
+                </Button>
+              </div>
+
+              <Badge variant="secondary" className="text-xs">{filteredAuditLogs.length} registro(s) encontrado(s)</Badge>
+
+              {auditLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+              ) : (
+                <>
+                  <div className="border rounded-lg overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Data/Hora</TableHead>
+                          <TableHead className="text-xs">Usuário</TableHead>
+                          <TableHead className="text-xs">Ação</TableHead>
+                          <TableHead className="text-xs">Tabela</TableHead>
+                          <TableHead className="text-xs">Registro ID</TableHead>
+                          <TableHead className="text-xs">Detalhes</TableHead>
+                          <TableHead className="text-xs">Justificativa</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {auditPageLogs.length === 0 ? (
+                          <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum registro de auditoria</TableCell></TableRow>
+                        ) : auditPageLogs.map((log: any) => (
+                          <TableRow key={log.id}>
+                            <TableCell className="text-xs whitespace-nowrap">
+                              {new Date(log.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                            </TableCell>
+                            <TableCell className="text-xs">{log.user_nome || "—"}</TableCell>
+                            <TableCell><Badge variant="outline" className="text-[10px]">{log.acao}</Badge></TableCell>
+                            <TableCell className="text-xs">{log.tabela}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-[100px] truncate">{log.registro_id || "—"}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{log.detalhes || "—"}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{log.justificativa || "—"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Pagination */}
+                  {auditPageCount > 1 && (
+                    <div className="flex items-center justify-center gap-2">
+                      <Button variant="outline" size="icon" className="h-7 w-7" disabled={auditPage === 0} onClick={() => setAuditPage(p => p - 1)}>
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-xs text-muted-foreground">Página {auditPage + 1} de {auditPageCount}</span>
+                      <Button variant="outline" size="icon" className="h-7 w-7" disabled={auditPage >= auditPageCount - 1} onClick={() => setAuditPage(p => p + 1)}>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* SISTEMA */}
         <TabsContent value="sistema">
           <div className="grid gap-4">
@@ -488,13 +729,13 @@ export default function ConfiguracoesPage() {
               </CardContent>
             </Card>
 
-            {/* Segurança e Auditoria */}
+            {/* Segurança */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2"><Shield className="h-5 w-5" />Segurança e Auditoria</CardTitle>
-                <CardDescription>Configurações de segurança e registro de atividades</CardDescription>
+                <CardTitle className="text-base flex items-center gap-2"><Shield className="h-5 w-5" />Segurança</CardTitle>
+                <CardDescription>Configurações de segurança do sistema</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="p-4 border rounded-lg space-y-2">
                     <div className="flex items-center gap-2">
@@ -512,46 +753,6 @@ export default function ConfiguracoesPage() {
                     <p className="text-xs text-muted-foreground">Todas as tabelas possuem políticas de segurança ativas por perfil de acesso.</p>
                     <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-700 border-emerald-500/20">Ativo</Badge>
                   </div>
-                </div>
-
-                {/* Audit log preview */}
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <History className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm font-medium">Log de Auditoria (últimas 50 ações)</p>
-                  </div>
-                  {auditLogs.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">Nenhum registro de auditoria.</p>
-                  ) : (
-                    <div className="border rounded-lg overflow-auto max-h-[300px]">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="text-xs">Data</TableHead>
-                            <TableHead className="text-xs">Usuário</TableHead>
-                            <TableHead className="text-xs">Ação</TableHead>
-                            <TableHead className="text-xs">Tabela</TableHead>
-                            <TableHead className="text-xs">Detalhes</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {auditLogs.map((log: any) => (
-                            <TableRow key={log.id}>
-                              <TableCell className="text-xs whitespace-nowrap">
-                                {new Date(log.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                              </TableCell>
-                              <TableCell className="text-xs">{log.user_nome || "—"}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="text-[10px]">{log.acao}</Badge>
-                              </TableCell>
-                              <TableCell className="text-xs">{log.tabela}</TableCell>
-                              <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{log.detalhes || log.justificativa || "—"}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
                 </div>
               </CardContent>
             </Card>

@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuditLog } from "@/hooks/useAuditLog";
@@ -19,7 +21,7 @@ import { toast } from "sonner";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2 } from "lucide-react";
+import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2, Phone, MapPin, Search, Eye, UserCheck, UserX } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
@@ -38,6 +40,19 @@ const TIPOS_ATENDIMENTO = [
   { value: "outro", label: "Outro" },
 ];
 
+const TIPOS_CONTATO_BA = [
+  { value: "whatsapp", label: "Contato WhatsApp" },
+  { value: "telefone", label: "Contato Telefônico" },
+  { value: "visita_domiciliar", label: "Visita Domiciliar" },
+  { value: "contato_rede", label: "Contato com a Rede" },
+];
+
+const STATUS_BA = [
+  { value: "em_andamento", label: "Busca Ativa em Andamento" },
+  { value: "vai_retornar", label: "Vai Retornar / Já Retornou" },
+  { value: "encaminhar_desligamento", label: "Encaminhar p/ Desligamento" },
+];
+
 const PIE_COLORS = ["hsl(var(--primary))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))", "#6366f1", "#f59e0b", "#ef4444"];
 
 const EquipeTecnicaPage = () => {
@@ -49,6 +64,7 @@ const EquipeTecnicaPage = () => {
   const [presenca, setPresenca] = useState<any[]>([]);
   const [turmas, setTurmas] = useState<any[]>([]);
   const [turmaParticipantesMap, setTurmaParticipantesMap] = useState<Record<string, string[]>>({});
+  const [bairros, setBairros] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filterTipo, setFilterTipo] = useState("");
@@ -66,18 +82,30 @@ const EquipeTecnicaPage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Busca Ativa state
+  const [buscaAtivaRegistros, setBuscaAtivaRegistros] = useState<any[]>([]);
+  const [baSelectedParticipante, setBaSelectedParticipante] = useState<any | null>(null);
+  const [baSheetOpen, setBaSheetOpen] = useState(false);
+  const [baDialogOpen, setBaDialogOpen] = useState(false);
+  const [baFilterStatus, setBaFilterStatus] = useState("todos");
+  const [baFilterBairro, setBaFilterBairro] = useState("");
+  const [baForm, setBaForm] = useState({ tipo_contato: [] as string[], descricao: "", resultado: "em_andamento" });
+  const [baSaving, setBaSaving] = useState(false);
+
   useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }, { data: roles }] = await Promise.all([
+    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }, { data: roles }, { data: bairrosData }, { data: baRegs }] = await Promise.all([
       supabase.from("atendimentos").select("*").order("data_atendimento", { ascending: false }),
-      supabase.from("participantes").select("id, nome_completo, status, data_nascimento, bairro_id, periodo, laudo, categoria_vulnerabilidade").order("nome_completo"),
+      supabase.from("participantes").select("id, nome_completo, status, data_nascimento, bairro_id, periodo, laudo, categoria_vulnerabilidade, foto_url, responsavel1_nome, responsavel1_whatsapp, responsavel2_nome, responsavel2_whatsapp, endereco_rua, endereco_numero, endereco_bairro, escola, data_desligamento, motivo_desligamento").order("nome_completo"),
       supabase.from("profiles").select("id, nome, cargo, user_id"),
       supabase.from("presenca").select("participante_id, data, presente").gte("data", format(subDays(new Date(), 90), "yyyy-MM-dd")),
       supabase.from("turmas").select("id, nome, dias_semana").eq("ativa", true),
       supabase.from("turma_participantes").select("turma_id, participante_id"),
       supabase.from("user_roles").select("role"),
+      supabase.from("bairros").select("id, nome"),
+      (supabase.from as any)("busca_ativa_registros").select("*").order("created_at", { ascending: false }),
     ]);
     setAtendimentos(atd || []);
     setParticipantes(part || []);
@@ -85,6 +113,8 @@ const EquipeTecnicaPage = () => {
     setPresenca(pres || []);
     setTurmas(turm || []);
     setUserRoles((roles || []).map((r: any) => r.role));
+    setBairros(bairrosData || []);
+    setBuscaAtivaRegistros(baRegs || []);
 
     const tpMap: Record<string, string[]> = {};
     (tp || []).forEach((row: any) => {
@@ -154,28 +184,24 @@ const EquipeTecnicaPage = () => {
   const pendentes = useMemo(() => participantes.filter(p => p.status === "pendente"), [participantes]);
   const comLaudo = useMemo(() => participantesAtivos.filter(p => p.laudo && p.laudo.trim()).length, [participantesAtivos]);
 
-  // Atendimentos por tipo (pie)
   const porTipo = useMemo(() => {
     const map: Record<string, number> = {};
     atdMes.forEach(a => { map[a.tipo] = (map[a.tipo] || 0) + 1; });
     return Object.entries(map).map(([tipo, count]) => ({ name: TIPOS_ATENDIMENTO.find(t => t.value === tipo)?.label || tipo, value: count }));
   }, [atdMes]);
 
-  // Atendimentos por mês (line)
   const porMes = useMemo(() => {
     const map: Record<string, number> = {};
     atendimentos.forEach(a => { const k = a.data_atendimento.slice(0, 7); map[k] = (map[k] || 0) + 1; });
     return Object.entries(map).sort().slice(-6).map(([mes, count]) => ({ mes, count }));
   }, [atendimentos]);
 
-  // Vulnerabilidade
   const porVulnerabilidade = useMemo(() => {
     const map: Record<string, number> = {};
     participantesAtivos.forEach(p => { const cat = p.categoria_vulnerabilidade || "Não informado"; map[cat] = (map[cat] || 0) + 1; });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [participantesAtivos]);
 
-  // Alertas de frequência
   const alertasFrequencia = useMemo(() => {
     const ultimosDias = format(subDays(now, 30), "yyyy-MM-dd");
     const porParticipante: Record<string, { total: number; faltas: number }> = {};
@@ -193,7 +219,6 @@ const EquipeTecnicaPage = () => {
       .filter(Boolean);
   }, [presenca, participantes]);
 
-  // Mapa de calor (dias da semana) — conta participantes, não turmas
   const mapaCalor = useMemo(() => {
     const diasSets: Record<string, Set<string>> = { seg: new Set(), ter: new Set(), qua: new Set(), qui: new Set(), sex: new Set() };
     turmas.forEach(t => {
@@ -212,7 +237,6 @@ const EquipeTecnicaPage = () => {
     }));
   }, [turmas, turmaParticipantesMap]);
 
-  // Filtered atendimentos
   const filteredAtd = useMemo(() => {
     return atendimentos.filter(a => {
       if (filterTipo && filterTipo !== "__all__" && a.tipo !== filterTipo) return false;
@@ -224,6 +248,7 @@ const EquipeTecnicaPage = () => {
   const profName = (id: string) => profiles.find(p => p.id === id)?.nome || "—";
   const partName = (id: string) => participantes.find(p => p.id === id)?.nome_completo || "—";
   const tipoLabel = (v: string) => TIPOS_ATENDIMENTO.find(t => t.value === v)?.label || v;
+  const bairroName = (id: string | null) => bairros.find(b => b.id === id)?.nome || "—";
 
   const relAtendimentos = useMemo(() => {
     return atendimentos.filter(a => a.data_atendimento >= relDataInicio && a.data_atendimento <= relDataFim);
@@ -261,7 +286,6 @@ const EquipeTecnicaPage = () => {
       const ws = XLSX.utils.aoa_to_sheet(rows);
       ws["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 28 }, { wch: 20 }, { wch: 40 }, { wch: 30 }];
       autoFitColumns(ws, { min: 10 });
-      // Style header row
       for (let c = 0; c < 6; c++) {
         const addr = XLSX.utils.encode_cell({ r: 7, c });
         if (ws[addr]) ws[addr].s = hdr;
@@ -274,7 +298,6 @@ const EquipeTecnicaPage = () => {
       }
       XLSX.utils.book_append_sheet(wb, ws, "Atendimentos");
 
-      // Resumo por tipo
       const tipoMap: Record<string, number> = {};
       relAtendimentos.forEach(a => { tipoMap[tipoLabel(a.tipo)] = (tipoMap[tipoLabel(a.tipo)] || 0) + 1; });
       const resumoRows: any[][] = [["Tipo", "Quantidade"]];
@@ -312,7 +335,6 @@ const EquipeTecnicaPage = () => {
         columnStyles: { 4: { cellWidth: 60 }, 5: { cellWidth: 40 } },
       });
 
-      // Resumo
       const lastY = (doc as any).lastAutoTable?.finalY || 100;
       doc.setFontSize(11);
       doc.text("Resumo por Tipo", 14, lastY + 8);
@@ -329,6 +351,135 @@ const EquipeTecnicaPage = () => {
       doc.save(sysEloFileName("RelEquipeTecnica", "pdf"));
       toast.success("Relatório PDF gerado!");
     }
+  };
+
+  // ========== BUSCA ATIVA LOGIC ==========
+
+  // Detect participants needing active search
+  const buscaAtivaParticipantes = useMemo(() => {
+    const results: any[] = [];
+    const sixtyDaysAgo = format(subDays(now, 60), "yyyy-MM-dd");
+    const thirtyDaysAgo = format(subDays(now, 30), "yyyy-MM-dd");
+
+    // 1. Recently inactivated/discontinued (last 60 days)
+    participantes
+      .filter(p => (p.status === "inativo" || p.status === "desligado") && p.data_desligamento && p.data_desligamento >= sixtyDaysAgo)
+      .forEach(p => {
+        results.push({ ...p, motivo_alerta: "Desligado/Inativo recente", faltas_consecutivas: 0 });
+      });
+
+    // 2. Active participants with 2+ consecutive absences
+    const presencaRecente = presenca.filter(p => p.data >= thirtyDaysAgo);
+    const porPart: Record<string, { data: string; presente: boolean }[]> = {};
+    presencaRecente.forEach(p => {
+      if (!porPart[p.participante_id]) porPart[p.participante_id] = [];
+      porPart[p.participante_id].push({ data: p.data, presente: p.presente });
+    });
+
+    participantes.filter(p => p.status === "ativo").forEach(p => {
+      const registros = (porPart[p.id] || []).sort((a, b) => b.data.localeCompare(a.data));
+      let consecutivas = 0;
+      for (const r of registros) {
+        if (!r.presente) consecutivas++;
+        else break;
+      }
+      if (consecutivas >= 2 && !results.find(r => r.id === p.id)) {
+        results.push({ ...p, motivo_alerta: `${consecutivas} faltas consecutivas`, faltas_consecutivas: consecutivas });
+      }
+    });
+
+    return results;
+  }, [participantes, presenca]);
+
+  // Filtered busca ativa
+  const filteredBA = useMemo(() => {
+    return buscaAtivaParticipantes.filter(p => {
+      if (baFilterStatus === "inativos" && p.status === "ativo") return false;
+      if (baFilterStatus === "faltas" && p.faltas_consecutivas < 2) return false;
+      if (baFilterBairro && baFilterBairro !== "__all__" && p.bairro_id !== baFilterBairro) return false;
+      return true;
+    });
+  }, [buscaAtivaParticipantes, baFilterStatus, baFilterBairro]);
+
+  // Get busca ativa registros for a participant
+  const getBARegistros = (pid: string) => buscaAtivaRegistros.filter(r => r.participante_id === pid);
+  const getBAAtendimentos = (pid: string) => atendimentos.filter(a => a.participante_id === pid && (a.tipo === "busca_ativa" || a.tipo === "visita_domiciliar"));
+
+  // Presenca history for selected participant (last 30 days)
+  const selectedPresencaHistory = useMemo(() => {
+    if (!baSelectedParticipante) return [];
+    const thirtyDaysAgo = format(subDays(now, 30), "yyyy-MM-dd");
+    return presenca
+      .filter(p => p.participante_id === baSelectedParticipante.id && p.data >= thirtyDaysAgo)
+      .sort((a, b) => b.data.localeCompare(a.data));
+  }, [baSelectedParticipante, presenca]);
+
+  const handleRegistrarBuscaAtiva = async () => {
+    if (!baSelectedParticipante || !myProfileId) return;
+    if (!baForm.descricao.trim()) { toast.error("Descrição é obrigatória"); return; }
+    if (baForm.tipo_contato.length === 0) { toast.error("Selecione ao menos uma ação realizada"); return; }
+    setBaSaving(true);
+
+    // Insert into busca_ativa_registros
+    const { error } = await (supabase.from as any)("busca_ativa_registros").insert({
+      participante_id: baSelectedParticipante.id,
+      profissional_id: myProfileId,
+      tipo_contato: baForm.tipo_contato.join(", "),
+      descricao: baForm.descricao,
+      resultado: baForm.resultado,
+    });
+
+    if (error) { toast.error("Erro: " + error.message); setBaSaving(false); return; }
+
+    // Also create an atendimento of type busca_ativa
+    await supabase.from("atendimentos").insert({
+      participante_id: baSelectedParticipante.id,
+      profissional_id: myProfileId,
+      tipo: "busca_ativa",
+      descricao: `[Busca Ativa] ${baForm.tipo_contato.map(t => TIPOS_CONTATO_BA.find(x => x.value === t)?.label || t).join(", ")} — ${baForm.descricao}`,
+      encaminhamento: STATUS_BA.find(s => s.value === baForm.resultado)?.label || null,
+    } as any);
+
+    toast.success("Busca ativa registrada!");
+    setBaSaving(false);
+    setBaDialogOpen(false);
+    setBaForm({ tipo_contato: [], descricao: "", resultado: "em_andamento" });
+    loadAll();
+  };
+
+  const exportRelatorioBuscaAtiva = () => {
+    if (filteredBA.length === 0) { toast.error("Nenhum participante para exportar"); return; }
+
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    doc.setFontSize(14);
+    doc.text("RELATÓRIO DE BUSCA ATIVA", 14, 15);
+    doc.setFontSize(9);
+    doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")} — Total: ${filteredBA.length} participante(s)`, 14, 22);
+
+    autoTable(doc, {
+      startY: 28,
+      head: [["Nome", "Status", "Motivo", "Bairro", "Responsável", "Telefone", "Última Busca", "Status Busca"]],
+      body: filteredBA.map(p => {
+        const regs = getBARegistros(p.id);
+        const lastReg = regs[0];
+        return [
+          p.nome_completo,
+          p.status,
+          p.motivo_alerta,
+          bairroName(p.bairro_id),
+          p.responsavel1_nome || "—",
+          p.responsavel1_whatsapp || "—",
+          lastReg ? format(new Date(lastReg.created_at), "dd/MM/yyyy") : "Nunca",
+          lastReg ? (STATUS_BA.find(s => s.value === lastReg.resultado)?.label || lastReg.resultado || "—") : "—",
+        ];
+      }),
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [21, 101, 192], fontSize: 7 },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    });
+
+    doc.save(sysEloFileName("RelatorioBuscaAtiva", "pdf"));
+    toast.success("Relatório de Busca Ativa exportado!");
   };
 
   if (loading) return <div className="flex justify-center py-12"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
@@ -386,13 +537,13 @@ const EquipeTecnicaPage = () => {
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="atendimentos">Atendimentos</TabsTrigger>
+          <TabsTrigger value="busca-ativa" className="gap-1"><Search className="h-3.5 w-3.5" />Busca Ativa</TabsTrigger>
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
           <TabsTrigger value="alertas">Alertas</TabsTrigger>
         </TabsList>
 
         {/* DASHBOARD */}
         <TabsContent value="dashboard" className="space-y-4">
-          {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card><CardContent className="pt-4 text-center">
               <ClipboardList className="h-5 w-5 mx-auto text-primary mb-1" />
@@ -429,7 +580,6 @@ const EquipeTecnicaPage = () => {
           )}
 
           <div className="grid md:grid-cols-2 gap-4">
-            {/* Atendimentos por tipo */}
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Atendimentos por Tipo (Mês)</CardTitle></CardHeader>
               <CardContent>
@@ -446,7 +596,6 @@ const EquipeTecnicaPage = () => {
               </CardContent>
             </Card>
 
-            {/* Atendimentos por mês */}
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Atendimentos por Mês</CardTitle></CardHeader>
               <CardContent>
@@ -464,7 +613,6 @@ const EquipeTecnicaPage = () => {
               </CardContent>
             </Card>
 
-            {/* Vulnerabilidade */}
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Distribuição por Vulnerabilidade</CardTitle></CardHeader>
               <CardContent>
@@ -481,7 +629,6 @@ const EquipeTecnicaPage = () => {
               </CardContent>
             </Card>
 
-            {/* Mapa de calor */}
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Participantes Estimados por Dia</CardTitle></CardHeader>
               <CardContent>
@@ -560,6 +707,93 @@ const EquipeTecnicaPage = () => {
                </TableBody>
             </Table>
           </div>
+        </TabsContent>
+
+        {/* BUSCA ATIVA */}
+        <TabsContent value="busca-ativa" className="space-y-4">
+          <div className="flex flex-wrap gap-2 items-end justify-between">
+            <div className="flex flex-wrap gap-2">
+              <Select value={baFilterStatus} onValueChange={setBaFilterStatus}>
+                <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="inativos">Só Inativos/Desligados</SelectItem>
+                  <SelectItem value="faltas">Só com Faltas</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={baFilterBairro} onValueChange={setBaFilterBairro}>
+                <SelectTrigger className="w-40 h-9"><SelectValue placeholder="Bairro" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Todos os Bairros</SelectItem>
+                  {bairros.map(b => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" size="sm" onClick={exportRelatorioBuscaAtiva} disabled={filteredBA.length === 0} className="gap-1">
+              <Download className="h-3.5 w-3.5" />Exportar Relatório
+            </Button>
+          </div>
+
+          <Badge variant="secondary" className="text-xs">{filteredBA.length} participante(s) detectado(s)</Badge>
+
+          {filteredBA.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <UserCheck className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Nenhum participante necessitando de busca ativa no momento</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {filteredBA.map(p => {
+                const regs = getBARegistros(p.id);
+                const lastReg = regs[0];
+                return (
+                  <Card
+                    key={p.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow border-l-4"
+                    style={{ borderLeftColor: p.status === "ativo" ? "hsl(var(--chart-4))" : "hsl(var(--destructive))" }}
+                    onClick={() => { setBaSelectedParticipante(p); setBaSheetOpen(true); }}
+                  >
+                    <CardContent className="pt-4 space-y-2">
+                      <div className="flex items-start gap-3">
+                        {p.foto_url ? (
+                          <img src={p.foto_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-sm font-bold">
+                            {p.nome_completo?.charAt(0)}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{p.nome_completo}</p>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Badge variant={p.status === "ativo" ? "secondary" : "destructive"} className="text-[10px]">{p.status}</Badge>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3 text-amber-500" />
+                        {p.motivo_alerta}
+                      </p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {bairroName(p.bairro_id)}
+                      </p>
+                      {p.responsavel1_nome && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Phone className="h-3 w-3" />
+                          {p.responsavel1_nome}{p.responsavel1_whatsapp ? ` — ${p.responsavel1_whatsapp}` : ""}
+                        </p>
+                      )}
+                      {lastReg && (
+                        <Badge variant="outline" className="text-[10px]">
+                          Última busca: {format(new Date(lastReg.created_at), "dd/MM/yyyy")}
+                        </Badge>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
 
         {/* RELATÓRIOS */}
@@ -690,6 +924,181 @@ const EquipeTecnicaPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Busca Ativa - Sheet de Perfil */}
+      <Sheet open={baSheetOpen} onOpenChange={setBaSheetOpen}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Search className="h-5 w-5" />
+              Busca Ativa — Perfil
+            </SheetTitle>
+          </SheetHeader>
+          {baSelectedParticipante && (
+            <div className="space-y-4 mt-4">
+              {/* Basic Info */}
+              <div className="flex items-start gap-3">
+                {baSelectedParticipante.foto_url ? (
+                  <img src={baSelectedParticipante.foto_url} alt="" className="w-14 h-14 rounded-full object-cover" />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center text-lg font-bold text-muted-foreground">
+                    {baSelectedParticipante.nome_completo?.charAt(0)}
+                  </div>
+                )}
+                <div>
+                  <p className="font-medium">{baSelectedParticipante.nome_completo}</p>
+                  <Badge variant={baSelectedParticipante.status === "ativo" ? "secondary" : "destructive"} className="text-xs mt-1">{baSelectedParticipante.status}</Badge>
+                  <p className="text-xs text-muted-foreground mt-1">{baSelectedParticipante.motivo_alerta}</p>
+                </div>
+              </div>
+
+              {/* Details */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 border rounded bg-muted/30">
+                  <p className="text-muted-foreground">Nascimento</p>
+                  <p className="font-medium">{baSelectedParticipante.data_nascimento || "—"}</p>
+                </div>
+                <div className="p-2 border rounded bg-muted/30">
+                  <p className="text-muted-foreground">Escola</p>
+                  <p className="font-medium">{baSelectedParticipante.escola || "—"}</p>
+                </div>
+                <div className="p-2 border rounded bg-muted/30">
+                  <p className="text-muted-foreground">Bairro</p>
+                  <p className="font-medium">{bairroName(baSelectedParticipante.bairro_id)}</p>
+                </div>
+                <div className="p-2 border rounded bg-muted/30">
+                  <p className="text-muted-foreground">Endereço</p>
+                  <p className="font-medium">{baSelectedParticipante.endereco_rua ? `${baSelectedParticipante.endereco_rua}, ${baSelectedParticipante.endereco_numero || "s/n"}` : "—"}</p>
+                </div>
+              </div>
+
+              {/* Responsáveis */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Responsáveis</p>
+                {baSelectedParticipante.responsavel1_nome ? (
+                  <div className="p-2 border rounded bg-muted/30 text-xs space-y-0.5">
+                    <p className="font-medium">{baSelectedParticipante.responsavel1_nome}</p>
+                    <p className="text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" />{baSelectedParticipante.responsavel1_whatsapp || "Sem telefone"}</p>
+                  </div>
+                ) : <p className="text-xs text-muted-foreground">Nenhum responsável cadastrado</p>}
+                {baSelectedParticipante.responsavel2_nome && (
+                  <div className="p-2 border rounded bg-muted/30 text-xs space-y-0.5">
+                    <p className="font-medium">{baSelectedParticipante.responsavel2_nome}</p>
+                    <p className="text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" />{baSelectedParticipante.responsavel2_whatsapp || "Sem telefone"}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Presença recente */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Presença (últimos 30 dias)</p>
+                {selectedPresencaHistory.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Nenhum registro</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1">
+                    {selectedPresencaHistory.slice(0, 20).map((p, i) => (
+                      <div
+                        key={i}
+                        className={`w-7 h-7 rounded text-[10px] flex items-center justify-center font-medium ${p.presente ? "bg-emerald-500/20 text-emerald-700" : "bg-destructive/20 text-destructive"}`}
+                        title={`${p.data} — ${p.presente ? "Presente" : "Faltou"}`}
+                      >
+                        {p.data.slice(8, 10)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Atendimentos anteriores de busca ativa */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Histórico de Busca Ativa</p>
+                {getBARegistros(baSelectedParticipante.id).length === 0 && getBAAtendimentos(baSelectedParticipante.id).length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Nenhum registro anterior</p>
+                ) : (
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {getBARegistros(baSelectedParticipante.id).map((r: any) => (
+                      <div key={r.id} className="p-2 border rounded text-xs">
+                        <div className="flex justify-between">
+                          <span className="font-medium">{r.tipo_contato}</span>
+                          <span className="text-muted-foreground">{format(new Date(r.created_at), "dd/MM/yyyy")}</span>
+                        </div>
+                        <p className="text-muted-foreground mt-0.5">{r.descricao}</p>
+                        {r.resultado && <Badge variant="outline" className="text-[10px] mt-1">{STATUS_BA.find(s => s.value === r.resultado)?.label || r.resultado}</Badge>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Action button */}
+              <Button className="w-full gap-2" onClick={() => setBaDialogOpen(true)}>
+                <Search className="h-4 w-4" />
+                Registrar Busca Ativa
+              </Button>
+
+              <Button variant="outline" size="sm" className="w-full" asChild>
+                <Link to={`/participantes/${baSelectedParticipante.id}`}>
+                  <Eye className="h-3.5 w-3.5 mr-1" />Ver Perfil Completo
+                </Link>
+              </Button>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Dialog Registrar Busca Ativa */}
+      <Dialog open={baDialogOpen} onOpenChange={setBaDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Registrar Busca Ativa</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Participante: <strong>{baSelectedParticipante?.nome_completo}</strong></p>
+
+            <div>
+              <Label className="text-xs mb-2 block">Ações Realizadas</Label>
+              <div className="space-y-2">
+                {TIPOS_CONTATO_BA.map(tc => (
+                  <label key={tc.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={baForm.tipo_contato.includes(tc.value)}
+                      onCheckedChange={checked => {
+                        if (checked) setBaForm(f => ({ ...f, tipo_contato: [...f.tipo_contato, tc.value] }));
+                        else setBaForm(f => ({ ...f, tipo_contato: f.tipo_contato.filter(t => t !== tc.value) }));
+                      }}
+                    />
+                    {tc.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Descrição / Detalhes</Label>
+              <Textarea
+                value={baForm.descricao}
+                onChange={e => setBaForm(f => ({ ...f, descricao: e.target.value }))}
+                placeholder="Descreva o que foi realizado, quem atendeu, observações..."
+                className="mt-1 min-h-[80px]"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs">Status</Label>
+              <Select value={baForm.resultado} onValueChange={v => setBaForm(f => ({ ...f, resultado: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {STATUS_BA.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button onClick={handleRegistrarBuscaAtiva} disabled={baSaving} className="w-full">
+              {baSaving ? "Salvando..." : "Registrar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
