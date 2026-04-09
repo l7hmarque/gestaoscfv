@@ -520,34 +520,18 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
 }
 
 export async function exportRelatorioPdf(item: any, turmaNames: string[], presenca: any[]) {
-  // Try template-based approach first — generates filled DOCX since browser can't convert to PDF
-  const template = await loadTemplate("relatorio.docx");
-  if (template) {
-    try {
-      const baseData = buildRelatorioTemplateData(item, turmaNames, presenca);
-      const tagMappings = await loadTagMappings("relatorio.docx");
-      const data = remapDataWithMappings(baseData, tagMappings, baseData);
-      const blob = fillTemplate(template, data);
-      saveAs(blob, `SysELO_Relatorio_${fileTimestamp()}.docx`);
-      toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
-      return;
-    } catch (e) {
-      console.error("Template fill failed, using jsPDF fallback:", e);
-    }
-  }
-
-  // jsPDF fallback (simplified layout)
+  // Generate PDF directly via jsPDF
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   let y = pdfHeader(doc, 10);
   y = pdfTitle(doc, "RELATÓRIO DE ATIVIDADE", y);
 
   const info = [
     ["Data", item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : "—"],
-    ["Dia da Semana", item.dia_semana || "—"],
-    ["Educador", item.profiles?.nome || "—"],
+    ["Dia da Semana", safeStr(item.dia_semana)],
+    ["Educador", safeStr(item.profiles?.nome)],
     ["Turma(s)", turmaNames.join(", ") || "—"],
-    ["Tipo de Atividade", item.tipo_atividade || "—"],
-    ["Nome da Atividade", item.nome_atividade || "—"],
+    ["Tipo de Atividade", safeStr(Array.isArray(item.tipo_atividade) ? item.tipo_atividade.join(", ") : item.tipo_atividade)],
+    ["Nome da Atividade", safeStr(item.nome_atividade)],
   ];
   autoTable(doc, {
     startY: y, body: info, theme: "grid",

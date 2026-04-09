@@ -174,25 +174,37 @@ export default function ExportarRelatoriosPage() {
   }, []);
 
   // ===================== REO =====================
+  const downloadFromUrl = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Download falhou: ${response.statusText}`);
+      const blob = await response.blob();
+      saveAs(blob, filename);
+    } catch {
+      window.open(url, "_blank");
+    }
+  };
+
   const exportarREO = async () => {
     setLoadingReo(true);
     try {
-      // Call edge function for DOCX + XLSX simultaneously
       const [docxRes, xlsxRes] = await Promise.all([
         supabase.functions.invoke("generate-reo", { body: { mes, ano, formato: "docx" } }),
         supabase.functions.invoke("generate-reo", { body: { mes, ano, formato: "xlsx" } }),
       ]);
 
-      let successCount = 0;
-      if (docxRes.data?.url) { window.open(docxRes.data.url, "_blank"); successCount++; }
-      if (xlsxRes.data?.url) { window.open(xlsxRes.data.url, "_blank"); successCount++; }
+      const downloads: Promise<void>[] = [];
+      if (docxRes.data?.url) downloads.push(downloadFromUrl(docxRes.data.url, docxRes.data.fileName || `REO_${ano}-${mes}.docx`));
+      if (xlsxRes.data?.url) downloads.push(downloadFromUrl(xlsxRes.data.url, xlsxRes.data.fileName || `REO_${ano}-${mes}.xlsx`));
 
-      if (successCount > 0) {
-        toast.success(`REO gerado com sucesso! (${successCount} arquivo(s))`);
+      if (downloads.length > 0) {
+        await Promise.all(downloads);
+        toast.success(`REO gerado com sucesso! (${downloads.length} arquivo(s))`);
       } else {
         throw new Error(docxRes.data?.error || xlsxRes.data?.error || "Erro desconhecido");
       }
     } catch (err: any) {
+      console.error("Erro REO:", err);
       toast.error("Erro ao gerar REO: " + (err.message || "Erro desconhecido"));
     } finally {
       setLoadingReo(false);

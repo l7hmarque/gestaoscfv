@@ -664,6 +664,110 @@ Deno.serve(async (req: Request) => {
       autoFitCols(wsFin);
       XLSX.utils.book_append_sheet(wb, wsFin, "Financeiro");
 
+      // ── Attendance tabs per turma ──
+      const DIAS_MAP_XLSX: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
+      const turmasAtivasXlsx = turmas.filter((t: any) => t.ativa);
+      const usedSheetNames = new Set<string>(["Atividades", "Equipe Técnica", "Metas", "RH", "Monitoramento", "Financeiro"]);
+
+      for (const turma of turmasAtivasXlsx) {
+        const t = turma as any;
+        const diasSemana: string[] = t.dias_semana || [];
+        const diasNum = diasSemana.map((d: string) => DIAS_MAP_XLSX[d.toLowerCase()]).filter((n: number) => n !== undefined);
+
+        const datas: string[] = [];
+        const dStr = new Date(anoNum, mesNum - 1, 1);
+        while (dStr.getMonth() === mesNum - 1) {
+          if (diasNum.includes(dStr.getDay())) {
+            datas.push(`${dStr.getFullYear()}-${String(dStr.getMonth() + 1).padStart(2, "0")}-${String(dStr.getDate()).padStart(2, "0")}`);
+          }
+          dStr.setDate(dStr.getDate() + 1);
+        }
+
+        const tpMembers = turmaParticipantes.filter((tp: any) => tp.turma_id === t.id);
+        const memberParts = tpMembers.map((tp: any) => partMap[tp.participante_id]).filter(Boolean);
+        const sorted = [...memberParts].sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo));
+        if (sorted.length === 0 && datas.length === 0) continue;
+
+        // Also include dates from presenca records for this turma
+        const tPresencas = presencaMes.filter((p: any) => p.turma_id === t.id);
+        const allPresenca = presenca.filter((p: any) => p.turma_id === t.id && p.data?.startsWith(prefix));
+        const allDatesSet = new Set([...datas, ...allPresenca.map((p: any) => p.data)]);
+        const allDates = [...allDatesSet].sort();
+        if (allDates.length === 0) continue;
+
+        const presencaSet = new Set(tPresencas.map((p: any) => `${p.participante_id}_${p.data}`));
+        // Also check full presenca for non-present records
+        const allPresencaSet = new Set(allPresenca.map((p: any) => `${p.participante_id}_${p.data}`));
+
+        const educador = profiles.find((p: any) => p.id === t.educador_id);
+        const bn = bairroMap[t.bairro_id] || "";
+
+        let sheetName = (t.nome || "Turma").slice(0, 28).replace(/[\\\/\*\?\[\]:]/g, "_");
+        let suffix = 2;
+        while (usedSheetNames.has(sheetName)) { sheetName = sheetName.slice(0, 25) + `_${suffix++}`; }
+        usedSheetNames.add(sheetName);
+
+        const header1 = [`SCFV — CAIA Medianeira — Lista de Presença`];
+        const header2 = [`Turma: ${t.nome} | Bairro: ${bn} | Período: ${t.periodo || "N/I"}`];
+        const header3 = [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum} | Educador(a): ${educador?.nome || "N/I"}`];
+        const colHeaders = ["Nº", "Nome do Participante", ...allDates.map((d: string) => d.slice(5))];
+        const rows = sorted.map((p: any, idx: number) => {
+          const isDesligado = p.status === "desligado";
+          const dataDeslig = p.data_desligamento || null;
+          const nameSuffix = isDesligado && dataDeslig ? ` (D ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})` : "";
+          const row: any[] = [idx + 1, p.nome_completo + nameSuffix];
+          allDates.forEach(() => row.push(""));
+          return row;
+        });
+
+        const sheetData = [header1, header2, header3, [], colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]];
+        const ws = XLSX.utils.aoa_to_sheet(sheetData);
+        ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...allDates.map(() => ({ wch: 6 }))];
+
+        // Style header row
+        for (let c = 0; c < colHeaders.length; c++) {
+          const addr = XLSX.utils.encode_cell({ r: 4, c });
+          if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+          ws[addr].s = { ...hdrStyle };
+        }
+        // Style inst header
+        for (let r = 0; r < 3; r++) {
+          const addr = XLSX.utils.encode_cell({ r, c: 0 });
+          if (ws[addr]) ws[addr].s = { ...instStyle };
+        }
+
+        const dataStartRow = 5;
+        sorted.forEach((p: any, pIdx: number) => {
+          const excelRow = dataStartRow + pIdx;
+          const isDesligado = p.status === "desligado";
+          const dataDeslig = p.data_desligamento || null;
+          for (let c = 0; c < 2; c++) {
+            const addr = XLSX.utils.encode_cell({ r: excelRow, c });
+            if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+            ws[addr].s = { ...(ws[addr].s || {}), border: { top: border, bottom: border, left: border, right: border } };
+          }
+          allDates.forEach((d: string, dIdx: number) => {
+            const col = 2 + dIdx;
+            const addr = XLSX.utils.encode_cell({ r: excelRow, c: col });
+            if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+            if (isDesligado && dataDeslig && d > dataDeslig) {
+              ws[addr].v = "D";
+              ws[addr].s = { fill: { fgColor: { rgb: "CCCCCC" } }, font: { color: { rgb: "666666" } }, border: { top: border, bottom: border, left: border, right: border } };
+            } else {
+              const key = `${p.id}_${d}`;
+              if (presencaSet.has(key)) {
+                ws[addr].v = "■";
+                ws[addr].s = { font: { sz: 14, color: { rgb: "000000" } }, alignment: { horizontal: "center", vertical: "center" }, border: { top: border, bottom: border, left: border, right: border } };
+              } else {
+                ws[addr].s = { border: { top: border, bottom: border, left: border, right: border } };
+              }
+            }
+          });
+        });
+
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      }
+
       const buf = new Uint8Array(XLSX.write(wb, { bookType: "xlsx", type: "array" }));
       const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
       const fileName = `SysELO_REO_${anoNum}-${String(mesNum).padStart(2, "0")}_${ts}.xlsx`;
@@ -863,7 +967,7 @@ Deno.serve(async (req: Request) => {
               const key = `${member.id}_${dateStr}`;
               const presente = presencaSet.has(key);
               return dataCell(
-                isDesligado ? "—" : (presente ? "✓" : ""),
+                isDesligado ? "—" : (presente ? "■" : ""),
                 dateColW,
                 { alignment: AlignmentType.CENTER }
               );

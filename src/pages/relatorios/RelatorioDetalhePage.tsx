@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { ArrowLeft, Printer, Instagram, Copy, Share2, Download, X, Trash2, Plus, Search, Link2, Pencil, Check, Users, ChevronsUpDown } from "lucide-react";
+import { ArrowLeft, Printer, Instagram, Copy, Share2, Download, X, Trash2, Plus, Search, Link2, Pencil, Check, Users, ChevronsUpDown, FileText } from "lucide-react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -553,14 +553,18 @@ const RelatorioDetalhePage = () => {
             <span className="hidden sm:inline">Imprimir</span>
           </Button>
           <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={async () => {
-            toast.info("Gerando DOCX + PDF...");
-            await Promise.all([
-              exportRelatorioDocx(item, turmaNames, presenca, fotos),
-              exportRelatorioPdf(item, turmaNames, presenca).catch(() => {}),
-            ]);
-            toast.success("Downloads concluídos!");
+            toast.info("Gerando DOCX...");
+            await exportRelatorioDocx(item, turmaNames, presenca, fotos);
+            toast.success("DOCX gerado!");
           }}>
-            <Download className="h-3.5 w-3.5" />Exportar Tudo
+            <Download className="h-3.5 w-3.5" />Exportar DOCX
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={async () => {
+            toast.info("Gerando PDF...");
+            await exportRelatorioPdf(item, turmaNames, presenca);
+            toast.success("PDF gerado!");
+          }}>
+            <FileText className="h-3.5 w-3.5" />Exportar PDF
           </Button>
         </div>
       </div>
