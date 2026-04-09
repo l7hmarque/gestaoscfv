@@ -96,7 +96,7 @@ export default function ConfiguracoesPage() {
       supabase.from("configuracoes_gerais").select("*"),
       supabase.from("bairros").select("*").order("nome"),
       supabase.from("pontos_transporte").select("*, bairros(nome)").order("nome"),
-      supabase.from("profiles").select("id, nome, cargo, ativo, user_id, email, telefone").order("nome"),
+      supabase.from("profiles").select("id, nome, cargo, ativo, user_id, email, telefone, carga_horaria, data_inicio, salario, data_desligamento").order("nome"),
       supabase.from("user_roles").select("*"),
       supabase.from("audit_log").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
