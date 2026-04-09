@@ -888,6 +888,127 @@ Deno.serve(async (req: Request) => {
         }));
       }
     }
+    // ── Build DOCX ──
+    const doc = new Document({
+      styles: {
+        default: { document: { run: { font: "Arial", size: 20 } } },
+      },
+      sections: [{
+        properties: {
+          page: {
+            size: { width: 12240, height: 15840 },
+            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+          },
+        },
+        headers: {
+          default: new Header({
+            children: [new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [new TextRun({ text: "Sociedade Civil Nossa Senhora Aparecida", font: "Arial", size: 18, bold: true })],
+            })],
+          }),
+        },
+        footers: {
+          default: new Footer({
+            children: [new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              children: [new TextRun({ children: [PageNumber.CURRENT], font: "Arial", size: 16 })],
+            })],
+          }),
+        },
+        children: [
+          // ── Title ──
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 300 },
+            children: [new TextRun({ text: "RELATÓRIO DE EXECUÇÃO DO OBJETO E DE EXECUÇÃO FINANCEIRA", bold: true, font: "Arial", size: 28 })],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 100 },
+            children: [new TextRun({ text: "Termo de Colaboração/Fomento nº 001/2022", font: "Arial", size: 20 })],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 400 },
+            children: [new TextRun({ text: `Execução: ${mesNome?.toUpperCase()}/${anoNum}`, font: "Arial", size: 20, bold: true })],
+          }),
+
+          // ── 1. Execução do Objeto ──
+          sectionTitle("1. EXECUÇÃO DO OBJETO"),
+          new Paragraph({
+            spacing: { after: 200 },
+            children: [new TextRun({ text: "Em atendimento, inciso I do caput do artigo 66 da Lei Federal nº 13.019/2014 e suas alterações, esta organização da sociedade civil, elaborou o relatório a seguir, a partir do cronograma acordado.", font: "Arial", size: 18 })],
+          }),
+
+          sectionTitle("1.1. Atividades, oficinas e/ou projetos desenvolvidos para o cumprimento do objeto:"),
+          new DocxTable({ width: { size: tableWidth, type: WidthType.DXA }, columnWidths: [2800, 2500, 2200, 1860], rows: atividadesRows }),
+          subNote("¹ Preencher este campo caso a atividade não tenha sido realizada no mês."),
+
+          new Paragraph({ children: [new PageBreak()] }),
+
+          sectionTitle("1.2. Atividades, serviços e ações da Equipe Técnica - Psicólogo(a) e Assistente Social"),
+          new DocxTable({ width: { size: 7060, type: WidthType.DXA }, columnWidths: [5200, 1860], rows: equipeRows }),
+
+          new Paragraph({ children: [new PageBreak()] }),
+
+          sectionTitle("1.3. Comparativo"),
+          new DocxTable({ width: { size: tableWidth, type: WidthType.DXA }, columnWidths: [3800, 1100, 2200, 2260], rows: metasRows }),
+          subNote("² Descrever o motivo que ensejou o não alcance das metas e quais as providências adotadas pela Entidade em relação a sanar esta questão."),
+
+          new Paragraph({ children: [new PageBreak()] }),
+
+          sectionTitle("1.4. Recursos Humanos Envolvidos³"),
+          new DocxTable({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [3600, 2600, 1800], rows: rhRows }),
+          subNote("³ Constar a equipe informada no Plano de Trabalho."),
+
+          sectionTitle("1.5. Monitoramento e Avaliação"),
+          new DocxTable({ width: { size: 7360, type: WidthType.DXA }, columnWidths: [2800, 2400, 1000, 1160], rows: monitorRows }),
+
+          new Paragraph({ children: [new PageBreak()] }),
+
+          // ── 2. Execução Financeira ──
+          sectionTitle("2. EXECUÇÃO FINANCEIRA"),
+          new Paragraph({
+            spacing: { after: 200 },
+            children: [new TextRun({ text: "Em atendimento, inciso II do caput do artigo 66 da Lei Federal nº 13.019/2014 e suas alterações, esta organização da sociedade civil, elaborou o relatório a seguir, a partir do cronograma acordado.", font: "Arial", size: 18 })],
+          }),
+
+          sectionTitle("2.1. Valores transferidos"),
+          new DocxTable({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [2400, 2800, 2800], rows: parcelasRows }),
+
+          new Paragraph({ children: [new PageBreak()] }),
+
+          sectionTitle("2.2. Despesas Efetuadas no mês"),
+          new DocxTable({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [1600, 4200, 2200], rows: despesasRows }),
+
+          new Paragraph({ children: [new PageBreak()] }),
+
+          sectionTitle("2.3. Resumo financeiro"),
+          new DocxTable({ width: { size: 8000, type: WidthType.DXA }, columnWidths: [4500, 3500], rows: resumoRows }),
+
+          sectionTitle("2.4 Saldo atualizado por categoria econômica"),
+          new DocxTable({ width: { size: 9000, type: WidthType.DXA }, columnWidths: [1600, 2200, 1400, 1400, 1200, 1200], rows: catRows }),
+          subNote("⁵ Considerar o valor gasto estimado de todos os meses."),
+          subNote("⁶ Para se chegar ao saldo disponível é necessário realizar a seguinte equação: Valor previsto – valor gasto + valor estornado."),
+
+          new Paragraph({ children: [new PageBreak()] }),
+
+          // ── Signature ──
+          new Paragraph({ spacing: { before: 600 }, children: [] }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 600 },
+            children: [new TextRun({ text: "RAÚL OSCAR SENA VÉLEZ", bold: true, font: "Arial", size: 20 })],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: "PRESIDENTE", font: "Arial", size: 20 })],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: "CPF: 801.780.489-09", font: "Arial", size: 18 })],
+          }),
 
           // ── Annexes ──
           ...(photoChildren.length > 0 ? [new Paragraph({ children: [new PageBreak()] }), ...photoChildren] : []),
