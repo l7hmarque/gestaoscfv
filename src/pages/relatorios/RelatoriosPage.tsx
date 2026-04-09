@@ -401,6 +401,47 @@ const RelatoriosPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Export Dialog */}
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base flex items-center gap-2">
+              <Download className="h-4 w-4" /> Exportar Relatórios em Lote
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">De</Label>
+                <Input type="date" value={exportDateFrom} onChange={e => setExportDateFrom(e.target.value)} className="text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs">Até</Label>
+                <Input type="date" value={exportDateTo} onChange={e => setExportDateTo(e.target.value)} className="text-sm" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Educador</Label>
+              <Select value={exportEducador} onValueChange={setExportEducador}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {educadores.map((e: any) => (
+                    <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">Será gerado um arquivo DOCX, PDF e XLSX com todos os relatórios e listas de presença do período.</p>
+            <Button className="w-full gap-2" onClick={handleExport} disabled={exporting || !exportDateFrom || !exportDateTo}>
+              {exporting ? <><Loader2 className="h-4 w-4 animate-spin" />Exportando...</> : <><Download className="h-4 w-4" />Exportar Todos (DOCX + PDF + XLSX)</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
