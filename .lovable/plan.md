@@ -1,80 +1,77 @@
-## Plano: Logs completos no Super Admin + Busca Ativa para Equipe Técnica
+## Plano: Correções REO, Exportação de Relatórios e Dashboard
 
-### 1. Logs completos e exportáveis nas Configurações (`ConfiguracoesPage.tsx`)
+### Problemas identificados e correções
 
-Atualmente a aba "Sistema" mostra apenas as últimas 50 entradas do `audit_log`. Vamos expandir:
+---
 
-- **Criar aba dedicada "Auditoria"** na TabsList (nova aba entre "Equipe" e "Sistema")
-- **Carregar todos os logs** (sem limit 50), com paginação client-side (50 por página)
-- **Filtros**: por data (de/até), por usuário, por ação, por tabela
-- **Exibir todas as colunas**: data, usuário, ação, tabela, registro_id, detalhes, justificativa
-- **Botão "Exportar Auditoria"** que gera simultaneamente:
-  - **XLSX** com estilo institucional (cabeçalho, bordas, auto-fit) — formato admissível para auditoria
-  - **PDF** em landscape com tabela completa via jsPDF + autoTable
-- Remover o preview de auditoria da aba "Sistema" (pois agora terá aba própria)
+### 1. REO DOCX e XLSX não baixam / falham silenciosamente
 
-### 2. Aba "Busca Ativa" na Equipe Técnica (`EquipeTecnicaPage.tsx`)
+**Problema**: O edge function `generate-reo` parece funcionar (sem logs de erro), mas os arquivos não abrem. Investigando o código, o DOCX é gerado corretamente com `tableWidth = 9360` (linha 828), mas a chamada no `ExportarRelatoriosPage` usa `Promise.all` para DOCX+XLSX simultaneamente — se uma falha silenciosa ocorre no `window.open`, o toast de sucesso aparece mas o download não acontece. Também, o signed URL pode expirar ou o popup blocker impede.
 
-Nova aba na TabsList com quadro visual (cards/kanban):
+**Correção**: 
 
-**Detecção automática** de participantes que precisam de busca ativa:
+- Testar o edge function diretamente para confirmar se retorna URL válida
+- Trocar `window.open` por `fetch` + download direto via `saveAs` para evitar popup blocker
+- Adicionar melhor tratamento de erros com logs detalhados
 
-- Participantes **inativos/desligados** recentes (últimos 60 dias)
-- Participantes ativos com **2+ faltas consecutivas** (baseado na tabela `presenca`)
+### 2. XLSX do REO sem abas de presença preenchida
 
-**Quadro visual** (grid de cards, não tabela):
+**Problema**: O formato XLSX do REO (linhas 516-678) não inclui abas de presença por turma. Só tem: Atividades, Equipe Técnica, Metas, RH, Monitoramento, Financeiro. O DOCX tem o Anexo II com listas de presença, mas o XLSX não.
 
-- Cada card mostra: foto (se houver), nome, status, bairro, faltas recentes, responsável/telefone
-- Card clicável abre **Sheet lateral (miniatura do perfil)** com:
-  - Dados pessoais (nome, nascimento, escola, bairro)
-  - Responsáveis + telefones (para contato imediato)
-  - Histórico de presença recente (últimos 30 dias)
-  - Atendimentos anteriores relacionados (busca_ativa, visita_domiciliar)
-  - Botão "Registrar Busca Ativa" que cria atendimento do tipo `busca_ativa` diretamente, com opcao de descrever detalhes da busca ativa, marcar acoes realizadas (contato whatsapp, contato telefonico, visita domiciliar, contato com a rede, e opcoes de status: busca ativa em andamento, vai retornar/ja retornou, encaminhar pra desligamento.
+**Correção**: Adicionar abas de presença por turma no XLSX do REO, usando a mesma lógica do DOCX (linhas 746-891): para cada turma ativa, gerar uma aba com a matriz de frequência preenchida (datas nas colunas, participantes nas linhas, ✓ para presente, estilo com quadradinho preto).
 
-**Acompanhamento**:
+### 3. PDF do REO não é gerado
 
-- Mostrar badge se já teve busca ativa registrada e quando
-- Filtros: por status (todos / só inativos / só com faltas), por bairro
+**Problema**: Não existe lógica para gerar PDF do REO. O edge function só suporta "docx" e "xlsx". O PDF deveria ser gerado a partir do DOCX.
 
-**Exportar Relatório de Busca Ativa**:
+**Correção**: No client-side (`ExportarRelatoriosPage`), após baixar o DOCX do REO, não é possível converter DOCX→PDF no browser. A solução é adicionar suporte a PDF no edge function usando `jsPDF` no Deno, ou informar ao usuário para converter manualmente. Alternativa prática: gerar um PDF separado via `jsPDF` + `autoTable` no servidor com o mesmo conteúdo do REO (sem anexo de fotos).
 
-- Botão que gera PDF landscape com a lista dos participantes detectados, dados dos responsáveis e status das buscas realizadas (reutilizando o formato já existente no `TurmaDetalhePage`)
+### 4. Exportação individual do relatório gera 2 DOCX + lista grotesca + undefined
 
-### 3. Tabela de acompanhamento de Busca Ativa (migration)
+**Problema** (em `RelatorioDetalhePage.tsx` linha 555-560):
 
-Criar tabela `busca_ativa_registros` para rastrear o acompanhamento:
-
-```sql
-CREATE TABLE public.busca_ativa_registros (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  participante_id uuid NOT NULL,
-  profissional_id uuid NOT NULL,
-  data_registro date NOT NULL DEFAULT CURRENT_DATE,
-  tipo_contato text NOT NULL DEFAULT 'telefone',
-  descricao text NOT NULL DEFAULT '',
-  resultado text,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-ALTER TABLE public.busca_ativa_registros ENABLE ROW LEVEL SECURITY;
--- RLS: tecnico ou coordenacao CRUD
-CREATE POLICY "Tecnico ou coord manage busca_ativa" ON public.busca_ativa_registros
-  FOR ALL TO authenticated
-  USING (has_role(auth.uid(), 'tecnico') OR has_role(auth.uid(), 'coordenacao'))
-  WITH CHECK (has_role(auth.uid(), 'tecnico') OR has_role(auth.uid(), 'coordenacao'));
-CREATE POLICY "Authenticated select busca_ativa" ON public.busca_ativa_registros
-  FOR SELECT TO authenticated USING (true);
+```js
+await Promise.all([
+  exportRelatorioDocx(item, turmaNames, presenca, fotos),
+  exportRelatorioPdf(item, turmaNames, presenca).catch(() => {}),
+]);
 ```
 
-Isso permite registrar tentativas de contato (telefone, visita, WhatsApp), resultado, e gerar relatório posterior.
+A função `exportRelatorioPdf` (linha 522-531) tenta usar template DOCX e, quando encontra, gera um DOCX em vez de PDF, resultando em 2 DOCX downloads. A lista de presença no fallback DOCX (linha 467-499) está no formato correto com tabela, mas a versão template (linha 365-370) usa loop PRESENCA com ☑/☐ que é a "lista grotesca".
+
+**Problemas de undefined**: Os campos como `item.profiles?.nome` passam undefined quando o template não tem tag mapping, e o `safeStr` está implementado mas não aplicado em todos os lugares (ex: `item.dia_semana || "—"` na linha 548 do PDF).
+
+**Correções**:
+
+- `exportRelatorioPdf`: Remover a tentativa de usar template DOCX e ir direto para jsPDF com a lista de presença formatada (tabela bonita com ✓/vazio, cores condicionais)
+- Aplicar `safeStr` em todos os campos do PDF que usam `|| "—"`
+- No fallback DOCX, a lista já está boa (formato REO), manter assim
+
+### 5. Dashboard Relatório Mensal — muitos botões
+
+**Problema**: A página tem 5 cards separados: XLSX local, PDF profissional, XLSX servidor, Relatório Completo, REO. É confuso.
+
+**Correção**: Consolidar em 2-3 cards:
+
+- **Relatório Mensal** (um botão "Exportar" que gera XLSX + PDF simultaneamente)
+- **Relatório Completo** (todo o período, servidor)
+- **REO** (um botão que gera DOCX + XLSX + PDF)
+
+### 6. Listas de presença preenchidas em todos os REO
+
+**Problema**: As listas de presença no XLSX do REO não existem. No DOCX estão com ✓ mas o user quer "quadradinho preto" (■).
+
+**Correção**: Usar ■ (U+25A0) para presente e em branco para ausentes.
 
 ---
 
 ### Arquivos alterados
 
 
-| Arquivo                                          | Mudança                                                                                  |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `src/pages/configuracoes/ConfiguracoesPage.tsx`  | Nova aba "Auditoria" com logs completos, filtros e exportação XLSX/PDF                   |
-| `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx` | Nova aba "Busca Ativa" com quadro de cards, sheet de perfil e registro de acompanhamento |
-| Migration                                        | Criar tabela `busca_ativa_registros` com RLS                                             |
+| Arquivo                                               | Mudança                                                                                           |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `supabase/functions/generate-reo/index.ts`            | Adicionar abas de presença por turma no XLSX; usar ■/□; deploy                                    |
+| `src/hooks/useDocumentExport.ts`                      | Corrigir `exportRelatorioPdf` para gerar PDF direto (não DOCX); aplicar safeStr em tudo; usar ■/□ |
+| `src/pages/relatorios/ExportarRelatoriosPage.tsx`     | Trocar `window.open` por fetch+saveAs; melhor error handling                                      |
+| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Consolidar UI: 3 cards com botões unificados                                                      |
+| `src/pages/relatorios/RelatorioDetalhePage.tsx`       | Ajustar chamada de export para não duplicar DOCX                                                  |
