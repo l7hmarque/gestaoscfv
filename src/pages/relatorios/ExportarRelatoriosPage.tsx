@@ -837,6 +837,78 @@ export default function ExportarRelatoriosPage() {
           </Card>
         </TabsContent>
 
+        {/* Atividades em Lote */}
+        <TabsContent value="atividades">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ClipboardList className="h-5 w-5" /> Relatórios de Atividades + Listas de Presença
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Exporta todos os relatórios de atividades do período selecionado com listas de presença preenchidas.
+                Gera <strong>DOCX + PDF + XLSX</strong> simultaneamente.
+              </p>
+              <div className="flex flex-wrap gap-3 items-end">
+                <div>
+                  <Label className="text-xs">Data Início</Label>
+                  <Input type="date" value={ativDateFrom} onChange={e => setAtivDateFrom(e.target.value)} className="h-9 text-sm mt-1 w-44" />
+                </div>
+                <div>
+                  <Label className="text-xs">Data Fim</Label>
+                  <Input type="date" value={ativDateTo} onChange={e => setAtivDateTo(e.target.value)} className="h-9 text-sm mt-1 w-44" />
+                </div>
+                <div>
+                  <Label className="text-xs">Educador</Label>
+                  <Select value={ativEducadorId} onValueChange={setAtivEducadorId}>
+                    <SelectTrigger className="w-[200px] mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">Todos</SelectItem>
+                      {educadores.map(e => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button onClick={exportarAtividadesLote} disabled={anyLoading} className="gap-2">
+                {loadingAtividades ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Exportar Atividades (DOCX + PDF + XLSX)
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Atendimentos Técnicos */}
+        <TabsContent value="atendimentos">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-5 w-5" /> Relatório de Atendimentos Técnicos
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Exporta os atendimentos técnicos (Assistente Social / Psicólogo) do período selecionado.
+                Gera <strong>XLSX + PDF</strong> simultaneamente.
+              </p>
+              <div className="flex flex-wrap gap-3 items-end">
+                <div>
+                  <Label className="text-xs">Data Início</Label>
+                  <Input type="date" value={atendDateFrom} onChange={e => setAtendDateFrom(e.target.value)} className="h-9 text-sm mt-1 w-44" />
+                </div>
+                <div>
+                  <Label className="text-xs">Data Fim</Label>
+                  <Input type="date" value={atendDateTo} onChange={e => setAtendDateTo(e.target.value)} className="h-9 text-sm mt-1 w-44" />
+                </div>
+              </div>
+              <Button onClick={exportarAtendimentosTecnicos} disabled={anyLoading} className="gap-2">
+                {loadingAtendimentos ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Exportar Atendimentos (XLSX + PDF)
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Anual */}
         <TabsContent value="anual">
           <Card>
