@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, ClipboardList, Calendar, Trophy, TrendingUp, Trash2 } from "lucide-react";
+import { Plus, ClipboardList, Calendar, Trophy, TrendingUp, Trash2, Download, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuditLog } from "@/hooks/useAuditLog";
+import { exportBulkRelatorios } from "@/hooks/useBulkRelatorioExport";
 import { toast } from "sonner";
 
 const OBJ_LABELS: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
@@ -48,6 +50,24 @@ const RelatoriosPage = () => {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [bulkJustificativa, setBulkJustificativa] = useState("");
+
+  // Export state
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportDateFrom, setExportDateFrom] = useState("");
+  const [exportDateTo, setExportDateTo] = useState("");
+  const [exportEducador, setExportEducador] = useState("todos");
+  const [exporting, setExporting] = useState(false);
+  const [educadores, setEducadores] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Load educadores for export filter
+    supabase.from("user_roles").select("user_id, role").in("role", ["educador", "coordenacao"]).then(async ({ data: roles }) => {
+      if (!roles?.length) return;
+      const userIds = [...new Set(roles.map(r => r.user_id))];
+      const { data: profs } = await supabase.from("profiles").select("id, nome, user_id").in("user_id", userIds);
+      setEducadores(profs || []);
+    });
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -163,6 +183,18 @@ const RelatoriosPage = () => {
     }
   };
 
+  const handleExport = async () => {
+    if (!exportDateFrom || !exportDateTo) { toast.error("Preencha ambas as datas"); return; }
+    setExporting(true);
+    try {
+      await exportBulkRelatorios({ dateFrom: exportDateFrom, dateTo: exportDateTo, educadorId: exportEducador });
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao exportar");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -171,6 +203,9 @@ const RelatoriosPage = () => {
           <p className="text-sm text-muted-foreground">Registrar e acompanhar atividades realizadas</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={() => setExportOpen(true)}>
+            <Download className="h-4 w-4" />Exportar
+          </Button>
           {isCoordenacao && (
             <Button variant="outline" size="sm" className="gap-1 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setBulkOpen(true)}>
               <Trash2 className="h-4 w-4" />Excluir em Lote
@@ -366,6 +401,47 @@ const RelatoriosPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Export Dialog */}
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base flex items-center gap-2">
+              <Download className="h-4 w-4" /> Exportar Relatórios em Lote
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">De</Label>
+                <Input type="date" value={exportDateFrom} onChange={e => setExportDateFrom(e.target.value)} className="text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs">Até</Label>
+                <Input type="date" value={exportDateTo} onChange={e => setExportDateTo(e.target.value)} className="text-sm" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Educador</Label>
+              <Select value={exportEducador} onValueChange={setExportEducador}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {educadores.map((e: any) => (
+                    <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">Será gerado um arquivo DOCX, PDF e XLSX com todos os relatórios e listas de presença do período.</p>
+            <Button className="w-full gap-2" onClick={handleExport} disabled={exporting || !exportDateFrom || !exportDateTo}>
+              {exporting ? <><Loader2 className="h-4 w-4 animate-spin" />Exportando...</> : <><Download className="h-4 w-4" />Exportar Todos (DOCX + PDF + XLSX)</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

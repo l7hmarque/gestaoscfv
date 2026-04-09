@@ -246,6 +246,12 @@ function headerParagraphs(): Paragraph[] {
   ];
 }
 
+/** Sanitize undefined/null/"undefined"/"Undefined" → "" */
+function safeStr(v: any, fallback = "—"): string {
+  if (v == null || v === "undefined" || v === "Undefined" || v === "") return fallback;
+  return String(v);
+}
+
 function infoRow(label: string, value: string | null | undefined): TableRow {
   return new TableRow({
     children: [
@@ -256,7 +262,7 @@ function infoRow(label: string, value: string | null | undefined): TableRow {
       }),
       new TableCell({
         width: { size: 6560, type: WidthType.DXA }, borders, margins: cellMargins,
-        children: [new Paragraph({ children: [new TextRun({ text: value || "—", size: 18, font: "Arial" })] })],
+        children: [new Paragraph({ children: [new TextRun({ text: safeStr(value), size: 18, font: "Arial" })] })],
       }),
     ],
   });
@@ -316,12 +322,12 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
   }).join(", ") || "—";
 
   return {
-    DATA: item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : "—",
-    DIA_SEMANA: item.dia_semana || "—",
-    EDUCADOR: item.profiles?.nome || "—",
-    TURMAS: turmaNames.join(", ") || "—",
+    DATA: item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : "",
+    DIA_SEMANA: safeStr(item.dia_semana, ""),
+    EDUCADOR: safeStr(item.profiles?.nome, ""),
+    TURMAS: turmaNames.join(", ") || "",
     TIPO_ATIVIDADE: tipoDisplay,
-    NOME_ATIVIDADE: item.nome_atividade || "—",
+    NOME_ATIVIDADE: safeStr(item.nome_atividade, ""),
     // Engajamento checkboxes — use [X]/[ ] for robust rendering
     ...Object.fromEntries(engOptions.map((opt, i) => [`ENG_${i + 1}`, item.engajamento?.includes(opt) ? "[X]" : "[ ]"])),
     ENG_1_LABEL: engOptions[0], ENG_2_LABEL: engOptions[1], ENG_3_LABEL: engOptions[2], ENG_4_LABEL: engOptions[3],
@@ -333,34 +339,34 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     ...Object.fromEntries(sitOptions.map((opt, i) => [`SIT_${i + 1}`, item.situacoes_relevantes?.includes(opt) ? "[X]" : "[ ]"])),
     SIT_1_LABEL: sitOptions[0], SIT_2_LABEL: sitOptions[1], SIT_3_LABEL: sitOptions[2], SIT_4_LABEL: sitOptions[3], SIT_5_LABEL: sitOptions[4],
     // Competências
-    INICIATIVA: item.iniciativa || "—",
-    INICIATIVA_LABEL: item.iniciativa ? LIKERT_LABELS[item.iniciativa] : "—",
-    AUTONOMIA: item.autonomia || "—",
-    AUTONOMIA_LABEL: item.autonomia ? LIKERT_LABELS[item.autonomia] : "—",
-    COLABORACAO: item.colaboracao || "—",
-    COLABORACAO_LABEL: item.colaboracao ? LIKERT_LABELS[item.colaboracao] : "—",
-    COMUNICACAO: item.comunicacao || "—",
-    COMUNICACAO_LABEL: item.comunicacao ? LIKERT_LABELS[item.comunicacao] : "—",
-    RESPEITO_MUTUO: item.respeito_mutuo || "—",
-    RESPEITO_MUTUO_LABEL: item.respeito_mutuo ? LIKERT_LABELS[item.respeito_mutuo] : "—",
-    SCORE_ELO: item.score_elo?.toFixed(2) || "—",
+    INICIATIVA: safeStr(item.iniciativa, ""),
+    INICIATIVA_LABEL: item.iniciativa ? LIKERT_LABELS[item.iniciativa] : "",
+    AUTONOMIA: safeStr(item.autonomia, ""),
+    AUTONOMIA_LABEL: item.autonomia ? LIKERT_LABELS[item.autonomia] : "",
+    COLABORACAO: safeStr(item.colaboracao, ""),
+    COLABORACAO_LABEL: item.colaboracao ? LIKERT_LABELS[item.colaboracao] : "",
+    COMUNICACAO: safeStr(item.comunicacao, ""),
+    COMUNICACAO_LABEL: item.comunicacao ? LIKERT_LABELS[item.comunicacao] : "",
+    RESPEITO_MUTUO: safeStr(item.respeito_mutuo, ""),
+    RESPEITO_MUTUO_LABEL: item.respeito_mutuo ? LIKERT_LABELS[item.respeito_mutuo] : "",
+    SCORE_ELO: item.score_elo?.toFixed(2) || "",
     // Resumo
     NUM_PRESENTES: item.num_participantes ?? 0,
     NUM_MATRICULADOS: item.num_matriculados ?? 0,
-    PCT_ADESAO: item.pct_adesao != null ? `${Number(item.pct_adesao).toFixed(0)}%` : "—",
-    ANALISE_IA: item.analise_ia || "—",
-    OBJETIVO: item.objetivo_alcancado ? (objLabels[item.objetivo_alcancado] || item.objetivo_alcancado) : "—",
-    INTERVENCOES: item.intervencoes || "—",
-    OBSERVACOES: item.observacoes || "—",
+    PCT_ADESAO: item.pct_adesao != null ? `${Number(item.pct_adesao).toFixed(0)}%` : "",
+    ANALISE_IA: safeStr(item.analise_ia, ""),
+    OBJETIVO: item.objetivo_alcancado ? (objLabels[item.objetivo_alcancado] || item.objetivo_alcancado) : "",
+    INTERVENCOES: safeStr(item.intervencoes, ""),
+    OBSERVACOES: safeStr(item.observacoes, ""),
     // New tags
-    NOME_GRUPO: item._nome_grupo || turmaNames.join(", ") || "—",
-    PERIODO_SCFV: item._periodo_scfv || "—",
+    NOME_GRUPO: safeStr(item._nome_grupo || turmaNames.join(", "), ""),
+    PERIODO_SCFV: safeStr(item._periodo_scfv, ""),
     // Presença loop
     PRESENCA: presenca.map((p, i) => ({
       NUM: i + 1,
-      NOME: p.participantes?.nome_completo || "",
+      NOME: safeStr(p.participantes?.nome_completo, ""),
       STATUS: p.presente ? "☑" : "☐",
-      JUSTIFICATIVA: p.justificativa || "",
+      JUSTIFICATIVA: safeStr(p.justificativa, ""),
     })),
     HAS_PRESENCA: presenca.length > 0,
     HAS_INTERVENCOES: !!item.intervencoes,
@@ -460,26 +466,40 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
 
   if (presenca.length > 0) {
     children.push(new Paragraph({ children: [new PageBreak()] }));
-    children.push(new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: "Lista de Presença", bold: true, size: 22, font: "Arial" })] }));
+    // REO-style attendance table
+    children.push(...headerParagraphs());
+    children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 100 }, children: [
+      new TextRun({ text: "LISTA DE PRESENÇA", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR }),
+    ]}));
+    children.push(new Paragraph({ spacing: { after: 50 }, children: [
+      new TextRun({ text: `Atividade: ${safeStr(item.nome_atividade, "")}  |  Data: ${item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : ""}  |  Turma(s): ${turmaNames.join(", ")}`, size: 16, font: "Arial" }),
+    ]}));
+    children.push(new Paragraph({ spacing: { after: 100 }, children: [
+      new TextRun({ text: `Educador(a): ${safeStr(item.profiles?.nome, "")}`, size: 16, font: "Arial" }),
+    ]}));
+    
     const presRows = [
       new TableRow({ children: [
-        new TableCell({ width: { size: 500, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nº", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 5860, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nome do Participante", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Presença", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 1800, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Justificativa", bold: true, size: 16, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 600, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Nº", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 6260, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nome do Participante", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Presença", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 1300, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Assinatura", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
       ]}),
       ...presenca.map((p, i) => new TableRow({ children: [
-        new TableCell({ width: { size: 500, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 16, font: "Arial" })] })] }),
-        new TableCell({ width: { size: 5860, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.participantes?.nome_completo || "", size: 16, font: "Arial" })] })] }),
+        new TableCell({ width: { size: 600, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 14, font: "Arial" })] })] }),
+        new TableCell({ width: { size: 6260, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: safeStr(p.participantes?.nome_completo, ""), size: 14, font: "Arial" })] })] }),
         new TableCell({
           width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins,
           shading: { fill: p.presente ? "E8F5E9" : "FFEBEE", type: ShadingType.CLEAR },
-          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: p.presente ? "☑" : "☐", size: 20, font: "Segoe UI Symbol", bold: true, color: p.presente ? "2E7D32" : "C62828" })] })],
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: p.presente ? "✓" : "", size: 18, font: "Arial", bold: true, color: p.presente ? "2E7D32" : "C62828" })] })],
         }),
-        new TableCell({ width: { size: 1800, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.justificativa || "", size: 14, font: "Arial", italics: true })] })] }),
+        new TableCell({ width: { size: 1300, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [] })] }),
       ]})),
     ];
-    children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [500, 6360, 1200, 1300], rows: presRows }));
+    children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [600, 6260, 1200, 1300], rows: presRows }));
+    children.push(new Paragraph({ spacing: { before: 300 }, children: [] }));
+    children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "________________________________", size: 18, font: "Arial" })] }));
+    children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Assinatura do(a) Educador(a)`, size: 16, font: "Arial", italics: true })] }));
   }
 
   // Photos section
@@ -640,17 +660,17 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
 
 function buildPlanejamentoTemplateData(item: any, turmaNames: string[]) {
   return {
-    TITULO: item.titulo || "—",
-    EDUCADOR: item.profiles?.nome || "—",
-    DATA_APLICACAO: item.data_aplicacao ? format(new Date(item.data_aplicacao + "T12:00:00"), "dd/MM/yyyy") : "—",
-    TURMAS: turmaNames.join(", ") || "—",
-    TEMA: item.tema || "—",
-    QUESTAO_GERADORA: item.questao_geradora || "—",
-    OBJETIVOS: item.objetivos || "—",
-    ROTEIRO: item.roteiro || "—",
-    MATERIAIS: item.materiais || "—",
-    APOIO_TECNICO: item.apoio_tecnico || "—",
-    FORMA_AVALIACAO: item.forma_avaliacao?.join(", ") || "—",
+    TITULO: safeStr(item.titulo, ""),
+    EDUCADOR: safeStr(item.profiles?.nome, ""),
+    DATA_APLICACAO: item.data_aplicacao ? format(new Date(item.data_aplicacao + "T12:00:00"), "dd/MM/yyyy") : "",
+    TURMAS: turmaNames.join(", ") || "",
+    TEMA: safeStr(item.tema, ""),
+    QUESTAO_GERADORA: safeStr(item.questao_geradora, ""),
+    OBJETIVOS: safeStr(item.objetivos, ""),
+    ROTEIRO: safeStr(item.roteiro, ""),
+    MATERIAIS: safeStr(item.materiais, ""),
+    APOIO_TECNICO: safeStr(item.apoio_tecnico, ""),
+    FORMA_AVALIACAO: item.forma_avaliacao?.join(", ") || "",
   };
 }
 
