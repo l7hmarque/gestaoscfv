@@ -729,7 +729,7 @@ const RelatorioDetalhePage = () => {
 
             {/* Intervenções e Observações */}
             <div className="space-y-1">
-              <Label className="text-xs">Intervenções</Label>
+              <Label className="text-xs">Atividades Realizadas</Label>
               <Textarea value={editForm.intervencoes} onChange={e => setEditForm(f => ({ ...f, intervencoes: e.target.value }))} rows={2} className="text-sm" />
             </div>
             <div className="space-y-1">
@@ -862,10 +862,13 @@ const RelatorioDetalhePage = () => {
           {item.situacoes_relevantes?.length > 0 && (
             <div><span className="text-xs text-muted-foreground">Situações:</span><div className="flex gap-1 flex-wrap mt-1">{item.situacoes_relevantes.map((s: string) => <Badge key={s} variant="outline" className="text-xs">{s}</Badge>)}</div></div>
           )}
-          {item.intervencoes && <div><span className="text-xs text-muted-foreground">Intervenções:</span><p className="whitespace-pre-wrap">{item.intervencoes}</p></div>}
+          {item.intervencoes && <div><span className="text-xs text-muted-foreground">Atividades Realizadas:</span><p className="whitespace-pre-wrap">{item.intervencoes}</p></div>}
           {item.observacoes && <div><span className="text-xs text-muted-foreground">Observações:</span><p className="whitespace-pre-wrap">{item.observacoes}</p></div>}
         </CardContent>
       </Card>
+
+      {/* Relatos Equipe Técnica */}
+      <RelatosEquipeTecnica relatorioId={id!} isCoordenacao={isCoordenacao} />
 
       {/* Resultados Alcançados (IA) */}
       {item.analise_ia && (
