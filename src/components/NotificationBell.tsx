@@ -125,9 +125,14 @@ export function NotificationBell() {
                       <p className="text-sm mt-0.5 line-clamp-2">{r.conteudo}</p>
                     </div>
                   </div>
-                  <div className="flex gap-1 mt-1.5">
+                  <div className="flex gap-1 mt-1.5 flex-wrap">
                     {r.ciente && <Badge variant="secondary" className="text-[10px]">✅ Ciente</Badge>}
                     {!r.ciente && isForMe(r) && !r.lido && <Badge variant="default" className="text-[10px]">Novo</Badge>}
+                    {(r as any).status && (r as any).status !== "pendente" && (
+                      <Badge variant={(r as any).status === "concluido" ? "default" : "secondary"} className="text-[10px]">
+                        {(r as any).status === "concluido" ? "✓ Concluído" : "⏳ Em andamento"}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               ))}
@@ -180,9 +185,14 @@ export function NotificationBell() {
                 <p className="text-sm whitespace-pre-wrap">{detailRecado.conteudo}</p>
               </div>
 
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-2 text-xs flex-wrap">
                 <Badge variant={detailRecado.lido ? "secondary" : "outline"}>{detailRecado.lido ? "✓ Lido" : "Não lido"}</Badge>
                 <Badge variant={detailRecado.ciente ? "secondary" : "outline"}>{detailRecado.ciente ? "✅ Ciente" : "Pendente"}</Badge>
+                {(detailRecado as any).status && (
+                  <Badge variant={(detailRecado as any).status === "concluido" ? "default" : (detailRecado as any).status === "em_andamento" ? "secondary" : "outline"}>
+                    Status: {(detailRecado as any).status === "concluido" ? "Concluído" : (detailRecado as any).status === "em_andamento" ? "Em andamento" : "Pendente"}
+                  </Badge>
+                )}
               </div>
 
               {isForMe(detailRecado) && !detailRecado.ciente && (
