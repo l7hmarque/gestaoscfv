@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Printer, Calendar, Users, FileText, ClipboardList, CheckSquare, Bell } from "lucide-react";
+import { ArrowLeft, Printer, Calendar, Users, FileText, ClipboardList, CheckSquare, Bell, Send } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -20,6 +20,8 @@ const ProfissionalPerfilPage = () => {
   const [relatorios, setRelatorios] = useState<any[]>([]);
   const [presencas, setPresencas] = useState<any[]>([]);
   const [recadosCount, setRecadosCount] = useState(0);
+  const [recadosEnviados, setRecadosEnviados] = useState<any[]>([]);
+  const [profilesMap, setProfilesMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,6 +49,16 @@ const ProfissionalPerfilPage = () => {
       // Count unread recados for this profile
       const { count } = await supabase.from("recados").select("id", { count: "exact", head: true }).eq("destinatario_id", id!).eq("lido", false);
       setRecadosCount(count || 0);
+
+      // Recados enviados por este profissional
+      const { data: enviados } = await supabase.from("recados").select("*").eq("remetente_id", id!).order("created_at", { ascending: false });
+      setRecadosEnviados(enviados || []);
+
+      // Profiles map for names
+      const { data: allProfiles } = await supabase.from("profiles").select("id, nome");
+      const pMap: Record<string, string> = {};
+      (allProfiles || []).forEach((p: any) => { pMap[p.id] = p.nome; });
+      setProfilesMap(pMap);
 
       setLoading(false);
     };
@@ -129,6 +141,7 @@ const ProfissionalPerfilPage = () => {
           <TabsTrigger value="planejamentos" className="text-xs h-7 gap-1"><ClipboardList className="h-3 w-3" />Planejamentos ({planejamentos.length})</TabsTrigger>
           <TabsTrigger value="relatorios" className="text-xs h-7 gap-1"><FileText className="h-3 w-3" />Relatórios ({relatorios.length})</TabsTrigger>
           <TabsTrigger value="presencas" className="text-xs h-7 gap-1"><CheckSquare className="h-3 w-3" />Presenças ({presencas.length})</TabsTrigger>
+          <TabsTrigger value="recados-enviados" className="text-xs h-7 gap-1"><Send className="h-3 w-3" />Recados ({recadosEnviados.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="turmas">
@@ -215,6 +228,35 @@ const ProfissionalPerfilPage = () => {
               </Card>
             ))}
             {presencas.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma presença registrada.</p>}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="recados-enviados">
+          <div className="grid gap-2">
+            {recadosEnviados.map(r => {
+              const status = (r as any).status || "pendente";
+              const statusLabel = status === "concluido" ? "Concluído" : status === "em_andamento" ? "Em andamento" : "Pendente";
+              const statusVariant = status === "concluido" ? "default" : status === "em_andamento" ? "secondary" : "outline";
+              return (
+                <Card key={r.id}>
+                  <CardContent className="p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">
+                        <span className="font-mono text-muted-foreground">#{r.numero}</span>
+                        {" → "}
+                        {profilesMap[r.destinatario_id] || "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground line-clamp-1">{r.conteudo}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {format(new Date(r.created_at), "dd/MM/yyyy HH:mm")}
+                      </p>
+                    </div>
+                    <Badge variant={statusVariant as any} className="text-[10px] shrink-0">{statusLabel}</Badge>
+                  </CardContent>
+                </Card>
+              );
+            })}
+            {recadosEnviados.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">Nenhum recado enviado.</p>}
           </div>
         </TabsContent>
       </Tabs>
