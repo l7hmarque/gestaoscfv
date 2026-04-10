@@ -748,7 +748,29 @@ export default function ExportarRelatoriosPage() {
     }
   };
 
-  const anyLoading = loadingReo || loadingRelMensal || loadingPC || loadingAnual || loadingAtividades || loadingAtendimentos;
+  const exportarGestao = async (formato: "pdf" | "xlsx" | "ambos") => {
+    setLoadingGestao(true);
+    try {
+      const mi = parseInt(gestaoMesInicio);
+      const ai = parseInt(gestaoAnoInicio);
+      const mf = parseInt(gestaoMesFim);
+      const af = parseInt(gestaoAnoFim);
+      if (formato === "pdf" || formato === "ambos") {
+        await exportRelatorioGestaoPDF(mi, ai, mf, af);
+      }
+      if (formato === "xlsx" || formato === "ambos") {
+        await exportRelatorioGestaoXLSX(mi, ai, mf, af);
+      }
+      toast.success(`Relatório de Gestão exportado em ${formato === "ambos" ? "PDF + XLSX" : formato.toUpperCase()}!`);
+    } catch (err: any) {
+      console.error("Erro ao exportar Relatório de Gestão:", err);
+      toast.error("Erro ao gerar relatório: " + (err.message || "Erro desconhecido"));
+    } finally {
+      setLoadingGestao(false);
+    }
+  };
+
+  const anyLoading = loadingReo || loadingRelMensal || loadingPC || loadingAnual || loadingAtividades || loadingAtendimentos || loadingGestao;
 
   return (
     <div className="space-y-6">
