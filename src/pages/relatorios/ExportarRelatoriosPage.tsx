@@ -153,6 +153,11 @@ export default function ExportarRelatoriosPage() {
   const [loadingAnual, setLoadingAnual] = useState(false);
   const [loadingAtividades, setLoadingAtividades] = useState(false);
   const [loadingAtendimentos, setLoadingAtendimentos] = useState(false);
+  const [loadingGestao, setLoadingGestao] = useState(false);
+  const [gestaoMesInicio, setGestaoMesInicio] = useState(String(now.getMonth() + 1).padStart(2, "0"));
+  const [gestaoMesFim, setGestaoMesFim] = useState(String(now.getMonth() + 1).padStart(2, "0"));
+  const [gestaoAnoInicio, setGestaoAnoInicio] = useState(String(now.getFullYear()));
+  const [gestaoAnoFim, setGestaoAnoFim] = useState(String(now.getFullYear()));
 
   // Atividades bulk export state
   const [ativDateFrom, setAtivDateFrom] = useState(format(startOfMonth(now), "yyyy-MM-dd"));
