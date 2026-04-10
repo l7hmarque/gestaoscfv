@@ -65,7 +65,6 @@ export function RecadosEquipeCards({ onPendingCount }: { onPendingCount?: (count
   const concluidos = recados.filter(r => (r as any).status === "concluido");
 
   if (loading) return null;
-  if (recados.length === 0) return null;
 
   return (
     <Card>
