@@ -16,7 +16,7 @@ const STATUS_OPTIONS = [
   { value: "concluido", label: "Concluído", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" },
 ];
 
-export function RecadosEquipeCards() {
+export function RecadosEquipeCards({ onPendingCount }: { onPendingCount?: (count: number) => void }) {
   const { user } = useAuth();
   const [recados, setRecados] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -35,7 +35,7 @@ export function RecadosEquipeCards() {
   const loadRecados = async () => {
     if (!user) return;
     const [{ data: recs }, { data: profs }, { data: parts }] = await Promise.all([
-      supabase.from("recados").select("*").order("created_at", { ascending: false }).limit(50),
+      supabase.from("recados").select("*").eq("tipo_recado", "tecnico").order("created_at", { ascending: false }).limit(50),
       supabase.from("profiles").select("id, nome, user_id"),
       supabase.from("participantes").select("id, nome_completo"),
     ]);
@@ -43,6 +43,8 @@ export function RecadosEquipeCards() {
     setParticipantes(parts || []);
     setRecados(recs || []);
     setLoading(false);
+    const pending = (recs || []).filter((r: any) => r.status !== "concluido").length;
+    onPendingCount?.(pending);
   };
 
   const handleStatusChange = async (recadoId: string, newStatus: string) => {
@@ -63,7 +65,6 @@ export function RecadosEquipeCards() {
   const concluidos = recados.filter(r => (r as any).status === "concluido");
 
   if (loading) return null;
-  if (recados.length === 0) return null;
 
   return (
     <Card>

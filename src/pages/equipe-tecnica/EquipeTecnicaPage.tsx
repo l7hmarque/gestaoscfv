@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2, Phone, MapPin, Search, Eye, UserCheck, UserX } from "lucide-react";
+import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2, Phone, MapPin, Search, Eye, UserCheck, UserX, Mail } from "lucide-react";
 import { RecadosEquipeCards } from "@/components/RecadosEquipeCards";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
@@ -92,6 +92,7 @@ const EquipeTecnicaPage = () => {
   const [baFilterBairro, setBaFilterBairro] = useState("");
   const [baForm, setBaForm] = useState({ tipo_contato: [] as string[], descricao: "", resultado: "em_andamento" });
   const [baSaving, setBaSaving] = useState(false);
+  const [recadosPendentes, setRecadosPendentes] = useState(0);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -539,6 +540,12 @@ const EquipeTecnicaPage = () => {
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="atendimentos">Atendimentos</TabsTrigger>
           <TabsTrigger value="busca-ativa" className="gap-1"><Search className="h-3.5 w-3.5" />Busca Ativa</TabsTrigger>
+          <TabsTrigger value="recados" className="gap-1">
+            <Mail className="h-3.5 w-3.5" />Recados
+            {recadosPendentes > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 min-w-[20px] px-1 text-[10px]">{recadosPendentes}</Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
           <TabsTrigger value="alertas">Alertas</TabsTrigger>
         </TabsList>
@@ -580,7 +587,7 @@ const EquipeTecnicaPage = () => {
             </Card>
           )}
 
-          <RecadosEquipeCards />
+          
 
           <div className="grid md:grid-cols-2 gap-4">
             <Card>
@@ -797,6 +804,11 @@ const EquipeTecnicaPage = () => {
               })}
             </div>
           )}
+        </TabsContent>
+
+        {/* RECADOS */}
+        <TabsContent value="recados" className="space-y-4">
+          <RecadosEquipeCards onPendingCount={setRecadosPendentes} />
         </TabsContent>
 
         {/* RELATÓRIOS */}

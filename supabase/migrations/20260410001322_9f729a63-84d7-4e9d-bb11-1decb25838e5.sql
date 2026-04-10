@@ -1,0 +1,1 @@
+ALTER TABLE public.recados ADD COLUMN tipo_recado text NOT NULL DEFAULT 'geral';

@@ -65,6 +65,7 @@ export function SendRecadoDialog({ toTecnicos, trigger }: Props) {
       destinatario_id: form.destinatario_id,
       participante_id: partId,
       conteudo: form.conteudo,
+      ...(toTecnicos ? { tipo_recado: "tecnico" } : {}),
     } as any).select("*").single();
     if (error) { toast.error("Erro: " + error.message); return; }
 
