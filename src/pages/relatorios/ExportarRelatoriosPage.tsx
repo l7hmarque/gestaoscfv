@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { exportRelatorioGestaoPDF, exportRelatorioGestaoXLSX } from "@/hooks/useRelatorioGestao";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -152,6 +153,11 @@ export default function ExportarRelatoriosPage() {
   const [loadingAnual, setLoadingAnual] = useState(false);
   const [loadingAtividades, setLoadingAtividades] = useState(false);
   const [loadingAtendimentos, setLoadingAtendimentos] = useState(false);
+  const [loadingGestao, setLoadingGestao] = useState(false);
+  const [gestaoMesInicio, setGestaoMesInicio] = useState(String(now.getMonth() + 1).padStart(2, "0"));
+  const [gestaoMesFim, setGestaoMesFim] = useState(String(now.getMonth() + 1).padStart(2, "0"));
+  const [gestaoAnoInicio, setGestaoAnoInicio] = useState(String(now.getFullYear()));
+  const [gestaoAnoFim, setGestaoAnoFim] = useState(String(now.getFullYear()));
 
   // Atividades bulk export state
   const [ativDateFrom, setAtivDateFrom] = useState(format(startOfMonth(now), "yyyy-MM-dd"));
@@ -742,7 +748,29 @@ export default function ExportarRelatoriosPage() {
     }
   };
 
-  const anyLoading = loadingReo || loadingRelMensal || loadingPC || loadingAnual || loadingAtividades || loadingAtendimentos;
+  const exportarGestao = async (formato: "pdf" | "xlsx" | "ambos") => {
+    setLoadingGestao(true);
+    try {
+      const mi = parseInt(gestaoMesInicio);
+      const ai = parseInt(gestaoAnoInicio);
+      const mf = parseInt(gestaoMesFim);
+      const af = parseInt(gestaoAnoFim);
+      if (formato === "pdf" || formato === "ambos") {
+        await exportRelatorioGestaoPDF(mi, ai, mf, af);
+      }
+      if (formato === "xlsx" || formato === "ambos") {
+        await exportRelatorioGestaoXLSX(mi, ai, mf, af);
+      }
+      toast.success(`Relatório de Gestão exportado em ${formato === "ambos" ? "PDF + XLSX" : formato.toUpperCase()}!`);
+    } catch (err: any) {
+      console.error("Erro ao exportar Relatório de Gestão:", err);
+      toast.error("Erro ao gerar relatório: " + (err.message || "Erro desconhecido"));
+    } finally {
+      setLoadingGestao(false);
+    }
+  };
+
+  const anyLoading = loadingReo || loadingRelMensal || loadingPC || loadingAnual || loadingAtividades || loadingAtendimentos || loadingGestao;
 
   return (
     <div className="space-y-6">
@@ -775,13 +803,14 @@ export default function ExportarRelatoriosPage() {
       </Card>
 
       <Tabs defaultValue="reo" className="space-y-4">
-        <TabsList className="grid grid-cols-6 w-full">
+        <TabsList className="grid grid-cols-7 w-full">
           <TabsTrigger value="reo">REO</TabsTrigger>
           <TabsTrigger value="mensal">Rel. Mensal</TabsTrigger>
           <TabsTrigger value="pc">Prest. Contas</TabsTrigger>
           <TabsTrigger value="atividades">Atividades</TabsTrigger>
           <TabsTrigger value="atendimentos">Atend. Técnicos</TabsTrigger>
           <TabsTrigger value="anual">Anual</TabsTrigger>
+          <TabsTrigger value="gestao">Gestão</TabsTrigger>
         </TabsList>
 
         {/* REO */}
@@ -938,6 +967,62 @@ export default function ExportarRelatoriosPage() {
                 {loadingAnual ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 Exportar Relatório Completo
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Relatório de Gestão */}
+        <TabsContent value="gestao">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="h-5 w-5" /> Relatório de Gestão e Prestação de Contas
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Relatório institucional unificado com 8 seções: identificação, público atendido, atividades pedagógicas,
+                frequência, atendimentos técnicos, execução financeira, transporte e indicadores de resultado.
+                Ideal para <strong>Secretaria de Assistência Social, Controladoria, CRAS e captação de recursos</strong>.
+              </p>
+              <div className="flex flex-wrap gap-3 items-end">
+                <div>
+                  <Label className="text-xs">Mês Início</Label>
+                  <Select value={gestaoMesInicio} onValueChange={setGestaoMesInicio}>
+                    <SelectTrigger className="w-[130px] mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>{MESES.map((m, i) => <SelectItem key={m} value={m}>{MESES_NOMES[i]}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Ano Início</Label>
+                  <Input className="w-[90px] mt-1" value={gestaoAnoInicio} onChange={e => setGestaoAnoInicio(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-xs">Mês Fim</Label>
+                  <Select value={gestaoMesFim} onValueChange={setGestaoMesFim}>
+                    <SelectTrigger className="w-[130px] mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>{MESES.map((m, i) => <SelectItem key={m} value={m}>{MESES_NOMES[i]}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Ano Fim</Label>
+                  <Input className="w-[90px] mt-1" value={gestaoAnoFim} onChange={e => setGestaoAnoFim(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={() => exportarGestao("ambos")} disabled={anyLoading} className="gap-2">
+                  {loadingGestao ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  Exportar PDF + XLSX
+                </Button>
+                <Button onClick={() => exportarGestao("pdf")} disabled={anyLoading} variant="outline" className="gap-2">
+                  {loadingGestao ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                  Só PDF
+                </Button>
+                <Button onClick={() => exportarGestao("xlsx")} disabled={anyLoading} variant="outline" className="gap-2">
+                  {loadingGestao ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+                  Só XLSX
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
