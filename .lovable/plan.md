@@ -1,72 +1,60 @@
+## Plano: Novo status "Busca Ativa" + Painel de Desligamento Administrativo
 
+### Contexto
 
-## Plano: 4 melhorias no sistema de relatórios
+Atualmente o enum `status_participante` tem: `ativo`, `desligado`, `incompleto`, `pendente`. Precisa de um novo valor `busca_ativa` para participantes que ainda não foram desligados formalmente mas precisam de busca ativa. Além disso, é necessário um painel especial para coordenação realizar desligamentos retroativos em lote, limpando vínculos com indicadores.
 
-### 1. Auto-preencher campos ao vincular planejamento
+### 1. Migração: adicionar valor "busca_ativa" ao enum
 
-**Arquivo:** `src/pages/relatorios/RelatorioNovoPage.tsx`
+```sql
+ALTER TYPE public.status_participante ADD VALUE IF NOT EXISTS 'busca_ativa';
+```
 
-- Alterar o fetch de planejamentos para incluir `tipo_atividade, tipo_atividade_detalhe, educador_id` além de `id, titulo`
-- Em `handlePlanejamentoChange`, ao selecionar um planejamento, preencher automaticamente: `nome_atividade` (titulo), `educador_id`, `tipo_atividade`, `tipo_atividade_detalhe`
-- Só preencher se o campo estiver vazio ou se vier do planejamento (não sobrescrever dados já editados manualmente — usar o valor do plano como default)
+### 2. Atualizar labels e cores em `constants.ts`
 
-### 2. Renomear "Intervenções Realizadas" para "Atividades Realizadas"
+Adicionar `busca_ativa: "Busca Ativa"` em `STATUS_LABELS` e cor laranja em `STATUS_COLORS`.
 
-**Arquivo:** `src/pages/relatorios/RelatorioNovoPage.tsx` (linha 592)
+### 3. Adicionar "Busca Ativa" nos selects de status
 
-- Trocar o label de "Intervenções Realizadas" para "Atividades Realizadas"
-- O campo `form.intervencoes` e a coluna no banco continuam iguais (apenas label visual)
+**Arquivos afetados:**
 
-### 3. Relato para Equipe Técnica (novo recurso)
+- `ParticipantesPage.tsx` — filtro de status e select inline na tabela
+- `ParticipantePerfilPage.tsx` — dropdown de status no perfil
 
-**Banco de dados:** Criar tabela `relato_equipe_tecnica`:
-- `id` uuid PK
-- `relatorio_id` uuid NOT NULL (referência ao relatório)
-- `motivo` text NOT NULL (ex: conflito, vulnerabilidade, encaminhamento)
-- `descricao` text NOT NULL
-- `created_at` timestamptz DEFAULT now()
-- `criado_por` uuid (profile id do educador)
+### 4. Criar página "Painel de Desligamento Administrativo"
 
-Criar tabela `relato_equipe_participantes`:
-- `id` uuid PK
-- `relato_id` uuid NOT NULL
-- `participante_id` uuid NOT NULL
+**Novo arquivo:** `src/pages/participantes/PainelDesligamentoPage.tsx`
 
-RLS: insert/select para non-visitante; select para tecnico/coordenacao.
+**Acesso:** Apenas `coordenacao` (super admin). Rota `/desligamento-admin` protegida.
 
-**Arquivo:** `src/pages/relatorios/RelatorioNovoPage.tsx`
-- Adicionar seção "Relato para Equipe Técnica" no formulário (após Observações):
-  - Select de motivo: "Conflito entre participantes", "Vulnerabilidade identificada", "Comportamento preocupante", "Encaminhamento necessário", "Outro"
-  - Multi-select de participantes (da lista de `participantesTurma`)
-  - Textarea de descrição breve
-  - Botão "Adicionar relato" (pode ter múltiplos relatos por relatório)
-- No `handleSave`, após criar o relatório:
-  - Inserir na `relato_equipe_tecnica` e `relato_equipe_participantes`
-  - Criar `recado` tipo `tecnico` para cada profissional com role `tecnico`/`coordenacao`, com link ao relatório
-  - Registrar observação no prontuário (`participantes.observacoes_sigilosas`) — append ao texto existente com data e motivo
+**Funcionalidades:**
 
-**Arquivo:** `src/pages/relatorios/RelatorioDetalhePage.tsx`
-- Exibir seção "Relatos Equipe Técnica" na visualização do relatório (visível para tecnico/coordenacao)
+- Lista todos participantes com status `ativo` ou `busca_ativa`
+- Checkbox individual + "Selecionar todos"
+- Campos globais: motivo do desligamento, data de desligamento (retroativa), justificativa - todos opcionais.
+- Botão "Executar Desligamento em Lote" que para cada participante selecionado:
+  1. Atualiza status para `desligado`, preenche `motivo_desligamento`, `justificativa_desligamento`, `data_desligamento`
+  2. Remove vínculos de `turma_participantes` (deleta registros)
+  3. Remove registros de `relatorio_presenca` onde `participante_id` corresponde
+  4. Remove registros de `presenca` onde `participante_id` corresponde
+  5. Registra no `audit_log`
+- Os participantes **não são deletados** — continuam no banco como `desligado`
+- Filtros por bairro, período, faixa etária para facilitar a triagem
 
-### 4. REO: Atividades planejadas x realizadas com IA
+### 5. Adicionar rota e link no sidebar
 
-**Arquivo:** `supabase/functions/generate-reo/index.ts`
-
-Na tabela de atividades (linhas 203-226):
-- Coluna "Atividades desenvolvidas": se há relatório vinculado, exibir o `nome_atividade` do relatório ao invés de "Sim (Nx)"
-- Coluna "Resultados alcançados": usar o campo `analise_ia` do relatório vinculado (que já é gerado com até 130 caracteres pelo `generate-resultados-alcancados`). Se não houver `analise_ia`, gerar um resumo via chamada à API Lovable AI durante a geração do REO.
-- Para relatórios sem planejamento vinculado, aplicar a mesma lógica de `analise_ia`
-
-Mesma correção no trecho XLSX (linhas 571-577).
-
----
+- Nova rota protegida em `App.tsx`: `/desligamento-admin`
+- Link no sidebar na seção "Gestão", visível apenas para coordenação (verificação de role client-side)
 
 ### Resumo de alterações
 
-| Arquivo/Recurso | Mudança |
-|---|---|
-| `RelatorioNovoPage.tsx` | Auto-preencher ao vincular planejamento; renomear label; seção de relato equipe técnica |
-| `RelatorioDetalhePage.tsx` | Exibir relatos da equipe técnica |
-| `generate-reo/index.ts` | Nome da atividade na coluna "desenvolvidas"; `analise_ia` na coluna "resultados" |
-| **Nova migração** | Tabelas `relato_equipe_tecnica` + `relato_equipe_participantes` com RLS |
 
+| Recurso                                | Mudança                                                            |
+| -------------------------------------- | ------------------------------------------------------------------ |
+| **Migração SQL**                       | `ALTER TYPE status_participante ADD VALUE 'busca_ativa'`           |
+| `constants.ts`                         | Novo label + cor para `busca_ativa`                                |
+| `ParticipantesPage.tsx`                | Adicionar opção "Busca Ativa" nos selects                          |
+| `ParticipantePerfilPage.tsx`           | Idem                                                               |
+| **Novo: `PainelDesligamentoPage.tsx**` | Painel completo de desligamento em lote com limpeza de indicadores |
+| `App.tsx`                              | Nova rota `/desligamento-admin`                                    |
+| `AppSidebar.tsx`                       | Link condicional para coordenação                                  |
