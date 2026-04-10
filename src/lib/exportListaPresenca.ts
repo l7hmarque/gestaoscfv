@@ -191,7 +191,11 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
 
   // Column widths — auto-fit name column based on content, ensure header text fits
   const maxNameLen = Math.max(20, ...orderedMembers.map(m => {
-    const label = m.desligado ? `${m.nome} (D${m.data_desligamento ? " " + m.data_desligamento : ""})` : m.nome;
+    const label = m.desligado
+      ? `${m.nome} (D${m.data_desligamento ? " " + m.data_desligamento : ""})`
+      : m.transferido
+        ? `${m.nome} (T${m.data_transferencia ? " " + m.data_transferencia : ""})`
+        : m.nome;
     return label.length;
   }));
   let nameColWidth = Math.min(maxNameLen + 2, 55);
