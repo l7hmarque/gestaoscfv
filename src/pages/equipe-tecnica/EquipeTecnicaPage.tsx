@@ -540,6 +540,12 @@ const EquipeTecnicaPage = () => {
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="atendimentos">Atendimentos</TabsTrigger>
           <TabsTrigger value="busca-ativa" className="gap-1"><Search className="h-3.5 w-3.5" />Busca Ativa</TabsTrigger>
+          <TabsTrigger value="recados" className="gap-1">
+            <Mail className="h-3.5 w-3.5" />Recados
+            {recadosPendentes > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 min-w-[20px] px-1 text-[10px]">{recadosPendentes}</Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
           <TabsTrigger value="alertas">Alertas</TabsTrigger>
         </TabsList>
