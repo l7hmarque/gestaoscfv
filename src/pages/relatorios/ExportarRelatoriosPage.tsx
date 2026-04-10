@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { exportRelatorioGestaoPDF, exportRelatorioGestaoXLSX } from "@/hooks/useRelatorioGestao";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
