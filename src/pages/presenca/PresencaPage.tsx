@@ -58,8 +58,9 @@ const PresencaPage = () => {
     const fetchParts = async () => {
       const { data } = await supabase
         .from("turma_participantes")
-        .select("participante_id, participantes(id, nome_completo, data_nascimento, bairro_id, periodo, status)")
-        .eq("turma_id", selectedTurma);
+        .select("participante_id, data_saida, participantes(id, nome_completo, data_nascimento, bairro_id, periodo, status)")
+        .eq("turma_id", selectedTurma)
+        .is("data_saida" as any, null);
       if (data) {
         const list = data
           .filter((d: any) => d.participantes && d.participantes.status !== "desligado")

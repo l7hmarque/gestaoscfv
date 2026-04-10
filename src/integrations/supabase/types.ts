@@ -1971,19 +1971,25 @@ export type Database = {
       }
       turma_participantes: {
         Row: {
+          data_saida: string | null
           id: string
+          motivo_saida: string | null
           participante_id: string
           periodo_override: Database["public"]["Enums"]["periodo_enum"] | null
           turma_id: string
         }
         Insert: {
+          data_saida?: string | null
           id?: string
+          motivo_saida?: string | null
           participante_id: string
           periodo_override?: Database["public"]["Enums"]["periodo_enum"] | null
           turma_id: string
         }
         Update: {
+          data_saida?: string | null
           id?: string
+          motivo_saida?: string | null
           participante_id?: string
           periodo_override?: Database["public"]["Enums"]["periodo_enum"] | null
           turma_id?: string

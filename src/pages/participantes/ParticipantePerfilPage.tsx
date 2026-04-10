@@ -705,6 +705,7 @@ const ParticipantePerfilPage = () => {
             <Button variant="outline" size="sm" onClick={() => setShowTransferDialog(false)}>Manter nas turmas atuais</Button>
             <Button size="sm" onClick={async () => {
               if (!transferInfo) return;
+              const today = new Date().toISOString().split("T")[0];
               // Record transfers
               const oldLinks = turmas.map(t => t.turma_id);
               for (const oldId of oldLinks) {
@@ -717,8 +718,15 @@ const ParticipantePerfilPage = () => {
                   });
                 }
               }
-              // Remove old links, add new
-              await supabase.from("turma_participantes").delete().eq("participante_id", id!);
+              // Mark old links with data_saida instead of deleting (preserves frequency history)
+              for (const oldId of oldLinks) {
+                await supabase.from("turma_participantes")
+                  .update({ data_saida: today, motivo_saida: "Transferência por alteração cadastral" } as any)
+                  .eq("participante_id", id!)
+                  .eq("turma_id", oldId)
+                  .is("data_saida" as any, null);
+              }
+              // Add new links
               const newLinks = transferInfo.newTurmas.map(t => ({ turma_id: t.id, participante_id: id! }));
               await supabase.from("turma_participantes").upsert(newLinks, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
               // Notify educators

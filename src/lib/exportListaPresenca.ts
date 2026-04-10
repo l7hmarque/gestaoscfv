@@ -20,6 +20,8 @@ interface MemberInfo {
   nome: string;
   desligado?: boolean;
   data_desligamento?: string | null;
+  transferido?: boolean;
+  data_transferencia?: string | null;
 }
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
@@ -124,14 +126,19 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   // Row 7: Table header
   rows.push(["Nº", "Nome do Participante", ...datas]);
 
-  // Data rows - desligados at bottom with strikethrough
-  const activeMembers = sorted.filter(m => !m.desligado);
+  // Data rows - desligados/transferidos at bottom with strikethrough
+  const activeMembers = sorted.filter(m => !m.desligado && !m.transferido);
+  const transferidoMembers = sorted.filter(m => m.transferido && !m.desligado);
   const desligadoMembers = sorted.filter(m => m.desligado);
-  const orderedMembers = [...activeMembers, ...desligadoMembers];
+  const orderedMembers = [...activeMembers, ...transferidoMembers, ...desligadoMembers];
 
   orderedMembers.forEach((m, i) => {
-    const label = m.desligado ? `${m.nome} (D${m.data_desligamento ? " " + m.data_desligamento : ""})` : m.nome;
-    rows.push([i + 1, label, ...datas.map(() => m.desligado ? "—" : "")]);
+    const label = m.desligado
+      ? `${m.nome} (D${m.data_desligamento ? " " + m.data_desligamento : ""})`
+      : m.transferido
+        ? `${m.nome} (T${m.data_transferencia ? " " + m.data_transferencia : ""})`
+        : m.nome;
+    rows.push([i + 1, label, ...datas.map(() => (m.desligado || m.transferido) ? "—" : "")]);
   });
 
   // Blank row + signature
@@ -166,9 +173,11 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
       else if (r === headerStartRow) ws[addr].s = hdrStyle;
       else if (r > headerStartRow && r < headerStartRow + 1 + orderedMembers.length) {
         const memberIdx = r - headerStartRow - 1;
-        const isDesligado = memberIdx >= activeMembers.length;
-        if (isDesligado) {
-          ws[addr].s = c === 0 ? { ...cellCenterStyle, font: { ...cellCenterStyle.font, strike: true, color: { rgb: "999999" } } } : (c >= 2 ? { ...cellCenterStyle, font: { ...cellCenterStyle.font, strike: true, color: { rgb: "999999" } } } : cellStrikeStyle);
+        const isDesligado = memberIdx >= activeMembers.length + transferidoMembers.length;
+        const isTransferido = !isDesligado && memberIdx >= activeMembers.length;
+        if (isDesligado || isTransferido) {
+          const strikeColor = isTransferido ? "CC8800" : "999999";
+          ws[addr].s = c === 0 ? { ...cellCenterStyle, font: { ...cellCenterStyle.font, strike: true, color: { rgb: strikeColor } } } : (c >= 2 ? { ...cellCenterStyle, font: { ...cellCenterStyle.font, strike: true, color: { rgb: strikeColor } } } : { ...cellStrikeStyle, font: { ...cellStrikeStyle.font, color: { rgb: strikeColor } } });
         } else {
           ws[addr].s = c === 0 ? cellCenterStyle : (c >= 2 ? cellCenterStyle : cellStyle);
         }
@@ -182,7 +191,11 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
 
   // Column widths — auto-fit name column based on content, ensure header text fits
   const maxNameLen = Math.max(20, ...orderedMembers.map(m => {
-    const label = m.desligado ? `${m.nome} (D${m.data_desligamento ? " " + m.data_desligamento : ""})` : m.nome;
+    const label = m.desligado
+      ? `${m.nome} (D${m.data_desligamento ? " " + m.data_desligamento : ""})`
+      : m.transferido
+        ? `${m.nome} (T${m.data_transferencia ? " " + m.data_transferencia : ""})`
+        : m.nome;
     return label.length;
   }));
   let nameColWidth = Math.min(maxNameLen + 2, 55);
