@@ -1440,6 +1440,7 @@ export type Database = {
           numero: number
           participante_id: string | null
           remetente_id: string
+          status: string
         }
         Insert: {
           ciente?: boolean
@@ -1451,6 +1452,7 @@ export type Database = {
           numero?: number
           participante_id?: string | null
           remetente_id: string
+          status?: string
         }
         Update: {
           ciente?: boolean
@@ -1462,6 +1464,7 @@ export type Database = {
           numero?: number
           participante_id?: string | null
           remetente_id?: string
+          status?: string
         }
         Relationships: [
           {
