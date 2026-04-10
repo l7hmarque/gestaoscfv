@@ -1067,9 +1067,9 @@ export async function exportListaPresencaPdf(
     body: participantes.map((p, i) => [
       i + 1,
       p.nome,
-      ...datas.map(() => "☐"),
+      ...datas.map(() => "[ ]"),
     ]),
-    headStyles: { fillColor: [26, 82, 118], fontSize: 6, cellPadding: 1.5, halign: "center" },
+    headStyles: { fillColor: [50, 50, 50], fontSize: 6, cellPadding: 1.5, halign: "center" },
     styles: { fontSize: 6, cellPadding: 1.5 },
     columnStyles: {
       0: { cellWidth: 7, halign: "center" },
