@@ -171,8 +171,9 @@ const RelatorioNovoPage = () => {
     const fetchParts = async () => {
       const { data } = await supabase
         .from("turma_participantes")
-        .select("participante_id, participantes(id, nome_completo)")
-        .in("turma_id", form.turma_ids);
+        .select("participante_id, data_saida, participantes(id, nome_completo)")
+        .in("turma_id", form.turma_ids)
+        .is("data_saida" as any, null);
       if (data) {
         const unique = new Map<string, string>();
         data.forEach((d: any) => { if (d.participantes) unique.set(d.participantes.id, d.participantes.nome_completo); });

@@ -32,7 +32,7 @@ const diasOptions = [
   { value: "qui", label: "Quinta" }, { value: "sex", label: "Sexta" }, { value: "sab", label: "Sábado" },
 ];
 
-interface MemberRow { tp_id: string; participante_id: string; nome: string; periodo: string | null; status?: string | null; data_desligamento?: string | null; }
+interface MemberRow { tp_id: string; participante_id: string; nome: string; periodo: string | null; status?: string | null; data_desligamento?: string | null; data_saida?: string | null; motivo_saida?: string | null; }
 interface AlertInfo { consecutiveFaults: number; adesao: number; lastPresent: string | null; }
 interface TurmaDashboard { taxaAdesao: number; totalPresencas: number; totalRegistros: number; medianElo: number; stdElo: number; eloCount: number; }
 interface LinkedPlan { id: string; titulo: string; data_aplicacao: string | null; }
@@ -69,7 +69,7 @@ const TurmaDetalhePage = () => {
     setLoading(true);
     const [{ data: t }, { data: tp }, { data: ap }, { data: b }, { data: e }, { data: ptData }, { data: rtData }] = await Promise.all([
       supabase.from("turmas").select("*, profiles(nome), bairros(nome)").eq("id", id!).single(),
-      supabase.from("turma_participantes").select("id, participante_id, participantes(nome_completo, periodo, status, data_desligamento)").eq("turma_id", id!),
+      supabase.from("turma_participantes").select("id, participante_id, data_saida, motivo_saida, participantes(nome_completo, periodo, status, data_desligamento)").eq("turma_id", id!),
       supabase.from("participantes").select("id, nome_completo, periodo").eq("status", "ativo").order("nome_completo"),
       supabase.from("bairros").select("*").order("nome"),
       supabase.from("profiles").select("*").order("nome"),
@@ -77,7 +77,7 @@ const TurmaDetalhePage = () => {
       supabase.from("relatorio_turmas").select("relatorio_id, relatorios_atividade(id, nome_atividade, data, score_elo)").eq("turma_id", id!),
     ]);
     setTurma(t);
-    const membersList = (tp || []).map((r: any) => ({ tp_id: r.id, participante_id: r.participante_id, nome: r.participantes?.nome_completo || "", periodo: r.participantes?.periodo, status: r.participantes?.status, data_desligamento: r.participantes?.data_desligamento }));
+    const membersList = (tp || []).map((r: any) => ({ tp_id: r.id, participante_id: r.participante_id, nome: r.participantes?.nome_completo || "", periodo: r.participantes?.periodo, status: r.participantes?.status, data_desligamento: r.participantes?.data_desligamento, data_saida: r.data_saida, motivo_saida: r.motivo_saida }));
     setMembers(membersList);
     setAllParticipantes(ap || []);
     setBairros(b || []);
