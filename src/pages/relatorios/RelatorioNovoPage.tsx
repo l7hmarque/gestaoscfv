@@ -150,7 +150,11 @@ const RelatorioNovoPage = () => {
 
   // Load participantes when turmas change
   useEffect(() => {
-    if (form.turma_ids.length === 0) { setParticipantesTurma([]); return; }
+    if (form.turma_ids.length === 0) {
+      setParticipantesTurma([]);
+      setForm(f => ({ ...f, presenca: {}, justificativas: {} }));
+      return;
+    }
     const fetchParts = async () => {
       const { data } = await supabase
         .from("turma_participantes")
@@ -162,9 +166,12 @@ const RelatorioNovoPage = () => {
         const list = Array.from(unique, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
         setParticipantesTurma(list);
         setForm(f => {
-          const pres = { ...f.presenca };
-          list.forEach(p => { if (!(p.id in pres)) pres[p.id] = true; });
-          return { ...f, presenca: pres };
+          const activeIds = new Set(list.map(p => p.id));
+          const pres: Record<string, boolean> = {};
+          const justs: Record<string, string> = {};
+          list.forEach(p => { pres[p.id] = p.id in f.presenca ? f.presenca[p.id] : true; });
+          Object.entries(f.justificativas).forEach(([id, v]) => { if (activeIds.has(id)) justs[id] = v; });
+          return { ...f, presenca: pres, justificativas: justs };
         });
       }
     };
@@ -191,7 +198,8 @@ const RelatorioNovoPage = () => {
     setFotos(prev => [...prev, ...files]);
   };
 
-  const numParticipantes = Object.values(form.presenca).filter(Boolean).length;
+  const activeParticipantIds = new Set(participantesTurma.map(p => p.id));
+  const numParticipantes = Object.entries(form.presenca).filter(([id, v]) => v && activeParticipantIds.has(id)).length;
   const numAusentes = participantesTurma.length - numParticipantes;
   const pctAdesao = participantesTurma.length > 0 ? ((numParticipantes / participantesTurma.length) * 100) : 0;
 
