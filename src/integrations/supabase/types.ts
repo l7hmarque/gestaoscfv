@@ -1441,6 +1441,7 @@ export type Database = {
           participante_id: string | null
           remetente_id: string
           status: string
+          tipo_recado: string
         }
         Insert: {
           ciente?: boolean
@@ -1453,6 +1454,7 @@ export type Database = {
           participante_id?: string | null
           remetente_id: string
           status?: string
+          tipo_recado?: string
         }
         Update: {
           ciente?: boolean
@@ -1465,6 +1467,7 @@ export type Database = {
           participante_id?: string | null
           remetente_id?: string
           status?: string
+          tipo_recado?: string
         }
         Relationships: [
           {
