@@ -1,9 +1,11 @@
+import { useState, useEffect } from "react";
 import {
-  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings, User,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
@@ -48,7 +50,16 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { signOut } = useAuth();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const [myProfileId, setMyProfileId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("profiles").select("id").eq("user_id", user.id).single().then(({ data }) => {
+      if (data) setMyProfileId(data.id);
+    });
+  }, [user]);
 
   return (
     <Sidebar collapsible="icon">
@@ -94,6 +105,18 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border p-2">
         <SidebarMenu>
+          {myProfileId && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => navigate(`/profissional/${myProfileId}`)}
+                className="text-muted-foreground hover:text-foreground"
+                isActive={location.pathname === `/profissional/${myProfileId}`}
+              >
+                <User className="h-4 w-4" />
+                {!collapsed && <span>Meu Perfil</span>}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton onClick={() => signOut()} className="text-muted-foreground hover:text-destructive">
               <LogOut className="h-4 w-4" />
