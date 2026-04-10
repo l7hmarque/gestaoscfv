@@ -256,6 +256,8 @@ const TurmaDetalhePage = () => {
       nome: m.nome,
       desligado: m.status === "desligado",
       data_desligamento: m.data_desligamento || null,
+      transferido: !!m.data_saida && m.status !== "desligado",
+      data_transferencia: m.data_saida || null,
     }));
     const turmaInfo = {
       ...turma,
