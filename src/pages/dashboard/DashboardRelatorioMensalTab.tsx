@@ -865,6 +865,66 @@ export default function DashboardRelatorioMensalTab() {
         y = (doc as any).lastAutoTable.finalY + 6;
       }
 
+      // ── ANEXO: Listas de Presença por Turma ──
+      const DIAS_MAP_PDF: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
+      const activeTurmas = (turmas || []).filter((t: any) => t.ativa);
+      for (const turma of activeTurmas) {
+        const diasSemana: string[] = turma.dias_semana || [];
+        const diasNum = diasSemana.map((d: string) => DIAS_MAP_PDF[d.toLowerCase()]).filter((n: number) => n !== undefined);
+        const datasDoMes: string[] = [];
+        const dd = new Date(parseInt(ano), mesNum - 1, 1);
+        while (dd.getMonth() === mesNum - 1) {
+          if (diasNum.includes(dd.getDay())) {
+            datasDoMes.push(dd.toISOString().slice(0, 10));
+          }
+          dd.setDate(dd.getDate() + 1);
+        }
+        if (datasDoMes.length === 0) continue;
+
+        const tpMembers = (turmaParticipantes || []).filter((tp: any) => tp.turma_id === turma.id);
+        const memberParts = tpMembers.map((tp: any) => partMap.get(tp.participante_id)).filter(Boolean);
+        const sorted = [...memberParts].sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo));
+        if (sorted.length === 0) continue;
+
+        const turmaPresencas = presencas.filter((p: any) => p.turma_id === turma.id);
+        const presencaSet = new Set(turmaPresencas.filter((p: any) => p.presente).map((p: any) => `${p.participante_id}_${p.data}`));
+
+        doc.addPage("landscape");
+        pageNum++;
+        let ty = 10;
+        doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(0, 0, 0);
+        doc.text("PREFEITURA MUNICIPAL DE MEDIANEIRA — CAIA — SCFV", 148, ty, { align: "center" });
+        ty += 5; doc.setFontSize(10);
+        doc.text(`LISTA DE PRESENÇA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${ano}`, 148, ty, { align: "center" });
+        ty += 5; doc.setFontSize(9);
+        doc.text(turma.nome, 148, ty, { align: "center" });
+        ty += 4; doc.setFont("helvetica", "normal"); doc.setFontSize(7);
+        const educador = (profilesData || []).find((p: any) => p.id === turma.educador_id);
+        const bNome = bairroMap.get(turma.bairro_id) || "";
+        const perLabel = turma.periodo === "manha" ? "Manhã" : turma.periodo === "tarde" ? "Tarde" : "Integral";
+        doc.text(`Educador(a): ${educador?.nome || "—"}  ·  Bairro: ${bNome}  ·  Período: ${perLabel}`, 148, ty, { align: "center" });
+        ty += 5;
+
+        const dateHeaders = datasDoMes.map(d => { const dt = new Date(d + "T12:00:00"); return `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}`; });
+        autoTable(doc, {
+          startY: ty,
+          head: [["Nº", "Nome do Participante", ...dateHeaders]],
+          body: sorted.map((member: any, i: number) => {
+            const row = [i + 1, member.nome_completo];
+            datasDoMes.forEach(d => {
+              const key = `${member.id}_${d}`;
+              row.push(presencaSet.has(key) ? "■" : "");
+            });
+            return row;
+          }),
+          headStyles: { fillColor: [50, 50, 50], fontSize: 5, cellPadding: 1, textColor: [255, 255, 255] },
+          styles: { fontSize: 5, cellPadding: 1 },
+          columnStyles: { 0: { cellWidth: 6, halign: "center" }, 1: { cellWidth: 35 } },
+          alternateRowStyles: { fillColor: [245, 245, 245] },
+          margin: { left: 8, right: 8 },
+        });
+      }
+
       // Add footers to all pages
       const totalPages = doc.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
