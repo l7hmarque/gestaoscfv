@@ -1,39 +1,44 @@
 
 
-## Plano: Separar Recados Técnicos dos Demais
+## Plano: Auditoria de Relatórios + Correção do Bug "%"
 
-### Problema
-Atualmente, o `RecadosEquipeCards` carrega **todos** os recados sem filtro. Não há distinção no banco entre recados enviados via "Recado para Equipe Técnica" e recados normais (menções, notificações do sistema, etc.).
+### Problemas Identificados
 
-### Solução
+#### 1. Bug "%" nas listas de presença PDF
+**Causa raiz**: O caractere `☐` (U+2610) é usado em `exportListaPresencaPdf` (linha 1070 de `useDocumentExport.ts`) como conteúdo de célula no jsPDF/autoTable. A fonte Helvetica embutida no jsPDF não suporta esse glyph Unicode, e o renderiza como `%`.
 
-#### 1. Migração: Adicionar campo `tipo_recado` na tabela `recados`
-```sql
-ALTER TABLE public.recados ADD COLUMN tipo_recado text NOT NULL DEFAULT 'geral';
-```
-Valores: `"geral"` (padrão) e `"tecnico"` (enviados via botão "Recado para Equipe Técnica").
+**Correção**: Substituir `"☐"` por `"[ ]"` (texto ASCII simples) em todas as ocorrências dentro de PDFs gerados via jsPDF. O DOCX e XLSX usam fontes que suportam Unicode, então não precisam de alteração.
 
-#### 2. Marcar recados técnicos no envio (`SendRecadoDialog.tsx`)
-Quando `toTecnicos === true`, incluir `tipo_recado: "tecnico"` no insert do recado.
+**Arquivos afetados**:
+- `src/hooks/useDocumentExport.ts` — linha 1070: `"☐"` → `"[ ]"`
 
-#### 3. Filtrar `RecadosEquipeCards` por `tipo_recado = "tecnico"`
-Na query de `loadRecados`, adicionar `.eq("tipo_recado", "tecnico")` para mostrar apenas os recados destinados à equipe técnica.
+#### 2. REO DOCX retorna 500: `tableWidth is not defined`
+**Causa raiz**: `const tableWidth = 9360` está na linha 862 dentro do bloco `if (turmasAtivas.length > 0)` (linhas 855-996). As referências nas linhas 1051 e 1062 estão **fora** desse bloco `if`.
 
-#### 4. Mover RecadosEquipeCards para aba própria no `EquipeTecnicaPage`
-- Adicionar tab **"Recados"** ao `TabsList` com badge de contagem de pendentes
-- Remover o `<RecadosEquipeCards />` do dashboard tab
-- O componente já tem realtime via `postgres_changes`, então a notificação (badge na tab) atualiza automaticamente
-- Expor a contagem de pendentes via callback ou state lifting para o badge na tab
+**Correção**: Mover `const tableWidth = 9360` para antes do `if` (por exemplo, na linha 854).
 
-#### 5. Status apenas nos recados técnicos
-Recados com `tipo_recado = "geral"` não terão controle de status (mantêm o default `pendente` mas ninguém os atualiza). A página do profissional continua mostrando recados enviados/recebidos normalmente sem seletor de status.
+**Arquivo**: `supabase/functions/generate-reo/index.ts`
 
-### Arquivos alterados
+#### 3. Paleta de cores pendente na `exportListaPresencaPdf`
+A última atualização de paleta B&W não foi aplicada à função `exportListaPresencaPdf` (linha 1072): `headStyles: { fillColor: [26, 82, 118] }` — ainda usa azul escuro.
+
+**Correção**: Trocar para `[50, 50, 50]` (cinza escuro).
+
+#### 4. Auditoria de dados
+Baseado na consulta ao banco:
+- 2 relatórios de atividade (abril/2026)
+- 0 registros na tabela `presenca` (toda presença vem via `relatorio_presenca`: 63 registros)
+- 21 turmas ativas
+
+Os dados parecem consistentes — presença registrada exclusivamente via relatórios, conforme esperado pelo fluxo do sistema.
+
+### Arquivos a alterar
 
 | Arquivo | Mudança |
 |---|---|
-| Migração SQL | `ALTER TABLE recados ADD COLUMN tipo_recado text DEFAULT 'geral'` |
-| `src/components/SendRecadoDialog.tsx` | Inserir `tipo_recado: "tecnico"` quando `toTecnicos` |
-| `src/components/RecadosEquipeCards.tsx` | Filtrar por `tipo_recado = "tecnico"`, expor contagem de pendentes |
-| `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx` | Adicionar tab "Recados" com badge, mover RecadosEquipeCards pra lá |
+| `supabase/functions/generate-reo/index.ts` | Mover `tableWidth` para fora do `if` |
+| `src/hooks/useDocumentExport.ts` | `☐` → `[ ]` no PDF; paleta cinza na lista de presença |
+
+### Geração e inspeção dos relatórios
+Após as correções, testarei o REO DOCX via edge function e inspecionarei o resultado.
 
