@@ -43,6 +43,8 @@ export function RecadosEquipeCards({ onPendingCount }: { onPendingCount?: (count
     setParticipantes(parts || []);
     setRecados(recs || []);
     setLoading(false);
+    const pending = (recs || []).filter((r: any) => r.status !== "concluido").length;
+    onPendingCount?.(pending);
   };
 
   const handleStatusChange = async (recadoId: string, newStatus: string) => {
