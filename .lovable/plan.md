@@ -1,35 +1,72 @@
 
 
-## Plano: Corrigir bug de presença fantasma ao desmarcar turmas
+## Plano: 4 melhorias no sistema de relatórios
 
-### Problema
-Ao marcar e desmarcar uma turma no formulário de relatório, os participantes daquela turma permanecem no objeto `form.presenca` (linha 165). A contagem de `numParticipantes` (linha 194) usa `Object.values(form.presenca).filter(Boolean).length` — que conta **todos** os participantes já adicionados, inclusive os de turmas desmarcadas. Isso infla a adesão.
+### 1. Auto-preencher campos ao vincular planejamento
 
-### Causa raiz
-O `useEffect` (linha 152-172) apenas **adiciona** novos participantes ao `presenca`, mas nunca remove os de turmas desmarcadas. Quando `turma_ids` fica vazio, `participantesTurma` é limpo mas `form.presenca` não.
+**Arquivo:** `src/pages/relatorios/RelatorioNovoPage.tsx`
 
-### Bug secundário
-O cálculo de `numParticipantes` deveria considerar apenas participantes que estão em `participantesTurma` (a lista atual), não todos os que já passaram pelo `presenca`.
+- Alterar o fetch de planejamentos para incluir `tipo_atividade, tipo_atividade_detalhe, educador_id` além de `id, titulo`
+- Em `handlePlanejamentoChange`, ao selecionar um planejamento, preencher automaticamente: `nome_atividade` (titulo), `educador_id`, `tipo_atividade`, `tipo_atividade_detalhe`
+- Só preencher se o campo estiver vazio ou se vier do planejamento (não sobrescrever dados já editados manualmente — usar o valor do plano como default)
 
-### Correções
+### 2. Renomear "Intervenções Realizadas" para "Atividades Realizadas"
 
-**Arquivo: `src/pages/relatorios/RelatorioNovoPage.tsx`**
+**Arquivo:** `src/pages/relatorios/RelatorioNovoPage.tsx` (linha 592)
 
-1. **Limpar presença ao esvaziar turmas** (linha 153): quando `turma_ids.length === 0`, além de `setParticipantesTurma([])`, limpar `form.presenca` e `form.justificativas`.
+- Trocar o label de "Intervenções Realizadas" para "Atividades Realizadas"
+- O campo `form.intervencoes` e a coluna no banco continuam iguais (apenas label visual)
 
-2. **Filtrar presença ao carregar participantes** (linhas 164-168): ao montar o novo `pres`, começar do zero usando apenas os IDs da lista atual, preservando o estado (presente/ausente) se o participante já existia.
+### 3. Relato para Equipe Técnica (novo recurso)
 
-3. **Limpar justificativas órfãs** junto com a presença.
+**Banco de dados:** Criar tabela `relato_equipe_tecnica`:
+- `id` uuid PK
+- `relatorio_id` uuid NOT NULL (referência ao relatório)
+- `motivo` text NOT NULL (ex: conflito, vulnerabilidade, encaminhamento)
+- `descricao` text NOT NULL
+- `created_at` timestamptz DEFAULT now()
+- `criado_por` uuid (profile id do educador)
 
-4. **Proteger o cálculo de adesão** (linha 194): contar apenas participantes presentes **que existam em `participantesTurma`**, como segurança extra.
+Criar tabela `relato_equipe_participantes`:
+- `id` uuid PK
+- `relato_id` uuid NOT NULL
+- `participante_id` uuid NOT NULL
 
-### Resumo técnico das mudanças
+RLS: insert/select para non-visitante; select para tecnico/coordenacao.
 
-| Local | Mudança |
+**Arquivo:** `src/pages/relatorios/RelatorioNovoPage.tsx`
+- Adicionar seção "Relato para Equipe Técnica" no formulário (após Observações):
+  - Select de motivo: "Conflito entre participantes", "Vulnerabilidade identificada", "Comportamento preocupante", "Encaminhamento necessário", "Outro"
+  - Multi-select de participantes (da lista de `participantesTurma`)
+  - Textarea de descrição breve
+  - Botão "Adicionar relato" (pode ter múltiplos relatos por relatório)
+- No `handleSave`, após criar o relatório:
+  - Inserir na `relato_equipe_tecnica` e `relato_equipe_participantes`
+  - Criar `recado` tipo `tecnico` para cada profissional com role `tecnico`/`coordenacao`, com link ao relatório
+  - Registrar observação no prontuário (`participantes.observacoes_sigilosas`) — append ao texto existente com data e motivo
+
+**Arquivo:** `src/pages/relatorios/RelatorioDetalhePage.tsx`
+- Exibir seção "Relatos Equipe Técnica" na visualização do relatório (visível para tecnico/coordenacao)
+
+### 4. REO: Atividades planejadas x realizadas com IA
+
+**Arquivo:** `supabase/functions/generate-reo/index.ts`
+
+Na tabela de atividades (linhas 203-226):
+- Coluna "Atividades desenvolvidas": se há relatório vinculado, exibir o `nome_atividade` do relatório ao invés de "Sim (Nx)"
+- Coluna "Resultados alcançados": usar o campo `analise_ia` do relatório vinculado (que já é gerado com até 130 caracteres pelo `generate-resultados-alcancados`). Se não houver `analise_ia`, gerar um resumo via chamada à API Lovable AI durante a geração do REO.
+- Para relatórios sem planejamento vinculado, aplicar a mesma lógica de `analise_ia`
+
+Mesma correção no trecho XLSX (linhas 571-577).
+
+---
+
+### Resumo de alterações
+
+| Arquivo/Recurso | Mudança |
 |---|---|
-| Linha 153 | Adicionar limpeza de `presenca` e `justificativas` quando não há turmas |
-| Linhas 164-168 | Reconstruir `pres` filtrando apenas IDs da lista atual |
-| Linha 194 | Calcular `numParticipantes` intersectando com `participantesTurma` |
-
-Apenas um arquivo alterado, sem mudanças de banco de dados.
+| `RelatorioNovoPage.tsx` | Auto-preencher ao vincular planejamento; renomear label; seção de relato equipe técnica |
+| `RelatorioDetalhePage.tsx` | Exibir relatos da equipe técnica |
+| `generate-reo/index.ts` | Nome da atividade na coluna "desenvolvidas"; `analise_ia` na coluna "resultados" |
+| **Nova migração** | Tabelas `relato_equipe_tecnica` + `relato_equipe_participantes` com RLS |
 
