@@ -34,6 +34,7 @@ const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
 const ProfissionalPerfilPage = lazy(() => import("./pages/profissional/ProfissionalPerfilPage"));
 const DevPage = lazy(() => import("./pages/dev/DevPage"));
 const MatriculaPublicaPage = lazy(() => import("./pages/matricula/MatriculaPublicaPage"));
+const PainelDesligamentoPage = lazy(() => import("./pages/participantes/PainelDesligamentoPage"));
 const FamiliaLoginPage = lazy(() => import("./pages/familia/FamiliaLoginPage"));
 const FamiliaDashboardPage = lazy(() => import("./pages/familia/FamiliaDashboardPage"));
 const FormularioRespostaPage = lazy(() => import("./pages/familia/FormularioRespostaPage"));
@@ -114,6 +115,7 @@ const App = () => (
                   <Route path="/financeiro" element={<FinanceiroPage />} />
                   <Route path="/site-admin" element={<SiteAdminPage />} />
                   <Route path="/configuracoes" element={<ConfiguracoesPage />} />
+                  <Route path="/desligamento-admin" element={<PainelDesligamentoPage />} />
                   <Route path="/dev" element={<DevPage />} />
                 </Route>
                 <Route path="/matricula" element={<MatriculaPublicaPage />} />

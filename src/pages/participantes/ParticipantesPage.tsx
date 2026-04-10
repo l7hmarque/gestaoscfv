@@ -372,6 +372,7 @@ const ParticipantesPage = () => {
           <SelectTrigger className="w-[130px] h-9 text-sm"><Filter className="h-3 w-3 mr-1" /><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="ativo">Ativo</SelectItem>
+            <SelectItem value="busca_ativa">Busca Ativa</SelectItem>
             <SelectItem value="pendente">Pendente</SelectItem>
             <SelectItem value="desligado">Desligado</SelectItem>
             <SelectItem value="incompleto">Incompleto</SelectItem>
@@ -464,6 +465,7 @@ const ParticipantesPage = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="ativo">Ativo</SelectItem>
+                          <SelectItem value="busca_ativa">Busca Ativa</SelectItem>
                           <SelectItem value="desligado">Desligado</SelectItem>
                           <SelectItem value="incompleto">Incompleto</SelectItem>
                         </SelectContent>

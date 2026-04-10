@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import {
-  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings, User,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings, User, UserX,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -41,6 +41,7 @@ const menuGroups = [
       { title: "Financeiro", url: "/financeiro", icon: DollarSign },
       { title: "Site Público", url: "/site-admin", icon: Globe },
       { title: "Banco de Dados", url: "/banco-de-dados", icon: Database },
+      { title: "Desligamento", url: "/desligamento-admin", icon: UserX },
       { title: "Configurações", url: "/configuracoes", icon: Settings },
     ],
   },

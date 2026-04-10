@@ -1,0 +1,1 @@
+ALTER TYPE public.status_participante ADD VALUE IF NOT EXISTS 'busca_ativa';
