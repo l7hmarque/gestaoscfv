@@ -1,70 +1,39 @@
 
 
-## Plano: Corrigir Exportações REO, PDFs com Paleta B&W e Listas de Presença
+## Plano: Separar Recados Técnicos dos Demais
 
-### Problemas Identificados
+### Problema
+Atualmente, o `RecadosEquipeCards` carrega **todos** os recados sem filtro. Não há distinção no banco entre recados enviados via "Recado para Equipe Técnica" e recados normais (menções, notificações do sistema, etc.).
 
-1. **REO DOCX retorna 500**: A variável `tableWidth` é definida na linha 932 dentro de um loop `for` (escopo local), mas usada nas linhas 1050 e 1061 fora desse escopo → `tableWidth is not defined`. O XLSX funciona porque usa caminho de código separado.
+### Solução
 
-2. **Relatório Mensal PDF sem listas de presença**: O PDF gerado em `DashboardRelatorioMensalTab.tsx` e `ExportarRelatoriosPage.tsx` contém apenas resumos estatísticos, não anexa as matrizes de frequência preenchidas por turma.
+#### 1. Migração: Adicionar campo `tipo_recado` na tabela `recados`
+```sql
+ALTER TABLE public.recados ADD COLUMN tipo_recado text NOT NULL DEFAULT 'geral';
+```
+Valores: `"geral"` (padrão) e `"tecnico"` (enviados via botão "Recado para Equipe Técnica").
 
-3. **Relatório individual de atividade (PDF/DOCX)**: A lista de presença existe mas não identifica claramente a qual atividade pertence — precisa de cabeçalho com nome da atividade, data, turma e educador.
+#### 2. Marcar recados técnicos no envio (`SendRecadoDialog.tsx`)
+Quando `toTecnicos === true`, incluir `tipo_recado: "tecnico"` no insert do recado.
 
-4. **Paleta de cores dos PDFs**: Atualmente usa vermelho (#C62828), azul (#1565C0), verde (#E8F5E9) e rosa (#FFEBEE). O usuário quer **branco, preto e cinza** para máxima legibilidade.
+#### 3. Filtrar `RecadosEquipeCards` por `tipo_recado = "tecnico"`
+Na query de `loadRecados`, adicionar `.eq("tipo_recado", "tecnico")` para mostrar apenas os recados destinados à equipe técnica.
 
----
+#### 4. Mover RecadosEquipeCards para aba própria no `EquipeTecnicaPage`
+- Adicionar tab **"Recados"** ao `TabsList` com badge de contagem de pendentes
+- Remover o `<RecadosEquipeCards />` do dashboard tab
+- O componente já tem realtime via `postgres_changes`, então a notificação (badge na tab) atualiza automaticamente
+- Expor a contagem de pendentes via callback ou state lifting para o badge na tab
 
-### Correções
-
-#### 1. REO DOCX — Fix scoping de `tableWidth`
-**Arquivo**: `supabase/functions/generate-reo/index.ts`
-- Mover `const tableWidth = 9360` para fora do loop (antes da linha 862, no escopo do handler principal)
-- Isso resolve o erro 500
-
-#### 2. Relatório Mensal PDF — Anexar listas de presença
-**Arquivo**: `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` (função `generatePdf`)
-- Após as seções de resumo, adicionar ANEXO com matrizes de frequência por turma
-- Para cada turma ativa: cabeçalho (turma, educador, bairro, período), tabela com participantes × datas do mês, marcando presença com "■"
-- Page break entre turmas
-
-**Arquivo**: `src/pages/relatorios/ExportarRelatoriosPage.tsx` (função `exportarRelatorioMensal`)
-- Mesma lógica: adicionar anexo de frequência ao XLSX/PDF existente
-
-#### 3. Identificação da lista de presença nos relatórios individuais
-**Arquivo**: `src/hooks/useDocumentExport.ts` (funções `exportRelatorioPdf` e `exportRelatorioDocx`)
-- Já tem cabeçalho com atividade/data/turma na lista de presença — apenas reforçar com uma linha de destaque ("Referente à atividade: X — Data: Y — Turma(s): Z — Educador(a): W")
-
-**Arquivo**: `src/hooks/useBulkRelatorioExport.ts` (funções `generateBulkPdf` e `generateBulkDocx`)
-- Adicionar linha de educador no cabeçalho da lista de presença
-
-#### 4. Paleta de cores — Branco, Preto e Cinza
-Alteração em **todos** os PDFs gerados:
-
-**Arquivos afetados**:
-- `src/hooks/useDocumentExport.ts` — `exportRelatorioPdf`, `exportPlanejamentoPdf`, etc.
-- `src/hooks/useBulkRelatorioExport.ts` — `generateBulkPdf`
-- `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` — `generatePdf`
-- `src/pages/relatorios/ExportarRelatoriosPage.tsx` — todas as funções de PDF
-
-**Substituições de cores nos PDFs**:
-- Cabeçalho de tabela: `[26, 82, 118]` (azul) → `[50, 50, 50]` (cinza escuro) com texto branco
-- Linhas alternadas: `[227, 242, 253]` (azul claro) → `[245, 245, 245]` (cinza claro)
-- Títulos de seção: `[198, 40, 40]` (vermelho) → `[0, 0, 0]` (preto)
-- Barras decorativas: vermelho/azul → `[60, 60, 60]` / `[120, 120, 120]` (cinzas)
-- Score ELO: vermelho → preto bold
-- Presença "Presente"/"Ausente": verde/rosa → cinza claro / branco (com texto preto normal)
-- Competências: colormap Likert → escala de cinza (1=muito claro a 5=escuro)
-- Cards de resumo: azul/vermelho claro → cinza claro uniforme
-
----
+#### 5. Status apenas nos recados técnicos
+Recados com `tipo_recado = "geral"` não terão controle de status (mantêm o default `pendente` mas ninguém os atualiza). A página do profissional continua mostrando recados enviados/recebidos normalmente sem seletor de status.
 
 ### Arquivos alterados
 
 | Arquivo | Mudança |
 |---|---|
-| `supabase/functions/generate-reo/index.ts` | Fix `tableWidth` scoping |
-| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Anexar listas de presença ao PDF; paleta B&W |
-| `src/pages/relatorios/ExportarRelatoriosPage.tsx` | Paleta B&W no PDF de relatório mensal |
-| `src/hooks/useDocumentExport.ts` | Paleta B&W; reforçar identificação na lista de presença |
-| `src/hooks/useBulkRelatorioExport.ts` | Paleta B&W; educador no cabeçalho da presença |
+| Migração SQL | `ALTER TABLE recados ADD COLUMN tipo_recado text DEFAULT 'geral'` |
+| `src/components/SendRecadoDialog.tsx` | Inserir `tipo_recado: "tecnico"` quando `toTecnicos` |
+| `src/components/RecadosEquipeCards.tsx` | Filtrar por `tipo_recado = "tecnico"`, expor contagem de pendentes |
+| `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx` | Adicionar tab "Recados" com badge, mover RecadosEquipeCards pra lá |
 
