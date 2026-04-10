@@ -198,7 +198,8 @@ const RelatorioNovoPage = () => {
     setFotos(prev => [...prev, ...files]);
   };
 
-  const numParticipantes = Object.values(form.presenca).filter(Boolean).length;
+  const activeParticipantIds = new Set(participantesTurma.map(p => p.id));
+  const numParticipantes = Object.entries(form.presenca).filter(([id, v]) => v && activeParticipantIds.has(id)).length;
   const numAusentes = participantesTurma.length - numParticipantes;
   const pctAdesao = participantesTurma.length > 0 ? ((numParticipantes / participantesTurma.length) * 100) : 0;
 
