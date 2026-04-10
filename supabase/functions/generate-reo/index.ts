@@ -203,11 +203,24 @@ Deno.serve(async (req: Request) => {
     // Group plans by title
     for (const plan of plansMes) {
       const matched = relsMes.filter((r: any) => r.planejamento_id === plan.id);
+      const desenvolvidas = matched.length > 0
+        ? matched.map((r: any) => r.nome_atividade || plan.titulo).join("; ")
+        : "Não realizada";
+      let resultados = "-";
+      if (matched.length > 0) {
+        // Use analise_ia if available, otherwise fall back to objetivo_alcancado
+        const firstWithIA = matched.find((r: any) => r.analise_ia);
+        if (firstWithIA?.analise_ia) {
+          resultados = firstWithIA.analise_ia;
+        } else {
+          resultados = matched[0].objetivo_alcancado === "alcancado" ? "Alcançado" : matched[0].objetivo_alcancado === "parcial" ? "Parcialmente" : "Não alcançado";
+        }
+      }
       atividadesRows.push(new DocxTableRow({
         children: [
           dataCell(plan.titulo || plan.tema || "-", 2800),
-          dataCell(matched.length > 0 ? `Sim (${matched.length}x)` : "Não realizada", 2500),
-          dataCell(matched.length > 0 ? (matched[0].objetivo_alcancado === "alcancado" ? "Alcançado" : matched[0].objetivo_alcancado === "parcial" ? "Parcialmente" : "Não alcançado") : "-", 2200),
+          dataCell(desenvolvidas, 2500),
+          dataCell(resultados, 2200),
           dataCell(matched.length === 0 ? "Atividade não realizada no mês" : "", 1860),
         ],
       }));
@@ -215,11 +228,12 @@ Deno.serve(async (req: Request) => {
     // Relatórios without plan
     const relsWithoutPlan = relsMes.filter((r: any) => !r.planejamento_id || !plansMes.find((p: any) => p.id === r.planejamento_id));
     for (const r of relsWithoutPlan) {
+      const resultados = r.analise_ia || (r.objetivo_alcancado === "alcancado" ? "Alcançado" : r.objetivo_alcancado === "parcial" ? "Parcialmente" : r.objetivo_alcancado ? "Não alcançado" : "-");
       atividadesRows.push(new DocxTableRow({
         children: [
           dataCell(r.nome_atividade || "(Sem planejamento)", 2800),
-          dataCell("Sim", 2500),
-          dataCell(r.objetivo_alcancado === "alcancado" ? "Alcançado" : r.objetivo_alcancado === "parcial" ? "Parcialmente" : r.objetivo_alcancado ? "Não alcançado" : "-", 2200),
+          dataCell(r.nome_atividade || "Sim", 2500),
+          dataCell(resultados, 2200),
           dataCell("", 1860),
         ],
       }));
@@ -570,10 +584,14 @@ Deno.serve(async (req: Request) => {
       );
       for (const plan of plansMes) {
         const matched = relsMes.filter((r: any) => r.planejamento_id === plan.id);
-        atRows.push([plan.titulo || plan.tema || "-", matched.length > 0 ? `Sim (${matched.length}x)` : "Não realizada", matched.length > 0 ? (matched[0].objetivo_alcancado === "alcancado" ? "Alcançado" : matched[0].objetivo_alcancado === "parcial" ? "Parcial" : "Não") : "-", matched.length === 0 ? "Não realizada" : ""]);
+        const desenvolvidas = matched.length > 0 ? matched.map((r: any) => r.nome_atividade || plan.titulo).join("; ") : "Não realizada";
+        const firstWithIA = matched.find((r: any) => r.analise_ia);
+        const resultados = matched.length > 0 ? (firstWithIA?.analise_ia || (matched[0].objetivo_alcancado === "alcancado" ? "Alcançado" : matched[0].objetivo_alcancado === "parcial" ? "Parcial" : "Não")) : "-";
+        atRows.push([plan.titulo || plan.tema || "-", desenvolvidas, resultados, matched.length === 0 ? "Não realizada" : ""]);
       }
       for (const r of relsWithoutPlan) {
-        atRows.push([r.nome_atividade || "(Sem plan.)", "Sim", r.objetivo_alcancado === "alcancado" ? "Alcançado" : r.objetivo_alcancado === "parcial" ? "Parcial" : "-", ""]);
+        const resultados = r.analise_ia || (r.objetivo_alcancado === "alcancado" ? "Alcançado" : r.objetivo_alcancado === "parcial" ? "Parcial" : "-");
+        atRows.push([r.nome_atividade || "(Sem plan.)", r.nome_atividade || "Sim", resultados, ""]);
       }
       const wsAt = XLSX.utils.aoa_to_sheet(atRows);
       wsAt["!cols"] = [{ wch: 35 }, { wch: 25 }, { wch: 20 }, { wch: 25 }];

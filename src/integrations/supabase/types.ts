@@ -1493,6 +1493,81 @@ export type Database = {
           },
         ]
       }
+      relato_equipe_participantes: {
+        Row: {
+          id: string
+          participante_id: string
+          relato_id: string
+        }
+        Insert: {
+          id?: string
+          participante_id: string
+          relato_id: string
+        }
+        Update: {
+          id?: string
+          participante_id?: string
+          relato_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "relato_equipe_participantes_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "participantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "relato_equipe_participantes_relato_id_fkey"
+            columns: ["relato_id"]
+            isOneToOne: false
+            referencedRelation: "relato_equipe_tecnica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      relato_equipe_tecnica: {
+        Row: {
+          created_at: string
+          criado_por: string | null
+          descricao: string
+          id: string
+          motivo: string
+          relatorio_id: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string
+          id?: string
+          motivo: string
+          relatorio_id: string
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string
+          id?: string
+          motivo?: string
+          relatorio_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "relato_equipe_tecnica_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "relato_equipe_tecnica_relatorio_id_fkey"
+            columns: ["relatorio_id"]
+            isOneToOne: false
+            referencedRelation: "relatorios_atividade"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       relatorio_fotos: {
         Row: {
           foto_url: string

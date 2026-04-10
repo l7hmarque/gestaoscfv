@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { AlertTriangle } from "lucide-react";
 import { ArrowLeft, Printer, Instagram, Copy, Share2, Download, X, Trash2, Plus, Search, Link2, Pencil, Check, Users, ChevronsUpDown, FileText } from "lucide-react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -63,6 +64,59 @@ function LikertFieldEdit({ label, value, onChange }: { label: string; value: num
         <span>{LIKERT_LABELS[1]}</span><span>{LIKERT_LABELS[5]}</span>
       </div>
     </div>
+  );
+}
+
+function RelatosEquipeTecnica({ relatorioId, isCoordenacao }: { relatorioId: string; isCoordenacao: boolean }) {
+  const [relatos, setRelatos] = useState<any[]>([]);
+  const [isTecnico, setIsTecnico] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      supabase.from("user_roles").select("role").eq("user_id", user.id).in("role", ["tecnico", "coordenacao"]).then(({ data }) => {
+        setIsTecnico((data?.length || 0) > 0);
+      });
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const fetch = async () => {
+      const { data } = await supabase.from("relato_equipe_tecnica").select("*, relato_equipe_participantes(participante_id, participantes(nome_completo)), profiles!relato_equipe_tecnica_criado_por_fkey(nome)").eq("relatorio_id", relatorioId) as any;
+      setRelatos(data || []);
+    };
+    fetch();
+  }, [relatorioId]);
+
+  if (relatos.length === 0 || (!isTecnico && !isCoordenacao)) return null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-500" /> Relatos para Equipe Técnica ({relatos.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {relatos.map((r: any) => (
+          <div key={r.id} className="border rounded-md p-3 bg-amber-50 dark:bg-amber-950/20 space-y-1">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-xs">{r.motivo}</Badge>
+              {r.profiles?.nome && <span className="text-xs text-muted-foreground">por {r.profiles.nome}</span>}
+              <span className="text-xs text-muted-foreground">{format(new Date(r.created_at), "dd/MM/yyyy")}</span>
+            </div>
+            <p className="text-sm">{r.descricao}</p>
+            <div className="flex gap-1 flex-wrap">
+              {r.relato_equipe_participantes?.map((rp: any) => (
+                <Badge key={rp.participante_id} variant="secondary" className="text-xs">
+                  {rp.participantes?.nome_completo || "—"}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -729,7 +783,7 @@ const RelatorioDetalhePage = () => {
 
             {/* Intervenções e Observações */}
             <div className="space-y-1">
-              <Label className="text-xs">Intervenções</Label>
+              <Label className="text-xs">Atividades Realizadas</Label>
               <Textarea value={editForm.intervencoes} onChange={e => setEditForm(f => ({ ...f, intervencoes: e.target.value }))} rows={2} className="text-sm" />
             </div>
             <div className="space-y-1">
@@ -862,10 +916,13 @@ const RelatorioDetalhePage = () => {
           {item.situacoes_relevantes?.length > 0 && (
             <div><span className="text-xs text-muted-foreground">Situações:</span><div className="flex gap-1 flex-wrap mt-1">{item.situacoes_relevantes.map((s: string) => <Badge key={s} variant="outline" className="text-xs">{s}</Badge>)}</div></div>
           )}
-          {item.intervencoes && <div><span className="text-xs text-muted-foreground">Intervenções:</span><p className="whitespace-pre-wrap">{item.intervencoes}</p></div>}
+          {item.intervencoes && <div><span className="text-xs text-muted-foreground">Atividades Realizadas:</span><p className="whitespace-pre-wrap">{item.intervencoes}</p></div>}
           {item.observacoes && <div><span className="text-xs text-muted-foreground">Observações:</span><p className="whitespace-pre-wrap">{item.observacoes}</p></div>}
         </CardContent>
       </Card>
+
+      {/* Relatos Equipe Técnica */}
+      <RelatosEquipeTecnica relatorioId={id!} isCoordenacao={isCoordenacao} />
 
       {/* Resultados Alcançados (IA) */}
       {item.analise_ia && (
