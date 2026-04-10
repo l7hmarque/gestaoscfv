@@ -2140,7 +2140,12 @@ export type Database = {
       faixa_etaria_enum: "6-8" | "9-11" | "12-17" | "idosos"
       objetivo_resultado: "alcancado" | "parcial" | "nao_alcancado"
       periodo_enum: "manha" | "tarde" | "integral"
-      status_participante: "ativo" | "desligado" | "incompleto" | "pendente"
+      status_participante:
+        | "ativo"
+        | "desligado"
+        | "incompleto"
+        | "pendente"
+        | "busca_ativa"
       tipo_feed_post: "manual" | "relatorio_auto" | "conquista"
       tipo_mural: "aviso" | "lembrete" | "informativo"
       tipo_reacao: "like" | "amei"
@@ -2284,7 +2289,13 @@ export const Constants = {
       faixa_etaria_enum: ["6-8", "9-11", "12-17", "idosos"],
       objetivo_resultado: ["alcancado", "parcial", "nao_alcancado"],
       periodo_enum: ["manha", "tarde", "integral"],
-      status_participante: ["ativo", "desligado", "incompleto", "pendente"],
+      status_participante: [
+        "ativo",
+        "desligado",
+        "incompleto",
+        "pendente",
+        "busca_ativa",
+      ],
       tipo_feed_post: ["manual", "relatorio_auto", "conquista"],
       tipo_mural: ["aviso", "lembrete", "informativo"],
       tipo_reacao: ["like", "amei"],
