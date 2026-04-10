@@ -806,6 +806,11 @@ const EquipeTecnicaPage = () => {
           )}
         </TabsContent>
 
+        {/* RECADOS */}
+        <TabsContent value="recados" className="space-y-4">
+          <RecadosEquipeCards onPendingCount={setRecadosPendentes} />
+        </TabsContent>
+
         {/* RELATÓRIOS */}
         <TabsContent value="relatorios" className="space-y-4">
           <Card>
