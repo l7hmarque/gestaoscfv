@@ -564,7 +564,7 @@ export default function ExportarRelatoriosPage() {
           ["Saldo Acumulado", fmtVal(saldoPC)],
         ],
         styles: { fontSize: 8 },
-        headStyles: { fillColor: [198, 40, 40] },
+        headStyles: { fillColor: [50, 50, 50] },
       });
       const lastY = (doc as any).lastAutoTable?.finalY || 60;
       doc.setFontSize(11);
@@ -579,7 +579,7 @@ export default function ExportarRelatoriosPage() {
           d.comprovante_url ? "Pago ✓" : "Aguardando ⏳",
         ]),
         styles: { fontSize: 7 },
-        headStyles: { fillColor: [198, 40, 40], fontSize: 7 },
+        headStyles: { fillColor: [50, 50, 50], fontSize: 7 },
       });
       doc.save(sysEloFileName("PrestacaoContas", "pdf", mesRef));
 
@@ -649,7 +649,7 @@ export default function ExportarRelatoriosPage() {
 
       // XLSX
       const border = { style: "thin" as const, color: { rgb: "000000" } };
-      const hdr = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1565C0" } }, border: { top: border, bottom: border, left: border, right: border } };
+      const hdr = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "323232" } }, border: { top: border, bottom: border, left: border, right: border } };
       const cellS = { border: { top: border, bottom: border, left: border, right: border } };
       const wb = XLSX.utils.book_new();
       const rows: any[][] = [
@@ -718,7 +718,7 @@ export default function ExportarRelatoriosPage() {
           a.encaminhamento || "—",
         ]),
         styles: { fontSize: 7, cellPadding: 1.5 },
-        headStyles: { fillColor: [21, 101, 192], fontSize: 7 },
+        headStyles: { fillColor: [50, 50, 50], fontSize: 7 },
         alternateRowStyles: { fillColor: [240, 240, 240] },
         columnStyles: { 4: { cellWidth: 60 }, 5: { cellWidth: 40 } },
       });
@@ -730,7 +730,7 @@ export default function ExportarRelatoriosPage() {
         head: [["Tipo", "Quantidade"]],
         body: [...Object.entries(tipoMap).map(([t, q]) => [t, String(q)]), ["TOTAL", String(atds.length)]],
         styles: { fontSize: 8 },
-        headStyles: { fillColor: [21, 101, 192] },
+        headStyles: { fillColor: [50, 50, 50] },
       });
       doc.save(sysEloFileName("RelEquipeTecnica", "pdf"));
 
