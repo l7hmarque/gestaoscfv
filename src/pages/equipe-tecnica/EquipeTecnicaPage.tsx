@@ -92,6 +92,7 @@ const EquipeTecnicaPage = () => {
   const [baFilterBairro, setBaFilterBairro] = useState("");
   const [baForm, setBaForm] = useState({ tipo_contato: [] as string[], descricao: "", resultado: "em_andamento" });
   const [baSaving, setBaSaving] = useState(false);
+  const [recadosPendentes, setRecadosPendentes] = useState(0);
 
   useEffect(() => { loadAll(); }, []);
 
