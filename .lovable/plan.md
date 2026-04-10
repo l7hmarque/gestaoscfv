@@ -1,40 +1,60 @@
 
-## Plano: Recados na Equipe Técnica + Atalho "Meu Perfil"
 
-### Resumo
-Adicionar uma seção de cards de recados no dashboard da Equipe Técnica (recados enviados para técnicos/coordenação), com status atualizável. Adicionar um campo `status` na tabela `recados` para rastrear o andamento. Implementar atalho "Meu Perfil" no header e sidebar.
+## Plano: Corrigir Exportações REO, PDFs com Paleta B&W e Listas de Presença
+
+### Problemas Identificados
+
+1. **REO DOCX retorna 500**: A variável `tableWidth` é definida na linha 932 dentro de um loop `for` (escopo local), mas usada nas linhas 1050 e 1061 fora desse escopo → `tableWidth is not defined`. O XLSX funciona porque usa caminho de código separado.
+
+2. **Relatório Mensal PDF sem listas de presença**: O PDF gerado em `DashboardRelatorioMensalTab.tsx` e `ExportarRelatoriosPage.tsx` contém apenas resumos estatísticos, não anexa as matrizes de frequência preenchidas por turma.
+
+3. **Relatório individual de atividade (PDF/DOCX)**: A lista de presença existe mas não identifica claramente a qual atividade pertence — precisa de cabeçalho com nome da atividade, data, turma e educador.
+
+4. **Paleta de cores dos PDFs**: Atualmente usa vermelho (#C62828), azul (#1565C0), verde (#E8F5E9) e rosa (#FFEBEE). O usuário quer **branco, preto e cinza** para máxima legibilidade.
 
 ---
 
-### 1. Migração: Adicionar campo `status` na tabela `recados`
+### Correções
 
-Adicionar coluna `status` (text, default `'pendente'`) para controlar o fluxo de trabalho dos recados na equipe técnica. Valores: `pendente`, `em_andamento`, `concluido`.
+#### 1. REO DOCX — Fix scoping de `tableWidth`
+**Arquivo**: `supabase/functions/generate-reo/index.ts`
+- Mover `const tableWidth = 9360` para fora do loop (antes da linha 862, no escopo do handler principal)
+- Isso resolve o erro 500
 
-```sql
-ALTER TABLE public.recados ADD COLUMN status text NOT NULL DEFAULT 'pendente';
-```
+#### 2. Relatório Mensal PDF — Anexar listas de presença
+**Arquivo**: `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` (função `generatePdf`)
+- Após as seções de resumo, adicionar ANEXO com matrizes de frequência por turma
+- Para cada turma ativa: cabeçalho (turma, educador, bairro, período), tabela com participantes × datas do mês, marcando presença com "■"
+- Page break entre turmas
 
-### 2. Cards de Recados no Dashboard da Equipe Técnica
+**Arquivo**: `src/pages/relatorios/ExportarRelatoriosPage.tsx` (função `exportarRelatorioMensal`)
+- Mesma lógica: adicionar anexo de frequência ao XLSX/PDF existente
 
-No `EquipeTecnicaPage.tsx`, dentro da tab "Dashboard" (após os KPI cards e antes dos gráficos):
+#### 3. Identificação da lista de presença nos relatórios individuais
+**Arquivo**: `src/hooks/useDocumentExport.ts` (funções `exportRelatorioPdf` e `exportRelatorioDocx`)
+- Já tem cabeçalho com atividade/data/turma na lista de presença — apenas reforçar com uma linha de destaque ("Referente à atividade: X — Data: Y — Turma(s): Z — Educador(a): W")
 
-- Carregar recados destinados a perfis com role `tecnico` ou `coordenacao` (qualquer destinatário técnico, não só o logado)
-- Exibir como cards com: remetente, participante vinculado (se houver), conteúdo, data, status atual (badge colorido)
-- Select para atualizar status (`pendente` → `em_andamento` → `concluido`)
-- Ao atualizar status, gravar no banco + criar notificação (o remetente já vê via NotificationBell pois o canal realtime de recados dispara refresh)
+**Arquivo**: `src/hooks/useBulkRelatorioExport.ts` (funções `generateBulkPdf` e `generateBulkDocx`)
+- Adicionar linha de educador no cabeçalho da lista de presença
 
-### 3. Notificação para o remetente
+#### 4. Paleta de cores — Branco, Preto e Cinza
+Alteração em **todos** os PDFs gerados:
 
-O `NotificationBell` já escuta `postgres_changes` na tabela `recados`. Quando o status é atualizado, o remetente verá o recado atualizado automaticamente na lista de notificações. Ajustar o `NotificationBell` para mostrar o badge de status quando existir, e exibir texto como "Status atualizado: Em andamento" no detail dialog.
+**Arquivos afetados**:
+- `src/hooks/useDocumentExport.ts` — `exportRelatorioPdf`, `exportPlanejamentoPdf`, etc.
+- `src/hooks/useBulkRelatorioExport.ts` — `generateBulkPdf`
+- `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` — `generatePdf`
+- `src/pages/relatorios/ExportarRelatoriosPage.tsx` — todas as funções de PDF
 
-### 4. Acompanhamento na página do profissional
-
-No `ProfissionalPerfilPage.tsx`, adicionar uma seção/tab "Recados Enviados" que lista os recados enviados por aquele profissional com o status atual de cada um (badge colorido).
-
-### 5. Atalho "Meu Perfil"
-
-- No `AppLayout.tsx` header: adicionar um botão/avatar "Meu Perfil" que busca o `profile.id` do usuário logado e navega para `/profissional/:id`
-- No `AppSidebar.tsx` footer: adicionar link "Meu Perfil" antes do botão "Sair", com ícone `User`
+**Substituições de cores nos PDFs**:
+- Cabeçalho de tabela: `[26, 82, 118]` (azul) → `[50, 50, 50]` (cinza escuro) com texto branco
+- Linhas alternadas: `[227, 242, 253]` (azul claro) → `[245, 245, 245]` (cinza claro)
+- Títulos de seção: `[198, 40, 40]` (vermelho) → `[0, 0, 0]` (preto)
+- Barras decorativas: vermelho/azul → `[60, 60, 60]` / `[120, 120, 120]` (cinzas)
+- Score ELO: vermelho → preto bold
+- Presença "Presente"/"Ausente": verde/rosa → cinza claro / branco (com texto preto normal)
+- Competências: colormap Likert → escala de cinza (1=muito claro a 5=escuro)
+- Cards de resumo: azul/vermelho claro → cinza claro uniforme
 
 ---
 
@@ -42,9 +62,9 @@ No `ProfissionalPerfilPage.tsx`, adicionar uma seção/tab "Recados Enviados" qu
 
 | Arquivo | Mudança |
 |---|---|
-| Migração SQL | `ALTER TABLE recados ADD COLUMN status text DEFAULT 'pendente'` |
-| `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx` | Carregar recados para técnicos, exibir cards com status, permitir update |
-| `src/components/NotificationBell.tsx` | Mostrar status do recado no detail dialog |
-| `src/pages/profissional/ProfissionalPerfilPage.tsx` | Adicionar tab/seção "Recados Enviados" com status |
-| `src/components/AppLayout.tsx` | Adicionar botão "Meu Perfil" no header |
-| `src/components/AppSidebar.tsx` | Adicionar link "Meu Perfil" no footer |
+| `supabase/functions/generate-reo/index.ts` | Fix `tableWidth` scoping |
+| `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` | Anexar listas de presença ao PDF; paleta B&W |
+| `src/pages/relatorios/ExportarRelatoriosPage.tsx` | Paleta B&W no PDF de relatório mensal |
+| `src/hooks/useDocumentExport.ts` | Paleta B&W; reforçar identificação na lista de presença |
+| `src/hooks/useBulkRelatorioExport.ts` | Paleta B&W; educador no cabeçalho da presença |
+
