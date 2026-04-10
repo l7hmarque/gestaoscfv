@@ -1,60 +1,58 @@
-## Plano: Novo status "Busca Ativa" + Painel de Desligamento Administrativo
 
-### Contexto
 
-Atualmente o enum `status_participante` tem: `ativo`, `desligado`, `incompleto`, `pendente`. Precisa de um novo valor `busca_ativa` para participantes que ainda não foram desligados formalmente mas precisam de busca ativa. Além disso, é necessário um painel especial para coordenação realizar desligamentos retroativos em lote, limpando vínculos com indicadores.
+## Plano: Transferência automática de turma ao mudar período (com histórico)
 
-### 1. Migração: adicionar valor "busca_ativa" ao enum
+### Problema
+Ao mudar o período de um participante pela listagem (`ParticipantesPage`), ele permanece nas turmas do período antigo. Precisa: (1) mover para turmas do novo período, (2) manter frequências da turma antiga, (3) indicar "transferido" nas listas de presença e na página da turma.
+
+### 1. Migração: adicionar campo `data_saida` em `turma_participantes`
 
 ```sql
-ALTER TYPE public.status_participante ADD VALUE IF NOT EXISTS 'busca_ativa';
+ALTER TABLE public.turma_participantes
+  ADD COLUMN data_saida date DEFAULT NULL,
+  ADD COLUMN motivo_saida text DEFAULT NULL;
 ```
 
-### 2. Atualizar labels e cores em `constants.ts`
+Quando `data_saida` é preenchido, o participante é considerado "transferido" daquela turma. Ele permanece na tabela (não é deletado), preservando o vínculo histórico e as frequências.
 
-Adicionar `busca_ativa: "Busca Ativa"` em `STATUS_LABELS` e cor laranja em `STATUS_COLORS`.
+### 2. Alterar `handlePeriodoChange` em `ParticipantesPage.tsx`
 
-### 3. Adicionar "Busca Ativa" nos selects de status
+Após atualizar o período do participante:
+1. Buscar turmas atuais do participante (via `turma_participantes` onde `data_saida IS NULL`)
+2. Para cada turma do período antigo: preencher `data_saida = hoje` e `motivo_saida = "Transferência de período"`
+3. Buscar turmas compatíveis no novo período (mesma lógica de bairro/faixa etária)
+4. Inserir novos vínculos `turma_participantes`
+5. Registrar em `participante_transferencias`
+6. Notificar educadores das turmas antigas e novas via `recados`
+
+### 3. Ajustar queries que listam membros ativos de turmas
 
 **Arquivos afetados:**
+- `TurmaDetalhePage.tsx` — separar membros ativos (`data_saida IS NULL`) de transferidos (`data_saida IS NOT NULL`); exibir transferidos em seção separada com a data de saída
+- `PresencaPage.tsx` — filtrar apenas `data_saida IS NULL` ao carregar participantes para registro de presença
+- `RelatorioNovoPage.tsx` — idem ao carregar participantes das turmas selecionadas
 
-- `ParticipantesPage.tsx` — filtro de status e select inline na tabela
-- `ParticipantePerfilPage.tsx` — dropdown de status no perfil
+### 4. Listas de presença (XLSX) — indicar transferidos
 
-### 4. Criar página "Painel de Desligamento Administrativo"
+**Arquivo:** `exportListaPresenca.ts`
 
-**Novo arquivo:** `src/pages/participantes/PainelDesligamentoPage.tsx`
+- Ao gerar a lista, incluir participantes transferidos que saíram no mês corrente ou no mês anterior
+- Marcar com "(T)" ao lado do nome e riscado a partir da data de saída (mesma lógica existente para "desligado")
+- `MemberInfo` ganha campos `transferido?: boolean` e `data_transferencia?: string | null`
 
-**Acesso:** Apenas `coordenacao` (super admin). Rota `/desligamento-admin` protegida.
+### 5. Ajustar Automação 3 no `ParticipantePerfilPage.tsx`
 
-**Funcionalidades:**
-
-- Lista todos participantes com status `ativo` ou `busca_ativa`
-- Checkbox individual + "Selecionar todos"
-- Campos globais: motivo do desligamento, data de desligamento (retroativa), justificativa - todos opcionais.
-- Botão "Executar Desligamento em Lote" que para cada participante selecionado:
-  1. Atualiza status para `desligado`, preenche `motivo_desligamento`, `justificativa_desligamento`, `data_desligamento`
-  2. Remove vínculos de `turma_participantes` (deleta registros)
-  3. Remove registros de `relatorio_presenca` onde `participante_id` corresponde
-  4. Remove registros de `presenca` onde `participante_id` corresponde
-  5. Registra no `audit_log`
-- Os participantes **não são deletados** — continuam no banco como `desligado`
-- Filtros por bairro, período, faixa etária para facilitar a triagem
-
-### 5. Adicionar rota e link no sidebar
-
-- Nova rota protegida em `App.tsx`: `/desligamento-admin`
-- Link no sidebar na seção "Gestão", visível apenas para coordenação (verificação de role client-side)
+A lógica existente de transferência (linhas 173-191) já solicita aprovação. Ao confirmar, usar a mesma lógica: preencher `data_saida` nas turmas antigas ao invés de deletar os vínculos.
 
 ### Resumo de alterações
 
+| Recurso | Mudança |
+|---|---|
+| **Migração SQL** | `data_saida` e `motivo_saida` em `turma_participantes` |
+| `ParticipantesPage.tsx` | `handlePeriodoChange` faz transferência automática de turma |
+| `TurmaDetalhePage.tsx` | Separar membros ativos de transferidos na UI |
+| `PresencaPage.tsx` | Filtrar `data_saida IS NULL` |
+| `RelatorioNovoPage.tsx` | Idem |
+| `exportListaPresenca.ts` | Indicar transferidos com "(T)" |
+| `ParticipantePerfilPage.tsx` | Usar `data_saida` ao invés de deletar vínculos |
 
-| Recurso                                | Mudança                                                            |
-| -------------------------------------- | ------------------------------------------------------------------ |
-| **Migração SQL**                       | `ALTER TYPE status_participante ADD VALUE 'busca_ativa'`           |
-| `constants.ts`                         | Novo label + cor para `busca_ativa`                                |
-| `ParticipantesPage.tsx`                | Adicionar opção "Busca Ativa" nos selects                          |
-| `ParticipantePerfilPage.tsx`           | Idem                                                               |
-| **Novo: `PainelDesligamentoPage.tsx**` | Painel completo de desligamento em lote com limpeza de indicadores |
-| `App.tsx`                              | Nova rota `/desligamento-admin`                                    |
-| `AppSidebar.tsx`                       | Link condicional para coordenação                                  |
