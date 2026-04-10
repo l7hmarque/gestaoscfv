@@ -445,7 +445,7 @@ const TurmaDetalhePage = () => {
       {/* Participantes da turma */}
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <CardTitle className="text-sm">Participantes Ativos ({members.filter(m => m.status !== "desligado").length})</CardTitle>
+          <CardTitle className="text-sm">Participantes Ativos ({members.filter(m => m.status !== "desligado" && !m.data_saida).length})</CardTitle>
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
               <Button size="sm" variant="outline"><UserPlus className="h-3.5 w-3.5 mr-1" /><span className="hidden sm:inline">Adicionar</span></Button>
@@ -467,7 +467,7 @@ const TurmaDetalhePage = () => {
           </Dialog>
         </CardHeader>
         <CardContent>
-          {members.filter(m => m.status !== "desligado").length === 0 ? (
+          {members.filter(m => m.status !== "desligado" && !m.data_saida).length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">Nenhum participante ativo nesta turma.</p>
           ) : (
             <div className="overflow-x-auto -mx-2 px-2">
@@ -483,7 +483,7 @@ const TurmaDetalhePage = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {members.filter(m => m.status !== "desligado").map((m) => {
+                    {members.filter(m => m.status !== "desligado" && !m.data_saida).map((m) => {
                       const alert = alerts[m.participante_id];
                       const stats = memberStats[m.participante_id];
                       return (
@@ -528,10 +528,49 @@ const TurmaDetalhePage = () => {
         </CardContent>
       </Card>
 
-      {/* Histórico: Desligados / Transferidos */}
+      {/* Histórico: Transferidos */}
+      {(() => {
+        const transferidos = members.filter(m => m.data_saida && m.status !== "desligado");
+        if (transferidos.length > 0) {
+          return (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Users className="h-4 w-4 text-amber-500" />
+                  Transferidos ({transferidos.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto -mx-2 px-2">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="text-xs">Nome</TableHead>
+                        <TableHead className="text-xs">Data Saída</TableHead>
+                        <TableHead className="text-xs">Motivo</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {transferidos.map(m => (
+                        <TableRow key={m.tp_id} className="hover:bg-muted/30 cursor-pointer" onClick={() => window.location.href = `/participantes/${m.participante_id}`}>
+                          <TableCell className="text-xs sm:text-sm text-amber-700">{m.nome} (T)</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{m.data_saida ? format(new Date(m.data_saida + "T12:00:00"), "dd/MM/yyyy") : "—"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{m.motivo_saida || "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        }
+        return null;
+      })()}
+
+      {/* Histórico: Desligados */}
       {(() => {
         const historicos = members.filter(m => m.status === "desligado");
-        if (historicos.length === 0) return null;
         return (
           <Card>
             <CardHeader className="pb-3">
