@@ -502,16 +502,25 @@ const RelatorioNovoPage = () => {
 
       {/* Turmas */}
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Turmas</CardTitle></CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Turmas {form.educador_id && <span className="text-xs font-normal text-muted-foreground ml-2">★ = turmas do educador selecionado</span>}</CardTitle></CardHeader>
         <CardContent>
           {turmas.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma turma ativa</p> : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {turmas.map(t => (
-                <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox checked={form.turma_ids.includes(t.id)} onCheckedChange={() => toggleTurma(t.id)} />
-                  {t.nome}
-                </label>
-              ))}
+              {[...turmas].sort((a, b) => {
+                if (!form.educador_id) return 0;
+                const aLinked = a.educador_id === form.educador_id ? 0 : 1;
+                const bLinked = b.educador_id === form.educador_id ? 0 : 1;
+                return aLinked - bLinked;
+              }).map(t => {
+                const isLinked = form.educador_id && t.educador_id === form.educador_id;
+                return (
+                  <label key={t.id} className={cn("flex items-center gap-2 text-sm cursor-pointer rounded-md px-2 py-1 transition-colors", isLinked && "bg-primary/10 ring-1 ring-primary/30 font-medium")}>
+                    <Checkbox checked={form.turma_ids.includes(t.id)} onCheckedChange={() => toggleTurma(t.id)} />
+                    {isLinked && <span className="text-primary text-xs">★</span>}
+                    {t.nome}
+                  </label>
+                );
+              })}
             </div>
           )}
         </CardContent>
