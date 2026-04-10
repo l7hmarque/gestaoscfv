@@ -16,7 +16,7 @@ const STATUS_OPTIONS = [
   { value: "concluido", label: "Concluído", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" },
 ];
 
-export function RecadosEquipeCards() {
+export function RecadosEquipeCards({ onPendingCount }: { onPendingCount?: (count: number) => void }) {
   const { user } = useAuth();
   const [recados, setRecados] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -35,7 +35,7 @@ export function RecadosEquipeCards() {
   const loadRecados = async () => {
     if (!user) return;
     const [{ data: recs }, { data: profs }, { data: parts }] = await Promise.all([
-      supabase.from("recados").select("*").order("created_at", { ascending: false }).limit(50),
+      supabase.from("recados").select("*").eq("tipo_recado", "tecnico").order("created_at", { ascending: false }).limit(50),
       supabase.from("profiles").select("id, nome, user_id"),
       supabase.from("participantes").select("id, nome_completo"),
     ]);
