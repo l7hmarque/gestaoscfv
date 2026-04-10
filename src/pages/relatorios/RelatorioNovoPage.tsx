@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ArrowLeft, Save, Loader2, Upload, X, Check, ChevronsUpDown } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Upload, X, Check, ChevronsUpDown, AlertTriangle, Plus, Trash2 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +20,14 @@ import { toast } from "sonner";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { TIPOS_ATIVIDADE } from "@/lib/constants";
 import { checkConquistas } from "@/hooks/useConquistas";
+
+const MOTIVOS_RELATO = [
+  "Conflito entre participantes",
+  "Vulnerabilidade identificada",
+  "Comportamento preocupante",
+  "Encaminhamento necessário",
+  "Outro",
+];
 
 const LIKERT_LABELS = ["Muito Baixo", "Baixo", "Moderado", "Alto", "Excepcional"];
 const ENGAJAMENTO_OPT = ["Grupo participativo", "Grupo disperso", "Boa interação entre participantes", "Necessitou intervenção do educador"];
@@ -89,6 +98,10 @@ const RelatorioNovoPage = () => {
     justificativas: {} as Record<string, string>,
   });
 
+  // Relato equipe técnica state
+  const [relatos, setRelatos] = useState<Array<{ motivo: string; participante_ids: string[]; descricao: string }>>([]);
+  const [relatoForm, setRelatoForm] = useState({ motivo: "", participante_ids: [] as string[], descricao: "" });
+
   const scoreElo = useMemo(() => {
     const s = (form.iniciativa + form.autonomia + form.colaboracao + form.comunicacao + form.respeito_mutuo) / 5;
     return s.toFixed(2);
@@ -134,7 +147,7 @@ const RelatorioNovoPage = () => {
   // Load planejamentos filtered by educador
   useEffect(() => {
     const fetchPlans = async () => {
-      let query = supabase.from("planejamentos").select("id, titulo, educador_id").order("created_at", { ascending: false }).limit(50);
+      let query = supabase.from("planejamentos").select("id, titulo, educador_id, tipo_atividade, tipo_atividade_detalhe").order("created_at", { ascending: false }).limit(50);
       if (form.educador_id) {
         query = query.eq("educador_id", form.educador_id);
       }
@@ -189,7 +202,19 @@ const RelatorioNovoPage = () => {
       ...f,
       planejamento_id: planId,
       nome_atividade: plan?.titulo || f.nome_atividade,
+      educador_id: plan?.educador_id || f.educador_id,
+      tipo_atividade: (plan?.tipo_atividade && plan.tipo_atividade.length > 0) ? plan.tipo_atividade : f.tipo_atividade,
+      tipo_atividade_detalhe: plan?.tipo_atividade_detalhe || f.tipo_atividade_detalhe,
     }));
+  };
+
+  const addRelato = () => {
+    if (!relatoForm.motivo) { toast.error("Selecione um motivo"); return; }
+    if (relatoForm.participante_ids.length === 0) { toast.error("Selecione ao menos um participante"); return; }
+    if (!relatoForm.descricao.trim()) { toast.error("Descreva brevemente a situação"); return; }
+    setRelatos(prev => [...prev, { ...relatoForm }]);
+    setRelatoForm({ motivo: "", participante_ids: [], descricao: "" });
+    toast.success("Relato adicionado");
   };
 
   const handleFotos = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -293,6 +318,56 @@ const RelatorioNovoPage = () => {
         if (!upErr) {
           const { data: urlData } = supabase.storage.from("fotos-relatorios").getPublicUrl(path);
           await supabase.from("relatorio_fotos").insert({ relatorio_id: relId, foto_url: urlData.publicUrl, ordem: i });
+        }
+      }
+
+      // Save relatos for equipe técnica
+      if (relatos.length > 0) {
+        const { data: profileData } = await supabase.from("profiles").select("id").eq("user_id", user!.id).single();
+        const criadorId = profileData?.id || null;
+
+        for (const relato of relatos) {
+          const { data: relatoData } = await supabase.from("relato_equipe_tecnica").insert({
+            relatorio_id: relId,
+            motivo: relato.motivo,
+            descricao: relato.descricao,
+            criado_por: criadorId,
+          } as any).select("id").single();
+
+          if (relatoData) {
+            // Insert participantes
+            await supabase.from("relato_equipe_participantes").insert(
+              relato.participante_ids.map(pid => ({ relato_id: relatoData.id, participante_id: pid })) as any
+            );
+
+            // Send recados to tecnico/coordenacao
+            const { data: tecRoles } = await supabase.from("user_roles").select("user_id").in("role", ["tecnico", "coordenacao"]);
+            if (tecRoles) {
+              const { data: tecProfiles } = await supabase.from("profiles").select("id, user_id").in("user_id", tecRoles.map((r: any) => r.user_id));
+              if (tecProfiles && criadorId) {
+                const nomesParts = relato.participante_ids.map(pid => participantesTurma.find(p => p.id === pid)?.nome || "").filter(Boolean).join(", ");
+                for (const tec of tecProfiles) {
+                  if (tec.id !== criadorId) {
+                    await supabase.from("recados").insert({
+                      remetente_id: criadorId,
+                      destinatario_id: tec.id,
+                      conteudo: `⚠️ Relato técnico: ${relato.motivo}\nParticipantes: ${nomesParts}\n${relato.descricao}`,
+                      tipo_recado: "tecnico",
+                    } as any);
+                  }
+                }
+              }
+            }
+
+            // Append to participantes observacoes_sigilosas
+            const dataStr = format(form.data!, "dd/MM/yyyy");
+            for (const pid of relato.participante_ids) {
+              const { data: part } = await supabase.from("participantes").select("observacoes_sigilosas").eq("id", pid).single();
+              const existing = part?.observacoes_sigilosas || "";
+              const newEntry = `\n[${dataStr}] ${relato.motivo}: ${relato.descricao}`;
+              await supabase.from("participantes").update({ observacoes_sigilosas: existing + newEntry }).eq("id", pid);
+            }
+          }
         }
       }
 
@@ -589,12 +664,77 @@ const RelatorioNovoPage = () => {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Intervenções Realizadas</Label>
-            <Textarea value={form.intervencoes} onChange={e => setForm(f => ({ ...f, intervencoes: e.target.value }))} rows={2} placeholder="Descreva intervenções realizadas" />
+            <Label className="text-xs">Atividades Realizadas</Label>
+            <Textarea value={form.intervencoes} onChange={e => setForm(f => ({ ...f, intervencoes: e.target.value }))} rows={2} placeholder="Descreva as atividades realizadas" />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Observações Gerais</Label>
             <Textarea value={form.observacoes} onChange={e => setForm(f => ({ ...f, observacoes: e.target.value }))} rows={2} placeholder="Observações adicionais" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Relato para Equipe Técnica */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-500" /> Relato para Equipe Técnica
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {relatos.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {relatos.map((r, i) => (
+                <div key={i} className="border rounded-md p-2 bg-amber-50 dark:bg-amber-950/20 text-sm">
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline" className="text-xs">{r.motivo}</Badge>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRelatos(prev => prev.filter((_, j) => j !== i))}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">{r.participante_ids.length} participante(s) • {r.descricao.slice(0, 80)}{r.descricao.length > 80 ? "..." : ""}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="space-y-2 border rounded-md p-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Motivo</Label>
+              <Select value={relatoForm.motivo} onValueChange={v => setRelatoForm(f => ({ ...f, motivo: v }))}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Selecione o motivo" /></SelectTrigger>
+                <SelectContent>
+                  {MOTIVOS_RELATO.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Participantes envolvidos</Label>
+              {participantesTurma.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Selecione turmas primeiro</p>
+              ) : (
+                <div className="max-h-32 overflow-y-auto border rounded-md p-2 space-y-0.5">
+                  {participantesTurma.map(p => (
+                    <label key={p.id} className="flex items-center gap-2 text-xs cursor-pointer py-0.5">
+                      <Checkbox
+                        checked={relatoForm.participante_ids.includes(p.id)}
+                        onCheckedChange={c => setRelatoForm(f => ({
+                          ...f,
+                          participante_ids: c ? [...f.participante_ids, p.id] : f.participante_ids.filter(x => x !== p.id),
+                        }))}
+                      />
+                      {p.nome}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Descrição breve</Label>
+              <Textarea value={relatoForm.descricao} onChange={e => setRelatoForm(f => ({ ...f, descricao: e.target.value }))} rows={2} placeholder="Descreva brevemente a situação" className="text-sm" />
+            </div>
+            <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={addRelato} type="button">
+              <Plus className="h-3 w-3" /> Adicionar Relato
+            </Button>
           </div>
         </CardContent>
       </Card>
