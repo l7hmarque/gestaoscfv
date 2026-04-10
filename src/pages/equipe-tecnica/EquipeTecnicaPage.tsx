@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2, Phone, MapPin, Search, Eye, UserCheck, UserX } from "lucide-react";
+import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2, Phone, MapPin, Search, Eye, UserCheck, UserX, Mail } from "lucide-react";
 import { RecadosEquipeCards } from "@/components/RecadosEquipeCards";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
@@ -580,7 +580,7 @@ const EquipeTecnicaPage = () => {
             </Card>
           )}
 
-          <RecadosEquipeCards />
+          
 
           <div className="grid md:grid-cols-2 gap-4">
             <Card>
