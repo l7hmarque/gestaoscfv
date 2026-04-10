@@ -693,26 +693,26 @@ export default function DashboardRelatorioMensalTab() {
       const margin = 15;
       const contentW = pageW - margin * 2;
 
-      // Colors
-      const VERMELHO = [198, 40, 40] as [number, number, number]; // #C62828
-      const AZUL = [21, 101, 192] as [number, number, number]; // #1565C0
-      const VERMELHO_CLARO = [255, 235, 238] as [number, number, number]; // #FFEBEE
-      const AZUL_CLARO = [227, 242, 253] as [number, number, number]; // #E3F2FD
+      // Colors — Grayscale palette for max legibility
+      const CINZA_ESCURO = [50, 50, 50] as [number, number, number];
+      const CINZA_MEDIO = [120, 120, 120] as [number, number, number];
+      const CINZA_CLARO = [245, 245, 245] as [number, number, number];
       const BRANCO = [255, 255, 255] as [number, number, number];
+      const PRETO = [0, 0, 0] as [number, number, number];
 
       const addHeader = (pageDoc: jsPDF) => {
-        // Red bar top
-        pageDoc.setFillColor(...VERMELHO);
+        // Dark bar top
+        pageDoc.setFillColor(...CINZA_ESCURO);
         pageDoc.rect(0, 0, pageW, 3, "F");
-        // Blue bar below
-        pageDoc.setFillColor(...AZUL);
+        // Medium bar below
+        pageDoc.setFillColor(...CINZA_MEDIO);
         pageDoc.rect(0, 3, pageW, 1, "F");
 
         pageDoc.setFont("helvetica", "bold");
         pageDoc.setFontSize(8);
-        pageDoc.setTextColor(...VERMELHO);
+        pageDoc.setTextColor(...PRETO);
         pageDoc.text("PREFEITURA MUNICIPAL DE MEDIANEIRA", margin, 12);
-        pageDoc.setTextColor(...AZUL);
+        pageDoc.setTextColor(...CINZA_ESCURO);
         pageDoc.text("SECRETARIA DE ASSISTÊNCIA SOCIAL", margin, 16);
         pageDoc.setFont("helvetica", "normal");
         pageDoc.setFontSize(7);
@@ -721,7 +721,7 @@ export default function DashboardRelatorioMensalTab() {
         pageDoc.text("Serviço de Convivência e Fortalecimento de Vínculos — SCFV", margin, 24);
 
         // Divider
-        pageDoc.setDrawColor(...VERMELHO);
+        pageDoc.setDrawColor(...CINZA_ESCURO);
         pageDoc.setLineWidth(0.5);
         pageDoc.line(margin, 27, pageW - margin, 27);
         return 32;
@@ -729,7 +729,7 @@ export default function DashboardRelatorioMensalTab() {
 
       const addFooter = (pageDoc: jsPDF, pageNum: number) => {
         const h = pageDoc.internal.pageSize.getHeight();
-        pageDoc.setDrawColor(...AZUL);
+        pageDoc.setDrawColor(...CINZA_MEDIO);
         pageDoc.setLineWidth(0.3);
         pageDoc.line(margin, h - 12, pageW - margin, h - 12);
         pageDoc.setFontSize(6);
@@ -738,7 +738,7 @@ export default function DashboardRelatorioMensalTab() {
         pageDoc.text(`Página ${pageNum}`, pageW - margin, h - 8, { align: "right" });
       };
 
-      const sectionTitle = (pageDoc: jsPDF, title: string, y: number, color: [number, number, number] = VERMELHO) => {
+      const sectionTitle = (pageDoc: jsPDF, title: string, y: number, color: [number, number, number] = CINZA_ESCURO) => {
         pageDoc.setFillColor(...color);
         pageDoc.roundedRect(margin, y, contentW, 8, 1, 1, "F");
         pageDoc.setFont("helvetica", "bold");
@@ -754,10 +754,10 @@ export default function DashboardRelatorioMensalTab() {
       let y = addHeader(doc);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(16);
-      doc.setTextColor(...VERMELHO);
+      doc.setTextColor(...PRETO);
       doc.text("RELATÓRIO MENSAL", pageW / 2, y + 5, { align: "center" });
       doc.setFontSize(12);
-      doc.setTextColor(...AZUL);
+      doc.setTextColor(...CINZA_ESCURO);
       doc.text(`${MESES_NOMES[mesNum - 1].toUpperCase()} / ${ano}`, pageW / 2, y + 12, { align: "center" });
       y += 22;
 
@@ -765,19 +765,19 @@ export default function DashboardRelatorioMensalTab() {
 
       // Summary cards
       const cardData = [
-        { label: "Total de Atendidos", value: String(atendidosFiltered.length), color: AZUL_CLARO },
-        { label: "Frequência Geral", value: `${pctPresencaGeral}%`, color: VERMELHO_CLARO },
-        { label: "Relatórios de Atividade", value: String(filteredRelatorios.length), color: AZUL_CLARO },
-        { label: "Atendimentos Técnicos", value: String(filteredAtendimentos.length), color: VERMELHO_CLARO },
+        { label: "Total de Atendidos", value: String(atendidosFiltered.length) },
+        { label: "Frequência Geral", value: `${pctPresencaGeral}%` },
+        { label: "Relatórios de Atividade", value: String(filteredRelatorios.length) },
+        { label: "Atendimentos Técnicos", value: String(filteredAtendimentos.length) },
       ];
       const cardW = (contentW - 6) / 4;
       cardData.forEach((cd, i) => {
         const cx = margin + i * (cardW + 2);
-        doc.setFillColor(...cd.color);
+        doc.setFillColor(...CINZA_CLARO);
         doc.roundedRect(cx, y, cardW, 18, 2, 2, "F");
         doc.setFont("helvetica", "bold");
         doc.setFontSize(14);
-        doc.setTextColor(...AZUL);
+        doc.setTextColor(...PRETO);
         doc.text(cd.value, cx + cardW / 2, y + 9, { align: "center" });
         doc.setFont("helvetica", "normal");
         doc.setFontSize(6);
@@ -787,29 +787,29 @@ export default function DashboardRelatorioMensalTab() {
       y += 24;
 
       // By bairro table
-      y = sectionTitle(doc, "ATENDIDOS POR BAIRRO", y, AZUL);
+      y = sectionTitle(doc, "ATENDIDOS POR BAIRRO", y, CINZA_ESCURO);
       autoTable(doc, {
         startY: y,
         head: [["Bairro", "Qtd."]],
         body: Object.entries(byBairro).sort((a, b) => b[1] - a[1]).map(([b, c]) => [b, String(c)]),
         margin: { left: margin, right: margin },
         styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: AZUL, textColor: BRANCO, fontStyle: "bold" },
-        alternateRowStyles: { fillColor: AZUL_CLARO },
+        headStyles: { fillColor: CINZA_ESCURO, textColor: BRANCO, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: CINZA_CLARO },
         theme: "grid",
       });
       y = (doc as any).lastAutoTable.finalY + 6;
 
       // By faixa
-      y = sectionTitle(doc, "ATENDIDOS POR FAIXA ETÁRIA", y, AZUL);
+      y = sectionTitle(doc, "ATENDIDOS POR FAIXA ETÁRIA", y, CINZA_ESCURO);
       autoTable(doc, {
         startY: y,
         head: [["Faixa Etária", "Qtd."]],
         body: Object.entries(byFaixa).map(([f, c]) => [f, String(c)]),
         margin: { left: margin, right: margin },
         styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: VERMELHO, textColor: BRANCO, fontStyle: "bold" },
-        alternateRowStyles: { fillColor: VERMELHO_CLARO },
+        headStyles: { fillColor: CINZA_ESCURO, textColor: BRANCO, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: CINZA_CLARO },
         theme: "grid",
       });
       y = (doc as any).lastAutoTable.finalY + 6;
@@ -840,8 +840,8 @@ export default function DashboardRelatorioMensalTab() {
         body: metasBody,
         margin: { left: margin, right: margin },
         styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: VERMELHO, textColor: BRANCO, fontStyle: "bold" },
-        alternateRowStyles: { fillColor: VERMELHO_CLARO },
+        headStyles: { fillColor: CINZA_ESCURO, textColor: BRANCO, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: CINZA_CLARO },
         theme: "grid",
       });
       y = (doc as any).lastAutoTable.finalY + 6;
@@ -849,7 +849,7 @@ export default function DashboardRelatorioMensalTab() {
       // Atendimentos técnicos
       if (filteredAtendimentos.length > 0) {
         if (y > 200) { doc.addPage(); pageNum++; y = addHeader(doc); }
-        y = sectionTitle(doc, "ATENDIMENTOS TÉCNICOS", y, AZUL);
+        y = sectionTitle(doc, "ATENDIMENTOS TÉCNICOS", y, CINZA_ESCURO);
         const atendByTipo: Record<string, number> = {};
         filteredAtendimentos.forEach((a: any) => { const t = a.tipo || "atendimento_individual"; atendByTipo[t] = (atendByTipo[t] || 0) + 1; });
         autoTable(doc, {
@@ -858,11 +858,71 @@ export default function DashboardRelatorioMensalTab() {
           body: Object.entries(atendByTipo).map(([t, c]) => [TIPO_ATENDIMENTO_LABELS[t] || t, String(c)]),
           margin: { left: margin, right: margin },
           styles: { fontSize: 8, cellPadding: 2 },
-          headStyles: { fillColor: AZUL, textColor: BRANCO, fontStyle: "bold" },
-          alternateRowStyles: { fillColor: AZUL_CLARO },
+          headStyles: { fillColor: CINZA_ESCURO, textColor: BRANCO, fontStyle: "bold" },
+          alternateRowStyles: { fillColor: CINZA_CLARO },
           theme: "grid",
         });
         y = (doc as any).lastAutoTable.finalY + 6;
+      }
+
+      // ── ANEXO: Listas de Presença por Turma ──
+      const DIAS_MAP_PDF: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
+      const activeTurmas = (turmas || []).filter((t: any) => t.ativa);
+      for (const turma of activeTurmas) {
+        const diasSemana: string[] = turma.dias_semana || [];
+        const diasNum = diasSemana.map((d: string) => DIAS_MAP_PDF[d.toLowerCase()]).filter((n: number) => n !== undefined);
+        const datasDoMes: string[] = [];
+        const dd = new Date(parseInt(ano), mesNum - 1, 1);
+        while (dd.getMonth() === mesNum - 1) {
+          if (diasNum.includes(dd.getDay())) {
+            datasDoMes.push(dd.toISOString().slice(0, 10));
+          }
+          dd.setDate(dd.getDate() + 1);
+        }
+        if (datasDoMes.length === 0) continue;
+
+        const tpMembers = (turmaParticipantes || []).filter((tp: any) => tp.turma_id === turma.id);
+        const memberParts = tpMembers.map((tp: any) => partMap.get(tp.participante_id)).filter(Boolean);
+        const sorted = [...memberParts].sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo));
+        if (sorted.length === 0) continue;
+
+        const turmaPresencas = presencas.filter((p: any) => p.turma_id === turma.id);
+        const presencaSet = new Set(turmaPresencas.filter((p: any) => p.presente).map((p: any) => `${p.participante_id}_${p.data}`));
+
+        doc.addPage("landscape");
+        pageNum++;
+        let ty = 10;
+        doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(0, 0, 0);
+        doc.text("PREFEITURA MUNICIPAL DE MEDIANEIRA — CAIA — SCFV", 148, ty, { align: "center" });
+        ty += 5; doc.setFontSize(10);
+        doc.text(`LISTA DE PRESENÇA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${ano}`, 148, ty, { align: "center" });
+        ty += 5; doc.setFontSize(9);
+        doc.text(turma.nome, 148, ty, { align: "center" });
+        ty += 4; doc.setFont("helvetica", "normal"); doc.setFontSize(7);
+        const educador = (profilesData || []).find((p: any) => p.id === turma.educador_id);
+        const bNome = bairroMap.get(turma.bairro_id) || "";
+        const perLabel = turma.periodo === "manha" ? "Manhã" : turma.periodo === "tarde" ? "Tarde" : "Integral";
+        doc.text(`Educador(a): ${educador?.nome || "—"}  ·  Bairro: ${bNome}  ·  Período: ${perLabel}`, 148, ty, { align: "center" });
+        ty += 5;
+
+        const dateHeaders = datasDoMes.map(d => { const dt = new Date(d + "T12:00:00"); return `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}`; });
+        autoTable(doc, {
+          startY: ty,
+          head: [["Nº", "Nome do Participante", ...dateHeaders]],
+          body: sorted.map((member: any, i: number) => {
+            const row = [i + 1, member.nome_completo];
+            datasDoMes.forEach(d => {
+              const key = `${member.id}_${d}`;
+              row.push(presencaSet.has(key) ? "■" : "");
+            });
+            return row;
+          }),
+          headStyles: { fillColor: [50, 50, 50], fontSize: 5, cellPadding: 1, textColor: [255, 255, 255] },
+          styles: { fontSize: 5, cellPadding: 1 },
+          columnStyles: { 0: { cellWidth: 6, halign: "center" }, 1: { cellWidth: 35 } },
+          alternateRowStyles: { fillColor: [245, 245, 245] },
+          margin: { left: 8, right: 8 },
+        });
       }
 
       // Add footers to all pages

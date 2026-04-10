@@ -859,6 +859,7 @@ Deno.serve(async (req: Request) => {
         children: [new TextRun({ text: "ANEXO II - LISTAS DE PRESENÇA", bold: true, font: "Arial", size: 26 })],
       }));
 
+      const tableWidth = 9360;
       for (let ti = 0; ti < turmasAtivas.length; ti++) {
         const turma = turmasAtivas[ti];
         const diasSemana: string[] = turma.dias_semana || [];
@@ -929,7 +930,7 @@ Deno.serve(async (req: Request) => {
         }));
 
         // Build table
-        const tableWidth = 9360;
+        const loopTableWidth = tableWidth;
         const numColW = 500;
         const nameColW = 3200;
         const remainingW = tableWidth - numColW - nameColW;

@@ -12,8 +12,8 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 import { sysEloFileName } from "@/lib/fileNaming";
 import { toast } from "sonner";
 
-const HEADER_COLOR = "1A5276";
-const ACCENT_COLOR = "C62828";
+const HEADER_COLOR = "323232";
+const ACCENT_COLOR = "000000";
 const LIGHT_BG = "F5F5F5";
 const cellBorder = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" };
 const borders = { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder };
@@ -204,8 +204,11 @@ async function generateBulkDocx(
       children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 100 }, children: [
         new TextRun({ text: "LISTA DE PRESENÇA", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR }),
       ]}));
-      children.push(new Paragraph({ spacing: { after: 100 }, children: [
+      children.push(new Paragraph({ spacing: { after: 50 }, children: [
         new TextRun({ text: `Atividade: ${safe(item.nome_atividade)}  |  Data: ${item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : ""}  |  Turma(s): ${turmaNames.join(", ")}`, size: 16, font: "Arial" }),
+      ]}));
+      children.push(new Paragraph({ spacing: { after: 100 }, children: [
+        new TextRun({ text: `Educador(a): ${safe(item.profiles?.nome)}`, size: 16, font: "Arial" }),
       ]}));
 
       const presRows = [
@@ -220,7 +223,7 @@ async function generateBulkDocx(
           new TableCell({ width: { size: 6260, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: safe(p.participantes?.nome_completo), size: 14, font: "Arial" })] })] }),
           new TableCell({
             width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins,
-            shading: { fill: p.presente ? "E8F5E9" : "FFEBEE", type: ShadingType.CLEAR },
+            shading: { fill: p.presente ? "E0E0E0" : "FFFFFF", type: ShadingType.CLEAR },
             children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: p.presente ? "✓" : "", size: 18, font: "Arial", bold: true })] })],
           }),
           new TableCell({ width: { size: 1300, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [] })] }),
@@ -284,7 +287,7 @@ async function generateBulkPdf(
     doc.text("PREFEITURA MUNICIPAL DE MEDIANEIRA", 105, y, { align: "center" });
     y += 4; doc.setFont("helvetica", "normal"); doc.setFontSize(9);
     doc.text("SECRETARIA DE ASSISTÊNCIA SOCIAL — CAIA — SCFV", 105, y, { align: "center" });
-    y += 6; doc.setFontSize(13); doc.setTextColor(198, 40, 40); doc.setFont("helvetica", "bold");
+    y += 6; doc.setFontSize(13); doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold");
     doc.text("RELATÓRIO DE ATIVIDADE", 105, y, { align: "center" });
     doc.setTextColor(0); doc.setFont("helvetica", "normal"); y += 8;
 
@@ -319,20 +322,22 @@ async function generateBulkPdf(
       doc.text("LISTA DE PRESENÇA", 105, py, { align: "center" }); py += 4;
       doc.setFontSize(8); doc.setFont("helvetica", "normal");
       doc.text(`Atividade: ${safe(item.nome_atividade)}  |  Data: ${item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : ""}  |  Turma(s): ${turmaNames.join(", ")}`, 14, py);
-      py += 5;
+      py += 4;
+      doc.text(`Educador(a): ${safe(item.profiles?.nome)}`, 14, py);
 
       autoTable(doc, {
         startY: py,
         head: [["Nº", "Nome do Participante", "Presença", "Assinatura"]],
         body: presenca.map((p, i) => [i + 1, safe(p.participantes?.nome_completo), p.presente ? "✓" : "", ""]),
-        headStyles: { fillColor: [26, 82, 118], fontSize: 7, textColor: [255, 255, 255] },
+        headStyles: { fillColor: [50, 50, 50], fontSize: 7, textColor: [255, 255, 255] },
         styles: { fontSize: 7, cellPadding: 2 },
         columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 18, halign: "center" }, 3: { cellWidth: 35 } },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
         didParseCell: (data: any) => {
           if (data.section === "body" && data.column.index === 2) {
             const isPresente = data.cell.raw === "✓";
-            data.cell.styles.fillColor = isPresente ? [232, 245, 233] : [255, 235, 238];
-            data.cell.styles.textColor = isPresente ? [46, 125, 50] : [198, 40, 40];
+            data.cell.styles.fillColor = isPresente ? [235, 235, 235] : [255, 255, 255];
+            data.cell.styles.textColor = [0, 0, 0];
             data.cell.styles.fontStyle = "bold";
           }
         },
