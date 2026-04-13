@@ -21,7 +21,8 @@ import { toast } from "sonner";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2, Phone, MapPin, Search, Eye, UserCheck, UserX, Mail } from "lucide-react";
+import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2, Phone, MapPin, Search, Eye, UserCheck, UserX, Mail, ChevronDown, ChevronUp, Check, X as XIcon, FileImage } from "lucide-react";
+import { calcFaixaFromDate, displayAge, PERIODO_LABELS } from "@/lib/constants";
 import { RecadosEquipeCards } from "@/components/RecadosEquipeCards";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
@@ -60,6 +61,9 @@ const EquipeTecnicaPage = () => {
   const { user } = useAuth();
   const isDemo = useIsDemo();
   const [atendimentos, setAtendimentos] = useState<any[]>([]);
+  const [pendenteDocs, setPendenteDocs] = useState<Record<string, any[]>>({});
+  const [expandedPendente, setExpandedPendente] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [presenca, setPresenca] = useState<any[]>([]);
@@ -94,20 +98,23 @@ const EquipeTecnicaPage = () => {
   const [baSaving, setBaSaving] = useState(false);
   const [recadosPendentes, setRecadosPendentes] = useState(0);
 
+  const [activeTab, setActiveTab] = useState("dashboard");
+
   useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }, { data: roles }, { data: bairrosData }, { data: baRegs }] = await Promise.all([
+    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }, { data: roles }, { data: bairrosData }, { data: baRegs }, { data: pDocs }] = await Promise.all([
       supabase.from("atendimentos").select("*").order("data_atendimento", { ascending: false }),
-      supabase.from("participantes").select("id, nome_completo, status, data_nascimento, bairro_id, periodo, laudo, categoria_vulnerabilidade, foto_url, responsavel1_nome, responsavel1_whatsapp, responsavel2_nome, responsavel2_whatsapp, endereco_rua, endereco_numero, endereco_bairro, escola, data_desligamento, motivo_desligamento").order("nome_completo"),
+      supabase.from("participantes").select("id, nome_completo, status, data_nascimento, bairro_id, periodo, laudo, categoria_vulnerabilidade, foto_url, responsavel1_nome, responsavel1_whatsapp, responsavel2_nome, responsavel2_whatsapp, endereco_rua, endereco_numero, endereco_bairro, escola, data_desligamento, motivo_desligamento, restricao_alimentar, serie, genero, cor_raca, created_at").order("nome_completo"),
       supabase.from("profiles").select("id, nome, cargo, user_id"),
       supabase.from("presenca").select("participante_id, data, presente").gte("data", format(subDays(new Date(), 90), "yyyy-MM-dd")),
-      supabase.from("turmas").select("id, nome, dias_semana").eq("ativa", true),
+      supabase.from("turmas").select("id, nome, dias_semana, bairro_id, faixa_etaria, periodo").eq("ativa", true),
       supabase.from("turma_participantes").select("turma_id, participante_id"),
       supabase.from("user_roles").select("role"),
       supabase.from("bairros").select("id, nome"),
       (supabase.from as any)("busca_ativa_registros").select("*").order("created_at", { ascending: false }),
+      supabase.from("participante_documentos" as any).select("*"),
     ]);
     setAtendimentos(atd || []);
     setParticipantes(part || []);
@@ -117,6 +124,14 @@ const EquipeTecnicaPage = () => {
     setUserRoles((roles || []).map((r: any) => r.role));
     setBairros(bairrosData || []);
     setBuscaAtivaRegistros(baRegs || []);
+
+    // Group docs by participante_id
+    const docsMap: Record<string, any[]> = {};
+    (pDocs || []).forEach((d: any) => {
+      if (!docsMap[d.participante_id]) docsMap[d.participante_id] = [];
+      docsMap[d.participante_id].push(d);
+    });
+    setPendenteDocs(docsMap);
 
     const tpMap: Record<string, string[]> = {};
     (tp || []).forEach((row: any) => {
@@ -133,6 +148,44 @@ const EquipeTecnicaPage = () => {
   };
 
   const isCoordenacao = userRoles.includes("coordenacao");
+
+  // Approval handler
+  const handleAprovarPendente = async (p: any) => {
+    if (guardDemo(isDemo)) return;
+    setApprovingId(p.id);
+    const { error } = await supabase.from("participantes").update({ status: "ativo" } as any).eq("id", p.id);
+    if (error) { toast.error("Erro: " + error.message); setApprovingId(null); return; }
+    const faixa = calcFaixaFromDate(p.data_nascimento);
+    if (p.bairro_id && p.periodo && faixa) {
+      let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", p.bairro_id).eq("faixa_etaria", faixa as any);
+      if (p.periodo !== "integral") query = query.eq("periodo", p.periodo as any);
+      const { data: turmasCompativeis } = await query;
+      if (turmasCompativeis && turmasCompativeis.length > 0) {
+        const links = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: p.id }));
+        await supabase.from("turma_participantes").upsert(links, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
+        toast.info(`Vinculado a ${turmasCompativeis.length} turma(s)`);
+      }
+    }
+    toast.success(`${p.nome_completo} aprovado!`);
+    setApprovingId(null);
+    loadAll();
+  };
+
+  const handleRejeitarPendente = async (p: any) => {
+    if (guardDemo(isDemo)) return;
+    setApprovingId(p.id);
+    const { error } = await supabase.from("participantes").delete().eq("id", p.id);
+    if (error) { toast.error("Erro: " + error.message); setApprovingId(null); return; }
+    toast.success(`Matrícula de ${p.nome_completo} rejeitada`);
+    setApprovingId(null);
+    loadAll();
+  };
+
+  const handleViewDocEquipe = async (doc: any) => {
+    const { data } = await supabase.storage.from("documentos").createSignedUrl(doc.arquivo_url, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    else toast.error("Erro ao gerar link");
+  };
 
   const handleDeleteAtendimento = async () => {
     if (!deleteTarget) return;
@@ -535,7 +588,7 @@ const EquipeTecnicaPage = () => {
         </Dialog>
       </div>
 
-      <Tabs defaultValue="dashboard" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="atendimentos">Atendimentos</TabsTrigger>
@@ -547,7 +600,12 @@ const EquipeTecnicaPage = () => {
             )}
           </TabsTrigger>
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
-          <TabsTrigger value="alertas">Alertas</TabsTrigger>
+          <TabsTrigger value="alertas" className="gap-1">
+            Alertas
+            {pendentes.length > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 min-w-[20px] px-1 text-[10px]">{pendentes.length}</Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* DASHBOARD */}
@@ -582,7 +640,7 @@ const EquipeTecnicaPage = () => {
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <span className="text-sm font-medium">{pendentes.length} matrícula(s) pendente(s) aguardando aprovação</span>
                 </div>
-                <Button variant="outline" size="sm" asChild><Link to="/participantes?status=pendente">Ver pendentes</Link></Button>
+                <Button variant="outline" size="sm" onClick={() => setActiveTab("alertas")}>Aprovar agora</Button>
               </CardContent>
             </Card>
           )}
@@ -872,15 +930,135 @@ const EquipeTecnicaPage = () => {
           {pendentes.length > 0 && (
             <Card className="border-amber-500/50">
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-500" />Matrículas Pendentes ({pendentes.length})</CardTitle></CardHeader>
-              <CardContent>
-                <div className="space-y-1">
-                  {pendentes.map(p => (
-                    <div key={p.id} className="flex items-center justify-between py-1 border-b last:border-0">
-                      <Link to={`/participantes/${p.id}`} className="text-sm text-primary hover:underline">{p.nome_completo}</Link>
-                      <Badge variant="outline" className="text-[10px]">Pendente</Badge>
+              <CardContent className="space-y-3">
+                {pendentes.map(p => {
+                  const isExpanded = expandedPendente === p.id;
+                  const pDocs = pendenteDocs[p.id] || [];
+                  const isApproving = approvingId === p.id;
+                  return (
+                    <div key={p.id} className="border rounded-lg overflow-hidden">
+                      {/* Header row */}
+                      <div
+                        className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => setExpandedPendente(isExpanded ? null : p.id)}
+                      >
+                        {p.foto_url ? (
+                          <img src={p.foto_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-sm font-bold text-muted-foreground shrink-0">
+                            {p.nome_completo?.charAt(0)}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{p.nome_completo}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {displayAge(p.data_nascimento)} · {p.periodo ? PERIODO_LABELS[p.periodo] || p.periodo : "—"} · {bairroName(p.bairro_id)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {pDocs.length > 0 && (
+                            <Badge variant="secondary" className="text-[10px] gap-1"><FileImage className="h-3 w-3" />{pDocs.length}</Badge>
+                          )}
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="h-7 text-xs gap-1"
+                            disabled={isApproving}
+                            onClick={(e) => { e.stopPropagation(); handleAprovarPendente(p); }}
+                          >
+                            <Check className="h-3 w-3" />{isApproving ? "..." : "Aprovar"}
+                          </Button>
+                          {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                        </div>
+                      </div>
+
+                      {/* Expanded details */}
+                      {isExpanded && (
+                        <div className="border-t bg-muted/20 p-4 space-y-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                            <div><span className="text-muted-foreground">Nome:</span><p className="font-medium">{p.nome_completo}</p></div>
+                            <div><span className="text-muted-foreground">Nascimento:</span><p className="font-medium">{p.data_nascimento || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Gênero:</span><p className="font-medium">{p.genero || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Cor/Raça:</span><p className="font-medium">{p.cor_raca || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Período:</span><p className="font-medium">{p.periodo ? PERIODO_LABELS[p.periodo] || p.periodo : "—"}</p></div>
+                            <div><span className="text-muted-foreground">Bairro CAIA:</span><p className="font-medium">{bairroName(p.bairro_id)}</p></div>
+                            <div><span className="text-muted-foreground">Escola:</span><p className="font-medium">{p.escola || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Série:</span><p className="font-medium">{p.serie || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Endereço:</span><p className="font-medium">{p.endereco_rua ? `${p.endereco_rua}, ${p.endereco_numero || "s/n"} — ${p.endereco_bairro || ""}` : "—"}</p></div>
+                            <div><span className="text-muted-foreground">Restrição Alimentar:</span><p className="font-medium">{p.restricao_alimentar || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Laudo:</span><p className="font-medium">{p.laudo || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Vulnerabilidade:</span><p className="font-medium">{p.categoria_vulnerabilidade || "—"}</p></div>
+                          </div>
+
+                          {/* Responsáveis */}
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold text-muted-foreground">Responsáveis</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                              {p.responsavel1_nome && (
+                                <div className="border rounded p-2 bg-background">
+                                  <p className="font-medium">{p.responsavel1_nome}</p>
+                                  <p className="text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" />{p.responsavel1_whatsapp || "Sem telefone"}</p>
+                                </div>
+                              )}
+                              {p.responsavel2_nome && (
+                                <div className="border rounded p-2 bg-background">
+                                  <p className="font-medium">{p.responsavel2_nome}</p>
+                                  <p className="text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" />{p.responsavel2_whatsapp || "Sem telefone"}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Documentos da matrícula */}
+                          {pDocs.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold text-muted-foreground">Documentos Enviados na Matrícula</p>
+                              <div className="flex flex-wrap gap-2">
+                                {pDocs.map((doc: any) => (
+                                  <button
+                                    key={doc.id}
+                                    onClick={() => handleViewDocEquipe(doc)}
+                                    className="flex items-center gap-1.5 border rounded px-2 py-1.5 text-xs hover:bg-muted/50 transition-colors bg-background"
+                                  >
+                                    <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                                    <span className="truncate max-w-[150px]">{doc.categoria}</span>
+                                    <Eye className="h-3 w-3 text-muted-foreground" />
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Action buttons */}
+                          <div className="flex gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              className="gap-1"
+                              disabled={isApproving}
+                              onClick={() => handleAprovarPendente(p)}
+                            >
+                              <Check className="h-3.5 w-3.5" />{isApproving ? "Aprovando..." : "Aprovar Matrícula"}
+                            </Button>
+                            {isCoordenacao && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="gap-1"
+                                disabled={isApproving}
+                                onClick={() => handleRejeitarPendente(p)}
+                              >
+                                <XIcon className="h-3.5 w-3.5" />Rejeitar
+                              </Button>
+                            )}
+                            <Button variant="outline" size="sm" className="gap-1" asChild>
+                              <Link to={`/participantes/${p.id}`}><Eye className="h-3.5 w-3.5" />Perfil Completo</Link>
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </CardContent>
             </Card>
           )}
