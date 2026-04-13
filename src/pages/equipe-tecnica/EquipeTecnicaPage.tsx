@@ -600,7 +600,12 @@ const EquipeTecnicaPage = () => {
             )}
           </TabsTrigger>
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
-          <TabsTrigger value="alertas">Alertas</TabsTrigger>
+          <TabsTrigger value="alertas" className="gap-1">
+            Alertas
+            {pendentes.length > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 min-w-[20px] px-1 text-[10px]">{pendentes.length}</Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* DASHBOARD */}
