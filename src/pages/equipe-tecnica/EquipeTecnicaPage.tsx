@@ -923,15 +923,135 @@ const EquipeTecnicaPage = () => {
           {pendentes.length > 0 && (
             <Card className="border-amber-500/50">
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-500" />Matrículas Pendentes ({pendentes.length})</CardTitle></CardHeader>
-              <CardContent>
-                <div className="space-y-1">
-                  {pendentes.map(p => (
-                    <div key={p.id} className="flex items-center justify-between py-1 border-b last:border-0">
-                      <Link to={`/participantes/${p.id}`} className="text-sm text-primary hover:underline">{p.nome_completo}</Link>
-                      <Badge variant="outline" className="text-[10px]">Pendente</Badge>
+              <CardContent className="space-y-3">
+                {pendentes.map(p => {
+                  const isExpanded = expandedPendente === p.id;
+                  const pDocs = pendenteDocs[p.id] || [];
+                  const isApproving = approvingId === p.id;
+                  return (
+                    <div key={p.id} className="border rounded-lg overflow-hidden">
+                      {/* Header row */}
+                      <div
+                        className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => setExpandedPendente(isExpanded ? null : p.id)}
+                      >
+                        {p.foto_url ? (
+                          <img src={p.foto_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-sm font-bold text-muted-foreground shrink-0">
+                            {p.nome_completo?.charAt(0)}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{p.nome_completo}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {displayAge(p.data_nascimento)} · {p.periodo ? PERIODO_LABELS[p.periodo] || p.periodo : "—"} · {bairroName(p.bairro_id)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {pDocs.length > 0 && (
+                            <Badge variant="secondary" className="text-[10px] gap-1"><FileImage className="h-3 w-3" />{pDocs.length}</Badge>
+                          )}
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="h-7 text-xs gap-1"
+                            disabled={isApproving}
+                            onClick={(e) => { e.stopPropagation(); handleAprovarPendente(p); }}
+                          >
+                            <Check className="h-3 w-3" />{isApproving ? "..." : "Aprovar"}
+                          </Button>
+                          {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                        </div>
+                      </div>
+
+                      {/* Expanded details */}
+                      {isExpanded && (
+                        <div className="border-t bg-muted/20 p-4 space-y-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                            <div><span className="text-muted-foreground">Nome:</span><p className="font-medium">{p.nome_completo}</p></div>
+                            <div><span className="text-muted-foreground">Nascimento:</span><p className="font-medium">{p.data_nascimento || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Gênero:</span><p className="font-medium">{p.genero || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Cor/Raça:</span><p className="font-medium">{p.cor_raca || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Período:</span><p className="font-medium">{p.periodo ? PERIODO_LABELS[p.periodo] || p.periodo : "—"}</p></div>
+                            <div><span className="text-muted-foreground">Bairro CAIA:</span><p className="font-medium">{bairroName(p.bairro_id)}</p></div>
+                            <div><span className="text-muted-foreground">Escola:</span><p className="font-medium">{p.escola || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Série:</span><p className="font-medium">{p.serie || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Endereço:</span><p className="font-medium">{p.endereco_rua ? `${p.endereco_rua}, ${p.endereco_numero || "s/n"} — ${p.endereco_bairro || ""}` : "—"}</p></div>
+                            <div><span className="text-muted-foreground">Restrição Alimentar:</span><p className="font-medium">{p.restricao_alimentar || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Laudo:</span><p className="font-medium">{p.laudo || "—"}</p></div>
+                            <div><span className="text-muted-foreground">Vulnerabilidade:</span><p className="font-medium">{p.categoria_vulnerabilidade || "—"}</p></div>
+                          </div>
+
+                          {/* Responsáveis */}
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold text-muted-foreground">Responsáveis</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                              {p.responsavel1_nome && (
+                                <div className="border rounded p-2 bg-background">
+                                  <p className="font-medium">{p.responsavel1_nome}</p>
+                                  <p className="text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" />{p.responsavel1_whatsapp || "Sem telefone"}</p>
+                                </div>
+                              )}
+                              {p.responsavel2_nome && (
+                                <div className="border rounded p-2 bg-background">
+                                  <p className="font-medium">{p.responsavel2_nome}</p>
+                                  <p className="text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" />{p.responsavel2_whatsapp || "Sem telefone"}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Documentos da matrícula */}
+                          {pDocs.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold text-muted-foreground">Documentos Enviados na Matrícula</p>
+                              <div className="flex flex-wrap gap-2">
+                                {pDocs.map((doc: any) => (
+                                  <button
+                                    key={doc.id}
+                                    onClick={() => handleViewDocEquipe(doc)}
+                                    className="flex items-center gap-1.5 border rounded px-2 py-1.5 text-xs hover:bg-muted/50 transition-colors bg-background"
+                                  >
+                                    <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                                    <span className="truncate max-w-[150px]">{doc.categoria}</span>
+                                    <Eye className="h-3 w-3 text-muted-foreground" />
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Action buttons */}
+                          <div className="flex gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              className="gap-1"
+                              disabled={isApproving}
+                              onClick={() => handleAprovarPendente(p)}
+                            >
+                              <Check className="h-3.5 w-3.5" />{isApproving ? "Aprovando..." : "Aprovar Matrícula"}
+                            </Button>
+                            {isCoordenacao && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="gap-1"
+                                disabled={isApproving}
+                                onClick={() => handleRejeitarPendente(p)}
+                              >
+                                <XIcon className="h-3.5 w-3.5" />Rejeitar
+                              </Button>
+                            )}
+                            <Button variant="outline" size="sm" className="gap-1" asChild>
+                              <Link to={`/participantes/${p.id}`}><Eye className="h-3.5 w-3.5" />Perfil Completo</Link>
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </CardContent>
             </Card>
           )}
