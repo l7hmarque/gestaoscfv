@@ -60,6 +60,9 @@ const EquipeTecnicaPage = () => {
   const { user } = useAuth();
   const isDemo = useIsDemo();
   const [atendimentos, setAtendimentos] = useState<any[]>([]);
+  const [pendenteDocs, setPendenteDocs] = useState<Record<string, any[]>>({});
+  const [expandedPendente, setExpandedPendente] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [presenca, setPresenca] = useState<any[]>([]);
