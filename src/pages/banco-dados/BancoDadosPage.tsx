@@ -322,18 +322,24 @@ export default function BancoDadosPage() {
           </div>
         </div>
 
-        {["participantes", "turmas", "presenca", "relatorios", "planejamentos", "profissionais"].map(t => (
-          <TabsContent key={t} value={t}>
-            <DataTable
-              data={getActiveDataList()}
-              columns={getActiveCols()}
-              searchPlaceholder={`Buscar ${t}...`}
-              selectable={isCoord}
-              selectedIds={selectedIds}
-              onSelectionChange={setSelectedIds}
-            />
-          </TabsContent>
-        ))}
+        <TabsContent value="participantes">
+          <DataTable data={participantes} columns={partCols} searchPlaceholder="Buscar participante..." selectable={isCoord} selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
+        </TabsContent>
+        <TabsContent value="turmas">
+          <DataTable data={turmas} columns={turmaCols} searchPlaceholder="Buscar turma..." selectable={isCoord} selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
+        </TabsContent>
+        <TabsContent value="presenca">
+          <DataTable data={presenca} columns={presencaCols} searchPlaceholder="Buscar presença..." selectable={isCoord} selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
+        </TabsContent>
+        <TabsContent value="relatorios">
+          <DataTable data={relatorios} columns={relCols} searchPlaceholder="Buscar relatório..." selectable={isCoord} selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
+        </TabsContent>
+        <TabsContent value="planejamentos">
+          <DataTable data={planejamentos} columns={planCols} searchPlaceholder="Buscar planejamento..." selectable={isCoord} selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
+        </TabsContent>
+        <TabsContent value="profissionais">
+          <DataTable data={profissionais} columns={profCols} searchPlaceholder="Buscar profissional..." selectable={isCoord} selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
+        </TabsContent>
       </Tabs>
 
       {/* Backup em massa */}
