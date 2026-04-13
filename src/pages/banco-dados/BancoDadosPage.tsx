@@ -11,17 +11,67 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useBackupExport } from "@/hooks/useBackupExport";
 import { exportXLSX, exportPDF } from "@/hooks/useDataExport";
-import { Download, FileSpreadsheet, FileText, Archive, Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Download, FileSpreadsheet, FileText, Archive, Loader2, Trash2 } from "lucide-react";
 import { displayCPF, displayPhone } from "@/lib/utils";
 import { STATUS_LABELS, PERIODO_LABELS } from "@/lib/constants";
+import { toast } from "sonner";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const statusLabel = STATUS_LABELS;
 const periodoLabel = PERIODO_LABELS;
 
+// Maps tab name to supabase table and cascade tables
+const TAB_TABLE_MAP: Record<string, { table: string; cascade?: { table: string; fk: string }[] }> = {
+  participantes: {
+    table: "participantes",
+    cascade: [
+      { table: "turma_participantes", fk: "participante_id" },
+      { table: "presenca", fk: "participante_id" },
+      { table: "relatorio_presenca", fk: "participante_id" },
+      { table: "atendimentos", fk: "participante_id" },
+      { table: "busca_ativa_registros", fk: "participante_id" },
+      { table: "participante_documentos", fk: "participante_id" },
+      { table: "participante_transferencias", fk: "participante_id" },
+    ],
+  },
+  turmas: {
+    table: "turmas",
+    cascade: [
+      { table: "turma_participantes", fk: "turma_id" },
+      { table: "presenca", fk: "turma_id" },
+      { table: "relatorio_turmas", fk: "turma_id" },
+      { table: "planejamento_turmas", fk: "turma_id" },
+      { table: "chamadas_assinadas", fk: "turma_id" },
+    ],
+  },
+  presenca: { table: "presenca" },
+  relatorios: {
+    table: "relatorios_atividade",
+    cascade: [
+      { table: "relatorio_fotos", fk: "relatorio_id" },
+      { table: "relatorio_presenca", fk: "relatorio_id" },
+      { table: "relatorio_turmas", fk: "relatorio_id" },
+      { table: "relato_equipe_tecnica", fk: "relatorio_id" },
+    ],
+  },
+  planejamentos: {
+    table: "planejamentos",
+    cascade: [
+      { table: "planejamento_turmas", fk: "planejamento_id" },
+    ],
+  },
+  profissionais: { table: "profiles" },
+};
+
 export default function BancoDadosPage() {
+  const { user } = useAuth();
   const [tab, setTab] = useState("participantes");
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [turmas, setTurmas] = useState<any[]>([]);
@@ -30,6 +80,10 @@ export default function BancoDadosPage() {
   const [planejamentos, setPlanejamentos] = useState<any[]>([]);
   const [profissionais, setProfissionais] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isCoord, setIsCoord] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Backup
   const { doBackup, loading: backupLoading } = useBackupExport();
@@ -38,6 +92,17 @@ export default function BancoDadosPage() {
   const [dateTo, setDateTo] = useState("");
 
   useEffect(() => { loadAll(); }, []);
+
+  // Check if user is coordenacao
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("user_roles").select("role").eq("user_id", user.id).then(({ data }) => {
+      setIsCoord((data || []).some((r: any) => r.role === "coordenacao"));
+    });
+  }, [user]);
+
+  // Clear selection when tab changes
+  useEffect(() => { setSelectedIds(new Set()); }, [tab]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -49,7 +114,6 @@ export default function BancoDadosPage() {
       fetchAllRows("planejamentos", { select: "*, profiles!planejamentos_educador_id_fkey(nome)", order: { column: "created_at", ascending: false } }),
       fetchAllRows("profiles", { select: "*", order: { column: "nome" } }),
     ]);
-    // Fetch user_roles separately since FK goes to auth.users, not profiles
     const { data: roles } = await supabase.from("user_roles").select("*");
     const roleMap = new Map<string, string[]>();
     (roles || []).forEach((r: any) => {
@@ -68,6 +132,40 @@ export default function BancoDadosPage() {
   };
 
   const toggleCat = (cat: string) => setBackupCats(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    try {
+      const config = TAB_TABLE_MAP[tab];
+      if (!config) throw new Error("Tab inválida");
+
+      const ids = Array.from(selectedIds);
+      // Delete in batches of 50
+      for (let i = 0; i < ids.length; i += 50) {
+        const batch = ids.slice(i, i + 50);
+
+        // Cascade deletes first
+        if (config.cascade) {
+          for (const c of config.cascade) {
+            await (supabase.from as any)(c.table).delete().in(c.fk, batch);
+          }
+        }
+
+        // Main table delete
+        await (supabase.from as any)(config.table).delete().in("id", batch);
+      }
+
+      toast.success(`${ids.length} registro(s) excluído(s)`);
+      setSelectedIds(new Set());
+      await loadAll();
+    } catch (err: any) {
+      toast.error("Erro ao excluir: " + (err.message || "desconhecido"));
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
 
   const partCols: Column<any>[] = [
     { key: "nome_completo", label: "Nome" },
@@ -145,6 +243,30 @@ export default function BancoDadosPage() {
     else exportPDF(data, headers, label);
   };
 
+  const getActiveCols = () => {
+    switch (tab) {
+      case "participantes": return partCols;
+      case "turmas": return turmaCols;
+      case "presenca": return presencaCols;
+      case "relatorios": return relCols;
+      case "planejamentos": return planCols;
+      case "profissionais": return profCols;
+      default: return [];
+    }
+  };
+
+  const getActiveDataList = () => {
+    switch (tab) {
+      case "participantes": return participantes;
+      case "turmas": return turmas;
+      case "presenca": return presenca;
+      case "relatorios": return relatorios;
+      case "planejamentos": return planejamentos;
+      case "profissionais": return profissionais;
+      default: return [];
+    }
+  };
+
   const allCats = ["Participantes", "Turmas", "Presenca", "Relatorios", "Planejamentos", "Profissionais"];
 
   if (loading) return <div className="p-6 text-muted-foreground text-sm">Carregando dados...</div>;
@@ -169,29 +291,49 @@ export default function BancoDadosPage() {
             <TabsTrigger value="profissionais" className="text-xs px-3 h-7">Profissionais</TabsTrigger>
           </TabsList>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-                <Download className="h-3.5 w-3.5" /> Exportar aba
+          <div className="flex items-center gap-2">
+            {isCoord && selectedIds.size > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                disabled={deleting}
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                Excluir {selectedIds.size}
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => handleExport("xlsx")} className="text-xs gap-2">
-                <FileSpreadsheet className="h-3.5 w-3.5" /> XLSX
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("pdf")} className="text-xs gap-2">
-                <FileText className="h-3.5 w-3.5" /> PDF
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                  <Download className="h-3.5 w-3.5" /> Exportar aba
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => handleExport("xlsx")} className="text-xs gap-2">
+                  <FileSpreadsheet className="h-3.5 w-3.5" /> XLSX
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("pdf")} className="text-xs gap-2">
+                  <FileText className="h-3.5 w-3.5" /> PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
-        <TabsContent value="participantes"><DataTable data={participantes} columns={partCols} searchPlaceholder="Buscar participante..." /></TabsContent>
-        <TabsContent value="turmas"><DataTable data={turmas} columns={turmaCols} searchPlaceholder="Buscar turma..." /></TabsContent>
-        <TabsContent value="presenca"><DataTable data={presenca} columns={presencaCols} searchPlaceholder="Buscar presença..." /></TabsContent>
-        <TabsContent value="relatorios"><DataTable data={relatorios} columns={relCols} searchPlaceholder="Buscar relatório..." /></TabsContent>
-        <TabsContent value="planejamentos"><DataTable data={planejamentos} columns={planCols} searchPlaceholder="Buscar planejamento..." /></TabsContent>
-        <TabsContent value="profissionais"><DataTable data={profissionais} columns={profCols} searchPlaceholder="Buscar profissional..." /></TabsContent>
+        {["participantes", "turmas", "presenca", "relatorios", "planejamentos", "profissionais"].map(t => (
+          <TabsContent key={t} value={t}>
+            <DataTable
+              data={getActiveDataList()}
+              columns={getActiveCols()}
+              searchPlaceholder={`Buscar ${t}...`}
+              selectable={isCoord}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+            />
+          </TabsContent>
+        ))}
       </Tabs>
 
       {/* Backup em massa */}
@@ -225,6 +367,33 @@ export default function BancoDadosPage() {
           <p className="text-[10px] text-muted-foreground">O arquivo ZIP conterá pastas por categoria com dados em XLSX. Padrão: SysELO_Backup_YYYY-MM-DD_HHmmss.zip</p>
         </CardContent>
       </Card>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir <strong>{selectedIds.size}</strong> registro(s) da aba <strong>{tab}</strong>?
+              {TAB_TABLE_MAP[tab]?.cascade && (
+                <span className="block mt-1 text-destructive">Dados relacionados (presenças, vínculos, fotos, etc.) também serão removidos.</span>
+              )}
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
