@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown, Search } from "lucide-react";
 
 export interface Column<T> {
@@ -18,10 +18,14 @@ interface DataTableProps<T> {
   searchPlaceholder?: string;
   pageSize?: number;
   totalLabel?: string;
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onSelectionChange?: (ids: Set<string>) => void;
 }
 
 export function DataTable<T extends Record<string, any>>({
-  data, columns, searchPlaceholder = "Buscar...", pageSize = 50, totalLabel = "registros"
+  data, columns, searchPlaceholder = "Buscar...", pageSize = 50, totalLabel = "registros",
+  selectable = false, selectedIds, onSelectionChange,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -61,6 +65,34 @@ export function DataTable<T extends Record<string, any>>({
     }
   };
 
+  const allPageSelected = selectable && paged.length > 0 && paged.every(r => selectedIds?.has(r.id));
+
+  const toggleAll = () => {
+    if (!onSelectionChange || !selectedIds) return;
+    const next = new Set(selectedIds);
+    if (allPageSelected) {
+      paged.forEach(r => next.delete(r.id));
+    } else {
+      paged.forEach(r => next.add(r.id));
+    }
+    onSelectionChange(next);
+  };
+
+  const toggleOne = (id: string) => {
+    if (!onSelectionChange || !selectedIds) return;
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onSelectionChange(next);
+  };
+
+  const selectAllFiltered = () => {
+    if (!onSelectionChange) return;
+    const next = new Set<string>();
+    sorted.forEach(r => next.add(r.id));
+    onSelectionChange(next);
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-4">
@@ -73,9 +105,19 @@ export function DataTable<T extends Record<string, any>>({
             className="pl-9 h-9 text-sm"
           />
         </div>
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {sorted.length} {totalLabel}
-        </span>
+        <div className="flex items-center gap-2">
+          {selectable && selectedIds && selectedIds.size > 0 && (
+            <span className="text-xs font-medium text-primary">{selectedIds.size} selecionado(s)</span>
+          )}
+          {selectable && sorted.length > pageSize && (
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={selectAllFiltered}>
+              Selecionar todos ({sorted.length})
+            </Button>
+          )}
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {sorted.length} {totalLabel}
+          </span>
+        </div>
       </div>
 
       <div className="border rounded-lg overflow-hidden">
@@ -83,6 +125,15 @@ export function DataTable<T extends Record<string, any>>({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
+                {selectable && (
+                  <TableHead className="w-10 px-2">
+                    <Checkbox
+                      checked={allPageSelected}
+                      onCheckedChange={toggleAll}
+                      aria-label="Selecionar tudo"
+                    />
+                  </TableHead>
+                )}
                 {columns.map(col => (
                   <TableHead
                     key={col.key}
@@ -104,13 +155,21 @@ export function DataTable<T extends Record<string, any>>({
             <TableBody>
               {paged.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="text-center text-muted-foreground py-8 text-sm">
+                  <TableCell colSpan={columns.length + (selectable ? 1 : 0)} className="text-center text-muted-foreground py-8 text-sm">
                     Nenhum registro encontrado
                   </TableCell>
                 </TableRow>
               ) : (
                 paged.map((row, i) => (
-                  <TableRow key={row.id || i} className="text-sm">
+                  <TableRow key={row.id || i} className={`text-sm ${selectable && selectedIds?.has(row.id) ? "bg-primary/5" : ""}`}>
+                    {selectable && (
+                      <TableCell className="w-10 px-2 py-2">
+                        <Checkbox
+                          checked={selectedIds?.has(row.id) || false}
+                          onCheckedChange={() => toggleOne(row.id)}
+                        />
+                      </TableCell>
+                    )}
                     {columns.map(col => (
                       <TableCell key={col.key} className="py-2 px-4 whitespace-nowrap">
                         {col.render ? col.render(row) : (row[col.key] ?? "—")}
