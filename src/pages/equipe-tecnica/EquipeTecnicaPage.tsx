@@ -102,16 +102,17 @@ const EquipeTecnicaPage = () => {
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }, { data: roles }, { data: bairrosData }, { data: baRegs }] = await Promise.all([
+    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }, { data: roles }, { data: bairrosData }, { data: baRegs }, { data: pDocs }] = await Promise.all([
       supabase.from("atendimentos").select("*").order("data_atendimento", { ascending: false }),
-      supabase.from("participantes").select("id, nome_completo, status, data_nascimento, bairro_id, periodo, laudo, categoria_vulnerabilidade, foto_url, responsavel1_nome, responsavel1_whatsapp, responsavel2_nome, responsavel2_whatsapp, endereco_rua, endereco_numero, endereco_bairro, escola, data_desligamento, motivo_desligamento").order("nome_completo"),
+      supabase.from("participantes").select("id, nome_completo, status, data_nascimento, bairro_id, periodo, laudo, categoria_vulnerabilidade, foto_url, responsavel1_nome, responsavel1_whatsapp, responsavel2_nome, responsavel2_whatsapp, endereco_rua, endereco_numero, endereco_bairro, escola, data_desligamento, motivo_desligamento, restricao_alimentar, serie, genero, cor_raca, created_at").order("nome_completo"),
       supabase.from("profiles").select("id, nome, cargo, user_id"),
       supabase.from("presenca").select("participante_id, data, presente").gte("data", format(subDays(new Date(), 90), "yyyy-MM-dd")),
-      supabase.from("turmas").select("id, nome, dias_semana").eq("ativa", true),
+      supabase.from("turmas").select("id, nome, dias_semana, bairro_id, faixa_etaria, periodo").eq("ativa", true),
       supabase.from("turma_participantes").select("turma_id, participante_id"),
       supabase.from("user_roles").select("role"),
       supabase.from("bairros").select("id, nome"),
       (supabase.from as any)("busca_ativa_registros").select("*").order("created_at", { ascending: false }),
+      supabase.from("participante_documentos" as any).select("*"),
     ]);
     setAtendimentos(atd || []);
     setParticipantes(part || []);
@@ -121,6 +122,14 @@ const EquipeTecnicaPage = () => {
     setUserRoles((roles || []).map((r: any) => r.role));
     setBairros(bairrosData || []);
     setBuscaAtivaRegistros(baRegs || []);
+
+    // Group docs by participante_id
+    const docsMap: Record<string, any[]> = {};
+    (pDocs || []).forEach((d: any) => {
+      if (!docsMap[d.participante_id]) docsMap[d.participante_id] = [];
+      docsMap[d.participante_id].push(d);
+    });
+    setPendenteDocs(docsMap);
 
     const tpMap: Record<string, string[]> = {};
     (tp || []).forEach((row: any) => {
@@ -137,6 +146,44 @@ const EquipeTecnicaPage = () => {
   };
 
   const isCoordenacao = userRoles.includes("coordenacao");
+
+  // Approval handler
+  const handleAprovarPendente = async (p: any) => {
+    if (guardDemo(isDemo)) return;
+    setApprovingId(p.id);
+    const { error } = await supabase.from("participantes").update({ status: "ativo" } as any).eq("id", p.id);
+    if (error) { toast.error("Erro: " + error.message); setApprovingId(null); return; }
+    const faixa = calcFaixaFromDate(p.data_nascimento);
+    if (p.bairro_id && p.periodo && faixa) {
+      let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", p.bairro_id).eq("faixa_etaria", faixa as any);
+      if (p.periodo !== "integral") query = query.eq("periodo", p.periodo as any);
+      const { data: turmasCompativeis } = await query;
+      if (turmasCompativeis && turmasCompativeis.length > 0) {
+        const links = turmasCompativeis.map(t => ({ turma_id: t.id, participante_id: p.id }));
+        await supabase.from("turma_participantes").upsert(links, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
+        toast.info(`Vinculado a ${turmasCompativeis.length} turma(s)`);
+      }
+    }
+    toast.success(`${p.nome_completo} aprovado!`);
+    setApprovingId(null);
+    loadAll();
+  };
+
+  const handleRejeitarPendente = async (p: any) => {
+    if (guardDemo(isDemo)) return;
+    setApprovingId(p.id);
+    const { error } = await supabase.from("participantes").delete().eq("id", p.id);
+    if (error) { toast.error("Erro: " + error.message); setApprovingId(null); return; }
+    toast.success(`Matrícula de ${p.nome_completo} rejeitada`);
+    setApprovingId(null);
+    loadAll();
+  };
+
+  const handleViewDocEquipe = async (doc: any) => {
+    const { data } = await supabase.storage.from("documentos").createSignedUrl(doc.arquivo_url, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    else toast.error("Erro ao gerar link");
+  };
 
   const handleDeleteAtendimento = async () => {
     if (!deleteTarget) return;
