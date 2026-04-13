@@ -588,7 +588,7 @@ const EquipeTecnicaPage = () => {
         </Dialog>
       </div>
 
-      <Tabs defaultValue="dashboard" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="atendimentos">Atendimentos</TabsTrigger>
@@ -635,7 +635,7 @@ const EquipeTecnicaPage = () => {
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <span className="text-sm font-medium">{pendentes.length} matrícula(s) pendente(s) aguardando aprovação</span>
                 </div>
-                <Button variant="outline" size="sm" asChild><Link to="/participantes?status=pendente">Ver pendentes</Link></Button>
+                <Button variant="outline" size="sm" onClick={() => setActiveTab("alertas")}>Aprovar agora</Button>
               </CardContent>
             </Card>
           )}
