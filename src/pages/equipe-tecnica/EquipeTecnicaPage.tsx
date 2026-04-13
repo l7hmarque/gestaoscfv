@@ -98,6 +98,8 @@ const EquipeTecnicaPage = () => {
   const [baSaving, setBaSaving] = useState(false);
   const [recadosPendentes, setRecadosPendentes] = useState(0);
 
+  const [activeTab, setActiveTab] = useState("dashboard");
+
   useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
