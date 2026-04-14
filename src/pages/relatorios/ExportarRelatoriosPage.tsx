@@ -292,14 +292,15 @@ export default function ExportarRelatoriosPage() {
         atividadesRows.push([proposta, r.nome_atividade || "", r.analise_ia || "", ""]);
       });
       if (!atividadesRows.length) atividadesRows.push(["Nenhuma atividade registrada", "", "", ""]);
-      const wsAtiv = XLSX.utils.aoa_to_sheet(addInstHeader([
+      const { data: ativData, offset: ativOff } = addInstHeader([
         ["Atividades Propostas", "Atividades Desenvolvidas", "Resultados Alcançados", "Justificativas"],
         ...atividadesRows,
-      ], `ATIVIDADES — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
+      ], `ATIVIDADES — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
+      const wsAtiv = XLSX.utils.aoa_to_sheet(ativData);
       wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
       autoFitColumns(wsAtiv);
       applyInstStyle(wsAtiv, 4);
-      applyHeaderStyle(wsAtiv, 5, 4);
+      applyHeaderStyle(wsAtiv, ativOff, 4);
       applyBorders(wsAtiv);
       XLSX.utils.book_append_sheet(wb, wsAtiv, "Atividades");
 
@@ -335,14 +336,15 @@ export default function ExportarRelatoriosPage() {
         totalCriancas += totalBairro; totalMeta += metaBairro;
       });
       metasRows.push(["TOTAL", `${totalCriancas}/${totalMeta}`, `${totalMeta > 0 ? Math.round((totalCriancas/totalMeta)*100) : 0}%`, ""]);
-      const wsMetas = XLSX.utils.aoa_to_sheet(addInstHeader([
+      const { data: metaData, offset: metaOff } = addInstHeader([
         ["Metas Propostas", "Quant.", "Resultados Alcançados", "Justificativa"],
         ...metasRows,
-      ], `METAS — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
+      ], `METAS — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
+      const wsMetas = XLSX.utils.aoa_to_sheet(metaData);
       wsMetas["!cols"] = [{ wch: 55 }, { wch: 35 }, { wch: 50 }, { wch: 25 }];
       autoFitColumns(wsMetas);
       applyInstStyle(wsMetas, 4);
-      applyHeaderStyle(wsMetas, 5, 4);
+      applyHeaderStyle(wsMetas, metaOff, 4);
       applyBorders(wsMetas);
       XLSX.utils.book_append_sheet(wb, wsMetas, "Metas");
 
@@ -350,17 +352,18 @@ export default function ExportarRelatoriosPage() {
       const totalPresReg = activePresencas.length;
       const totalPres = activePresencas.filter((p: any) => p.presente).length;
       const pctGeral = totalPresReg > 0 ? Math.round((totalPres / totalPresReg) * 100) : 0;
-      const wsMonitor = XLSX.utils.aoa_to_sheet(addInstHeader([
+      const { data: monData, offset: monOff } = addInstHeader([
         ["Objetivo", "Indicador", "Meta Prevista", "Meta Atingida"],
         ["Assegurar espaços de referência para o convívio grupal", "Participação nas atividades", "100%", `${pctGeral}%`],
         ["Desenvolvimento de potencialidades e habilidades", "Participação em atividades culturais e esportivas", "100%", `${pctGeral}%`],
         ["Inserção e permanência no sistema educacional", "Matrícula, rendimento e frequência", "100%", `${pctGeral}%`],
         ["Acesso a benefícios socioassistenciais", "Quantidade de beneficiários", "100%", "100%"],
-      ], `MONITORAMENTO — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
+      ], `MONITORAMENTO — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
+      const wsMonitor = XLSX.utils.aoa_to_sheet(monData);
       wsMonitor["!cols"] = [{ wch: 60 }, { wch: 45 }, { wch: 15 }, { wch: 15 }];
       autoFitColumns(wsMonitor);
       applyInstStyle(wsMonitor, 4);
-      applyHeaderStyle(wsMonitor, 5, 4);
+      applyHeaderStyle(wsMonitor, monOff, 4);
       applyBorders(wsMonitor);
       XLSX.utils.book_append_sheet(wb, wsMonitor, "Monitoramento");
 
