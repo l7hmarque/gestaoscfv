@@ -472,9 +472,8 @@ export default function DashboardRelatorioMensalTab() {
         while (usedSheetNames.has(sheetName)) { sheetName = sheetName.slice(0, 25) + `_${suffix++}`; }
         usedSheetNames.add(sheetName);
 
-        const header1 = [`SCFV — CAIA Medianeira — Matriz de Frequência`];
-        const header2 = [`Turma: ${t.nome} | Bairro: ${bairroNome} | Faixa: ${t.faixa_etaria || "N/I"} | Período: ${t.periodo || "N/I"}`];
-        const header3 = [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano} | Exportado em: ${new Date().toLocaleString("pt-BR")}`];
+        const turmaInfoLine = `Turma: ${t.nome} | Bairro: ${bairroNome} | Faixa: ${t.faixa_etaria || "N/I"} | Período: ${t.periodo || "N/I"}`;
+        const subInfoLine = `Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`;
 
         const colHeaders = ["Nº", "Nome do Participante", ...datas.map(d => d.slice(5))];
         const rows = tParts.map((p: any, idx: number) => {
@@ -486,13 +485,16 @@ export default function DashboardRelatorioMensalTab() {
           return row;
         });
 
-        const sheetData = [header1, header2, header3, [], colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]];
+        const { data: sheetData, dataStartOffset: matOffset } = addInstitutionalHeader(
+          [colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]],
+          "MATRIZ DE FREQUÊNCIA", turmaInfoLine, subInfoLine,
+        );
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
         ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...datas.map(() => ({ wch: 6 }))];
+        applyInstitutionalStyle(ws, colHeaders.length, { hasTurmaInfo: true, hasSubInfo: true });
+        applyTableHeaderStyle(ws, matOffset, colHeaders.length);
 
-        applyTableHeaderStyle(ws, 4, colHeaders.length);
-
-        const dataStartRow = 5;
+        const dataStartRow = matOffset + 1;
         tParts.forEach((p: any, pIdx: number) => {
           const excelRow = dataStartRow + pIdx;
           const isDesligado = p.status === "desligado";
