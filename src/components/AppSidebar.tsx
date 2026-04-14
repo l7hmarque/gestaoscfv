@@ -72,7 +72,7 @@ export function AppSidebar() {
               <span className="text-primary-foreground font-bold text-sm">S</span>
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-sidebar-foreground">SysELO</h2>
+              <h2 className="text-sm font-semibold text-sidebar-foreground">SysCFV</h2>
               <p className="text-[10px] text-muted-foreground">Gestão SCFV</p>
             </div>
           </div>

@@ -639,7 +639,7 @@ const MatriculaPublicaPage = () => {
           </>
         )}
 
-        <p className="text-center text-xs text-muted-foreground pb-6">SysELO — Sistema de Gestão SCFV</p>
+        <p className="text-center text-xs text-muted-foreground pb-6">SysCFV — Sistema de Gestão SCFV</p>
       </div>
     </div>
   );

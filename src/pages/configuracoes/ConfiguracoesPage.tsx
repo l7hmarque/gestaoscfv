@@ -24,7 +24,7 @@ import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { sysEloFileName } from "@/lib/fileNaming";
+import { sysCfvFileName } from "@/lib/fileNaming";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
 
 const CONFIG_KEYS = [
@@ -218,7 +218,7 @@ export default function ConfiguracoesPage() {
     autoFitColumns(ws, { min: 10, max: 50 });
     XLSX.utils.book_append_sheet(wb, ws, "Auditoria");
     const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([buf]), sysEloFileName("Auditoria", "xlsx"));
+    saveAs(new Blob([buf]), sysCfvFileName("Auditoria", "xlsx"));
 
     // PDF
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -244,7 +244,7 @@ export default function ConfiguracoesPage() {
       alternateRowStyles: { fillColor: [245, 245, 245] },
       columnStyles: { 5: { cellWidth: 55 }, 6: { cellWidth: 35 } },
     });
-    doc.save(sysEloFileName("Auditoria", "pdf"));
+    doc.save(sysCfvFileName("Auditoria", "pdf"));
 
     toast.success("Auditoria exportada em XLSX + PDF!");
   };

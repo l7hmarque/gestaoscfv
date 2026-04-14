@@ -170,7 +170,7 @@ function generateMonthSheets(
 
   // Sheet: Resumo
   const resumoData = [
-    ["RELATÓRIO MENSAL — SysELO SCFV"],
+    ["RELATÓRIO MENSAL — SysCFV SCFV"],
     [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum}`],
     [`Data de geração: ${new Date().toLocaleString("pt-BR")}`],
     [],
@@ -462,7 +462,7 @@ Deno.serve(async (req: Request) => {
       // Consolidado sheet
       const allAtendidosIds = new Set(presencas_raw.filter((p: any) => p.presente).map((p: any) => p.participante_id));
       const consolidadoData = [
-        ["RELATÓRIO COMPLETO — SysELO SCFV"],
+        ["RELATÓRIO COMPLETO — SysCFV SCFV"],
         [`Período: ${MESES_NOMES[startM - 1]}/${startY} a ${MESES_NOMES[endM - 1]}/${endY}`],
         [`Data de geração: ${new Date().toLocaleString("pt-BR")}`],
         [],
@@ -487,7 +487,7 @@ Deno.serve(async (req: Request) => {
 
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
       const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
-      const fileName = `relatorios-mensais/SysELO_RelatorioMensal_Completo_${ts}.xlsx`;
+      const fileName = `relatorios-mensais/SysCFV_RelatorioMensal_Completo_${ts}.xlsx`;
       const { error: uploadError } = await supabaseAdmin.storage.from("documentos").upload(fileName, buf, {
         contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true,
       });
@@ -507,7 +507,7 @@ Deno.serve(async (req: Request) => {
     const mesStr = String(mesNum).padStart(2, "0");
     const buf = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
     const ts2 = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
-    const fileName = `relatorios-mensais/SysELO_RelatorioMensal_${anoNum}-${mesStr}_${ts2}.xlsx`;
+    const fileName = `relatorios-mensais/SysCFV_RelatorioMensal_${anoNum}-${mesStr}_${ts2}.xlsx`;
     const { error: uploadError } = await supabaseAdmin.storage.from("documentos").upload(fileName, buf, {
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true,
     });

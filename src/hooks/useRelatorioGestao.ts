@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { calcFaixaFromDate, calcAge, BAIRROS_SCFV } from "@/lib/constants";
-import { sysEloFileName } from "@/lib/fileNaming";
+import { sysCfvFileName } from "@/lib/fileNaming";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -539,7 +539,7 @@ export async function exportRelatorioGestaoPDF(mesInicio: number, anoInicio: num
     }
   }
 
-  doc.save(sysEloFileName("RelGestao", "pdf", periodoLabel.replace(/[/ ]/g, "-")));
+  doc.save(sysCfvFileName("RelGestao", "pdf", periodoLabel.replace(/[/ ]/g, "-")));
 }
 
 export async function exportRelatorioGestaoXLSX(mesInicio: number, anoInicio: number, mesFim: number, anoFim: number) {
@@ -652,5 +652,5 @@ export async function exportRelatorioGestaoXLSX(mesInicio: number, anoInicio: nu
   XLSX.utils.book_append_sheet(wb, makeSheet("Lista Nominal", ["Nome", "Nascimento", "Faixa", "Gênero", "Bairro", "Período"], nominalRows), "Lista Nominal");
 
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf]), sysEloFileName("RelGestao", "xlsx", periodoLabel.replace(/[/ ]/g, "-")));
+  saveAs(new Blob([buf]), sysCfvFileName("RelGestao", "xlsx", periodoLabel.replace(/[/ ]/g, "-")));
 }

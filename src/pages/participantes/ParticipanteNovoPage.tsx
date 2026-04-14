@@ -92,7 +92,7 @@ const ParticipanteNovoPage = () => {
         setPendingDocs(prev => [...prev.filter(d => d.categoria !== categoria), {
           blob,
           categoria,
-          fileName: `SysELO_Doc_${categoria}_${ts}.pdf`,
+          fileName: `SysCFV_Doc_${categoria}_${ts}.pdf`,
           pageCount: 1,
         }]);
         toast.success("Documento adicionado!");
@@ -111,7 +111,7 @@ const ParticipanteNovoPage = () => {
     setPendingDocs(prev => [...prev, {
       blob: result.blob,
       categoria: result.categoria,
-      fileName: `SysELO_Doc_${result.categoria}_${ts}.pdf`,
+      fileName: `SysCFV_Doc_${result.categoria}_${ts}.pdf`,
       pageCount: scanner.scanSession?.pages.length || 1,
     }]);
     toast.success("Scan finalizado!");

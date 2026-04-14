@@ -20,7 +20,7 @@ import OrcamentosTab from "./OrcamentosTab";
 import DocumentosPrestacaoTab from "./DocumentosPrestacaoTab";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { sysEloFileName } from "@/lib/fileNaming";
+import { sysCfvFileName } from "@/lib/fileNaming";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
@@ -508,7 +508,7 @@ export default function FinanceiroPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = sysEloFileName("Despesa", "txt", mesRef);
+    a.download = sysCfvFileName("Despesa", "txt", mesRef);
     a.click();
     URL.revokeObjectURL(url);
     toast.success(`${despesas.length} despesas exportadas para SIT`);
@@ -604,7 +604,7 @@ export default function FinanceiroPage() {
         XLSX.utils.book_append_sheet(wb, wsDoc, "Documentos");
 
         const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-        saveAs(new Blob([buf], { type: "application/octet-stream" }), sysEloFileName("PrestacaoContas", "xlsx", mesRef));
+        saveAs(new Blob([buf], { type: "application/octet-stream" }), sysCfvFileName("PrestacaoContas", "xlsx", mesRef));
         toast.success("Prestação de Contas (XLSX) gerada!");
       } else {
         // PDF
@@ -647,7 +647,7 @@ export default function FinanceiroPage() {
           alternateRowStyles: { fillColor: [245, 245, 245] },
         });
 
-        doc.save(sysEloFileName("PrestacaoContas", "pdf", mesRef));
+        doc.save(sysCfvFileName("PrestacaoContas", "pdf", mesRef));
         toast.success("Prestação de Contas (PDF) gerada!");
       }
     } catch (err: any) {

@@ -2,10 +2,10 @@ import * as XLSX from "xlsx-js-style";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { saveAs } from "file-saver";
-import { sysEloFileName } from "@/lib/fileNaming";
+import { sysCfvFileName } from "@/lib/fileNaming";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
 
-export { sysEloFileName as exportFileName };
+export { sysCfvFileName as exportFileName };
 
 export function exportXLSX(data: Record<string, any>[], headers: { key: string; label: string }[], category: string) {
   const rows = data.map(r => {
@@ -18,13 +18,13 @@ export function exportXLSX(data: Record<string, any>[], headers: { key: string; 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, category);
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf], { type: "application/octet-stream" }), sysEloFileName(category, "xlsx"));
+  saveAs(new Blob([buf], { type: "application/octet-stream" }), sysCfvFileName(category, "xlsx"));
 }
 
 export function exportPDF(data: Record<string, any>[], headers: { key: string; label: string }[], category: string) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   doc.setFontSize(14);
-  doc.text(`SysELO — ${category}`, 14, 15);
+  doc.text(`SysCFV — ${category}`, 14, 15);
   doc.setFontSize(8);
   doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 14, 21);
 
@@ -37,7 +37,7 @@ export function exportPDF(data: Record<string, any>[], headers: { key: string; l
     alternateRowStyles: { fillColor: [245, 245, 245] },
   });
 
-  doc.save(sysEloFileName(category, "pdf"));
+  doc.save(sysCfvFileName(category, "pdf"));
 }
 
 export function generateXLSXBuffer(data: Record<string, any>[], headers: { key: string; label: string }[], sheetName: string): Uint8Array {

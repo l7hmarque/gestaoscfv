@@ -392,7 +392,7 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
         // Can't easily append to docxtemplater output, so fall through to full fallback
         console.info("Template used but presença table generated via fallback code.");
       } else {
-        saveAs(blob, `SysELO_Relatorio_${fileTimestamp()}.docx`);
+        saveAs(blob, `SysCFV_Relatorio_${fileTimestamp()}.docx`);
         return;
       }
     } catch (e) {
@@ -526,7 +526,7 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
     sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }],
   });
   const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([new Uint8Array(buffer)]), `SysELO_Relatorio_${fileTimestamp()}.docx`);
+  saveAs(new Blob([new Uint8Array(buffer)]), `SysCFV_Relatorio_${fileTimestamp()}.docx`);
 }
 
 export async function exportRelatorioPdf(item: any, turmaNames: string[], presenca: any[]) {
@@ -651,7 +651,7 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     });
   }
 
-  doc.save(`SysELO_Relatorio_${fileTimestamp()}.pdf`);
+  doc.save(`SysCFV_Relatorio_${fileTimestamp()}.pdf`);
 }
 
 // ===== PLANEJAMENTO =====
@@ -681,7 +681,7 @@ export async function exportPlanejamentoDocx(item: any, turmaNames: string[]) {
       const tagMappings = await loadTagMappings("planejamento.docx");
       const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
-      saveAs(blob, `SysELO_Planejamento_${fileTimestamp()}.docx`);
+      saveAs(blob, `SysCFV_Planejamento_${fileTimestamp()}.docx`);
       return;
     } catch (e) {
       console.error("Template fill failed, generating fallback DOCX:", e);
@@ -710,7 +710,7 @@ export async function exportPlanejamentoDocx(item: any, turmaNames: string[]) {
 
   const doc = new Document({ styles: { default: { document: { run: { font: "Arial", size: 20 } } } }, sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }] });
   const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([new Uint8Array(buffer)]), `SysELO_Planejamento_${fileTimestamp()}.docx`);
+  saveAs(new Blob([new Uint8Array(buffer)]), `SysCFV_Planejamento_${fileTimestamp()}.docx`);
 }
 
 export async function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
@@ -721,7 +721,7 @@ export async function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
       const tagMappings = await loadTagMappings("planejamento.docx");
       const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
-      saveAs(blob, `SysELO_Planejamento_${fileTimestamp()}.docx`);
+      saveAs(blob, `SysCFV_Planejamento_${fileTimestamp()}.docx`);
       toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
       return;
     } catch (e) {
@@ -752,7 +752,7 @@ export async function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
   doc.text("________________________________", 105, finalY + 20, { align: "center" });
   doc.text(item.profiles?.nome || "Educador", 105, finalY + 25, { align: "center" });
 
-  doc.save(`SysELO_Planejamento_${fileTimestamp()}.pdf`);
+  doc.save(`SysCFV_Planejamento_${fileTimestamp()}.pdf`);
 }
 
 // ===== FICHA DE INSCRIÇÃO =====
@@ -822,7 +822,7 @@ export async function exportFichaInscricaoDocx(p: any) {
       const tagMappings = await loadTagMappings("ficha_inscricao.docx");
       const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
-      saveAs(blob, `SysELO_FichaInscricao_${fileTimestamp()}.docx`);
+      saveAs(blob, `SysCFV_FichaInscricao_${fileTimestamp()}.docx`);
       return;
     } catch (e) {
       console.error("Template fill failed, generating fallback DOCX:", e);
@@ -855,7 +855,7 @@ export async function exportFichaInscricaoDocx(p: any) {
 
   const doc = new Document({ styles: { default: { document: { run: { font: "Arial", size: 20 } } } }, sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }] });
   const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([new Uint8Array(buffer)]), `SysELO_FichaInscricao_${fileTimestamp()}.docx`);
+  saveAs(new Blob([new Uint8Array(buffer)]), `SysCFV_FichaInscricao_${fileTimestamp()}.docx`);
 }
 
 export async function exportFichaInscricaoPdf(p: any) {
@@ -866,7 +866,7 @@ export async function exportFichaInscricaoPdf(p: any) {
       const tagMappings = await loadTagMappings("ficha_inscricao.docx");
       const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
-      saveAs(blob, `SysELO_FichaInscricao_${fileTimestamp()}.docx`);
+      saveAs(blob, `SysCFV_FichaInscricao_${fileTimestamp()}.docx`);
       toast.info("O modelo institucional foi exportado em DOCX. Para converter em PDF, abra no Word e salve como PDF.");
       return;
     } catch (e) {
@@ -903,7 +903,7 @@ export async function exportFichaInscricaoPdf(p: any) {
   doc.text("________________________________                    ________________________________", 105, finalY + 20, { align: "center" });
   doc.text("Responsável                                                        Coordenação SCFV", 105, finalY + 25, { align: "center" });
 
-  doc.save(`SysELO_FichaInscricao_${fileTimestamp()}.pdf`);
+  doc.save(`SysCFV_FichaInscricao_${fileTimestamp()}.pdf`);
 }
 
 // ===== MATRIZ DE FREQUÊNCIA =====
@@ -930,7 +930,7 @@ export async function exportMatrizFrequenciaDocx(
       const tagMappings = await loadTagMappings("matriz_frequencia.docx");
       const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
-      saveAs(blob, `SysELO_Frequencia_${fileTimestamp()}.docx`);
+      saveAs(blob, `SysCFV_Frequencia_${fileTimestamp()}.docx`);
       return;
     } catch (e) {
       console.error("Template fill failed, generating fallback DOCX:", e);
@@ -973,7 +973,7 @@ export async function exportMatrizFrequenciaDocx(
     sections: [{ properties: { page: { size: { width: 11906, height: 16838, orientation: PageOrientation.LANDSCAPE }, margin: { top: 500, right: 500, bottom: 500, left: 500 } } }, children }],
   });
   const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([new Uint8Array(buffer)]), `SysELO_Frequencia_${fileTimestamp()}.docx`);
+  saveAs(new Blob([new Uint8Array(buffer)]), `SysCFV_Frequencia_${fileTimestamp()}.docx`);
 }
 
 export async function exportMatrizFrequenciaPdf(
@@ -1002,7 +1002,7 @@ export async function exportMatrizFrequenciaPdf(
     columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 40 } },
   });
 
-  doc.save(`SysELO_Frequencia_${fileTimestamp()}.pdf`);
+  doc.save(`SysCFV_Frequencia_${fileTimestamp()}.pdf`);
 }
 
 // ===== LISTA DE PRESENÇA (em branco, por mês) =====
@@ -1092,7 +1092,7 @@ export async function exportListaPresencaPdf(
   doc.text("________________________________", 180, finalY + 12);
   doc.text("Assinatura do Coordenador(a)", 180, finalY + 16);
 
-  doc.save(`SysELO_Lista_Presenca_${turma.nome.replace(/\s+/g, "_")}_${meses[mes]}_${ano}.pdf`);
+  doc.save(`SysCFV_Lista_Presenca_${turma.nome.replace(/\s+/g, "_")}_${meses[mes]}_${ano}.pdf`);
 }
 
 // ===== PRONTUÁRIO TÉCNICO =====
@@ -1207,5 +1207,5 @@ export async function exportProntuarioPdf(
     doc.setTextColor(0);
   }
 
-  doc.save(`SysELO_Prontuario_${participante.nome_completo.replace(/\s+/g, "_")}_${fileTimestamp()}.pdf`);
+  doc.save(`SysCFV_Prontuario_${participante.nome_completo.replace(/\s+/g, "_")}_${fileTimestamp()}.pdf`);
 }

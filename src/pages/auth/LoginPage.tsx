@@ -54,7 +54,7 @@ const LoginPage = () => {
           <div className="mx-auto h-12 w-12 rounded-xl bg-primary flex items-center justify-center mb-2">
             <span className="text-primary-foreground font-bold text-lg">S</span>
           </div>
-          <CardTitle className="text-lg">SysELO</CardTitle>
+          <CardTitle className="text-lg">SysCFV</CardTitle>
           <p className="text-xs text-muted-foreground">Gestão SCFV</p>
         </CardHeader>
         <CardContent>

@@ -788,7 +788,7 @@ Deno.serve(async (req: Request) => {
 
       const buf = new Uint8Array(XLSX.write(wb, { bookType: "xlsx", type: "array" }));
       const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
-      const fileName = `SysELO_REO_${anoNum}-${String(mesNum).padStart(2, "0")}_${ts}.xlsx`;
+      const fileName = `SysCFV_REO_${anoNum}-${String(mesNum).padStart(2, "0")}_${ts}.xlsx`;
       const storagePath = `reo/${fileName}`;
 
       const { error: uploadErr } = await supabase.storage.from("documentos").upload(storagePath, buf, { contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: true });
@@ -1143,7 +1143,7 @@ Deno.serve(async (req: Request) => {
 
     const buffer = await Packer.toBuffer(doc);
     const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
-    const fileName = `SysELO_REO_${anoNum}-${String(mesNum).padStart(2, "0")}_${ts}.docx`;
+    const fileName = `SysCFV_REO_${anoNum}-${String(mesNum).padStart(2, "0")}_${ts}.docx`;
     const storagePath = `reo/${fileName}`;
 
     const { error: uploadErr } = await supabase.storage

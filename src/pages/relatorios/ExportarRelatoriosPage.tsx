@@ -16,7 +16,7 @@ import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { BAIRROS_SCFV, calcFaixaFromDate, calcAge } from "@/lib/constants";
-import { sysEloFileName } from "@/lib/fileNaming";
+import { sysCfvFileName } from "@/lib/fileNaming";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
 import { exportBulkRelatorios } from "@/hooks/useBulkRelatorioExport";
@@ -448,7 +448,7 @@ export default function ExportarRelatoriosPage() {
 
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
       saveAs(new Blob([buf], { type: "application/octet-stream" }),
-        sysEloFileName("RelatorioMensal", "xlsx", mesRef));
+        sysCfvFileName("RelatorioMensal", "xlsx", mesRef));
 
       toast.success("Relatório mensal XLSX gerado!");
     } catch (err: any) {
@@ -534,7 +534,7 @@ export default function ExportarRelatoriosPage() {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(catRows), "Categorias");
 
       const bufXlsx = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-      saveAs(new Blob([bufXlsx], { type: "application/octet-stream" }), sysEloFileName("PrestacaoContas", "xlsx", mesRef));
+      saveAs(new Blob([bufXlsx], { type: "application/octet-stream" }), sysCfvFileName("PrestacaoContas", "xlsx", mesRef));
 
       // PDF
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -569,7 +569,7 @@ export default function ExportarRelatoriosPage() {
         styles: { fontSize: 7 },
         headStyles: { fillColor: [50, 50, 50], fontSize: 7 },
       });
-      doc.save(sysEloFileName("PrestacaoContas", "pdf", mesRef));
+      doc.save(sysCfvFileName("PrestacaoContas", "pdf", mesRef));
 
       toast.success("Prestação de Contas gerada (XLSX + PDF)!");
     } catch (err: any) {
@@ -685,7 +685,7 @@ export default function ExportarRelatoriosPage() {
       wsR["!cols"] = [{ wch: 25 }, { wch: 12 }];
       XLSX.utils.book_append_sheet(wb, wsR, "Resumo");
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-      saveAs(new Blob([buf]), sysEloFileName("RelEquipeTecnica", "xlsx"));
+      saveAs(new Blob([buf]), sysCfvFileName("RelEquipeTecnica", "xlsx"));
 
       // PDF
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -720,7 +720,7 @@ export default function ExportarRelatoriosPage() {
         styles: { fontSize: 8 },
         headStyles: { fillColor: [50, 50, 50] },
       });
-      doc.save(sysEloFileName("RelEquipeTecnica", "pdf"));
+      doc.save(sysCfvFileName("RelEquipeTecnica", "pdf"));
 
       toast.success("Relatório da equipe técnica gerado (XLSX + PDF)!");
     } catch (err: any) {

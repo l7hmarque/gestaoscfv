@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
-import { sysEloFileName } from "@/lib/fileNaming";
+import { sysCfvFileName } from "@/lib/fileNaming";
 
 const headerStyle = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "C62828" } }, alignment: { horizontal: "center" as const }, border: { top: { style: "thin" as const }, bottom: { style: "thin" as const }, left: { style: "thin" as const }, right: { style: "thin" as const } } };
 const cellStyle = { font: { sz: 9 }, border: { top: { style: "thin" as const }, bottom: { style: "thin" as const }, left: { style: "thin" as const }, right: { style: "thin" as const } } };
@@ -62,7 +62,7 @@ export function exportOrcamentoXLSX(orc: Orc, items: Item[], cotacoes: Cotacao[]
   }
 
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf]), sysEloFileName("Orcamento", "xlsx"));
+  saveAs(new Blob([buf]), sysCfvFileName("Orcamento", "xlsx"));
 }
 
 export function exportMapaComparativoXLSX(orc: Orc, items: Item[], cotacoes: Cotacao[], precos: Preco[], categorias: Cat[]) {
@@ -126,5 +126,5 @@ export function exportMapaComparativoXLSX(orc: Orc, items: Item[], cotacoes: Cot
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Mapa Comparativo");
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf]), sysEloFileName("MapaComparativo", "xlsx"));
+  saveAs(new Blob([buf]), sysCfvFileName("MapaComparativo", "xlsx"));
 }
