@@ -23,6 +23,8 @@ const ProfissionalPerfilPage = () => {
   const [recadosEnviados, setRecadosEnviados] = useState<any[]>([]);
   const [profilesMap, setProfilesMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [streak, setStreak] = useState(0);
+  const [conquistas, setConquistas] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -59,6 +61,31 @@ const ProfissionalPerfilPage = () => {
       const pMap: Record<string, string> = {};
       (allProfiles || []).forEach((p: any) => { pMap[p.id] = p.nome; });
       setProfilesMap(pMap);
+
+      // Streak calculation
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 31);
+      const [{ data: sPosts }, { data: sComments }] = await Promise.all([
+        supabase.from("feed_posts").select("created_at").eq("autor_id", id!).gte("created_at", thirtyDaysAgo.toISOString()),
+        supabase.from("feed_comentarios").select("created_at").eq("autor_id", id!).gte("created_at", thirtyDaysAgo.toISOString()),
+      ]);
+      const activeDays = new Set<string>();
+      [...(sPosts || []), ...(sComments || [])].forEach((item: any) => {
+        activeDays.add(item.created_at.slice(0, 10));
+      });
+      let s = 0;
+      const today = new Date();
+      for (let i = 0; i < 31; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        if (activeDays.has(d.toISOString().slice(0, 10))) s++;
+        else break;
+      }
+      setStreak(s);
+
+      // Conquistas
+      const { data: conqus } = await supabase.from("conquistas").select("*").eq("perfil_id", id!).order("created_at", { ascending: false });
+      setConquistas(conqus || []);
 
       setLoading(false);
     };
@@ -99,6 +126,11 @@ const ProfissionalPerfilPage = () => {
             <p className="text-sm text-muted-foreground">{profile.cargo || "Sem cargo"}</p>
             <div className="flex gap-2 mt-1 justify-center sm:justify-start flex-wrap">
               <Badge variant={profile.ativo ? "default" : "secondary"}>{profile.ativo ? "Ativo" : "Inativo"}</Badge>
+              {streak > 0 && (
+                <Badge variant="outline" className="gap-1 text-orange-600 border-orange-300">
+                  🔥 {streak} dia{streak > 1 ? "s" : ""} de streak
+                </Badge>
+              )}
               {recadosCount > 0 && (
                 <Badge variant="destructive" className="gap-1">
                   <Bell className="h-3 w-3" />{recadosCount} recado{recadosCount > 1 ? "s" : ""} não lido{recadosCount > 1 ? "s" : ""}
@@ -133,6 +165,23 @@ const ProfissionalPerfilPage = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Conquistas */}
+      {conquistas.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">🏆 Conquistas ({conquistas.length})</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {conquistas.map((c: any) => (
+                <Badge key={c.id} variant="outline" className="text-xs">
+                  {c.tipo}
+                  {c.nivel > 1 && ` (nível ${c.nivel})`}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabs */}
       <Tabs defaultValue="turmas">

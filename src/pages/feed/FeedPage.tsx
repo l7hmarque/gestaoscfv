@@ -36,6 +36,7 @@ const FeedPage = () => {
   const [myProfileId, setMyProfileId] = useState("");
   const [isCoord, setIsCoord] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [leaderboard, setLeaderboard] = useState<{ id: string; nome: string; score: number }[]>([]);
 
   // Composer state
   const [newContent, setNewContent] = useState("");
@@ -94,6 +95,26 @@ const FeedPage = () => {
       });
       setProfiles(profMap);
       setIsCoord((roles || []).some((r: any) => r.role === "coordenacao"));
+
+      // Leaderboard: top 3 most active this week
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const wk = oneWeekAgo.toISOString();
+      const [{ data: wkPosts }, { data: wkReacoes }, { data: wkComents }] = await Promise.all([
+        supabase.from("feed_posts").select("autor_id").gte("created_at", wk),
+        supabase.from("feed_reacoes").select("user_id").gte("created_at", wk),
+        supabase.from("feed_comentarios").select("autor_id").gte("created_at", wk),
+      ]);
+      const scoreMap: Record<string, number> = {};
+      (wkPosts || []).forEach((p: any) => { scoreMap[p.autor_id] = (scoreMap[p.autor_id] || 0) + 3; });
+      (wkReacoes || []).forEach((r: any) => { scoreMap[r.user_id] = (scoreMap[r.user_id] || 0) + 1; });
+      (wkComents || []).forEach((c: any) => { scoreMap[c.autor_id] = (scoreMap[c.autor_id] || 0) + 2; });
+      const lb = Object.entries(scoreMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([id, score]) => ({ id, nome: profMap[id]?.nome || "—", score }));
+      setLeaderboard(lb);
+
       setLoading(false);
     };
     init();
@@ -260,7 +281,26 @@ const FeedPage = () => {
         <div className="flex justify-center py-12"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
       ) : (
         <>
-          {/* ===== MURAL SECTION ===== */}
+          {/* Leaderboard semanal */}
+          {leaderboard.length > 0 && (
+            <Card className="border-l-4 border-l-[hsl(45,80%,55%)]">
+              <CardContent className="p-3">
+                <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">🏆 Top 3 da Semana</p>
+                <div className="flex gap-4">
+                  {leaderboard.map((lb, i) => (
+                    <div key={lb.id} className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-foreground">{i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}</span>
+                      <div>
+                        <p className="text-xs font-medium text-foreground">{lb.nome}</p>
+                        <p className="text-[10px] text-muted-foreground">{lb.score} pts</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {muralPosts.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {muralPosts.map((post, idx) => {

@@ -22,6 +22,11 @@ const CONQUISTAS = [
   { tipo: "adesao_100", label: "📊 100% Adesão", desc: "Adesão de 100% em um relatório" },
   { tipo: "engajamento_total", label: "🤝 Engajamento Total", desc: "Todos indicadores ELO ≥ 4 em um relatório" },
   { tipo: "turma_completa", label: "👥 Turma Completa", desc: "Todos os matriculados presentes" },
+  { tipo: "primeiro_post_feed", label: "📢 Primeira Publicação!", desc: "Postou no feed pela primeira vez" },
+  { tipo: "comunicador_10", label: "💬 Comunicador Ativo", desc: "10 posts no feed" },
+  { tipo: "recado_respondido", label: "✅ Responsável", desc: "Respondeu/concluiu 10 recados técnicos" },
+  { tipo: "streak_7", label: "🔥 Semana de Fogo!", desc: "7 dias consecutivos de atividade no feed" },
+  { tipo: "streak_30", label: "🔥 Mês Imparável!", desc: "30 dias consecutivos de atividade no feed" },
 ];
 
 async function awardConquista(perfilId: string, tipo: string, nivel: number = 1): Promise<string | null> {
@@ -96,5 +101,78 @@ export async function checkConquistas(check: ConquistaCheck): Promise<string[]> 
 
   // No longer creates separate feed posts — earned conquistas are returned
   // and appended inline to the activity's auto-post
+  return earned;
+}
+
+/** Check communication-based conquistas (feed posts, recados) */
+export async function checkCommunicationConquistas(profileId: string): Promise<string[]> {
+  const earned: string[] = [];
+
+  // Count feed posts
+  const { count: feedCount } = await supabase
+    .from("feed_posts")
+    .select("id", { count: "exact", head: true })
+    .eq("autor_id", profileId);
+  const totalPosts = feedCount || 0;
+
+  if (totalPosts === 1) {
+    const r = await awardConquista(profileId, "primeiro_post_feed");
+    if (r) earned.push(r);
+  }
+  if (totalPosts >= 10) {
+    const r = await awardConquista(profileId, "comunicador_10");
+    if (r) earned.push(r);
+  }
+
+  // Count concluded recados
+  const { count: recadoCount } = await supabase
+    .from("recados")
+    .select("id", { count: "exact", head: true })
+    .eq("destinatario_id", profileId)
+    .eq("status", "concluido");
+  if ((recadoCount || 0) >= 10) {
+    const r = await awardConquista(profileId, "recado_respondido");
+    if (r) earned.push(r);
+  }
+
+  // Calculate streak from feed_posts and feed_comentarios
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 30);
+  const { data: recentPosts } = await supabase
+    .from("feed_posts")
+    .select("created_at")
+    .eq("autor_id", profileId)
+    .gte("created_at", sevenDaysAgo.toISOString());
+  const { data: recentComments } = await supabase
+    .from("feed_comentarios")
+    .select("created_at")
+    .eq("autor_id", profileId)
+    .gte("created_at", sevenDaysAgo.toISOString());
+
+  const activeDays = new Set<string>();
+  [...(recentPosts || []), ...(recentComments || [])].forEach((item: any) => {
+    activeDays.add(item.created_at.slice(0, 10));
+  });
+
+  // Count consecutive days ending today
+  let streak = 0;
+  const today = new Date();
+  for (let i = 0; i < 31; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    if (activeDays.has(key)) streak++;
+    else break;
+  }
+
+  if (streak >= 7) {
+    const r = await awardConquista(profileId, "streak_7");
+    if (r) earned.push(r);
+  }
+  if (streak >= 30) {
+    const r = await awardConquista(profileId, "streak_30");
+    if (r) earned.push(r);
+  }
+
   return earned;
 }

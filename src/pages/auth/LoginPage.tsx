@@ -4,9 +4,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Eye, Loader2, LogIn } from "lucide-react";
 import { toast } from "sonner";
+import { SysCFVLogo } from "@/components/SysCFVLogo";
 
 const LoginPage = () => {
   const [email, setEmail] = useState("");
@@ -48,14 +49,12 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="mx-auto h-12 w-12 rounded-xl bg-primary flex items-center justify-center mb-2">
-            <span className="text-primary-foreground font-bold text-lg">S</span>
+          <div className="mx-auto mb-2">
+            <SysCFVLogo collapsed={false} />
           </div>
-          <CardTitle className="text-lg">SysCFV</CardTitle>
-          <p className="text-xs text-muted-foreground">Gestão SCFV</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-3">
