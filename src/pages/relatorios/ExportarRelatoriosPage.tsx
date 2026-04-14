@@ -496,14 +496,14 @@ export default function ExportarRelatoriosPage() {
 
       // XLSX
       const wb = XLSX.utils.book_new();
-      const resumoRows = addInstHeader([
+      const { data: pcData } = addInstHeader([
         ["Item", "Valor"],
         ["Total Recebido (Parcelas)", totalRec],
         ["Despesas no Mês", totalDesp],
         ["Estornos no Mês", totalEst],
         ["Saldo Acumulado", saldoPC],
       ], "PRESTAÇÃO DE CONTAS — " + mesLabel);
-      const wsResumoPC = XLSX.utils.aoa_to_sheet(resumoRows);
+      const wsResumoPC = XLSX.utils.aoa_to_sheet(pcData);
       wsResumoPC["!cols"] = [{ wch: 35 }, { wch: 20 }];
       autoFitColumns(wsResumoPC);
       applyInstStyle(wsResumoPC);
