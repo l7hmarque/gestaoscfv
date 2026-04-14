@@ -298,8 +298,8 @@ export default function ExportarRelatoriosPage() {
       ], `ATIVIDADES — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
       wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
       autoFitColumns(wsAtiv);
-      applyInstStyle(wsAtiv);
-      applyHeaderStyle(wsAtiv, 4, 4);
+      applyInstStyle(wsAtiv, 4);
+      applyHeaderStyle(wsAtiv, 5, 4);
       applyBorders(wsAtiv);
       XLSX.utils.book_append_sheet(wb, wsAtiv, "Atividades");
 
