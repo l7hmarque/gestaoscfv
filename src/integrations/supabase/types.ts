@@ -288,6 +288,119 @@ export type Database = {
           },
         ]
       }
+      cronograma_cenarios: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          criado_por: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cronograma_cenarios_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cronograma_slots: {
+        Row: {
+          bairro_id: string | null
+          cenario_id: string
+          created_at: string
+          dia_semana: string
+          educador_id: string | null
+          id: string
+          notas: string | null
+          oficineiro_id: string | null
+          periodo: string
+          tipo_atividade: string | null
+          turma_id: string | null
+        }
+        Insert: {
+          bairro_id?: string | null
+          cenario_id: string
+          created_at?: string
+          dia_semana: string
+          educador_id?: string | null
+          id?: string
+          notas?: string | null
+          oficineiro_id?: string | null
+          periodo?: string
+          tipo_atividade?: string | null
+          turma_id?: string | null
+        }
+        Update: {
+          bairro_id?: string | null
+          cenario_id?: string
+          created_at?: string
+          dia_semana?: string
+          educador_id?: string | null
+          id?: string
+          notas?: string | null
+          oficineiro_id?: string | null
+          periodo?: string
+          tipo_atividade?: string | null
+          turma_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cronograma_slots_bairro_id_fkey"
+            columns: ["bairro_id"]
+            isOneToOne: false
+            referencedRelation: "bairros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cronograma_slots_cenario_id_fkey"
+            columns: ["cenario_id"]
+            isOneToOne: false
+            referencedRelation: "cronograma_cenarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cronograma_slots_educador_id_fkey"
+            columns: ["educador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cronograma_slots_oficineiro_id_fkey"
+            columns: ["oficineiro_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cronograma_slots_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       despesa_historico: {
         Row: {
           alterado_por: string | null

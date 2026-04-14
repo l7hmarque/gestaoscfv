@@ -378,6 +378,9 @@ const FeedPage = () => {
                   myProfileId={myProfileId}
                   isCoord={isCoord}
                   onRefresh={fetchAll}
+                  onReacaoUpdate={(postId, newReacoes) => {
+                    setReacoes(prev => ({ ...prev, [postId]: newReacoes }));
+                  }}
                 />
               ))}
             </div>

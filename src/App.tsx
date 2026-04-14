@@ -50,6 +50,7 @@ const SiteContatoPage = lazy(() => import("./pages/site/SiteContatoPage"));
 const SiteAdminPage = lazy(() => import("./pages/site-admin/SiteAdminPage"));
 const ConfiguracoesPage = lazy(() => import("./pages/configuracoes/ConfiguracoesPage"));
 const MuralPage = lazy(() => import("./pages/mural/MuralPage"));
+const CronogramaPage = lazy(() => import("./pages/cronograma/CronogramaPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -116,6 +117,7 @@ const App = () => (
                   <Route path="/site-admin" element={<SiteAdminPage />} />
                   <Route path="/configuracoes" element={<ConfiguracoesPage />} />
                   <Route path="/desligamento-admin" element={<PainelDesligamentoPage />} />
+                  <Route path="/cronograma" element={<CronogramaPage />} />
                   <Route path="/dev" element={<DevPage />} />
                 </Route>
                 <Route path="/matricula" element={<MatriculaPublicaPage />} />

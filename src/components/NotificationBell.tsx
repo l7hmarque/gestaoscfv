@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Bell, Eye, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,20 +22,9 @@ export function NotificationBell() {
   const [isCoord, setIsCoord] = useState(false);
   const [open, setOpen] = useState(false);
   const [detailRecado, setDetailRecado] = useState<any | null>(null);
+  const channelRef = useRef<any>(null);
 
-  useEffect(() => {
-    if (!user) return;
-    loadData();
-
-    const channel = supabase
-      .channel("recados-notif")
-      .on("postgres_changes", { event: "*", schema: "public", table: "recados" }, () => loadData())
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [user]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!user) return;
     const [{ data: prof }, { data: rec }, { data: parts }, { data: roles }] = await Promise.all([
       supabase.from("profiles").select("id, nome, user_id"),
@@ -50,14 +39,39 @@ export function NotificationBell() {
     const me = (prof || []).find((p: any) => p.user_id === user.id);
     if (me) {
       setMyProfileId(me.id);
-      // Coord sees ALL; others see received + sent
       if (coordRole) {
         setRecados(rec || []);
       } else {
         setRecados((rec || []).filter((r: any) => r.destinatario_id === me.id || r.remetente_id === me.id));
       }
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    loadData();
+
+    // Clean up previous channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    const channel = supabase
+      .channel(`recados-notif-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "recados" }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    channelRef.current = channel;
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [user, loadData]);
 
   // Unread = recados where I'm the destinatário and not read
   const unread = recados.filter(r => r.destinatario_id === myProfileId && !r.lido).length;
