@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Users, GraduationCap, BookOpen, FileText, Pin, Bell, AlertTriangle } from "lucide-react";
+import { Users, GraduationCap, BookOpen, FileText, Pin, Bell, AlertTriangle, CalendarDays, Newspaper, ClipboardCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,10 +9,12 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const shortcuts = [
-  { title: "Participantes", description: "Cadastrar e gerenciar", icon: Users, url: "/participantes", color: "text-primary" },
-  { title: "Turmas", description: "Organizar turmas", icon: GraduationCap, url: "/turmas", color: "text-secondary" },
-  { title: "Planejamento", description: "Planejar atividades", icon: BookOpen, url: "/planejamentos", color: "text-secondary" },
-  { title: "Relatórios", description: "Registrar atividades", icon: FileText, url: "/relatorios", color: "text-primary" },
+  { title: "Relatórios", description: "Registrar atividades", icon: FileText, url: "/relatorios", border: "border-l-primary" },
+  { title: "Cronograma", description: "Agenda semanal", icon: CalendarDays, url: "/cronograma", border: "border-l-secondary" },
+  { title: "Feed", description: "Novidades da equipe", icon: Newspaper, url: "/feed", border: "border-l-[hsl(150,45%,45%)]" },
+  { title: "Participantes", description: "Cadastrar e gerenciar", icon: Users, url: "/participantes", border: "border-l-[hsl(45,80%,55%)]" },
+  { title: "Presença", description: "Registrar presença", icon: ClipboardCheck, url: "/presenca", border: "border-l-[hsl(280,40%,55%)]" },
+  { title: "Turmas", description: "Organizar turmas", icon: GraduationCap, url: "/turmas", border: "border-l-secondary" },
 ];
 
 const Index = () => {
@@ -70,17 +72,15 @@ const Index = () => {
       )}
 
       {/* Atalhos */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3">
         {shortcuts.map((item) => (
           <Link key={item.title} to={item.url}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer border-border/60">
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className={`${item.color} bg-muted rounded-lg p-2.5`}>
-                  <item.icon className="h-5 w-5" />
-                </div>
+            <Card className={`hover:shadow-md transition-shadow cursor-pointer border-l-4 ${item.border}`}>
+              <CardContent className="flex items-center gap-3 p-3">
+                <item.icon className="h-5 w-5 text-muted-foreground shrink-0" />
                 <div>
                   <h3 className="text-sm font-medium text-foreground">{item.title}</h3>
-                  <p className="text-xs text-muted-foreground">{item.description}</p>
+                  <p className="text-[10px] text-muted-foreground">{item.description}</p>
                 </div>
               </CardContent>
             </Card>
