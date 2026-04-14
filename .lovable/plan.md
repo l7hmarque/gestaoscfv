@@ -1,64 +1,90 @@
+## Plano: Turmas, Dados Financeiros, Notificações, Feed e Ferramenta de Cronograma
 
+### 1. Turmas — Criar Karatê Alvorada
 
-## Plano: Correções múltiplas no perfil do participante + investigação de frequência
+Criar 2 turmas de Karatê no Alvorada:
 
-### 1. Campos escapando ao editar perfil (input perde foco)
+- **KARATE — 6-8 — ALVORADA** (manhã, seg/qua)
+- **KARATE — 9-11 — ALVORADA** (manhã, seg/qua)
 
-**Causa raiz**: Os componentes `EditField` e `Info` estão definidos **dentro** da função de renderização do componente `ParticipantePerfilPage` (linhas 266-271). Cada vez que `setForm` é chamado (a cada letra digitada), o React recria esses componentes como novas funções, causando unmount/remount e perda de foco.
+Educador: Felipe Gomes da Silva (mesmo das outras turmas de karatê). Via insert SQL.
 
-**Correção**: Mover `EditField` e `Info` para **fora** do componente principal, como componentes standalone que recebem `form`, `set` via props. Isso segue o padrão já documentado na memória `tecnico/padroes-componentes`.
+As demais turmas estão corretas conforme conferido.
 
-### 2. Erro "invalid input syntax for type timestamp with time zone: ''"
+### 2. Dados Financeiros no Banco de Dados
 
-**Causa raiz**: Na linha 112, todos os campos do participante são convertidos para string no form state (`f[k] = v == null ? "" : String(v)`). Quando o save acontece (linha 130), o payload inclui `visualizado_em: ""` (string vazia) que é um timestamp. A linha 132 só nullifica `bairro_id`, `ponto_transporte_id`, `data_nascimento`, `iniciou_em`, `data_desligamento` — mas falta `visualizado_em` e `updated_at` (que foi deletado mas `visualizado_em` não).
+`**src/pages/banco-dados/BancoDadosPage.tsx**`:
 
-**Correção**: Adicionar `visualizado_em` à lista de campos que devem ser nullificados quando vazios, ou melhor, excluí-lo do payload (assim como `created_at`/`updated_at`). Também garantir que qualquer campo de data/timestamp vazio seja convertido para `null`.
+- Adicionar abas: **Despesas**, **Categorias**, **Parcelas**, **Estornos**, **Orçamentos**
+- Carregar dados via `fetchAllRows` para cada tabela financeira
+- Adicionar colunas apropriadas (valor formatado, fornecedor, mês, status, etc.)
+- Adicionar entradas no `TAB_TABLE_MAP` com cascatas corretas:
+  - `orcamentos` → cascade: `orcamento_itens` (fk: `orcamento_id`), `orcamento_cotacoes` (fk: `orcamento_id`), `despesas` (fk: `orcamento_id`)
+  - `orcamento_cotacoes` → cascade: `orcamento_precos` (fk: `cotacao_id`)
+  - `despesas` → cascade: `despesa_historico` (fk: `despesa_id`)
+- Atualizar lista de categorias de backup
 
-### 3. Capitalização padronizada dos dados
+### 3. Notificações em Tempo Real
 
-**Correção**: No `handleSave`, antes de enviar o payload:
-- `nome_completo` → Title Case (Nome e Sobrenome)  
-- `responsavel1_nome`, `responsavel2_nome` → Title Case
-- `escola` → Title Case
-- `endereco_rua`, `endereco_bairro` → Title Case
-- `cpf` → formatado sem máscara (só dígitos, já está assim)
-- `responsavel1_whatsapp`, `responsavel2_whatsapp` → só dígitos (já está assim)
+**Problema**: O canal realtime `recados-notif` está configurado corretamente, mas o `loadData` recarrega tudo a cada evento. O problema real é que o componente `NotificationBell` é montado apenas uma vez e o `useEffect` depende de `[user]` — se o user object muda de referência sem mudar de valor, pode não re-subscribir.
 
-Nota: O sistema atual usa MAIÚSCULAS para padronização (memória `tecnico/padronizacao-dados`). Preciso verificar se o pedido de "Nome e Sobrenome" do usuário significa mudar para Title Case ou manter o padrão existente. O pedido diz `<-ex`, indicando que é um exemplo do formato. Vou aplicar Title Case conforme pedido.
+**Correção em `src/components/NotificationBell.tsx**`:
 
-### 4. Idade irregular: ISABELLY VITORIA DOS SANTOS MELO
+- Garantir que o canal realtime está realmente ativo verificando logs
+- Adicionar `console.log` de debug temporário ou verificar se a subscription está sendo criada com `status: SUBSCRIBED`
+- Verificar se a tabela `recados` tem realtime habilitado (`ALTER PUBLICATION supabase_realtime ADD TABLE recados`)
 
-**Encontrado**: `data_nascimento: 2026-10-17` — data no futuro, claramente errada. Único participante com idade < 5 anos.
+### 4. Feed — Reação Lenta
 
-**Correção**: Via script, corrigir a data de nascimento. Provavelmente deveria ser `2016-10-17` (9 anos) em vez de `2026-10-17`.
+**Problema**: `handleReacao` faz o Supabase call, espera completar, e depois chama `onRefresh()` que recarrega TODOS os posts + fotos + reações + comentários.
 
-### 5. Listas de presença exportadas sem informação de presença
+**Correção em `src/components/FeedPost.tsx**`:
 
-**Investigação**: Os dados de presença **existem** no banco (104 presenças, 1753 ausências para março/2025). O código de exportação tanto em `ExportarRelatoriosPage.tsx` quanto em `DashboardRelatorioMensalTab.tsx` faz corretamente:
-- Busca `presencas` filtradas por data
-- Enriquece com fallback de `relatorio_presenca`
-- Itera pelas datas e marca `■` quando encontra `presente: true`
+- Aplicar **optimistic update**: atualizar o estado local imediatamente antes de esperar a resposta do servidor
+- Não chamar `onRefresh()` para reações — atualizar apenas o estado local de reações
 
-**Possível causa**: O `turma_participantes` é buscado **sem filtrar** por `data_saida`. Os participantes transferidos (27 deles) têm `data_saida = 2025-03-01` nas turmas antigas. Porém, ao gerar a matriz, o export busca `tpIds = turmaParticipantes.filter(tp => tp.turma_id === t.id)` — isso inclui participantes que já saíram da turma, mas NÃO inclui participantes que entraram via transferência (porque a presença foi registrada na turma antiga). 
+**Correção em `src/pages/feed/FeedPage.tsx**`:
 
-Na verdade, o problema mais provável é que ao gerar matrizes, `fetchAllRows("turma_participantes")` traz TODOS os vínculos (incluindo os com `data_saida`), mas a presença foi registrada na turma correta. Preciso verificar se os IDs de presença correspondem aos IDs de turma corretamente.
+- Expor uma função `onReacaoUpdate(postId, reacoes)` em vez de `onRefresh` para atualizações parciais de reações
 
-Vou verificar mais cuidadosamente: a presença inserida pelo script anterior usou a turma_id do participante no momento da inserção. Se o participante foi transferido, a presença deveria ter sido registrada na turma **nova** (pós-transferência). Mas olhando o script anterior, as presenças foram registradas na turma que o participante estava vinculado **antes** da transferência.
+### 5. Ferramenta de Cronograma Semanal (Novo Módulo)
 
-**Diagnóstico final**: As matrizes podem estar mostrando participantes nas turmas certas, mas as presenças estão associadas a turmas diferentes. Preciso cruzar os dados para confirmar.
+**Conceito**: Um planejador visual de grade semanal onde cada célula é um slot (dia × período × local) e o usuário arrasta/atribui atividades, educadores e oficineiros.
 
-### Arquivos a alterar
+**Variáveis do problema**:
 
-1. **`src/pages/participantes/ParticipantePerfilPage.tsx`**:
-   - Mover `EditField` e `Info` para fora do componente
-   - Adicionar `visualizado_em` à exclusão do payload
-   - Aplicar Title Case nos campos textuais ao salvar
+- Dias da semana (seg-sex)
+- Períodos (manhã/tarde)
+- Bairros/locais de atendimento (3 territórios) 
+- Educadores disponíveis (com carga horária)
+- Oficineiros (karatê, etc.)
+- Faixas etárias por turma
+- Mínimo de dias de atendimento por bairro
+- Rodízio de oficinas
 
-2. **Script de correção de dados**:
-   - Corrigir data de nascimento da ISABELLY (2026→2016)
-   - Verificar e corrigir mapeamento presença↔turma se necessário
+**Proposta de UI**:
 
-3. **`src/pages/relatorios/ExportarRelatoriosPage.tsx`** e **`src/pages/dashboard/DashboardRelatorioMensalTab.tsx`**:
-   - Filtrar `turma_participantes` para excluir vínculos com `data_saida` anterior ao mês (para não listar participantes transferidos nas turmas antigas)
-   - OU incluir ambas as turmas (antiga e nova) para cada participante no período
+- Grade visual: linhas = bairros × períodos, colunas = dias da semana
+- Cada célula mostra: educador(es), atividade/oficina, faixas atendidas
+- Sidebar com educadores/oficineiros disponíveis para arrastar
+- Menu de configuracao de regras
+- Indicadores visuais: conflitos (educador em 2 lugares), mínimo de dias não atingido, rodízio incompleto
+- Validação automática: alertas em tempo real quando uma regra é violada
+- Salvar cenários para comparar alternativas
 
+**Tabela nova**: `cronograma_slots` com campos: `dia_semana`, `periodo`, `bairro_id`, `educador_id`, `oficineiro_id`, `tipo_atividade`, `cenario_id`
+
+**Nova página**: `/cronograma` acessível pelo menu lateral
+
+### Arquivos afetados
+
+1. **SQL**: Insert turmas karatê Alvorada + `ALTER PUBLICATION supabase_realtime ADD TABLE recados` + nova tabela `cronograma_slots` + `cronograma_cenarios`
+2. `**src/pages/banco-dados/BancoDadosPage.tsx**`: Adicionar abas financeiras
+3. `**src/components/NotificationBell.tsx**`: Verificar/corrigir realtime
+4. `**src/components/FeedPost.tsx**`: Optimistic updates para reações
+5. `**src/pages/feed/FeedPage.tsx**`: Suporte a atualização parcial
+6. **Novo `src/pages/cronograma/CronogramaPage.tsx**`: Ferramenta de cronograma
+7. `**src/App.tsx**`: Adicionar rota `/cronograma`
+8. `**src/components/AppSidebar.tsx**`: Adicionar link no menu  
+  
+FIZ ALTERACOES NO PLANO, LEIA E APLIQUE
