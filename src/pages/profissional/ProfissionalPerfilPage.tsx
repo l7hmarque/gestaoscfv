@@ -166,6 +166,23 @@ const ProfissionalPerfilPage = () => {
         </CardContent>
       </Card>
 
+      {/* Conquistas */}
+      {conquistas.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">🏆 Conquistas ({conquistas.length})</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {conquistas.map((c: any) => (
+                <Badge key={c.id} variant="outline" className="text-xs">
+                  {c.tipo}
+                  {c.nivel > 1 && ` (nível ${c.nivel})`}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Tabs */}
       <Tabs defaultValue="turmas">
         <TabsList className="h-8">
