@@ -21,6 +21,8 @@ export interface DashboardData {
   taxaFrequenciaGeral: number;
   topEducadores: { nome: string; count: number }[];
   totalParticipantesAlerta: number;
+  presencaMensal: { mes: string; presentes: number; total: number; pct: number }[];
+  deltaParticipantes: number;
 }
 
 function monthKey(d: string) {
