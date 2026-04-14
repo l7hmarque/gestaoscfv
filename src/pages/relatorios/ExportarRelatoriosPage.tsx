@@ -70,6 +70,8 @@ const TIPOS_DOCUMENTO = [
   { value: "outro", label: "Outro" },
 ];
 
+import { addInstitutionalHeader, applyInstitutionalStyle, applyTableHeaderStyle, applyAllBorders } from "@/lib/xlsxInstHeader";
+
 function applyBorders(ws: XLSX.WorkSheet) {
   const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
   const border = { style: "thin" as const, color: { rgb: "000000" } };
@@ -82,38 +84,17 @@ function applyBorders(ws: XLSX.WorkSheet) {
   }
 }
 
-function applyHeaderStyle(ws: XLSX.WorkSheet, row: number, colCount: number) {
-  const border = { style: "thin" as const, color: { rgb: "000000" } };
-  for (let c = 0; c < colCount; c++) {
-    const addr = XLSX.utils.encode_cell({ r: row, c });
-    if (!ws[addr]) ws[addr] = { v: "", t: "s" };
-    ws[addr].s = {
-      font: { bold: true },
-      fill: { fgColor: { rgb: "D9D9D9" } },
-      border: { top: border, bottom: border, left: border, right: border },
-      alignment: { wrapText: true, vertical: "center" },
-    };
-  }
-}
-
-/** Prepend 3-line institutional header + blank row to any sheet data array */
 function addInstHeader(rows: any[][], title: string): any[][] {
-  return [
-    ["Sociedade Civil Nossa Senhora Aparecida"],
-    ["Centro de Atenção Integral ao Adolescente - Medianeira"],
-    [title],
-    [],
-    ...rows,
-  ];
+  const { data } = addInstitutionalHeader(rows, title);
+  return data;
 }
 
-/** Style institutional header rows (first 3) */
-function applyInstStyle(ws: XLSX.WorkSheet) {
-  const instStyle = { font: { bold: true, sz: 14 }, alignment: { horizontal: "center" as const } };
-  for (let r = 0; r < 3; r++) {
-    const addr = XLSX.utils.encode_cell({ r, c: 0 });
-    if (ws[addr]) ws[addr].s = instStyle;
-  }
+function applyInstStyle(ws: XLSX.WorkSheet, totalCols = 2) {
+  applyInstitutionalStyle(ws, totalCols);
+}
+
+function applyHeaderStyle(ws: XLSX.WorkSheet, row: number, colCount: number) {
+  applyTableHeaderStyle(ws, row, colCount);
 }
 
 /** Helper to enrich presencas with relatorio_presenca fallback */
