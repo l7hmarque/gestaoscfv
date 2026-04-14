@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Heart, MessageCircle, Trophy, Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ interface FeedPostProps {
   myProfileId: string;
   isCoord: boolean;
   onRefresh: () => void;
+  onReacaoUpdate?: (postId: string, newReacoes: any[]) => void;
 }
 
 const tipoLabel: Record<string, { icon: string; label: string }> = {
@@ -51,35 +52,66 @@ function RenderContent({ text, profiles }: { text: string; profiles: Record<stri
   );
 }
 
-export function FeedPost({ post, fotos, reacoes, comentarios, profiles, myProfileId, isCoord, onRefresh }: FeedPostProps) {
+export function FeedPost({ post, fotos, reacoes: reacoesProp, comentarios, profiles, myProfileId, isCoord, onRefresh, onReacaoUpdate }: FeedPostProps) {
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState("");
+  const [localReacoes, setLocalReacoes] = useState(reacoesProp);
+  const [reacaoLoading, setReacaoLoading] = useState(false);
+
+  // Sync prop changes
+  if (reacoesProp !== localReacoes && !reacaoLoading) {
+    // Only sync if not mid-operation
+    if (JSON.stringify(reacoesProp.map(r => r.id).sort()) !== JSON.stringify(localReacoes.map(r => r.id).sort())) {
+      setLocalReacoes(reacoesProp);
+    }
+  }
 
   const autor = profiles[post.autor_id];
-  const myReacao = reacoes.find((r) => r.user_id === myProfileId);
-  const likeCount = reacoes.filter((r) => r.tipo === "like").length;
-  const ameiCount = reacoes.filter((r) => r.tipo === "amei").length;
+  const myReacao = localReacoes.find((r) => r.user_id === myProfileId);
+  const likeCount = localReacoes.filter((r) => r.tipo === "like").length;
+  const ameiCount = localReacoes.filter((r) => r.tipo === "amei").length;
   const canDelete = post.autor_id === myProfileId || isCoord;
   const tipo = tipoLabel[post.tipo] || tipoLabel.manual;
 
-  const handleReacao = async (tipo: "like" | "amei") => {
-    if (!myProfileId) return;
+  const handleReacao = useCallback(async (tipo: "like" | "amei") => {
+    if (!myProfileId || reacaoLoading) return;
+    setReacaoLoading(true);
+
+    // Optimistic update
+    let newReacoes: any[];
     if (myReacao) {
       if (myReacao.tipo === tipo) {
+        // Remove reaction
+        newReacoes = localReacoes.filter(r => r.id !== myReacao.id);
+        setLocalReacoes(newReacoes);
         await supabase.from("feed_reacoes").delete().eq("id", myReacao.id);
       } else {
+        // Change reaction type
+        newReacoes = localReacoes.map(r => r.id === myReacao.id ? { ...r, tipo } : r);
+        setLocalReacoes(newReacoes);
         await supabase.from("feed_reacoes").update({ tipo } as any).eq("id", myReacao.id);
       }
     } else {
-      await supabase.from("feed_reacoes").insert({ feed_post_id: post.id, user_id: myProfileId, tipo });
+      // Add reaction optimistically with temp id
+      const tempReacao = { id: `temp-${Date.now()}`, feed_post_id: post.id, user_id: myProfileId, tipo, created_at: new Date().toISOString() };
+      newReacoes = [...localReacoes, tempReacao];
+      setLocalReacoes(newReacoes);
+      const { data } = await supabase.from("feed_reacoes").insert({ feed_post_id: post.id, user_id: myProfileId, tipo }).select("*").single();
+      if (data) {
+        newReacoes = newReacoes.map(r => r.id === tempReacao.id ? data : r);
+        setLocalReacoes(newReacoes);
+      }
     }
-    onRefresh();
-  };
+
+    if (onReacaoUpdate) {
+      onReacaoUpdate(post.id, newReacoes);
+    }
+    setReacaoLoading(false);
+  }, [myProfileId, myReacao, localReacoes, post.id, onReacaoUpdate, reacaoLoading]);
 
   const handleComment = async () => {
     if (!newComment.trim() || !myProfileId) return;
 
-    // Extract @mentions from comment
     const profNames = Object.values(profiles).map((p: any) => p.nome).filter(Boolean);
     const mentionIds: string[] = [];
     profNames.forEach((name: string) => {
@@ -96,7 +128,6 @@ export function FeedPost({ post, fotos, reacoes, comentarios, profiles, myProfil
       mencoes: mentionIds,
     } as any);
 
-    // Send notification for each mentioned person
     for (const mid of mentionIds) {
       if (mid !== myProfileId) {
         await supabase.from("recados").insert({
@@ -172,6 +203,7 @@ export function FeedPost({ post, fotos, reacoes, comentarios, profiles, myProfil
         <div className="flex items-center gap-4 border-t pt-2">
           <button
             onClick={() => handleReacao("like")}
+            disabled={reacaoLoading}
             className={`flex items-center gap-1 text-xs transition-colors ${myReacao?.tipo === "like" ? "text-red-500 font-medium" : "text-muted-foreground hover:text-red-500"}`}
           >
             <Heart className={`h-4 w-4 ${myReacao?.tipo === "like" ? "fill-current" : ""}`} />
@@ -179,6 +211,7 @@ export function FeedPost({ post, fotos, reacoes, comentarios, profiles, myProfil
           </button>
           <button
             onClick={() => handleReacao("amei")}
+            disabled={reacaoLoading}
             className={`flex items-center gap-1 text-xs transition-colors ${myReacao?.tipo === "amei" ? "text-pink-500 font-medium" : "text-muted-foreground hover:text-pink-500"}`}
           >
             <span className="text-base">💕</span>

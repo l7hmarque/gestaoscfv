@@ -68,6 +68,23 @@ const TAB_TABLE_MAP: Record<string, { table: string; cascade?: { table: string; 
     ],
   },
   profissionais: { table: "profiles" },
+  despesas: {
+    table: "despesas",
+    cascade: [
+      { table: "despesa_historico", fk: "despesa_id" },
+    ],
+  },
+  categorias: { table: "categorias_financeiras" },
+  parcelas: { table: "parcelas_financeiras" },
+  estornos: { table: "estornos" },
+  orcamentos: {
+    table: "orcamentos",
+    cascade: [
+      { table: "despesas", fk: "orcamento_id" },
+      { table: "orcamento_itens", fk: "orcamento_id" },
+      { table: "orcamento_cotacoes", fk: "orcamento_id" },
+    ],
+  },
 };
 
 export default function BancoDadosPage() {
@@ -79,6 +96,11 @@ export default function BancoDadosPage() {
   const [relatorios, setRelatorios] = useState<any[]>([]);
   const [planejamentos, setPlanejamentos] = useState<any[]>([]);
   const [profissionais, setProfissionais] = useState<any[]>([]);
+  const [despesas, setDespesas] = useState<any[]>([]);
+  const [categorias, setCategorias] = useState<any[]>([]);
+  const [parcelas, setParcelas] = useState<any[]>([]);
+  const [estornos, setEstornos] = useState<any[]>([]);
+  const [orcamentos, setOrcamentos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCoord, setIsCoord] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -87,7 +109,7 @@ export default function BancoDadosPage() {
 
   // Backup
   const { doBackup, loading: backupLoading } = useBackupExport();
-  const [backupCats, setBackupCats] = useState<string[]>(["Participantes", "Turmas", "Presenca", "Relatorios", "Planejamentos", "Profissionais"]);
+  const [backupCats, setBackupCats] = useState<string[]>(["Participantes", "Turmas", "Presenca", "Relatorios", "Planejamentos", "Profissionais", "Despesas", "Categorias", "Parcelas", "Estornos", "Orcamentos"]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -106,13 +128,18 @@ export default function BancoDadosPage() {
 
   const loadAll = async () => {
     setLoading(true);
-    const [p, t, pr, r, pl, prof] = await Promise.all([
+    const [p, t, pr, r, pl, prof, desp, cats, parc, est, orc] = await Promise.all([
       fetchAllRows("participantes", { select: "*", order: { column: "nome_completo" } }),
       fetchAllRows("turmas", { select: "*, profiles!turmas_educador_id_fkey(nome)", order: { column: "nome" } }),
       fetchAllRows("presenca", { select: "*, participantes(nome_completo), turmas(nome)", order: { column: "data", ascending: false } }),
       fetchAllRows("relatorios_atividade", { select: "*, profiles!relatorios_atividade_educador_id_fkey(nome)", order: { column: "data", ascending: false } }),
       fetchAllRows("planejamentos", { select: "*, profiles!planejamentos_educador_id_fkey(nome)", order: { column: "created_at", ascending: false } }),
       fetchAllRows("profiles", { select: "*", order: { column: "nome" } }),
+      fetchAllRows("despesas", { select: "*, categorias_financeiras(descricao)", order: { column: "data_lancamento", ascending: false } }),
+      fetchAllRows("categorias_financeiras", { select: "*", order: { column: "codigo" } }),
+      fetchAllRows("parcelas_financeiras", { select: "*", order: { column: "numero_parcela" } }),
+      fetchAllRows("estornos", { select: "*, categorias_financeiras(descricao)", order: { column: "mes_referencia", ascending: false } }),
+      fetchAllRows("orcamentos", { select: "*, categorias_financeiras(descricao)", order: { column: "created_at", ascending: false } }),
     ]);
     const { data: roles } = await supabase.from("user_roles").select("*");
     const roleMap = new Map<string, string[]>();
@@ -128,6 +155,11 @@ export default function BancoDadosPage() {
     setRelatorios((r || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "" })));
     setPlanejamentos((pl || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "", avaliacao_str: x.forma_avaliacao?.join(", ") || "" })));
     setProfissionais((prof || []).map((x: any) => ({ ...x, roles_str: (roleMap.get(x.user_id) || []).join(", "), ativo_str: x.ativo ? "Sim" : "Não" })));
+    setDespesas((desp || []).map((x: any) => ({ ...x, categoria_nome: x.categorias_financeiras?.descricao || "—", valor_fmt: `R$ ${Number(x.valor || 0).toFixed(2)}` })));
+    setCategorias((cats || []).map((x: any) => ({ ...x, valor_fmt: x.valor_previsto != null ? `R$ ${Number(x.valor_previsto).toFixed(2)}` : "—" })));
+    setParcelas((parc || []).map((x: any) => ({ ...x, valor_fmt: `R$ ${Number(x.valor || 0).toFixed(2)}` })));
+    setEstornos((est || []).map((x: any) => ({ ...x, categoria_nome: x.categorias_financeiras?.descricao || "—", valor_fmt: `R$ ${Number(x.valor || 0).toFixed(2)}` })));
+    setOrcamentos((orc || []).map((x: any) => ({ ...x, categoria_nome: x.categorias_financeiras?.descricao || "—" })));
     setLoading(false);
   };
 
@@ -141,18 +173,15 @@ export default function BancoDadosPage() {
       if (!config) throw new Error("Tab inválida");
 
       const ids = Array.from(selectedIds);
-      // Delete in batches of 50
       for (let i = 0; i < ids.length; i += 50) {
         const batch = ids.slice(i, i + 50);
 
-        // Cascade deletes first
         if (config.cascade) {
           for (const c of config.cascade) {
             await (supabase.from as any)(c.table).delete().in(c.fk, batch);
           }
         }
 
-        // Main table delete
         await (supabase.from as any)(config.table).delete().in("id", batch);
       }
 
@@ -224,6 +253,44 @@ export default function BancoDadosPage() {
     { key: "ativo_str", label: "Ativo" },
   ];
 
+  const despesaCols: Column<any>[] = [
+    { key: "data_lancamento", label: "Data" },
+    { key: "descricao", label: "Descrição" },
+    { key: "fornecedor", label: "Fornecedor" },
+    { key: "valor_fmt", label: "Valor" },
+    { key: "categoria_nome", label: "Categoria" },
+    { key: "mes_referencia", label: "Mês Ref." },
+    { key: "status_sit", label: "Status", render: r => <Badge variant={r.status_sit === "pago" ? "default" : "secondary"} className="text-[10px]">{r.status_sit || "pendente"}</Badge> },
+    { key: "numero_documento", label: "Nº Doc" },
+  ];
+
+  const categoriaCols: Column<any>[] = [
+    { key: "codigo", label: "Código" },
+    { key: "descricao", label: "Descrição" },
+    { key: "valor_fmt", label: "Valor Previsto" },
+  ];
+
+  const parcelaCols: Column<any>[] = [
+    { key: "numero_parcela", label: "Parcela" },
+    { key: "data_recebimento", label: "Data Recebimento" },
+    { key: "valor_fmt", label: "Valor" },
+  ];
+
+  const estornoCols: Column<any>[] = [
+    { key: "mes_referencia", label: "Mês Ref." },
+    { key: "categoria_nome", label: "Categoria" },
+    { key: "valor_fmt", label: "Valor" },
+  ];
+
+  const orcamentoCols: Column<any>[] = [
+    { key: "titulo", label: "Título" },
+    { key: "objeto", label: "Objeto" },
+    { key: "mes_referencia", label: "Mês Ref." },
+    { key: "categoria_nome", label: "Categoria" },
+    { key: "status", label: "Status", render: r => <Badge variant={r.status === "aprovado" ? "default" : "secondary"} className="text-[10px]">{r.status}</Badge> },
+    { key: "fornecedor_vencedor", label: "Fornecedor" },
+  ];
+
   const getActiveData = () => {
     switch (tab) {
       case "participantes": return { data: participantes, headers: partHeaders, label: "Participantes" };
@@ -232,6 +299,11 @@ export default function BancoDadosPage() {
       case "relatorios": return { data: relatorios, headers: relCols.map(c => ({ key: c.key, label: c.label })), label: "Relatorios" };
       case "planejamentos": return { data: planejamentos, headers: planCols.map(c => ({ key: c.key, label: c.label })), label: "Planejamentos" };
       case "profissionais": return { data: profissionais, headers: profCols.map(c => ({ key: c.key, label: c.label })), label: "Profissionais" };
+      case "despesas": return { data: despesas, headers: despesaCols.map(c => ({ key: c.key, label: c.label })), label: "Despesas" };
+      case "categorias": return { data: categorias, headers: categoriaCols.map(c => ({ key: c.key, label: c.label })), label: "Categorias" };
+      case "parcelas": return { data: parcelas, headers: parcelaCols.map(c => ({ key: c.key, label: c.label })), label: "Parcelas" };
+      case "estornos": return { data: estornos, headers: estornoCols.map(c => ({ key: c.key, label: c.label })), label: "Estornos" };
+      case "orcamentos": return { data: orcamentos, headers: orcamentoCols.map(c => ({ key: c.key, label: c.label })), label: "Orcamentos" };
       default: return { data: [], headers: [], label: "" };
     }
   };
@@ -251,6 +323,11 @@ export default function BancoDadosPage() {
       case "relatorios": return relCols;
       case "planejamentos": return planCols;
       case "profissionais": return profCols;
+      case "despesas": return despesaCols;
+      case "categorias": return categoriaCols;
+      case "parcelas": return parcelaCols;
+      case "estornos": return estornoCols;
+      case "orcamentos": return orcamentoCols;
       default: return [];
     }
   };
@@ -263,11 +340,16 @@ export default function BancoDadosPage() {
       case "relatorios": return relatorios;
       case "planejamentos": return planejamentos;
       case "profissionais": return profissionais;
+      case "despesas": return despesas;
+      case "categorias": return categorias;
+      case "parcelas": return parcelas;
+      case "estornos": return estornos;
+      case "orcamentos": return orcamentos;
       default: return [];
     }
   };
 
-  const allCats = ["Participantes", "Turmas", "Presenca", "Relatorios", "Planejamentos", "Profissionais"];
+  const allCats = ["Participantes", "Turmas", "Presenca", "Relatorios", "Planejamentos", "Profissionais", "Despesas", "Categorias", "Parcelas", "Estornos", "Orcamentos"];
 
   if (loading) return <div className="p-6 text-muted-foreground text-sm">Carregando dados...</div>;
 
@@ -282,13 +364,18 @@ export default function BancoDadosPage() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <TabsList className="h-8">
+          <TabsList className="h-auto flex-wrap">
             <TabsTrigger value="participantes" className="text-xs px-3 h-7">Participantes</TabsTrigger>
             <TabsTrigger value="turmas" className="text-xs px-3 h-7">Turmas</TabsTrigger>
             <TabsTrigger value="presenca" className="text-xs px-3 h-7">Presença</TabsTrigger>
             <TabsTrigger value="relatorios" className="text-xs px-3 h-7">Relatórios</TabsTrigger>
             <TabsTrigger value="planejamentos" className="text-xs px-3 h-7">Planejamentos</TabsTrigger>
             <TabsTrigger value="profissionais" className="text-xs px-3 h-7">Profissionais</TabsTrigger>
+            <TabsTrigger value="despesas" className="text-xs px-3 h-7">Despesas</TabsTrigger>
+            <TabsTrigger value="categorias" className="text-xs px-3 h-7">Categorias</TabsTrigger>
+            <TabsTrigger value="parcelas" className="text-xs px-3 h-7">Parcelas</TabsTrigger>
+            <TabsTrigger value="estornos" className="text-xs px-3 h-7">Estornos</TabsTrigger>
+            <TabsTrigger value="orcamentos" className="text-xs px-3 h-7">Orçamentos</TabsTrigger>
           </TabsList>
 
           <div className="flex items-center gap-2">
@@ -322,24 +409,18 @@ export default function BancoDadosPage() {
           </div>
         </div>
 
-        <TabsContent value="participantes">
-          <DataTable data={participantes} columns={partCols} searchPlaceholder="Buscar participante..." selectable={isCoord} selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
-        </TabsContent>
-        <TabsContent value="turmas">
-          <DataTable data={turmas} columns={turmaCols} searchPlaceholder="Buscar turma..." selectable={isCoord} selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
-        </TabsContent>
-        <TabsContent value="presenca">
-          <DataTable data={presenca} columns={presencaCols} searchPlaceholder="Buscar presença..." selectable={isCoord} selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
-        </TabsContent>
-        <TabsContent value="relatorios">
-          <DataTable data={relatorios} columns={relCols} searchPlaceholder="Buscar relatório..." selectable={isCoord} selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
-        </TabsContent>
-        <TabsContent value="planejamentos">
-          <DataTable data={planejamentos} columns={planCols} searchPlaceholder="Buscar planejamento..." selectable={isCoord} selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
-        </TabsContent>
-        <TabsContent value="profissionais">
-          <DataTable data={profissionais} columns={profCols} searchPlaceholder="Buscar profissional..." selectable={isCoord} selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
-        </TabsContent>
+        {["participantes", "turmas", "presenca", "relatorios", "planejamentos", "profissionais", "despesas", "categorias", "parcelas", "estornos", "orcamentos"].map(tabKey => (
+          <TabsContent key={tabKey} value={tabKey}>
+            <DataTable
+              data={getActiveDataList()}
+              columns={getActiveCols()}
+              searchPlaceholder={`Buscar ${tabKey}...`}
+              selectable={isCoord}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+            />
+          </TabsContent>
+        ))}
       </Tabs>
 
       {/* Backup em massa */}
@@ -348,7 +429,7 @@ export default function BancoDadosPage() {
           <CardTitle className="text-sm flex items-center gap-2"><Archive className="h-4 w-4" /> Backup / Exportação em Massa</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {allCats.map(cat => (
               <label key={cat} className="flex items-center gap-2 text-xs cursor-pointer">
                 <Checkbox checked={backupCats.includes(cat)} onCheckedChange={() => toggleCat(cat)} />
