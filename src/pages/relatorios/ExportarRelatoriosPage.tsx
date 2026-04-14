@@ -341,8 +341,8 @@ export default function ExportarRelatoriosPage() {
       ], `METAS — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
       wsMetas["!cols"] = [{ wch: 55 }, { wch: 35 }, { wch: 50 }, { wch: 25 }];
       autoFitColumns(wsMetas);
-      applyInstStyle(wsMetas);
-      applyHeaderStyle(wsMetas, 4, 4);
+      applyInstStyle(wsMetas, 4);
+      applyHeaderStyle(wsMetas, 5, 4);
       applyBorders(wsMetas);
       XLSX.utils.book_append_sheet(wb, wsMetas, "Metas");
 
@@ -359,8 +359,8 @@ export default function ExportarRelatoriosPage() {
       ], `MONITORAMENTO — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
       wsMonitor["!cols"] = [{ wch: 60 }, { wch: 45 }, { wch: 15 }, { wch: 15 }];
       autoFitColumns(wsMonitor);
-      applyInstStyle(wsMonitor);
-      applyHeaderStyle(wsMonitor, 4, 4);
+      applyInstStyle(wsMonitor, 4);
+      applyHeaderStyle(wsMonitor, 5, 4);
       applyBorders(wsMonitor);
       XLSX.utils.book_append_sheet(wb, wsMonitor, "Monitoramento");
 
