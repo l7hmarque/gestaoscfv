@@ -260,7 +260,7 @@ export default function ExportarRelatoriosPage() {
       const atendByTipo: Record<string, number> = {};
       filteredAtendimentos.forEach((a: any) => { const t = a.tipo || "atendimento_individual"; atendByTipo[t] = (atendByTipo[t] || 0) + 1; });
 
-      const resumoData = addInstHeader([
+      const { data: resumoData } = addInstHeader([
         ["ATENDIDOS NO MÊS", atendidosFiltered.length],
         [],
         ["POR BAIRRO"],
