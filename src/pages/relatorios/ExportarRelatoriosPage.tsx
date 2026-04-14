@@ -84,9 +84,9 @@ function applyBorders(ws: XLSX.WorkSheet) {
   }
 }
 
-function addInstHeader(rows: any[][], title: string): any[][] {
-  const { data } = addInstitutionalHeader(rows, title);
-  return data;
+function addInstHeader(rows: any[][], title: string): { data: any[][]; offset: number } {
+  const { data, dataStartOffset } = addInstitutionalHeader(rows, title);
+  return { data, offset: dataStartOffset };
 }
 
 function applyInstStyle(ws: XLSX.WorkSheet, totalCols = 2) {
