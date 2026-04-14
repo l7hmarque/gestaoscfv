@@ -1,8 +1,9 @@
 import { useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, GraduationCap, FileText, BookOpen, TrendingUp, Percent, Clock, Activity, ArrowUp, ArrowDown } from "lucide-react";
+import { Users, GraduationCap, FileText, BookOpen, TrendingUp, Percent, Clock, Activity, ArrowUp, ArrowDown, CalendarDays, Newspaper, ClipboardCheck } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, RadarChart, PolarGrid, PolarAngleAxis,
@@ -14,20 +15,26 @@ import DashboardTransporteTab from "./DashboardTransporteTab";
 import DashboardAdminTab from "./DashboardAdminTab";
 import DashboardRelatorioMensalTab from "./DashboardRelatorioMensalTab";
 
-const COLORS = ["hsl(0,65%,67%)", "hsl(210,22%,49%)", "hsl(45,80%,55%)", "hsl(150,45%,45%)", "hsl(280,40%,55%)", "hsl(30,70%,55%)"];
+const COLORS = ["hsl(0,58%,56%)", "hsl(210,22%,49%)", "hsl(45,80%,55%)", "hsl(150,45%,45%)", "hsl(280,40%,55%)", "hsl(30,70%,55%)"];
 const OBJ_LABELS: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
 
-function KPICard({ icon: Icon, label, value, sub, accent, delta }: { icon: any; label: string; value: string | number; sub?: string; accent?: string; delta?: number }) {
+const quickShortcuts = [
+  { title: "Relatórios", icon: FileText, url: "/relatorios", border: "border-l-primary" },
+  { title: "Cronograma", icon: CalendarDays, url: "/cronograma", border: "border-l-secondary" },
+  { title: "Feed", icon: Newspaper, url: "/feed", border: "border-l-[hsl(150,45%,45%)]" },
+  { title: "Participantes", icon: Users, url: "/participantes", border: "border-l-[hsl(45,80%,55%)]" },
+  { title: "Presença", icon: ClipboardCheck, url: "/presenca", border: "border-l-[hsl(280,40%,55%)]" },
+];
+
+function KPICard({ icon: Icon, label, value, sub, borderColor, delta }: { icon: any; label: string; value: string | number; sub?: string; borderColor?: string; delta?: number }) {
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className={`hover:shadow-md transition-shadow border-l-4 ${borderColor || "border-l-primary"}`}>
       <CardContent className="p-3 sm:p-4 flex items-center gap-3">
-        <div className={`h-9 w-9 sm:h-10 sm:w-10 rounded flex items-center justify-center shrink-0 ${accent || "bg-primary/10"}`}>
-          <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${accent ? "text-white" : "text-primary"}`} />
-        </div>
+        <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="text-[10px] sm:text-[11px] text-muted-foreground leading-tight truncate uppercase tracking-wider">{label}</p>
           <div className="flex items-baseline gap-1.5">
-            <p className="text-lg sm:text-xl font-bold text-foreground leading-tight">{value}</p>
+            <p className="text-xl sm:text-2xl font-bold text-foreground leading-tight">{value}</p>
             {delta !== undefined && delta !== 0 && (
               <span className={`flex items-center text-[10px] font-medium ${delta > 0 ? "text-green-600" : "text-red-500"}`}>
                 {delta > 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
@@ -59,19 +66,34 @@ function ChartCard({ title, children }: { title: string; children: (ref: React.R
 
 function IndicadoresTab() {
   const { data, loading } = useDashboardData();
+  const navigate = useNavigate();
   if (loading || !data) return <div className="p-6 text-sm text-muted-foreground">Carregando indicadores...</div>;
 
   return (
     <div className="space-y-4 sm:space-y-5">
+      {/* Quick shortcuts */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        {quickShortcuts.map((s) => (
+          <button
+            key={s.title}
+            onClick={() => navigate(s.url)}
+            className={`flex items-center gap-2 p-3 rounded border border-border bg-card hover:shadow-md transition-all text-left border-l-4 ${s.border}`}
+          >
+            <s.icon className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-xs font-medium text-foreground">{s.title}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-        <KPICard icon={Users} label="Participantes Ativos" value={data.totalParticipantesAtivos} delta={data.deltaParticipantes} />
-        <KPICard icon={GraduationCap} label="Turmas Ativas" value={data.totalTurmasAtivas} />
-        <KPICard icon={FileText} label="Relatórios" value={data.totalRelatorios} />
-        <KPICard icon={BookOpen} label="Planejamentos" value={data.totalPlanejamentos} />
-        <KPICard icon={TrendingUp} label="Média ELO" value={data.mediaELO.toFixed(2)} sub="de 5.00" accent="bg-primary" />
-        <KPICard icon={Percent} label="Média Adesão" value={`${data.mediaAdesao.toFixed(0)}%`} />
-        <KPICard icon={Activity} label="Frequência Geral" value={`${data.taxaFrequenciaGeral}%`} sub="presenças registradas" />
-        <KPICard icon={Clock} label="Educadores Ativos" value={data.topEducadores.length} sub="com relatórios" />
+        <KPICard icon={Users} label="Participantes Ativos" value={data.totalParticipantesAtivos} delta={data.deltaParticipantes} borderColor="border-l-primary" />
+        <KPICard icon={GraduationCap} label="Turmas Ativas" value={data.totalTurmasAtivas} borderColor="border-l-secondary" />
+        <KPICard icon={FileText} label="Relatórios" value={data.totalRelatorios} borderColor="border-l-[hsl(150,45%,45%)]" />
+        <KPICard icon={BookOpen} label="Planejamentos" value={data.totalPlanejamentos} borderColor="border-l-[hsl(45,80%,55%)]" />
+        <KPICard icon={TrendingUp} label="Média ELO" value={data.mediaELO.toFixed(2)} sub="de 5.00" borderColor="border-l-primary" />
+        <KPICard icon={Percent} label="Média Adesão" value={`${data.mediaAdesao.toFixed(0)}%`} borderColor="border-l-secondary" />
+        <KPICard icon={Activity} label="Frequência Geral" value={`${data.taxaFrequenciaGeral}%`} sub="presenças registradas" borderColor="border-l-[hsl(150,45%,45%)]" />
+        <KPICard icon={Clock} label="Educadores Ativos" value={data.topEducadores.length} sub="com relatórios" borderColor="border-l-[hsl(280,40%,55%)]" />
       </div>
 
       {/* Presença comparative charts */}
