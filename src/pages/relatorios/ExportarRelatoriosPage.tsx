@@ -406,20 +406,18 @@ export default function ExportarRelatoriosPage() {
           return row;
         });
 
-        const sheetData = [
-          ["Sociedade Civil Nossa Senhora Aparecida"],
-          ["Centro de Atenção Integral ao Adolescente - Medianeira"],
-          [`SCFV — Matriz de Frequência`],
-          [],
-          [`Turma: ${t.nome} | Bairro: ${bairroNome} | Período: ${t.periodo || "N/I"}`],
-          [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`], [], colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`],
-        ];
+        const turmaInfoLine = `Turma: ${t.nome} | Bairro: ${bairroNome} | Período: ${t.periodo || "N/I"}`;
+        const subInfoLine = `Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`;
+        const { data: sheetData, dataStartOffset: matOffset } = addInstitutionalHeader(
+          [colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]],
+          "MATRIZ DE FREQUÊNCIA", turmaInfoLine, subInfoLine,
+        );
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
         ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...datas.map(() => ({ wch: 6 }))];
-        // Auto-fit name column
         autoFitColumns(ws, { max: 55 });
-        applyHeaderStyle(ws, 8, colHeaders.length);
-        const dataStartRow = 9;
+        applyInstitutionalStyle(ws, colHeaders.length, { hasTurmaInfo: true, hasSubInfo: true });
+        applyHeaderStyle(ws, matOffset, colHeaders.length);
+        const dataStartRow = matOffset + 1;
         tParts.forEach((p: any, pIdx: number) => {
           const excelRow = dataStartRow + pIdx;
           datas.forEach((d, dIdx) => {
