@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { SysCFVLogo } from "@/components/SysCFVLogo";
 import {
   Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings, User, UserX, CalendarDays,
 } from "lucide-react";
@@ -66,21 +67,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border px-4 py-3">
-        {!collapsed ? (
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-              <span className="text-primary-foreground font-bold text-sm">S</span>
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-sidebar-foreground">SysCFV</h2>
-              <p className="text-[10px] text-muted-foreground">Gestão SCFV</p>
-            </div>
-          </div>
-        ) : (
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center mx-auto">
-            <span className="text-primary-foreground font-bold text-sm">S</span>
-          </div>
-        )}
+        <SysCFVLogo collapsed={collapsed} />
       </SidebarHeader>
 
       <SidebarContent>

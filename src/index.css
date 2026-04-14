@@ -34,7 +34,7 @@
     --input: 220 13% 88%;
     --ring: 0 65% 67%;
 
-    --radius: 0.5rem;
+    --radius: 0.25rem;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 220 20% 14%;
@@ -96,6 +96,23 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 }
+
+/* Custom scrollbars — square, minimal */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(215 14% 70%);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(215 14% 55%);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 
 @media print {
   body { background: white !important; }
