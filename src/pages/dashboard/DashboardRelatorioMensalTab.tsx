@@ -262,8 +262,8 @@ export default function DashboardRelatorioMensalTab() {
       ];
       const wsAtiv = XLSX.utils.aoa_to_sheet(atividadesData);
       wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
-      applyHeaderStyle(wsAtiv, 3, 4);
-      applyBorders(wsAtiv);
+      applyTableHeaderStyle(wsAtiv, 3, 4);
+      applyAllBorders(wsAtiv);
       XLSX.utils.book_append_sheet(wb, wsAtiv, "Atividades");
 
       // --- Sheet 3: Metas ---
@@ -358,8 +358,8 @@ export default function DashboardRelatorioMensalTab() {
       ];
       const wsMetas = XLSX.utils.aoa_to_sheet(metasData);
       wsMetas["!cols"] = [{ wch: 55 }, { wch: 35 }, { wch: 50 }, { wch: 25 }];
-      applyHeaderStyle(wsMetas, 3, 4);
-      applyBorders(wsMetas);
+      applyTableHeaderStyle(wsMetas, 3, 4);
+      applyAllBorders(wsMetas);
       XLSX.utils.book_append_sheet(wb, wsMetas, "Metas");
 
       // --- Sheet 4: Monitoramento ---
@@ -414,8 +414,8 @@ export default function DashboardRelatorioMensalTab() {
       ];
       const wsMonitor = XLSX.utils.aoa_to_sheet(monitorData);
       wsMonitor["!cols"] = [{ wch: 60 }, { wch: 45 }, { wch: 15 }, { wch: 15 }];
-      applyHeaderStyle(wsMonitor, 3, 4);
-      applyBorders(wsMonitor);
+      applyTableHeaderStyle(wsMonitor, 3, 4);
+      applyAllBorders(wsMonitor);
       XLSX.utils.book_append_sheet(wb, wsMonitor, "Monitoramento");
 
       // --- Sheet 5: Atendimentos Técnicos ---
@@ -442,8 +442,8 @@ export default function DashboardRelatorioMensalTab() {
         ];
         const wsAtend = XLSX.utils.aoa_to_sheet(atendData);
         wsAtend["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 30 }, { wch: 20 }, { wch: 50 }, { wch: 30 }];
-        applyHeaderStyle(wsAtend, 3, 6);
-        applyBorders(wsAtend);
+        applyTableHeaderStyle(wsAtend, 3, 6);
+        applyAllBorders(wsAtend);
         XLSX.utils.book_append_sheet(wb, wsAtend, "Atendimentos");
       }
 
@@ -501,7 +501,7 @@ export default function DashboardRelatorioMensalTab() {
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
         ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...datas.map(() => ({ wch: 6 }))];
 
-        applyHeaderStyle(ws, 4, colHeaders.length);
+        applyTableHeaderStyle(ws, 4, colHeaders.length);
 
         const dataStartRow = 5;
         tParts.forEach((p: any, pIdx: number) => {
