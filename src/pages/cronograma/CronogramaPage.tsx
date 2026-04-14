@@ -128,7 +128,7 @@ export default function CronogramaPage() {
       supabase.from("turmas").select("id, nome, educador_id, dias_semana, periodo, oficina, bairro_ids, ativa").eq("ativa", true).order("nome"),
       supabase.from("cronograma_disponibilidade").select("*"),
     ]);
-    setCenarios((cen || []) as Cenario[]);
+    setCenarios((cen || []) as unknown as Cenario[]);
     setBairros(b || []);
     setProfiles(p || []);
     setTurmas(t || []);
