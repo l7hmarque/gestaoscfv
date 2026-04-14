@@ -323,6 +323,41 @@ export type Database = {
           },
         ]
       }
+      cronograma_disponibilidade: {
+        Row: {
+          created_at: string
+          dia_semana: string
+          disponivel: boolean
+          id: string
+          periodo: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          dia_semana: string
+          disponivel?: boolean
+          id?: string
+          periodo?: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          dia_semana?: string
+          disponivel?: boolean
+          id?: string
+          periodo?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cronograma_disponibilidade_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cronograma_slots: {
         Row: {
           bairro_id: string | null
