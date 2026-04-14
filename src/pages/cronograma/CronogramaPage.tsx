@@ -333,7 +333,7 @@ export default function CronogramaPage() {
       tipo_atividade: s.tipo_atividade, turma_id: s.turma_id, notas: s.notas,
     }));
     if (newSlots.length > 0) await supabase.from("cronograma_slots").insert(newSlots);
-    setCenarios(prev => [newCen as Cenario, ...prev]);
+    setCenarios(prev => [newCen as unknown as Cenario, ...prev]);
     setActiveCenarioId(newCen.id);
     toast.success("Cenário duplicado!");
   };
