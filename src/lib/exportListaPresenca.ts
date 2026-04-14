@@ -100,7 +100,9 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   // Row 0: Institution
   rows.push(["Sociedade Civil Nossa Senhora Aparecida"]);
   // Row 1: CAIA
-  rows.push(["Centro de Atenção Integral ao Adolescente - CAIA Medianeira"]);
+  rows.push(["Centro de Atenção Integral ao Adolescente"]);
+  // Row 2: Termo
+  rows.push(["SCFV CAIA - Termo de Colaboração 001/2022"]);
   // Row 2: blank separator
   rows.push([""]);
   // Row 3: Title
