@@ -101,6 +101,44 @@ export type Database = {
         }
         Relationships: []
       }
+      avisos_sistema: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          criado_por: string | null
+          expires_at: string | null
+          id: string
+          mensagem: string
+          tipo: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          criado_por?: string | null
+          expires_at?: string | null
+          id?: string
+          mensagem: string
+          tipo?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          criado_por?: string | null
+          expires_at?: string | null
+          id?: string
+          mensagem?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "avisos_sistema_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bairros: {
         Row: {
           id: string
