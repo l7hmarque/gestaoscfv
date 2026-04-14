@@ -179,7 +179,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
         const isDesligado = memberIdx >= activeMembers.length + transferidoMembers.length;
         const isTransferido = !isDesligado && memberIdx >= activeMembers.length;
         if (isDesligado || isTransferido) {
-          const strikeColor = isTransferido ? "CC8800" : "999999";
+          const strikeColor = isTransferido ? "888888" : "999999";
           ws[addr].s = c === 0 ? { ...cellCenterStyle, font: { ...cellCenterStyle.font, strike: true, color: { rgb: strikeColor } } } : (c >= 2 ? { ...cellCenterStyle, font: { ...cellCenterStyle.font, strike: true, color: { rgb: strikeColor } } } : { ...cellStrikeStyle, font: { ...cellStrikeStyle.font, color: { rgb: strikeColor } } });
         } else {
           ws[addr].s = c === 0 ? cellCenterStyle : (c >= 2 ? cellCenterStyle : cellStyle);
