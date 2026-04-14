@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ArrowLeft, Save, Pencil, Printer, FileText, FileSpreadsheet, Lock, Camera, Upload, X, Plus, Check, Eye, Trash2, CheckCircle, ClipboardList } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,28 @@ function calcFaixaEtaria(dataNasc: string | null): string {
   return `${age} anos`;
 }
 
+function toTitleCase(str: string): string {
+  const lowerWords = new Set(["de", "da", "do", "das", "dos", "e", "em", "com", "para", "por"]);
+  return str
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word, i) => {
+      if (i > 0 && lowerWords.has(word)) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ");
+}
+
 interface DocRow { id: string; categoria: string; nome_arquivo: string; arquivo_url: string; created_at: string; }
+
+// ---- Extracted components (outside render to preserve focus) ----
+const InfoField = ({ label, value }: { label: string; value: string | null | undefined }) => (
+  <div><span className="text-xs text-muted-foreground">{label}</span><p className="text-sm">{value || "—"}</p></div>
+);
+
+const EditTextField = ({ label, field, type = "text", form, set }: { label: string; field: string; type?: string; form: Record<string, string>; set: (field: string, value: string) => void }) => (
+  <div><Label className="text-xs">{label}</Label><Input type={type} value={form[field] || ""} onChange={(e) => set(field, e.target.value)} className="h-8 text-sm mt-0.5" /></div>
+);
 
 const ParticipantePerfilPage = () => {
   const { id } = useParams();
@@ -120,7 +141,7 @@ const ParticipantePerfilPage = () => {
     setLoading(false);
   };
 
-  const set = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+  const set = useCallback((field: string, value: string) => setForm((f) => ({ ...f, [field]: value })), []);
 
   const isDemo = useIsDemo();
 
@@ -128,9 +149,20 @@ const ParticipantePerfilPage = () => {
     if (guardDemo(isDemo)) return;
     setSaving(true);
     const payload: Record<string, unknown> = { ...form };
-    delete payload.id; delete payload.created_at; delete payload.updated_at;
+    // Remove system fields
+    delete payload.id; delete payload.created_at; delete payload.updated_at; delete payload.visualizado_em;
+
+    // Nullify empty date/timestamp fields
     ["bairro_id", "ponto_transporte_id", "data_nascimento", "iniciou_em", "data_desligamento"].forEach((k) => { if (!payload[k]) payload[k] = null; });
     if (!canSeeConfidential) delete payload.observacoes_sigilosas;
+
+    // Apply Title Case to text fields
+    const titleCaseFields = ["nome_completo", "responsavel1_nome", "responsavel2_nome", "escola", "endereco_rua", "endereco_bairro"];
+    titleCaseFields.forEach((k) => {
+      if (payload[k] && typeof payload[k] === "string" && (payload[k] as string).trim()) {
+        payload[k] = toTitleCase(payload[k] as string);
+      }
+    });
 
     // Detectar mudanças relevantes antes de salvar
     const oldStatus = participante?.status || "ativo";
@@ -263,14 +295,6 @@ const ParticipantePerfilPage = () => {
   const bairrosSCFV = bairros.filter(b => isBairroSCFV(b.nome));
   const catLabel = (v: string) => CATEGORIES.find(c => c.value === v)?.label || v;
 
-  const Info = ({ label, value }: { label: string; value: string | null | undefined }) => (
-    <div><span className="text-xs text-muted-foreground">{label}</span><p className="text-sm">{value || "—"}</p></div>
-  );
-
-  const EditField = ({ label, field, type = "text" }: { label: string; field: string; type?: string }) => (
-    <div><Label className="text-xs">{label}</Label><Input type={type} value={form[field] || ""} onChange={(e) => set(field, e.target.value)} className="h-8 text-sm mt-0.5" /></div>
-  );
-
   return (
     <div className="space-y-4 max-w-4xl">
       {/* Header */}
@@ -357,8 +381,8 @@ const ParticipantePerfilPage = () => {
           <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {editing ? (
               <>
-                <div className="col-span-2"><EditField label="Nome Completo" field="nome_completo" /></div>
-                <EditField label="Data Nascimento" field="data_nascimento" type="date" />
+                <div className="col-span-2"><EditTextField label="Nome Completo" field="nome_completo" form={form} set={set} /></div>
+                <EditTextField label="Data Nascimento" field="data_nascimento" type="date" form={form} set={set} />
                 <div><Label className="text-xs">Gênero</Label>
                   <Select value={form.genero || ""} onValueChange={(v) => set("genero", v)}>
                     <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue placeholder="—" /></SelectTrigger>
@@ -380,7 +404,6 @@ const ParticipantePerfilPage = () => {
                 <div><Label className="text-xs">Bairro do CAIA</Label>
                   <Select value={form.bairro_id || ""} onValueChange={(v) => {
                     set("bairro_id", v);
-                    // Limpar ponto se não pertence ao novo bairro
                     if (form.ponto_transporte_id) {
                       const ponto = pontos.find(p => p.id === form.ponto_transporte_id);
                       if (ponto && ponto.bairro_id !== v) set("ponto_transporte_id", "");
@@ -399,13 +422,13 @@ const ParticipantePerfilPage = () => {
               </>
             ) : (
               <>
-                <Info label="Nome" value={participante.nome_completo} />
-                <Info label="Data de Nascimento" value={participante.data_nascimento} />
-                <Info label="Gênero" value={participante.genero} />
-                <Info label="Cor/Raça" value={participante.cor_raca} />
-                <Info label="Período" value={participante.periodo ? periodoLabel[participante.periodo] : null} />
-                <Info label="Escola" value={participante.escola} />
-                <Info label="Série" value={participante.serie} />
+                <InfoField label="Nome" value={participante.nome_completo} />
+                <InfoField label="Data de Nascimento" value={participante.data_nascimento} />
+                <InfoField label="Gênero" value={participante.genero} />
+                <InfoField label="Cor/Raça" value={participante.cor_raca} />
+                <InfoField label="Período" value={participante.periodo ? periodoLabel[participante.periodo] : null} />
+                <InfoField label="Escola" value={participante.escola} />
+                <InfoField label="Série" value={participante.serie} />
               </>
             )}
           </CardContent>
@@ -416,9 +439,9 @@ const ParticipantePerfilPage = () => {
           <CardHeader className="pb-2"><CardTitle className="text-sm">Endereço</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {editing ? (
-              <><EditField label="Rua" field="endereco_rua" /><EditField label="Número" field="endereco_numero" /><EditField label="Bairro" field="endereco_bairro" /><EditField label="UF Origem" field="uf_origem" /><EditField label="Sit. Moradia" field="situacao_moradia" /></>
+              <><EditTextField label="Rua" field="endereco_rua" form={form} set={set} /><EditTextField label="Número" field="endereco_numero" form={form} set={set} /><EditTextField label="Bairro" field="endereco_bairro" form={form} set={set} /><EditTextField label="UF Origem" field="uf_origem" form={form} set={set} /><EditTextField label="Sit. Moradia" field="situacao_moradia" form={form} set={set} /></>
             ) : (
-              <><Info label="Rua" value={participante.endereco_rua} /><Info label="Número" value={participante.endereco_numero} /><Info label="Bairro" value={participante.endereco_bairro} /><Info label="UF Origem" value={participante.uf_origem} /><Info label="Sit. Moradia" value={participante.situacao_moradia} /></>
+              <><InfoField label="Rua" value={participante.endereco_rua} /><InfoField label="Número" value={participante.endereco_numero} /><InfoField label="Bairro" value={participante.endereco_bairro} /><InfoField label="UF Origem" value={participante.uf_origem} /><InfoField label="Sit. Moradia" value={participante.situacao_moradia} /></>
             )}
           </CardContent>
         </Card>
@@ -429,8 +452,8 @@ const ParticipantePerfilPage = () => {
           <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {editing ? (
               <>
-                <EditField label="Resp. 1 Nome" field="responsavel1_nome" />
-                <EditField label="Vínculo Resp. 1" field="vinculo_resp1" />
+                <EditTextField label="Resp. 1 Nome" field="responsavel1_nome" form={form} set={set} />
+                <EditTextField label="Vínculo Resp. 1" field="vinculo_resp1" form={form} set={set} />
                 <div>
                   <Label className="text-xs">CPF do Participante</Label>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -442,12 +465,12 @@ const ParticipantePerfilPage = () => {
                   </label>
                 </div>
                 <div><Label className="text-xs">WhatsApp</Label><Input value={maskPhone(form.responsavel1_whatsapp || "")} onChange={(e) => set("responsavel1_whatsapp", unmaskDigits(e.target.value))} className="h-8 text-sm mt-0.5" placeholder="(00) 00000-0000" /></div>
-                <EditField label="Resp. 2 Nome" field="responsavel2_nome" />
-                <EditField label="Vínculo Resp. 2" field="vinculo_resp2" />
+                <EditTextField label="Resp. 2 Nome" field="responsavel2_nome" form={form} set={set} />
+                <EditTextField label="Vínculo Resp. 2" field="vinculo_resp2" form={form} set={set} />
                 <div><Label className="text-xs">WhatsApp 2</Label><Input value={maskPhone(form.responsavel2_whatsapp || "")} onChange={(e) => set("responsavel2_whatsapp", unmaskDigits(e.target.value))} className="h-8 text-sm mt-0.5" placeholder="(00) 00000-0000" /></div>
               </>
             ) : (
-              <><Info label="Resp. 1" value={participante.responsavel1_nome} /><Info label="Vínculo" value={(participante as any).vinculo_resp1} /><Info label="CPF" value={displayCPF((participante as any).cpf)} /><Info label="WhatsApp" value={displayPhone(participante.responsavel1_whatsapp)} /><Info label="Resp. 2" value={participante.responsavel2_nome} /><Info label="Vínculo" value={(participante as any).vinculo_resp2} /><Info label="WhatsApp 2" value={displayPhone(participante.responsavel2_whatsapp)} /></>
+              <><InfoField label="Resp. 1" value={participante.responsavel1_nome} /><InfoField label="Vínculo" value={(participante as any).vinculo_resp1} /><InfoField label="CPF" value={displayCPF((participante as any).cpf)} /><InfoField label="WhatsApp" value={displayPhone(participante.responsavel1_whatsapp)} /><InfoField label="Resp. 2" value={participante.responsavel2_nome} /><InfoField label="Vínculo" value={(participante as any).vinculo_resp2} /><InfoField label="WhatsApp 2" value={displayPhone(participante.responsavel2_whatsapp)} /></>
             )}
           </CardContent>
         </Card>
@@ -458,21 +481,21 @@ const ParticipantePerfilPage = () => {
           <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {editing ? (
               <>
-                <EditField label="Escola" field="escola" /><EditField label="Série" field="serie" /><EditField label="Origem" field="origem_encaminhamento" />
-                <EditField label="Resp. Técnico" field="responsavel_tecnico" /><EditField label="Vulnerabilidade" field="categoria_vulnerabilidade" /><EditField label="Início SCFV" field="iniciou_em" type="date" />
-                <EditField label="Data Desligamento" field="data_desligamento" type="date" /><EditField label="Dias Contraturno" field="dias_contraturno" />
-                <EditField label="Remédio Contínuo" field="remedio_continuo" />
+                <EditTextField label="Escola" field="escola" form={form} set={set} /><EditTextField label="Série" field="serie" form={form} set={set} /><EditTextField label="Origem" field="origem_encaminhamento" form={form} set={set} />
+                <EditTextField label="Resp. Técnico" field="responsavel_tecnico" form={form} set={set} /><EditTextField label="Vulnerabilidade" field="categoria_vulnerabilidade" form={form} set={set} /><EditTextField label="Início SCFV" field="iniciou_em" type="date" form={form} set={set} />
+                <EditTextField label="Data Desligamento" field="data_desligamento" type="date" form={form} set={set} /><EditTextField label="Dias Contraturno" field="dias_contraturno" form={form} set={set} />
+                <EditTextField label="Remédio Contínuo" field="remedio_continuo" form={form} set={set} />
                 <div className="col-span-2 sm:col-span-3"><Label className="text-xs">Restrição Alimentar</Label><Textarea value={form.restricao_alimentar || ""} onChange={(e) => set("restricao_alimentar", e.target.value)} className="text-sm mt-0.5 min-h-[50px]" /></div>
                 <div className="col-span-2 sm:col-span-3"><Label className="text-xs">Laudo</Label><Textarea value={form.laudo || ""} onChange={(e) => set("laudo", e.target.value)} className="text-sm mt-0.5 min-h-[50px]" /></div>
                 <div className="col-span-2 sm:col-span-3"><Label className="text-xs">Outras Condições de Saúde</Label><Textarea value={form.outras_condicoes || ""} onChange={(e) => set("outras_condicoes", e.target.value)} className="text-sm mt-0.5 min-h-[50px]" /></div>
               </>
             ) : (
               <>
-                <Info label="Origem" value={participante.origem_encaminhamento} /><Info label="Resp. Técnico" value={participante.responsavel_tecnico} />
-                <Info label="Vulnerabilidade" value={participante.categoria_vulnerabilidade} /><Info label="Início SCFV" value={participante.iniciou_em} />
-                <Info label="Data Desligamento" value={(participante as any).data_desligamento} /><Info label="Dias Contraturno" value={(participante as any).dias_contraturno} />
-                <Info label="Restrição Alimentar" value={participante.restricao_alimentar} /><Info label="Laudo" value={participante.laudo} />
-                <Info label="Remédio Contínuo" value={(participante as any).remedio_continuo} /><Info label="Outras Condições" value={(participante as any).outras_condicoes} />
+                <InfoField label="Origem" value={participante.origem_encaminhamento} /><InfoField label="Resp. Técnico" value={participante.responsavel_tecnico} />
+                <InfoField label="Vulnerabilidade" value={participante.categoria_vulnerabilidade} /><InfoField label="Início SCFV" value={participante.iniciou_em} />
+                <InfoField label="Data Desligamento" value={(participante as any).data_desligamento} /><InfoField label="Dias Contraturno" value={(participante as any).dias_contraturno} />
+                <InfoField label="Restrição Alimentar" value={participante.restricao_alimentar} /><InfoField label="Laudo" value={participante.laudo} />
+                <InfoField label="Remédio Contínuo" value={(participante as any).remedio_continuo} /><InfoField label="Outras Condições" value={(participante as any).outras_condicoes} />
               </>
             )}
           </CardContent>
@@ -706,7 +729,6 @@ const ParticipantePerfilPage = () => {
             <Button size="sm" onClick={async () => {
               if (!transferInfo) return;
               const today = new Date().toISOString().split("T")[0];
-              // Record transfers
               const oldLinks = turmas.map(t => t.turma_id);
               for (const oldId of oldLinks) {
                 for (const newT of transferInfo.newTurmas) {
@@ -718,7 +740,6 @@ const ParticipantePerfilPage = () => {
                   });
                 }
               }
-              // Mark old links with data_saida instead of deleting (preserves frequency history)
               for (const oldId of oldLinks) {
                 await supabase.from("turma_participantes")
                   .update({ data_saida: today, motivo_saida: "Transferência por alteração cadastral" } as any)
@@ -726,10 +747,8 @@ const ParticipantePerfilPage = () => {
                   .eq("turma_id", oldId)
                   .is("data_saida" as any, null);
               }
-              // Add new links
               const newLinks = transferInfo.newTurmas.map(t => ({ turma_id: t.id, participante_id: id! }));
               await supabase.from("turma_participantes").upsert(newLinks, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
-              // Notify educators
               for (const newT of transferInfo.newTurmas) {
                 const { data: turmaData } = await supabase.from("turmas").select("educador_id").eq("id", newT.id).single();
                 if (turmaData?.educador_id && myProfileId) {
