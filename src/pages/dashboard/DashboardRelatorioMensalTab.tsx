@@ -37,36 +37,8 @@ function getDatasAtividade(ano: number, mes: number, diasSemana: string[]): stri
 
 // calcAge imported from constants
 
-/** Apply thin borders to all cells in a sheet */
-function applyBorders(ws: XLSX.WorkSheet) {
-  const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
-  const border = { style: "thin", color: { rgb: "000000" } };
-  for (let r = range.s.r; r <= range.e.r; r++) {
-    for (let c = range.s.c; c <= range.e.c; c++) {
-      const addr = XLSX.utils.encode_cell({ r, c });
-      if (!ws[addr]) ws[addr] = { v: "", t: "s" };
-      ws[addr].s = {
-        ...(ws[addr].s || {}),
-        border: { top: border, bottom: border, left: border, right: border },
-      };
-    }
-  }
-}
+import { addInstitutionalHeader, applyInstitutionalStyle, applyTableHeaderStyle, applyAllBorders } from "@/lib/xlsxInstHeader";
 
-/** Apply bold + grey background to a row */
-function applyHeaderStyle(ws: XLSX.WorkSheet, row: number, colCount: number) {
-  const border = { style: "thin", color: { rgb: "000000" } };
-  for (let c = 0; c < colCount; c++) {
-    const addr = XLSX.utils.encode_cell({ r: row, c });
-    if (!ws[addr]) ws[addr] = { v: "", t: "s" };
-    ws[addr].s = {
-      font: { bold: true },
-      fill: { fgColor: { rgb: "D9D9D9" } },
-      border: { top: border, bottom: border, left: border, right: border },
-      alignment: { wrapText: true, vertical: "center" },
-    };
-  }
-}
 
 // Metas fixas por bairro
 const METAS_BAIRRO: Record<string, { criancasManha: number; criancasTarde: number; idosos: number | null }> = {
