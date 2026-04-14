@@ -215,11 +215,7 @@ export default function DashboardRelatorioMensalTab() {
         atendByTipo[t] = (atendByTipo[t] || 0) + 1;
       });
 
-      const resumoData = [
-        ["RELATÓRIO MENSAL — SysELO SCFV"],
-        [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
-        [`Data de geração: ${new Date().toLocaleString("pt-BR")}`],
-        [],
+      const { data: resumoInner } = addInstitutionalHeader([
         ["ATENDIDOS NO MÊS", atendidosFiltered.length],
         [],
         ["POR BAIRRO"],
@@ -236,9 +232,10 @@ export default function DashboardRelatorioMensalTab() {
         [],
         ["ATENDIMENTOS TÉCNICOS NO MÊS", filteredAtendimentos.length],
         ...Object.entries(atendByTipo).map(([t, c]) => [TIPO_ATENDIMENTO_LABELS[t] || t, c]),
-      ];
-      const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
+      ], `RELATÓRIO MENSAL — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
+      const wsResumo = XLSX.utils.aoa_to_sheet(resumoInner);
       wsResumo["!cols"] = [{ wch: 40 }, { wch: 15 }];
+      applyInstitutionalStyle(wsResumo, 2);
       XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
 
       // --- Sheet 2: Atividades (driven by relatórios) ---
@@ -253,16 +250,14 @@ export default function DashboardRelatorioMensalTab() {
         atividadesRows.push(["Nenhuma atividade registrada no período", "", "", ""]);
       }
 
-      const atividadesData = [
-        ["ATIVIDADES PROPOSTAS x DESENVOLVIDAS"],
-        [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
-        [],
+      const { data: atividadesData, dataStartOffset: ativOffset } = addInstitutionalHeader([
         ["Atividades Propostas", "Atividades Desenvolvidas", "Resultados Alcançados", "Justificativas"],
         ...atividadesRows,
-      ];
+      ], `ATIVIDADES PROPOSTAS x DESENVOLVIDAS — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
       const wsAtiv = XLSX.utils.aoa_to_sheet(atividadesData);
       wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
-      applyTableHeaderStyle(wsAtiv, 3, 4);
+      applyInstitutionalStyle(wsAtiv, 4);
+      applyTableHeaderStyle(wsAtiv, ativOffset, 4);
       applyAllBorders(wsAtiv);
       XLSX.utils.book_append_sheet(wb, wsAtiv, "Atividades");
 
