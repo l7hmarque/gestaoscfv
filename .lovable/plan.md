@@ -1,95 +1,91 @@
-## Plano: Renomear para SysCFV + Melhorias Globais de UI + Funcionalidades
 
-### 1. Renomear SysELO → SysCFV (todas as referências)
 
-**Arquivos afetados:**
+## Plano: Aplicar Design do Preview Globalmente + Atalhos Rápidos + Incentivos de Engajamento
 
-- `src/lib/fileNaming.ts` — renomear função e prefixo de `SysELO_` para `SysCFV_`
-- `src/components/AppSidebar.tsx` — texto do brand na sidebar
-- `src/pages/preview/DesignPreviewPage.tsx` — brand no preview
-- `index.html` — `<title>` e meta tags
-- `src/pages/matricula/MatriculaPublicaPage.tsx` — rodapé
-- `src/pages/turmas/TurmaDetalhePage.tsx` — textos em PDFs exportados
-- `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` — rodapés de PDF
-- `src/hooks/useBackupExport.ts` — nomes de arquivos no ZIP
-- `src/hooks/useRelatorioGestao.ts` — nomes de arquivos
-- `supabase/functions/generate-rca/index.ts` — filename
-- Demais arquivos com "SysELO" (~28 arquivos)
+### 1. Aplicar design tokens globais (`src/index.css`)
 
-### 2. Logo SysCFV — clean, profissional, revolucionária
+Atualizar as CSS variables `:root` para a paleta do preview:
 
-Criar um componente SVG inline `src/components/SysCFVLogo.tsx` com design:
+| Token | Atual | Novo |
+|---|---|---|
+| `--background` | `40 20% 97%` (bege) | `220 14% 96%` (cinza frio) |
+| `--primary` | `0 65% 67%` (rosa claro) | `0 58% 56%` (vermelho profundo) |
+| `--muted` | `210 15% 93%` | `215 20% 93%` |
+| `--muted-foreground` | `215 14% 46%` | `215 16% 46%` |
+| `--sidebar-background` | `0 0% 100%` | `220 15% 98%` |
+| `--sidebar-accent` | `210 15% 95%` | `220 15% 95%` |
 
-- Ícone geométrico angular (hexágono ou seta abstrata) em vermelho institucional
-- Tipografia "SysCFV" em font-weight 700, tracking tight
-- Versões: completa (sidebar aberta) e ícone só (sidebar colapsada)
+### 2. Sidebar — estilo técnico (`AppSidebar.tsx`)
 
-### 3. Scrollbars e botões mais quadrados
+- Item ativo: borda-esquerda 3px primária + fundo sutil (`bg-primary/5`) em vez de `bg-sidebar-accent`
+- Labels de grupo: `uppercase tracking-[0.1em] text-[10px] font-semibold` com cor muted
+- Logo: usar `SysCFVLogo` já existente (sem mudança)
 
-`**src/index.css**` — adicionar custom scrollbar:
+### 3. Header — gradiente sutil (`AppLayout.tsx`)
 
-```css
-::-webkit-scrollbar { width: 10px; }
-::-webkit-scrollbar-thumb { background: hsl(215 14% 70%); border-radius: 2px; }
-::-webkit-scrollbar-track { background: transparent; }
-```
+- Fundo com gradiente `bg-gradient-to-r from-card to-background` em vez de `bg-card` sólido
+- Aumentar de `h-12` para `h-[52px]`
 
-`**tailwind.config.ts**` — reduzir `--radius` de `0.5rem` para `0.25rem` (afeta todos os botões e cards globalmente)
+### 4. DataTable — refinamentos (`DataTable.tsx`)
 
-### 4. Gráficos comparativos e evolução de presença no dashboard real
+- Header: `bg-muted/50 uppercase tracking-wider text-[11px]`
+- Zebra striping: linhas alternadas `even:bg-muted/30`
+- Hover: `hover:bg-muted/40`
 
-**Sim, é possível com os dados atuais.** A tabela `relatorio_presenca` já tem dados de presença por mês. 
+### 5. Dashboard — atalhos rápidos no topo + KPIs estilo preview (`DashboardPage.tsx` + `Index.tsx`)
 
-`**src/hooks/useDashboardData.ts**` — adicionar ao retorno:
+**Atalhos rápidos** (antes dos KPIs):
+- Barra horizontal com 4-5 botões compactos: Relatórios, Cronograma, Feed, Participantes, Presença
+- Estilo: cards pequenos com ícone + label, hover com `shadow-md`, sem fundo circular no ícone
+- Borda-esquerda colorida por contexto
 
-- `presencaMensal: { mes: string; presentes: number; matriculados: number }[]` — calculado agrupando `relatorio_presenca` por mês do relatório e contando presentes vs total
-- `deltaParticipantes: number` — diferença vs mês anterior (usando contagem de participantes com presença no mês atual vs anterior)
+**KPI Cards** — aplicar estilo do preview:
+- Borda-esquerda `border-l-4` colorida por contexto
+- Número em `text-2xl font-bold`, label em `text-[11px] uppercase tracking-wider`
+- Delta com seta e cor (verde/vermelho)
 
-`**src/pages/dashboard/DashboardPage.tsx**` — adicionar:
+### 6. Login page (`LoginPage.tsx`)
 
-- KPI cards com delta (`+3 vs mês anterior`) usando os novos campos
-- Gráfico de barras "Presentes vs Matriculados" por mês (como no preview)
-- Gráfico de linha "Evolução de Presença" (como no preview)
+- Usar componente `SysCFVLogo` em vez do quadrado com "S"
+- Fundo com gradiente sutil
 
-### 5. Botão "Copiar gráfico" na dashboard
+### 7. Incentivos de engajamento para Feed e Recados
 
-Adicionar um botão de cópia em cada card de gráfico que usa `html2canvas` para capturar o elemento DOM do chart e copiá-lo para o clipboard como imagem PNG (pronto para colar no Word).
+**A. Streak de atividade no perfil do profissional**
+- Contar dias consecutivos com atividade no feed (post ou comentário)
+- Exibir "🔥 X dias de streak" no perfil e no sidebar footer
+- Conquistas novas: `streak_7` (7 dias), `streak_30` (30 dias)
 
-**Dependência**: instalar `html2canvas`
-**Implementação**: wrapper `useRef` em cada chart card + botão com ícone `Copy` que executa:
+**B. Leaderboard semanal no Feed**
+- Card no topo do Feed mostrando "Top 3 da semana" (quem mais postou/reagiu/comentou)
+- Dados derivados de `feed_posts` + `feed_reacoes` + `feed_comentarios` da última semana
 
-```ts
-const canvas = await html2canvas(chartRef.current);
-canvas.toBlob(blob => navigator.clipboard.write([new ClipboardItem({"image/png": blob})]));
-```
+**C. Conquistas de comunicação** (adicionar ao `useConquistas.ts`):
+- `primeiro_post_feed`: "📢 Primeira Publicação!" — postou no feed pela primeira vez
+- `comunicador_10`: "💬 Comunicador Ativo" — 10 posts no feed
+- `recado_respondido`: "✅ Responsável" — respondeu/concluiu 10 recados técnicos
 
-### 6. Banner de avisos do super admin
-
-**Banco de dados**: criar tabela `avisos_sistema` com campos:
-
-- `id`, `mensagem`, `tipo` (info/warning/urgent), `ativo`, `criado_por`, `created_at`, `expires_at`
-- RLS: leitura para `authenticated`, escrita restrita a admins via `has_role`
-
-`**src/components/AppLayout.tsx**`: consultar `avisos_sistema` onde `ativo = true` e `expires_at > now()`, exibir banner no topo (estilo do preview — fundo colorido, texto centralizado, botão de fechar)
-
-**Admin**: adicionar seção na página de Configurações ou DashboardAdminTab para criar/editar/desativar avisos
-
-### Arquivos novos
-
-- `src/components/SysCFVLogo.tsx`
-- `src/components/ChartCopyButton.tsx`
-- `src/components/SystemBanner.tsx`
-- Migration: `avisos_sistema` table
+**D. Badge "Contribuidor da Semana"** no sidebar/header
+- Quem teve mais interações (posts + reações + comentários) na semana ganha badge temporário
 
 ### Arquivos editados
 
-- ~28 arquivos para rename SysELO → SysCFV
-- `src/index.css` — scrollbar + radius
-- `tailwind.config.ts` — radius token (se necessário, ou só no CSS)
-- `src/hooks/useDashboardData.ts` — dados comparativos mensais
-- `src/pages/dashboard/DashboardPage.tsx` — gráficos comparativos + botão copiar
-- `src/components/AppLayout.tsx` — banner de avisos
-- `src/components/AppSidebar.tsx` — nova logo
-- `package.json` — adicionar `html2canvas`
+| Arquivo | Mudança |
+|---|---|
+| `src/index.css` | Paleta fria, tokens atualizados |
+| `src/components/AppSidebar.tsx` | Estilo de item ativo, labels uppercase |
+| `src/components/AppLayout.tsx` | Header com gradiente, altura 52px |
+| `src/components/DataTable.tsx` | Zebra striping, header uppercase |
+| `src/pages/dashboard/DashboardPage.tsx` | Atalhos rápidos no topo, KPIs estilo preview |
+| `src/pages/Index.tsx` | Atalhos atualizados (cronograma, feed) + estilo |
+| `src/pages/auth/LoginPage.tsx` | Logo SysCFV, gradiente |
+| `src/hooks/useConquistas.ts` | Novas conquistas de comunicação |
+| `src/pages/feed/FeedPage.tsx` | Leaderboard semanal no topo |
+| `src/pages/profissional/ProfissionalPerfilPage.tsx` | Streak de atividade |
 
-Zero alteração em lógica existente de negócio.
+### Banco de dados
+
+Nenhuma migração necessária — as conquistas de comunicação usam a tabela `conquistas` existente (campo `tipo` é texto livre). O leaderboard é calculado client-side a partir de dados já existentes.
+
+### Zero alteração na lógica de negócio existente
+
