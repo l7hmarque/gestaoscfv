@@ -333,6 +333,7 @@ export type Database = {
           criado_por: string | null
           id: string
           nome: string
+          regras_frequencia: Json | null
           updated_at: string
         }
         Insert: {
@@ -341,6 +342,7 @@ export type Database = {
           criado_por?: string | null
           id?: string
           nome: string
+          regras_frequencia?: Json | null
           updated_at?: string
         }
         Update: {
@@ -349,6 +351,7 @@ export type Database = {
           criado_por?: string | null
           id?: string
           nome?: string
+          regras_frequencia?: Json | null
           updated_at?: string
         }
         Relationships: [
