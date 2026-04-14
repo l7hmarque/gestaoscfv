@@ -94,6 +94,12 @@ const EquipeTecnicaPage = () => {
   const [baDialogOpen, setBaDialogOpen] = useState(false);
   const [baFilterStatus, setBaFilterStatus] = useState("todos");
   const [baFilterBairro, setBaFilterBairro] = useState("");
+  const [baFilterPeriodo, setBaFilterPeriodo] = useState("");
+  const [baFilterFaixa, setBaFilterFaixa] = useState("");
+  const [baFilterTurma, setBaFilterTurma] = useState("");
+  const [baFilterMinFaltas, setBaFilterMinFaltas] = useState("");
+  const [baFilterContato, setBaFilterContato] = useState("");
+  const [baFilterNome, setBaFilterNome] = useState("");
   const [baForm, setBaForm] = useState({ tipo_contato: [] as string[], descricao: "", resultado: "em_andamento" });
   const [baSaving, setBaSaving] = useState(false);
   const [recadosPendentes, setRecadosPendentes] = useState(0);
@@ -416,11 +422,20 @@ const EquipeTecnicaPage = () => {
     const sixtyDaysAgo = format(subDays(now, 60), "yyyy-MM-dd");
     const thirtyDaysAgo = format(subDays(now, 30), "yyyy-MM-dd");
 
-    // 1. Recently inactivated/discontinued (last 60 days)
+    // 1. Participants with busca_ativa status
     participantes
-      .filter(p => (p.status === "inativo" || p.status === "desligado") && p.data_desligamento && p.data_desligamento >= sixtyDaysAgo)
+      .filter(p => p.status === "busca_ativa")
       .forEach(p => {
-        results.push({ ...p, motivo_alerta: "Desligado/Inativo recente", faltas_consecutivas: 0 });
+        results.push({ ...p, motivo_alerta: "Em busca ativa", faltas_consecutivas: 0 });
+      });
+
+    // 2. Recently discontinued (last 60 days)
+    participantes
+      .filter(p => p.status === "desligado" && p.data_desligamento && p.data_desligamento >= sixtyDaysAgo)
+      .forEach(p => {
+        if (!results.find(r => r.id === p.id)) {
+          results.push({ ...p, motivo_alerta: "Desligado recente", faltas_consecutivas: 0 });
+        }
       });
 
     // 2. Active participants with 2+ consecutive absences
@@ -446,15 +461,46 @@ const EquipeTecnicaPage = () => {
     return results;
   }, [participantes, presenca]);
 
+  // Helper: get turma IDs for a participant
+  const getParticipanteTurmas = (pid: string) => {
+    const turmaIds: string[] = [];
+    Object.entries(turmaParticipantesMap).forEach(([tid, pids]) => {
+      if (pids.includes(pid)) turmaIds.push(tid);
+    });
+    return turmaIds;
+  };
+
   // Filtered busca ativa
   const filteredBA = useMemo(() => {
     return buscaAtivaParticipantes.filter(p => {
-      if (baFilterStatus === "inativos" && p.status === "ativo") return false;
+      if (baFilterStatus === "busca_ativa" && p.status !== "busca_ativa") return false;
+      if (baFilterStatus === "desligados" && p.status !== "desligado") return false;
       if (baFilterStatus === "faltas" && p.faltas_consecutivas < 2) return false;
       if (baFilterBairro && baFilterBairro !== "__all__" && p.bairro_id !== baFilterBairro) return false;
+      if (baFilterPeriodo && baFilterPeriodo !== "__all__" && p.periodo !== baFilterPeriodo) return false;
+      if (baFilterFaixa && baFilterFaixa !== "__all__") {
+        const faixa = calcFaixaFromDate(p.data_nascimento);
+        if (faixa !== baFilterFaixa) return false;
+      }
+      if (baFilterTurma && baFilterTurma !== "__all__") {
+        const pTurmas = getParticipanteTurmas(p.id);
+        if (!pTurmas.includes(baFilterTurma)) return false;
+      }
+      if (baFilterMinFaltas && baFilterMinFaltas !== "__all__") {
+        const min = parseInt(baFilterMinFaltas);
+        if (p.faltas_consecutivas < min) return false;
+      }
+      if (baFilterContato && baFilterContato !== "__all__") {
+        const regs = getBARegistros(p.id);
+        if (baFilterContato === "sem_contato" && regs.length > 0) return false;
+        if (baFilterContato === "com_contato" && regs.length === 0) return false;
+      }
+      if (baFilterNome) {
+        if (!p.nome_completo?.toLowerCase().includes(baFilterNome.toLowerCase())) return false;
+      }
       return true;
     });
-  }, [buscaAtivaParticipantes, baFilterStatus, baFilterBairro]);
+  }, [buscaAtivaParticipantes, baFilterStatus, baFilterBairro, baFilterPeriodo, baFilterFaixa, baFilterTurma, baFilterMinFaltas, baFilterContato, baFilterNome, turmaParticipantesMap, buscaAtivaRegistros]);
 
   // Get busca ativa registros for a participant
   const getBARegistros = (pid: string) => buscaAtivaRegistros.filter(r => r.participante_id === pid);
@@ -779,13 +825,22 @@ const EquipeTecnicaPage = () => {
 
         {/* BUSCA ATIVA */}
         <TabsContent value="busca-ativa" className="space-y-4">
-          <div className="flex flex-wrap gap-2 items-end justify-between">
-            <div className="flex flex-wrap gap-2">
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2 items-end">
+              <div className="flex-1 min-w-[180px] max-w-xs">
+                <Input
+                  placeholder="Buscar por nome..."
+                  value={baFilterNome}
+                  onChange={e => setBaFilterNome(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
               <Select value={baFilterStatus} onValueChange={setBaFilterStatus}>
                 <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="inativos">Só Inativos/Desligados</SelectItem>
+                  <SelectItem value="busca_ativa">Só Busca Ativa</SelectItem>
+                  <SelectItem value="desligados">Só Desligados</SelectItem>
                   <SelectItem value="faltas">Só com Faltas</SelectItem>
                 </SelectContent>
               </Select>
@@ -796,10 +851,58 @@ const EquipeTecnicaPage = () => {
                   {bairros.map(b => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Select value={baFilterPeriodo} onValueChange={setBaFilterPeriodo}>
+                <SelectTrigger className="w-36 h-9"><SelectValue placeholder="Período" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Todos Períodos</SelectItem>
+                  <SelectItem value="manha">Manhã</SelectItem>
+                  <SelectItem value="tarde">Tarde</SelectItem>
+                  <SelectItem value="integral">Integral</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Button variant="outline" size="sm" onClick={exportRelatorioBuscaAtiva} disabled={filteredBA.length === 0} className="gap-1">
-              <Download className="h-3.5 w-3.5" />Exportar Relatório
-            </Button>
+            <div className="flex flex-wrap gap-2 items-end justify-between">
+              <div className="flex flex-wrap gap-2">
+                <Select value={baFilterFaixa} onValueChange={setBaFilterFaixa}>
+                  <SelectTrigger className="w-36 h-9"><SelectValue placeholder="Faixa etária" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todas Faixas</SelectItem>
+                    <SelectItem value="6-8">6-8 anos</SelectItem>
+                    <SelectItem value="9-11">9-11 anos</SelectItem>
+                    <SelectItem value="12-17">12-17 anos</SelectItem>
+                    <SelectItem value="idosos">Idosos</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={baFilterTurma} onValueChange={setBaFilterTurma}>
+                  <SelectTrigger className="w-48 h-9"><SelectValue placeholder="Turma" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todas as Turmas</SelectItem>
+                    {turmas.map(t => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={baFilterMinFaltas} onValueChange={setBaFilterMinFaltas}>
+                  <SelectTrigger className="w-40 h-9"><SelectValue placeholder="Mín. faltas" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Qualquer faltas</SelectItem>
+                    <SelectItem value="2">2+ faltas</SelectItem>
+                    <SelectItem value="3">3+ faltas</SelectItem>
+                    <SelectItem value="5">5+ faltas</SelectItem>
+                    <SelectItem value="10">10+ faltas</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={baFilterContato} onValueChange={setBaFilterContato}>
+                  <SelectTrigger className="w-40 h-9"><SelectValue placeholder="Contato" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos</SelectItem>
+                    <SelectItem value="sem_contato">Sem contato</SelectItem>
+                    <SelectItem value="com_contato">Com contato</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" size="sm" onClick={exportRelatorioBuscaAtiva} disabled={filteredBA.length === 0} className="gap-1">
+                <Download className="h-3.5 w-3.5" />Exportar Relatório
+              </Button>
+            </div>
           </div>
 
           <Badge variant="secondary" className="text-xs">{filteredBA.length} participante(s) detectado(s)</Badge>
@@ -818,7 +921,7 @@ const EquipeTecnicaPage = () => {
                   <Card
                     key={p.id}
                     className="cursor-pointer hover:shadow-md transition-shadow border-l-4"
-                    style={{ borderLeftColor: p.status === "ativo" ? "hsl(var(--chart-4))" : "hsl(var(--destructive))" }}
+                    style={{ borderLeftColor: p.status === "busca_ativa" ? "#f97316" : p.status === "desligado" ? "hsl(var(--destructive))" : "hsl(var(--chart-4))" }}
                     onClick={() => { setBaSelectedParticipante(p); setBaSheetOpen(true); }}
                   >
                     <CardContent className="pt-4 space-y-2">
@@ -833,7 +936,12 @@ const EquipeTecnicaPage = () => {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{p.nome_completo}</p>
                           <div className="flex items-center gap-1 mt-0.5">
-                            <Badge variant={p.status === "ativo" ? "secondary" : "destructive"} className="text-[10px]">{p.status}</Badge>
+                            <Badge
+                              variant={p.status === "desligado" ? "destructive" : "secondary"}
+                              className={`text-[10px] ${p.status === "busca_ativa" ? "bg-orange-100 text-orange-800 border-orange-300" : ""}`}
+                            >
+                              {p.status === "busca_ativa" ? "Busca Ativa" : p.status === "desligado" ? "Desligado" : p.status === "ativo" ? "Ativo" : p.status}
+                            </Badge>
                           </div>
                         </div>
                       </div>
