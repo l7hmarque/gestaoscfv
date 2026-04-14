@@ -50,28 +50,28 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
 
   // Header styles with borders
   const institutionStyle = {
-    font: { bold: true, sz: 11, color: { rgb: "1A5276" } },
+    font: { bold: true, sz: 11, color: { rgb: "000000" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     border: borders,
-    fill: { fgColor: { rgb: "EBF5FB" } },
+    fill: { fgColor: { rgb: "F0F0F0" } },
   };
   const subtitleStyle = {
-    font: { bold: true, sz: 9, color: { rgb: "2C3E50" } },
+    font: { bold: true, sz: 9, color: { rgb: "333333" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     border: borders,
-    fill: { fgColor: { rgb: "EBF5FB" } },
+    fill: { fgColor: { rgb: "F0F0F0" } },
   };
   const titleStyle = {
     font: { bold: true, sz: 13, color: { rgb: "FFFFFF" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const },
     border: borders,
-    fill: { fgColor: { rgb: "1A5276" } },
+    fill: { fgColor: { rgb: "333333" } },
   };
   const turmaNameStyle = {
     font: { bold: true, sz: 12 },
     alignment: { horizontal: "center" as const, vertical: "center" as const },
     border: bordersLight,
-    fill: { fgColor: { rgb: "D5F5E3" } },
+    fill: { fgColor: { rgb: "E0E0E0" } },
   };
   const infoStyle = {
     font: { sz: 9 },
@@ -81,7 +81,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   };
   const hdrStyle = {
     font: { bold: true, color: { rgb: "FFFFFF" }, sz: 8 },
-    fill: { fgColor: { rgb: "1A5276" } },
+    fill: { fgColor: { rgb: "444444" } },
     border: borders,
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
   };
