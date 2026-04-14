@@ -103,13 +103,13 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   rows.push(["Centro de Atenção Integral ao Adolescente"]);
   // Row 2: Termo
   rows.push(["SCFV CAIA - Termo de Colaboração 001/2022"]);
-  // Row 2: blank separator
+  // Row 3: blank separator
   rows.push([""]);
-  // Row 3: Title
+  // Row 4: Title
   rows.push([`LISTA DE PRESENÇA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`]);
-  // Row 4: Turma name (large and bold)
+  // Row 5: Turma name (large and bold)
   rows.push([`${turma.nome}`]);
-  // Row 5: Info line
+  // Row 6: Info line
   const periodoInfo = turma.periodo ? periodoLabel[turma.periodo] || turma.periodo : "";
   const faixaInfo = turma.faixa_etaria ? faixaLabel[turma.faixa_etaria] || turma.faixa_etaria : "";
   const educadorInfo = turma.profiles?.nome || "";
@@ -121,10 +121,10 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
     bairroInfo && `Bairro: ${bairroInfo}`,
   ].filter(Boolean).join("  ·  ");
   rows.push([infoParts]);
-  // Row 6: blank separator
+  // Row 7: blank separator
   rows.push([""]);
 
-  const headerStartRow = 7;
+  const headerStartRow = 8;
   // Row 7: Table header
   rows.push(["Nº", "Nome do Participante", ...datas]);
 
