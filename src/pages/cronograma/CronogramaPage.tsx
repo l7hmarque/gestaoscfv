@@ -314,7 +314,7 @@ export default function CronogramaPage() {
     if (!newCenarioName.trim()) return;
     const { data, error } = await supabase.from("cronograma_cenarios").insert({ nome: newCenarioName.trim() }).select("*").single();
     if (error) { toast.error(error.message); return; }
-    setCenarios(prev => [data as Cenario, ...prev]);
+    setCenarios(prev => [data as unknown as Cenario, ...prev]);
     setActiveCenarioId(data.id);
     setNewCenarioName("");
     setNewCenarioOpen(false);
