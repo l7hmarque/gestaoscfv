@@ -9,7 +9,7 @@ import { saveAs } from "file-saver";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
-import { sysEloFileName } from "@/lib/fileNaming";
+import { sysCfvFileName } from "@/lib/fileNaming";
 import { toast } from "sonner";
 
 const HEADER_COLOR = "323232";
@@ -266,7 +266,7 @@ async function generateBulkDocx(
     sections,
   });
   const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([new Uint8Array(buffer)]), sysEloFileName("Relatorios_Lote", "docx", `${dateFrom}_a_${dateTo}`));
+  saveAs(new Blob([new Uint8Array(buffer)]), sysCfvFileName("Relatorios_Lote", "docx", `${dateFrom}_a_${dateTo}`));
 }
 
 async function generateBulkPdf(
@@ -345,7 +345,7 @@ async function generateBulkPdf(
     }
   }
 
-  doc.save(sysEloFileName("Relatorios_Lote", "pdf", `${dateFrom}_a_${dateTo}`));
+  doc.save(sysCfvFileName("Relatorios_Lote", "pdf", `${dateFrom}_a_${dateTo}`));
 }
 
 async function generateBulkXlsx(
@@ -471,5 +471,5 @@ async function generateBulkXlsx(
   });
 
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf], { type: "application/octet-stream" }), sysEloFileName("Relatorios_Lote", "xlsx", `${dateFrom}_a_${dateTo}`));
+  saveAs(new Blob([buf], { type: "application/octet-stream" }), sysCfvFileName("Relatorios_Lote", "xlsx", `${dateFrom}_a_${dateTo}`));
 }

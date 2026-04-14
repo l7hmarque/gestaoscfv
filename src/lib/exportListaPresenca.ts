@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
-import { sysEloFileName } from "@/lib/fileNaming";
+import { sysCfvFileName } from "@/lib/fileNaming";
 import { format } from "date-fns";
 
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -245,7 +245,7 @@ export function exportSingleListaPresenca(turma: TurmaInfo, members: MemberInfo[
   const sheetTitle = sanitizeSheetName(`${turma.nome} - ${MESES_NOMES[mesNum - 1]} ${anoNum}`, []);
   XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf], { type: "application/octet-stream" }), sysEloFileName("ListaPresenca", "xlsx", `${turma.nome}_${anoNum}-${String(mesNum).padStart(2, "0")}`));
+  saveAs(new Blob([buf], { type: "application/octet-stream" }), sysCfvFileName("ListaPresenca", "xlsx", `${turma.nome}_${anoNum}-${String(mesNum).padStart(2, "0")}`));
   return true;
 }
 
@@ -272,6 +272,6 @@ export function exportAllListasPresenca(
   if (sheetsAdded === 0) return { success: false, sheetsAdded: 0 };
 
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf], { type: "application/octet-stream" }), sysEloFileName("ListasPresenca", "xlsx", `${MESES_NOMES[mesNum - 1]}_${anoNum}`));
+  saveAs(new Blob([buf], { type: "application/octet-stream" }), sysCfvFileName("ListasPresenca", "xlsx", `${MESES_NOMES[mesNum - 1]}_${anoNum}`));
   return { success: true, sheetsAdded };
 }

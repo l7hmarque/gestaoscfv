@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Upload, Download, Trash2, Clock, AlertTriangle, FolderOpen, History, Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { sysEloFileName } from "@/lib/fileNaming";
+import { sysCfvFileName } from "@/lib/fileNaming";
 
 interface DocPC {
   id: string;
@@ -83,7 +83,7 @@ export default function DocumentosPrestacaoTab() {
     setUploading(true);
     try {
       const ext = file.name.split(".").pop() || "pdf";
-      const fileName = sysEloFileName(`DocPC_${form.categoria}`, ext);
+      const fileName = sysCfvFileName(`DocPC_${form.categoria}`, ext);
       const path = `prestacao-contas/${form.categoria}/${fileName}`;
       const { error: upErr } = await supabase.storage.from("documentos").upload(path, file);
       if (upErr) throw upErr;

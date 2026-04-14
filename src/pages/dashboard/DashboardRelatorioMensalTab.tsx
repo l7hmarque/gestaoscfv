@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import { BAIRROS_SCFV, calcFaixaFromDate, calcAge } from "@/lib/constants";
-import { sysEloFileName } from "@/lib/fileNaming";
+import { sysCfvFileName } from "@/lib/fileNaming";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
@@ -529,7 +529,7 @@ export default function DashboardRelatorioMensalTab() {
 
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
       saveAs(new Blob([buf], { type: "application/octet-stream" }),
-        sysEloFileName("RelatorioMensal", "xlsx", `${ano}-${mes}`));
+        sysCfvFileName("RelatorioMensal", "xlsx", `${ano}-${mes}`));
 
       toast.success("Relatório mensal gerado com sucesso!");
     } catch (err: any) {
@@ -697,7 +697,7 @@ export default function DashboardRelatorioMensalTab() {
         pageDoc.line(margin, h - 12, pageW - margin, h - 12);
         pageDoc.setFontSize(6);
         pageDoc.setTextColor(120, 120, 120);
-        pageDoc.text(`SysELO — Gerado em ${new Date().toLocaleString("pt-BR")}`, margin, h - 8);
+        pageDoc.text(`SysCFV — Gerado em ${new Date().toLocaleString("pt-BR")}`, margin, h - 8);
         pageDoc.text(`Página ${pageNum}`, pageW - margin, h - 8, { align: "right" });
       };
 
@@ -895,7 +895,7 @@ export default function DashboardRelatorioMensalTab() {
         addFooter(doc, i);
       }
 
-      doc.save(sysEloFileName("RelatorioMensal_PDF", "pdf", `${ano}-${mes}`));
+      doc.save(sysCfvFileName("RelatorioMensal_PDF", "pdf", `${ano}-${mes}`));
       toast.success("PDF profissional gerado com sucesso!");
     } catch (err: any) {
       console.error("Erro ao gerar PDF:", err);

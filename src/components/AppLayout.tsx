@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { SystemBanner } from "@/components/SystemBanner";
 
 export function AppLayout() {
   useSessionTimeout();
@@ -29,6 +30,7 @@ export function AppLayout() {
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
+          <SystemBanner />
           <header className="h-12 flex items-center justify-between border-b bg-card px-4 shrink-0 print:hidden">
             <SidebarTrigger />
             <div className="flex items-center gap-1">

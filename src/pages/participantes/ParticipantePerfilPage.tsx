@@ -252,7 +252,7 @@ const ParticipantePerfilPage = () => {
   const uploadDocBlob = async (blob: Blob, categoria: string) => {
     const now = new Date();
     const ts = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}${String(now.getSeconds()).padStart(2,"0")}`;
-    const fileName = `SysELO_Doc_${categoria}_${ts}.pdf`;
+    const fileName = `SysCFV_Doc_${categoria}_${ts}.pdf`;
     const storagePath = `${id}/${fileName}`;
     const { error: upErr } = await supabase.storage.from("documentos").upload(storagePath, blob, { contentType: "application/pdf" });
     if (upErr) { toast.error("Erro no upload: " + upErr.message); return; }

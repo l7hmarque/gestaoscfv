@@ -451,7 +451,7 @@ export default function BancoDadosPage() {
               {backupLoading ? "Gerando..." : "Gerar Backup ZIP"}
             </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground">O arquivo ZIP conterá pastas por categoria com dados em XLSX. Padrão: SysELO_Backup_YYYY-MM-DD_HHmmss.zip</p>
+          <p className="text-[10px] text-muted-foreground">O arquivo ZIP conterá pastas por categoria com dados em XLSX. Padrão: SysCFV_Backup_YYYY-MM-DD_HHmmss.zip</p>
         </CardContent>
       </Card>
 

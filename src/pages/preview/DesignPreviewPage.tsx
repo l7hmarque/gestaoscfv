@@ -110,7 +110,7 @@ export default function DesignPreviewPage() {
             <div className="w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold text-white" style={{ background: NEW.primary }}>
               SE
             </div>
-            {!sidebarCollapsed && <span className="font-semibold text-sm tracking-tight">SysELO</span>}
+            {!sidebarCollapsed && <span className="font-semibold text-sm tracking-tight">SysCFV</span>}
           </div>
 
           {/* Nav groups */}

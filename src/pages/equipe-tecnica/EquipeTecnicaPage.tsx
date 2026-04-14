@@ -28,7 +28,7 @@ import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { sysEloFileName } from "@/lib/fileNaming";
+import { sysCfvFileName } from "@/lib/fileNaming";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
 
 const TIPOS_ATENDIMENTO = [
@@ -363,7 +363,7 @@ const EquipeTecnicaPage = () => {
       XLSX.utils.book_append_sheet(wb, wsR, "Resumo");
 
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-      saveAs(new Blob([buf]), sysEloFileName("RelEquipeTecnica", "xlsx"));
+      saveAs(new Blob([buf]), sysCfvFileName("RelEquipeTecnica", "xlsx"));
       toast.success("Relatório XLSX gerado!");
     } else {
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -403,7 +403,7 @@ const EquipeTecnicaPage = () => {
         headStyles: { fillColor: [21, 101, 192] },
       });
 
-      doc.save(sysEloFileName("RelEquipeTecnica", "pdf"));
+      doc.save(sysCfvFileName("RelEquipeTecnica", "pdf"));
       toast.success("Relatório PDF gerado!");
     }
   };
@@ -533,7 +533,7 @@ const EquipeTecnicaPage = () => {
       alternateRowStyles: { fillColor: [245, 245, 245] },
     });
 
-    doc.save(sysEloFileName("RelatorioBuscaAtiva", "pdf"));
+    doc.save(sysCfvFileName("RelatorioBuscaAtiva", "pdf"));
     toast.success("Relatório de Busca Ativa exportado!");
   };
 

@@ -33,7 +33,7 @@ export function useBackupExport() {
             { key: "categoria_vulnerabilidade", label: "Vulnerabilidade" }, { key: "laudo", label: "Laudo" },
             { key: "restricao_alimentar", label: "Restrição Alimentar" },
           ];
-          zip.file(`Participantes/SysELO_Participantes_${dateStr()}.xlsx`, generateXLSXBuffer(data, headers, "Participantes"));
+          zip.file(`Participantes/SysCFV_Participantes_${dateStr()}.xlsx`, generateXLSXBuffer(data, headers, "Participantes"));
         }
       }
 
@@ -46,7 +46,7 @@ export function useBackupExport() {
             { key: "dias_semana", label: "Dias" }, { key: "ativa", label: "Ativa" },
           ];
           const mapped = data.map(t => ({ ...t, dias_semana: t.dias_semana?.join(", ") || "", ativa: t.ativa ? "Sim" : "Não" }));
-          zip.file(`Turmas/SysELO_Turmas_${dateStr()}.xlsx`, generateXLSXBuffer(mapped, headers, "Turmas"));
+          zip.file(`Turmas/SysCFV_Turmas_${dateStr()}.xlsx`, generateXLSXBuffer(mapped, headers, "Turmas"));
         }
       }
 
@@ -65,7 +65,7 @@ export function useBackupExport() {
             { key: "participante", label: "Participante" }, { key: "presente", label: "Presente" },
             { key: "justificativa", label: "Justificativa" },
           ];
-          zip.file(`Presenca/SysELO_Presenca_${dateStr()}.xlsx`, generateXLSXBuffer(mapped, headers, "Presença"));
+          zip.file(`Presenca/SysCFV_Presenca_${dateStr()}.xlsx`, generateXLSXBuffer(mapped, headers, "Presença"));
         }
       }
 
@@ -86,7 +86,7 @@ export function useBackupExport() {
             { key: "pct_adesao", label: "% Adesão" }, { key: "num_participantes", label: "Participantes" },
             { key: "objetivo_alcancado", label: "Objetivo" },
           ];
-          zip.file(`Relatorios/SysELO_Relatorios_Dados_${dateStr()}.xlsx`, generateXLSXBuffer(mapped, headers, "Relatórios"));
+          zip.file(`Relatorios/SysCFV_Relatorios_Dados_${dateStr()}.xlsx`, generateXLSXBuffer(mapped, headers, "Relatórios"));
         }
       }
 
@@ -106,7 +106,7 @@ export function useBackupExport() {
             { key: "educador", label: "Educador" }, { key: "data_aplicacao", label: "Data Aplicação" },
             { key: "objetivos", label: "Objetivos" }, { key: "forma_avaliacao", label: "Avaliação" },
           ];
-          zip.file(`Planejamentos/SysELO_Planejamentos_Dados_${dateStr()}.xlsx`, generateXLSXBuffer(mapped, headers, "Planejamentos"));
+          zip.file(`Planejamentos/SysCFV_Planejamentos_Dados_${dateStr()}.xlsx`, generateXLSXBuffer(mapped, headers, "Planejamentos"));
         }
       }
 
@@ -128,12 +128,12 @@ export function useBackupExport() {
             { key: "nome", label: "Nome" }, { key: "cargo", label: "Cargo" },
             { key: "role", label: "Função" }, { key: "ativo", label: "Ativo" },
           ];
-          zip.file(`Profissionais/SysELO_Profissionais_${dateStr()}.xlsx`, generateXLSXBuffer(mapped, headers, "Profissionais"));
+          zip.file(`Profissionais/SysCFV_Profissionais_${dateStr()}.xlsx`, generateXLSXBuffer(mapped, headers, "Profissionais"));
         }
       }
 
       const blob = await zip.generateAsync({ type: "blob" });
-      saveAs(blob, `SysELO_Backup_${ts()}.zip`);
+      saveAs(blob, `SysCFV_Backup_${ts()}.zip`);
     } finally {
       setLoading(false);
     }

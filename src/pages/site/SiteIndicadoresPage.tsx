@@ -99,7 +99,7 @@ export default function SiteIndicadoresPage() {
     doc.setTextColor(150);
     doc.text("Sociedade Civil Nossa Senhora Aparecida — Medianeira/PR", 105, 280, { align: "center" });
 
-    doc.save("SysELO_Indicadores_SCNSA.pdf");
+    doc.save("SysCFV_Indicadores_SCNSA.pdf");
   }
 
   const cards = data

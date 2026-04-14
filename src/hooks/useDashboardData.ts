@@ -21,6 +21,8 @@ export interface DashboardData {
   taxaFrequenciaGeral: number;
   topEducadores: { nome: string; count: number }[];
   totalParticipantesAlerta: number;
+  presencaMensal: { mes: string; presentes: number; total: number; pct: number }[];
+  deltaParticipantes: number;
 }
 
 function monthKey(d: string) {
@@ -136,6 +138,46 @@ export function useDashboardData() {
         .slice(0, 5)
         .map(([nome, count]) => ({ nome, count }));
 
+      // Presença mensal: agrupar relatorio_presenca por mês do relatório
+      const relIdToMonth: Record<string, string> = {};
+      rels.forEach((r: any) => { relIdToMonth[r.id] = monthKey(r.data); });
+
+      const presencaByMonth: Record<string, { presentes: number; total: number }> = {};
+      relPresenca.forEach((rp: any) => {
+        const mk = relIdToMonth[rp.relatorio_id];
+        if (!mk) return;
+        if (!presencaByMonth[mk]) presencaByMonth[mk] = { presentes: 0, total: 0 };
+        presencaByMonth[mk].total++;
+        if (rp.presente) presencaByMonth[mk].presentes++;
+      });
+
+      const presencaMensal = Object.entries(presencaByMonth)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([mes, v]) => ({
+          mes,
+          presentes: v.presentes,
+          total: v.total,
+          pct: v.total > 0 ? Number(((v.presentes / v.total) * 100).toFixed(1)) : 0,
+        }));
+
+      // Delta participantes: comparar participantes únicos com presença no mês atual vs anterior
+      const sortedMonths = Object.keys(presencaByMonth).sort();
+      let deltaParticipantes = 0;
+      if (sortedMonths.length >= 2) {
+        const lastMonth = sortedMonths[sortedMonths.length - 1];
+        const prevMonth = sortedMonths[sortedMonths.length - 2];
+        const partsByMonth = (month: string) => {
+          const pids = new Set<string>();
+          relPresenca.forEach((rp: any) => {
+            if (rp.presente && relIdToMonth[rp.relatorio_id] === month && rp.participante_id) {
+              pids.add(rp.participante_id);
+            }
+          });
+          return pids.size;
+        };
+        deltaParticipantes = partsByMonth(lastMonth) - partsByMonth(prevMonth);
+      }
+
       return {
         totalParticipantesAtivos: parts.length,
         totalTurmasAtivas: turmas.length,
@@ -160,6 +202,8 @@ export function useDashboardData() {
         taxaFrequenciaGeral: Number(taxaFrequencia.toFixed(1)),
         topEducadores: topEd,
         totalParticipantesAlerta: alertCount,
+        presencaMensal,
+        deltaParticipantes,
       };
     },
     staleTime: 5 * 60 * 1000,

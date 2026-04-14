@@ -21,7 +21,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
-import { sysEloFileName } from "@/lib/fileNaming";
+import { sysCfvFileName } from "@/lib/fileNaming";
 import { exportSingleListaPresenca } from "@/lib/exportListaPresenca";
 
 const periodoLabel = PERIODO_LABELS;
@@ -193,7 +193,7 @@ const TurmaDetalhePage = () => {
   const exportBuscaAtiva = () => {
     const doc = new jsPDF({ orientation: "landscape" });
     const now = format(new Date(), "dd/MM/yyyy 'às' HH:mm");
-    const fileName = `SysELO_BuscaAtiva_${format(new Date(), "yyyy-MM-dd_HHmmss")}.pdf`;
+    const fileName = `SysCFV_BuscaAtiva_${format(new Date(), "yyyy-MM-dd_HHmmss")}.pdf`;
 
     // Header
     doc.setFontSize(14);
@@ -240,7 +240,7 @@ const TurmaDetalhePage = () => {
       doc.setPage(i);
       doc.setFontSize(7);
       doc.setFont("helvetica", "italic");
-      doc.text(`Documento gerado pelo SysELO — ${now}`, 14, doc.internal.pageSize.height - 8);
+      doc.text(`Documento gerado pelo SysCFV — ${now}`, 14, doc.internal.pageSize.height - 8);
       doc.text(`Página ${i}/${pageCount}`, doc.internal.pageSize.width - 14, doc.internal.pageSize.height - 8, { align: "right" });
     }
 
