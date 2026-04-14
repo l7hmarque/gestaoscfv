@@ -1,91 +1,58 @@
 
 
-## Plano: Aplicar Design do Preview Globalmente + Atalhos Rápidos + Incentivos de Engajamento
+## Plano: Cronograma Multi-Turma + Regras de Frequência + Layout Horizontal de Turmas
 
-### 1. Aplicar design tokens globais (`src/index.css`)
+### Problema atual
+- `getSlot()` retorna **1 único slot** por célula (dia/periodo/bairro) — impossível empilhar turmas
+- Cada slot tem 1 educador + 1 oficineiro + 1 turma — modelo rígido
+- Sem regras de frequência semanal por turma/bairro
+- Turmas ficam na sidebar lateral, difícil distinguir do bairro-local
 
-Atualizar as CSS variables `:root` para a paleta do preview:
+### Mudanças
 
-| Token | Atual | Novo |
-|---|---|---|
-| `--background` | `40 20% 97%` (bege) | `220 14% 96%` (cinza frio) |
-| `--primary` | `0 65% 67%` (rosa claro) | `0 58% 56%` (vermelho profundo) |
-| `--muted` | `210 15% 93%` | `215 20% 93%` |
-| `--muted-foreground` | `215 14% 46%` | `215 16% 46%` |
-| `--sidebar-background` | `0 0% 100%` | `220 15% 98%` |
-| `--sidebar-accent` | `210 15% 95%` | `220 15% 95%` |
+**1. Multi-slot por célula — empilhar turmas**
 
-### 2. Sidebar — estilo técnico (`AppSidebar.tsx`)
+Trocar `getSlot` (retorna 1) por `getSlots` (retorna array). Cada turma arrastada para a mesma célula cria um **novo slot** independente. Assim "Alvorada 6-8 manhã" e "Alvorada 9-11 manhã" coexistem na mesma célula Seg/Manhã/Alvorada.
 
-- Item ativo: borda-esquerda 3px primária + fundo sutil (`bg-primary/5`) em vez de `bg-sidebar-accent`
-- Labels de grupo: `uppercase tracking-[0.1em] text-[10px] font-semibold` com cor muted
-- Logo: usar `SysCFVLogo` já existente (sem mudança)
+Cada slot = 1 turma + (1 educador OU 1 oficineiro). Quando o usuário arrasta um profissional para uma célula multi-slot, aparece um mini-seletor para escolher a qual turma vincular.
 
-### 3. Header — gradiente sutil (`AppLayout.tsx`)
+**2. Regras de frequência semanal por turma**
 
-- Fundo com gradiente `bg-gradient-to-r from-card to-background` em vez de `bg-card` sólido
-- Aumentar de `h-12` para `h-[52px]`
+Adicionar um dialog "Regras de Frequência" onde o usuário define quantos dias por semana cada turma (ou grupo de turmas por bairro) deve ser atendida. Ex:
+- Turmas "Alvorada..." → 2x/semana
+- Turmas "Jardim Irene..." → 3x/semana
+- Turmas "Parque..." → 2x/semana
 
-### 4. DataTable — refinamentos (`DataTable.tsx`)
+As regras serão armazenadas na tabela `cronograma_cenarios` em uma coluna JSON `regras_frequencia`, ou em uma tabela auxiliar simples. O sistema de conflitos passa a alertar quando uma turma está abaixo do mínimo configurado.
 
-- Header: `bg-muted/50 uppercase tracking-wider text-[11px]`
-- Zebra striping: linhas alternadas `even:bg-muted/30`
-- Hover: `hover:bg-muted/40`
+**3. Lista de turmas horizontal abaixo da grade**
 
-### 5. Dashboard — atalhos rápidos no topo + KPIs estilo preview (`DashboardPage.tsx` + `Index.tsx`)
+Remover turmas da sidebar. Colocá-las em uma faixa horizontal abaixo da matriz semanal, com:
+- Cores derivadas do prefixo do nome da turma (bairro):
+  - "ALVORADA..." → laranja (manhã tom claro, tarde tom escuro)
+  - "JARDIM IRENE..." → azul (manhã claro, tarde escuro)
+  - "PARQUE..." → verde (manhã claro, tarde escuro)
+- Badge com contagem de slots alocados
+- Indicador visual de frequência atual vs regra (ex: "2/3" em vermelho se abaixo do mínimo)
+- Arrastar da faixa horizontal para a grade funciona igual ao sidebar atual
 
-**Atalhos rápidos** (antes dos KPIs):
-- Barra horizontal com 4-5 botões compactos: Relatórios, Cronograma, Feed, Participantes, Presença
-- Estilo: cards pequenos com ícone + label, hover com `shadow-md`, sem fundo circular no ícone
-- Borda-esquerda colorida por contexto
+**4. Distinguir bairro-local de turma-bairro**
 
-**KPI Cards** — aplicar estilo do preview:
-- Borda-esquerda `border-l-4` colorida por contexto
-- Número em `text-2xl font-bold`, label em `text-[11px] uppercase tracking-wider`
-- Delta com seta e cor (verde/vermelho)
+Na grade, os headers de linha mostram o **local** (ALVORADA, JD IRENE, PQ INDEP.). Na faixa de turmas, cada turma mostra o nome completo com badge colorida. Tooltip explica "Local de atendimento" vs "Turma por território".
 
-### 6. Login page (`LoginPage.tsx`)
-
-- Usar componente `SysCFVLogo` em vez do quadrado com "S"
-- Fundo com gradiente sutil
-
-### 7. Incentivos de engajamento para Feed e Recados
-
-**A. Streak de atividade no perfil do profissional**
-- Contar dias consecutivos com atividade no feed (post ou comentário)
-- Exibir "🔥 X dias de streak" no perfil e no sidebar footer
-- Conquistas novas: `streak_7` (7 dias), `streak_30` (30 dias)
-
-**B. Leaderboard semanal no Feed**
-- Card no topo do Feed mostrando "Top 3 da semana" (quem mais postou/reagiu/comentou)
-- Dados derivados de `feed_posts` + `feed_reacoes` + `feed_comentarios` da última semana
-
-**C. Conquistas de comunicação** (adicionar ao `useConquistas.ts`):
-- `primeiro_post_feed`: "📢 Primeira Publicação!" — postou no feed pela primeira vez
-- `comunicador_10`: "💬 Comunicador Ativo" — 10 posts no feed
-- `recado_respondido`: "✅ Responsável" — respondeu/concluiu 10 recados técnicos
-
-**D. Badge "Contribuidor da Semana"** no sidebar/header
-- Quem teve mais interações (posts + reações + comentários) na semana ganha badge temporário
-
-### Arquivos editados
+### Arquivos
 
 | Arquivo | Mudança |
 |---|---|
-| `src/index.css` | Paleta fria, tokens atualizados |
-| `src/components/AppSidebar.tsx` | Estilo de item ativo, labels uppercase |
-| `src/components/AppLayout.tsx` | Header com gradiente, altura 52px |
-| `src/components/DataTable.tsx` | Zebra striping, header uppercase |
-| `src/pages/dashboard/DashboardPage.tsx` | Atalhos rápidos no topo, KPIs estilo preview |
-| `src/pages/Index.tsx` | Atalhos atualizados (cronograma, feed) + estilo |
-| `src/pages/auth/LoginPage.tsx` | Logo SysCFV, gradiente |
-| `src/hooks/useConquistas.ts` | Novas conquistas de comunicação |
-| `src/pages/feed/FeedPage.tsx` | Leaderboard semanal no topo |
-| `src/pages/profissional/ProfissionalPerfilPage.tsx` | Streak de atividade |
+| `src/pages/cronograma/CronogramaPage.tsx` | Multi-slot, faixa horizontal de turmas, regras de frequência, validação |
+| Migration SQL | Coluna `regras_frequencia jsonb` em `cronograma_cenarios` (ou nova tabela `cronograma_regras`) |
 
-### Banco de dados
+### Detalhes técnicos
 
-Nenhuma migração necessária — as conquistas de comunicação usam a tabela `conquistas` existente (campo `tipo` é texto livre). O leaderboard é calculado client-side a partir de dados já existentes.
+- `getSlots(dia, periodo, bairroId)` retorna `Slot[]` em vez de `Slot | undefined`
+- `handleDrop` para turmas sempre cria novo slot; para profissionais, mostra picker se >1 slot na célula
+- Cores de turma: função `getTurmaColor(nome)` que extrai o prefixo do bairro e retorna par de cores (claro/escuro baseado no período da turma)
+- Regras: `{ turma_prefix: string, min_dias: number }[]` salvo como JSON na coluna do cenário
 
-### Zero alteração na lógica de negócio existente
+### Zero alteração em lógica existente fora do cronograma
 
