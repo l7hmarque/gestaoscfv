@@ -124,7 +124,7 @@ export function DataTable<T extends Record<string, any>>({
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/30">
+              <TableRow className="bg-muted/50">
                 {selectable && (
                   <TableHead className="w-10 px-2">
                     <Checkbox
@@ -137,7 +137,7 @@ export function DataTable<T extends Record<string, any>>({
                 {columns.map(col => (
                   <TableHead
                     key={col.key}
-                    className={`text-xs font-semibold whitespace-nowrap ${col.sortable !== false ? "cursor-pointer select-none hover:bg-muted/50" : ""}`}
+                    className={`text-[11px] font-semibold whitespace-nowrap uppercase tracking-wider ${col.sortable !== false ? "cursor-pointer select-none hover:bg-muted/50" : ""}`}
                     onClick={() => col.sortable !== false && handleSort(col.key)}
                   >
                     <div className="flex items-center gap-1">
@@ -161,7 +161,7 @@ export function DataTable<T extends Record<string, any>>({
                 </TableRow>
               ) : (
                 paged.map((row, i) => (
-                  <TableRow key={row.id || i} className={`text-sm ${selectable && selectedIds?.has(row.id) ? "bg-primary/5" : ""}`}>
+                  <TableRow key={row.id || i} className={`text-sm hover:bg-muted/40 ${i % 2 === 1 ? "bg-muted/30" : ""} ${selectable && selectedIds?.has(row.id) ? "bg-primary/5" : ""}`}>
                     {selectable && (
                       <TableCell className="w-10 px-2 py-2">
                         <Checkbox
