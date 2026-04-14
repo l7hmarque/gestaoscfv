@@ -585,8 +585,8 @@ export default function CronogramaPage() {
                   <div />
                   {DIAS.map(d => <div key={d} className="text-center font-medium">{d}</div>)}
                   {PERIODOS.map(per => (
-                    <>
-                      <div key={`label-${per}`} className="text-muted-foreground">{PERIODO_LABELS[per]}</div>
+                    <React.Fragment key={per}>
+                      <div className="text-muted-foreground">{PERIODO_LABELS[per]}</div>
                       {DIAS.map(dia => (
                         <div key={`${dia}-${per}`} className="flex justify-center">
                           <Checkbox
@@ -595,7 +595,7 @@ export default function CronogramaPage() {
                           />
                         </div>
                       ))}
-                    </>
+                    </React.Fragment>
                   ))}
                 </div>
               </div>
