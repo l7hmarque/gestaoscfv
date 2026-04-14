@@ -424,16 +424,14 @@ export default function DashboardRelatorioMensalTab() {
           ];
         });
 
-        const atendData = [
-          ["ATENDIMENTOS TÉCNICOS"],
-          [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
-          [],
+        const { data: atendData, dataStartOffset: atendOffset } = addInstitutionalHeader([
           ["Data", "Tipo", "Participante", "Profissional", "Descrição", "Encaminhamento"],
           ...atendRows,
-        ];
+        ], `ATENDIMENTOS TÉCNICOS — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
         const wsAtend = XLSX.utils.aoa_to_sheet(atendData);
         wsAtend["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 30 }, { wch: 20 }, { wch: 50 }, { wch: 30 }];
-        applyTableHeaderStyle(wsAtend, 3, 6);
+        applyInstitutionalStyle(wsAtend, 6);
+        applyTableHeaderStyle(wsAtend, atendOffset, 6);
         applyAllBorders(wsAtend);
         XLSX.utils.book_append_sheet(wb, wsAtend, "Atendimentos");
       }
