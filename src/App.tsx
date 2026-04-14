@@ -119,6 +119,7 @@ const App = () => (
                   <Route path="/configuracoes" element={<ConfiguracoesPage />} />
                   <Route path="/desligamento-admin" element={<PainelDesligamentoPage />} />
                   <Route path="/cronograma" element={<CronogramaPage />} />
+                  <Route path="/preview-design" element={<DesignPreviewPage />} />
                   <Route path="/dev" element={<DevPage />} />
                 </Route>
                 <Route path="/matricula" element={<MatriculaPublicaPage />} />
