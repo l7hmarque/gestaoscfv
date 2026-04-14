@@ -344,16 +344,14 @@ export default function DashboardRelatorioMensalTab() {
       metasRows.push([`  Crianças/adolescentes: ${totalCriancas} (${pctGeral}% da meta de ${totalMeta})`, `${totalCriancas}`, "", ""]);
       metasRows.push([`  Idosos: ${totalIdosos} (${pctIdosos}% da meta de ${totalMetaIdosos})`, `${totalIdosos}`, "", ""]);
 
-      const metasData = [
-        ["METAS PROPOSTAS — ACOMPANHAMENTO MENSAL"],
-        [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
-        [],
+      const { data: metasData, dataStartOffset: metasOffset } = addInstitutionalHeader([
         ["Metas Propostas", "Quant.", "Resultados Alcançados", "Justificativa"],
         ...metasRows,
-      ];
+      ], `METAS PROPOSTAS — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
       const wsMetas = XLSX.utils.aoa_to_sheet(metasData);
       wsMetas["!cols"] = [{ wch: 55 }, { wch: 35 }, { wch: 50 }, { wch: 25 }];
-      applyTableHeaderStyle(wsMetas, 3, 4);
+      applyInstitutionalStyle(wsMetas, 4);
+      applyTableHeaderStyle(wsMetas, metasOffset, 4);
       applyAllBorders(wsMetas);
       XLSX.utils.book_append_sheet(wb, wsMetas, "Metas");
 
@@ -400,16 +398,14 @@ export default function DashboardRelatorioMensalTab() {
         ],
       ];
 
-      const monitorData = [
-        ["MONITORAMENTO E AVALIAÇÃO"],
-        [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
-        [],
+      const { data: monitorData, dataStartOffset: monOffset } = addInstitutionalHeader([
         ["Objetivo", "Indicador", "Meta Prevista", "Meta Atingida"],
         ...monitorRows,
-      ];
+      ], `MONITORAMENTO E AVALIAÇÃO — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
       const wsMonitor = XLSX.utils.aoa_to_sheet(monitorData);
       wsMonitor["!cols"] = [{ wch: 60 }, { wch: 45 }, { wch: 15 }, { wch: 15 }];
-      applyTableHeaderStyle(wsMonitor, 3, 4);
+      applyInstitutionalStyle(wsMonitor, 4);
+      applyTableHeaderStyle(wsMonitor, monOffset, 4);
       applyAllBorders(wsMonitor);
       XLSX.utils.book_append_sheet(wb, wsMonitor, "Monitoramento");
 
