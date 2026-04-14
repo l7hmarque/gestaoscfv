@@ -1,58 +1,50 @@
 
 
-## Plano: Cronograma Multi-Turma + Regras de Frequência + Layout Horizontal de Turmas
+## Plano: Filtros na Busca Ativa + Correção de Badge de Status
 
-### Problema atual
-- `getSlot()` retorna **1 único slot** por célula (dia/periodo/bairro) — impossível empilhar turmas
-- Cada slot tem 1 educador + 1 oficineiro + 1 turma — modelo rígido
-- Sem regras de frequência semanal por turma/bairro
-- Turmas ficam na sidebar lateral, difícil distinguir do bairro-local
+### Problemas identificados
+
+1. **Filtros insuficientes** — A busca ativa só tem 2 filtros (status genérico e bairro). Faltam filtros por: período (manhã/tarde), faixa etária, turma, quantidade de faltas, e se já teve contato de busca ativa ou não.
+
+2. **Badge incorreto** — Na linha 836, participantes com status `busca_ativa` estão caindo no ramo `else` do ternário (`p.status === "ativo" ? "secondary" : "destructive"`), recebendo badge `destructive` (vermelho = "desligado"). O mesmo ocorre na linha 421-423 que agrupa `inativo` e `desligado` com o mesmo `motivo_alerta: "Desligado/Inativo recente"`. Participantes com `busca_ativa` devem ter badge laranja/amarelo, não vermelho.
 
 ### Mudanças
 
-**1. Multi-slot por célula — empilhar turmas**
+**1. Mais filtros na Busca Ativa** (`EquipeTecnicaPage.tsx`)
 
-Trocar `getSlot` (retorna 1) por `getSlots` (retorna array). Cada turma arrastada para a mesma célula cria um **novo slot** independente. Assim "Alvorada 6-8 manhã" e "Alvorada 9-11 manhã" coexistem na mesma célula Seg/Manhã/Alvorada.
+Adicionar filtros:
+- **Período** (manhã/tarde/integral) — filtra por `p.periodo`
+- **Faixa etária** (6-8, 9-11, 12-17, idosos) — derivada de `data_nascimento`
+- **Turma** — dropdown com turmas ativas, filtra via `turmaParticipantes`
+- **Qtd mínima de faltas** — slider ou select (2, 3, 5, 10+)
+- **Contato realizado** — "Todos", "Sem contato", "Com contato" — baseado em `buscaAtivaRegistros`
+- **Busca textual** — campo de texto para nome
 
-Cada slot = 1 turma + (1 educador OU 1 oficineiro). Quando o usuário arrasta um profissional para uma célula multi-slot, aparece um mini-seletor para escolher a qual turma vincular.
+**2. Corrigir badge de status** (`EquipeTecnicaPage.tsx`)
 
-**2. Regras de frequência semanal por turma**
+Na renderização do card (linha 836):
+- `busca_ativa` → badge laranja (`bg-orange-100 text-orange-800`)
+- `desligado` → badge vermelho (destructive)
+- `ativo` → badge secundário
+- Usar `STATUS_LABELS` e `STATUS_COLORS` de `constants.ts` para consistência
 
-Adicionar um dialog "Regras de Frequência" onde o usuário define quantos dias por semana cada turma (ou grupo de turmas por bairro) deve ser atendida. Ex:
-- Turmas "Alvorada..." → 2x/semana
-- Turmas "Jardim Irene..." → 3x/semana
-- Turmas "Parque..." → 2x/semana
+Na detecção de alertas (linha 421):
+- Separar `inativo`/`busca_ativa` de `desligado` no motivo de alerta
+- `busca_ativa` → motivo "Em busca ativa"
+- `desligado` → motivo "Desligado recente"
 
-As regras serão armazenadas na tabela `cronograma_cenarios` em uma coluna JSON `regras_frequencia`, ou em uma tabela auxiliar simples. O sistema de conflitos passa a alertar quando uma turma está abaixo do mínimo configurado.
+**3. Borda do card** (linha 821)
 
-**3. Lista de turmas horizontal abaixo da grade**
+Atualizar a cor da borda-esquerda:
+- `ativo` → amarelo/amber (faltas)
+- `busca_ativa` → laranja
+- `desligado` → vermelho
 
-Remover turmas da sidebar. Colocá-las em uma faixa horizontal abaixo da matriz semanal, com:
-- Cores derivadas do prefixo do nome da turma (bairro):
-  - "ALVORADA..." → laranja (manhã tom claro, tarde tom escuro)
-  - "JARDIM IRENE..." → azul (manhã claro, tarde escuro)
-  - "PARQUE..." → verde (manhã claro, tarde escuro)
-- Badge com contagem de slots alocados
-- Indicador visual de frequência atual vs regra (ex: "2/3" em vermelho se abaixo do mínimo)
-- Arrastar da faixa horizontal para a grade funciona igual ao sidebar atual
-
-**4. Distinguir bairro-local de turma-bairro**
-
-Na grade, os headers de linha mostram o **local** (ALVORADA, JD IRENE, PQ INDEP.). Na faixa de turmas, cada turma mostra o nome completo com badge colorida. Tooltip explica "Local de atendimento" vs "Turma por território".
-
-### Arquivos
+### Arquivo editado
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/cronograma/CronogramaPage.tsx` | Multi-slot, faixa horizontal de turmas, regras de frequência, validação |
-| Migration SQL | Coluna `regras_frequencia jsonb` em `cronograma_cenarios` (ou nova tabela `cronograma_regras`) |
+| `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx` | Filtros adicionais + correção de badges + labels de motivo |
 
-### Detalhes técnicos
-
-- `getSlots(dia, periodo, bairroId)` retorna `Slot[]` em vez de `Slot | undefined`
-- `handleDrop` para turmas sempre cria novo slot; para profissionais, mostra picker se >1 slot na célula
-- Cores de turma: função `getTurmaColor(nome)` que extrai o prefixo do bairro e retorna par de cores (claro/escuro baseado no período da turma)
-- Regras: `{ turma_prefix: string, min_dias: number }[]` salvo como JSON na coluna do cenário
-
-### Zero alteração em lógica existente fora do cronograma
+### Zero alteração em lógica de negócio ou banco de dados
 
