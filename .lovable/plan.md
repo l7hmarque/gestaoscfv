@@ -1,58 +1,62 @@
+## Plano: Importação de frequência de Março + transferências de período + desligamentos
+
+### Resumo do PDF analisado
+
+O documento contém listas de presença de **março/2025** para 3 bairros (Jardim Irene, Parque Independência, Alvorada) com ~80 participantes e datas específicas de presença. Também lista 4 desligados. Atualmente **zero** registros de presença existem para março no banco.
+
+### Mapeamento de períodos (lógica de continuidade)
+
+Seguindo a regra de "continuidade da lista anterior":
+
+**Seções com período explícito:** JD Irene 9-11 Tarde, JD Irene 9-11 Manhã, JD Irene 12-17 Manhã, PQ Indep 6-8 Manhã, Alvorada 12-17 Tarde, Alvorada 6-8 Manhã.
+
+**Seções por continuidade → Manhã:** JD Irene 12-17 complementar, JD Irene lista complementar, PQ Indep 9-11 principal/complementar, PQ Indep 12-17/complementar.
+
+**Seções por continuidade → Tarde (após "Alvorada 12-17 Tarde"):** Alvorada 12-17 Quinta.
+
+**Seção ambígua:** Alvorada 9-11 (primeira lista, sem dia/período). Todos os 8 participantes estão cadastrados como "tarde". Se for continuidade do PQ Indep, seria "manhã" e todos precisariam transferência. Se for uma lista independente do turno da tarde, mantém. **Idem para Alvorada 9-11 Quarta** (todos manhã).
+
+### Transferências de período identificadas (~35 participantes)
 
 
-## Plano: Transferência automática de turma ao mudar período (com histórico)
+| Grupo                                                            | De → Para     | Qtd                 |
+| ---------------------------------------------------------------- | ------------- | ------------------- |
+| JD Irene lista complementar (Daniely, Deivid, Isabelli, Willian) | tarde → manhã | 4                   |
+| PQ Indep 9-11 principal + complementar                           | tarde → manhã | 13                  |
+| Alvorada 9-11 primeira lista (Andre, Isabela, etc.)              | tarde → manhã | 8 (se continuidade) |
+| Alvorada 12-17 Quinta (Damaris, Daniela, Edgar, etc.)            | manhã → tarde | 10                  |
 
-### Problema
-Ao mudar o período de um participante pela listagem (`ParticipantesPage`), ele permanece nas turmas do período antigo. Precisa: (1) mover para turmas do novo período, (2) manter frequências da turma antiga, (3) indicar "transferido" nas listas de presença e na página da turma.
 
-### 1. Migração: adicionar campo `data_saida` em `turma_participantes`
+### Participantes pendentes que precisam ativação
 
-```sql
-ALTER TABLE public.turma_participantes
-  ADD COLUMN data_saida date DEFAULT NULL,
-  ADD COLUMN motivo_saida text DEFAULT NULL;
-```
+- **Pedro Henrique de Souza Gomes** (pendente) — aparece com presença
+- **Sophia de Toledo Melo** (pendente) — aparece com presença
 
-Quando `data_saida` é preenchido, o participante é considerado "transferido" daquela turma. Ele permanece na tabela (não é deletado), preservando o vínculo histórico e as frequências.
+### Participantes desligados no PDF
 
-### 2. Alterar `handlePeriodoChange` em `ParticipantesPage.tsx`
+Os 4 (Emilly, Davi Henrique, Maria Laura, Maria Vitória) **já constam como desligados**. Verificar que não tenham presença registrada e excluir de quaisquer cálculos de indicadores.
 
-Após atualizar o período do participante:
-1. Buscar turmas atuais do participante (via `turma_participantes` onde `data_saida IS NULL`)
-2. Para cada turma do período antigo: preencher `data_saida = hoje` e `motivo_saida = "Transferência de período"`
-3. Buscar turmas compatíveis no novo período (mesma lógica de bairro/faixa etária)
-4. Inserir novos vínculos `turma_participantes`
-5. Registrar em `participante_transferencias`
-6. Notificar educadores das turmas antigas e novas via `recados`
+Também: **Lais Vitória** e **Sofia Fonseca** (PQ Indep 12-17) e **Agatha** estão desligadas — ignorar presenças dessas (conforme decisão anterior).
 
-### 3. Ajustar queries que listam membros ativos de turmas
+### Etapas de execução
 
-**Arquivos afetados:**
-- `TurmaDetalhePage.tsx` — separar membros ativos (`data_saida IS NULL`) de transferidos (`data_saida IS NOT NULL`); exibir transferidos em seção separada com a data de saída
-- `PresencaPage.tsx` — filtrar apenas `data_saida IS NULL` ao carregar participantes para registro de presença
-- `RelatorioNovoPage.tsx` — idem ao carregar participantes das turmas selecionadas
+1. **Script Python** que:
+  - Mapeia todos os ~80 nomes do PDF aos IDs do banco via fuzzy match
+  - Para cada participante com presença: INSERT em `presenca` (turma correspondente, data, presente=true)
+  - Para participantes ativos **sem presença** nas datas de atividade da sua turma: INSERT com presente=false (ausência)
+  - Desligados e inativos: **nenhum registro** de presença (nem falta)
+2. **Ativar pendentes** (Pedro Henrique e Sophia) — UPDATE status para 'ativo', vincular a turmas
+3. **Transferências de período** — Para cada participante com período diferente:
+  - UPDATE `participantes.periodo`
+  - Preencher `data_saida` nas turmas antigas
+  - INSERT em turmas do novo período
+  - INSERT em `participante_transferencias`
+4. **Verificação final** — Conferir contagens e indicadores
 
-### 4. Listas de presença (XLSX) — indicar transferidos
+### Pergunta pendente
 
-**Arquivo:** `exportListaPresenca.ts`
+Preciso confirmar: a lista "Alvorada 9-11" (sem período/dia, participantes: Andre, Isabela, Isabelle, João Rafael, Kaua, Laura, Luana, Maico — todos cadastrados como "tarde") é uma lista do turno da **manhã** (continuidade do PQ Independência) ou do turno da **tarde** (lista própria)?  
+R: lista propria, periodo da tarde.
 
-- Ao gerar a lista, incluir participantes transferidos que saíram no mês corrente ou no mês anterior
-- Marcar com "(T)" ao lado do nome e riscado a partir da data de saída (mesma lógica existente para "desligado")
-- `MemberInfo` ganha campos `transferido?: boolean` e `data_transferencia?: string | null`
-
-### 5. Ajustar Automação 3 no `ParticipantePerfilPage.tsx`
-
-A lógica existente de transferência (linhas 173-191) já solicita aprovação. Ao confirmar, usar a mesma lógica: preencher `data_saida` nas turmas antigas ao invés de deletar os vínculos.
-
-### Resumo de alterações
-
-| Recurso | Mudança |
-|---|---|
-| **Migração SQL** | `data_saida` e `motivo_saida` em `turma_participantes` |
-| `ParticipantesPage.tsx` | `handlePeriodoChange` faz transferência automática de turma |
-| `TurmaDetalhePage.tsx` | Separar membros ativos de transferidos na UI |
-| `PresencaPage.tsx` | Filtrar `data_saida IS NULL` |
-| `RelatorioNovoPage.tsx` | Idem |
-| `exportListaPresenca.ts` | Indicar transferidos com "(T)" |
-| `ParticipantePerfilPage.tsx` | Usar `data_saida` ao invés de deletar vínculos |
-
+E a "Alvorada 9-11 Quarta" (Caio, Carlos, Emeli, José Otávio, Victor Hugo, Yuri — todos cadastrados como "manhã") é manhã ou tarde?  
+R: Manha
