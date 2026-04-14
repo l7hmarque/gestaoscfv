@@ -37,36 +37,8 @@ function getDatasAtividade(ano: number, mes: number, diasSemana: string[]): stri
 
 // calcAge imported from constants
 
-/** Apply thin borders to all cells in a sheet */
-function applyBorders(ws: XLSX.WorkSheet) {
-  const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
-  const border = { style: "thin", color: { rgb: "000000" } };
-  for (let r = range.s.r; r <= range.e.r; r++) {
-    for (let c = range.s.c; c <= range.e.c; c++) {
-      const addr = XLSX.utils.encode_cell({ r, c });
-      if (!ws[addr]) ws[addr] = { v: "", t: "s" };
-      ws[addr].s = {
-        ...(ws[addr].s || {}),
-        border: { top: border, bottom: border, left: border, right: border },
-      };
-    }
-  }
-}
+import { addInstitutionalHeader, applyInstitutionalStyle, applyTableHeaderStyle, applyAllBorders } from "@/lib/xlsxInstHeader";
 
-/** Apply bold + grey background to a row */
-function applyHeaderStyle(ws: XLSX.WorkSheet, row: number, colCount: number) {
-  const border = { style: "thin", color: { rgb: "000000" } };
-  for (let c = 0; c < colCount; c++) {
-    const addr = XLSX.utils.encode_cell({ r: row, c });
-    if (!ws[addr]) ws[addr] = { v: "", t: "s" };
-    ws[addr].s = {
-      font: { bold: true },
-      fill: { fgColor: { rgb: "D9D9D9" } },
-      border: { top: border, bottom: border, left: border, right: border },
-      alignment: { wrapText: true, vertical: "center" },
-    };
-  }
-}
 
 // Metas fixas por bairro
 const METAS_BAIRRO: Record<string, { criancasManha: number; criancasTarde: number; idosos: number | null }> = {
@@ -243,11 +215,7 @@ export default function DashboardRelatorioMensalTab() {
         atendByTipo[t] = (atendByTipo[t] || 0) + 1;
       });
 
-      const resumoData = [
-        ["RELATÓRIO MENSAL — SysELO SCFV"],
-        [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
-        [`Data de geração: ${new Date().toLocaleString("pt-BR")}`],
-        [],
+      const { data: resumoInner } = addInstitutionalHeader([
         ["ATENDIDOS NO MÊS", atendidosFiltered.length],
         [],
         ["POR BAIRRO"],
@@ -264,9 +232,10 @@ export default function DashboardRelatorioMensalTab() {
         [],
         ["ATENDIMENTOS TÉCNICOS NO MÊS", filteredAtendimentos.length],
         ...Object.entries(atendByTipo).map(([t, c]) => [TIPO_ATENDIMENTO_LABELS[t] || t, c]),
-      ];
-      const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
+      ], `RELATÓRIO MENSAL — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
+      const wsResumo = XLSX.utils.aoa_to_sheet(resumoInner);
       wsResumo["!cols"] = [{ wch: 40 }, { wch: 15 }];
+      applyInstitutionalStyle(wsResumo, 2);
       XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
 
       // --- Sheet 2: Atividades (driven by relatórios) ---
@@ -281,17 +250,15 @@ export default function DashboardRelatorioMensalTab() {
         atividadesRows.push(["Nenhuma atividade registrada no período", "", "", ""]);
       }
 
-      const atividadesData = [
-        ["ATIVIDADES PROPOSTAS x DESENVOLVIDAS"],
-        [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
-        [],
+      const { data: atividadesData, dataStartOffset: ativOffset } = addInstitutionalHeader([
         ["Atividades Propostas", "Atividades Desenvolvidas", "Resultados Alcançados", "Justificativas"],
         ...atividadesRows,
-      ];
+      ], `ATIVIDADES PROPOSTAS x DESENVOLVIDAS — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
       const wsAtiv = XLSX.utils.aoa_to_sheet(atividadesData);
       wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
-      applyHeaderStyle(wsAtiv, 3, 4);
-      applyBorders(wsAtiv);
+      applyInstitutionalStyle(wsAtiv, 4);
+      applyTableHeaderStyle(wsAtiv, ativOffset, 4);
+      applyAllBorders(wsAtiv);
       XLSX.utils.book_append_sheet(wb, wsAtiv, "Atividades");
 
       // --- Sheet 3: Metas ---
@@ -377,17 +344,15 @@ export default function DashboardRelatorioMensalTab() {
       metasRows.push([`  Crianças/adolescentes: ${totalCriancas} (${pctGeral}% da meta de ${totalMeta})`, `${totalCriancas}`, "", ""]);
       metasRows.push([`  Idosos: ${totalIdosos} (${pctIdosos}% da meta de ${totalMetaIdosos})`, `${totalIdosos}`, "", ""]);
 
-      const metasData = [
-        ["METAS PROPOSTAS — ACOMPANHAMENTO MENSAL"],
-        [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
-        [],
+      const { data: metasData, dataStartOffset: metasOffset } = addInstitutionalHeader([
         ["Metas Propostas", "Quant.", "Resultados Alcançados", "Justificativa"],
         ...metasRows,
-      ];
+      ], `METAS PROPOSTAS — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
       const wsMetas = XLSX.utils.aoa_to_sheet(metasData);
       wsMetas["!cols"] = [{ wch: 55 }, { wch: 35 }, { wch: 50 }, { wch: 25 }];
-      applyHeaderStyle(wsMetas, 3, 4);
-      applyBorders(wsMetas);
+      applyInstitutionalStyle(wsMetas, 4);
+      applyTableHeaderStyle(wsMetas, metasOffset, 4);
+      applyAllBorders(wsMetas);
       XLSX.utils.book_append_sheet(wb, wsMetas, "Metas");
 
       // --- Sheet 4: Monitoramento ---
@@ -433,17 +398,15 @@ export default function DashboardRelatorioMensalTab() {
         ],
       ];
 
-      const monitorData = [
-        ["MONITORAMENTO E AVALIAÇÃO"],
-        [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
-        [],
+      const { data: monitorData, dataStartOffset: monOffset } = addInstitutionalHeader([
         ["Objetivo", "Indicador", "Meta Prevista", "Meta Atingida"],
         ...monitorRows,
-      ];
+      ], `MONITORAMENTO E AVALIAÇÃO — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
       const wsMonitor = XLSX.utils.aoa_to_sheet(monitorData);
       wsMonitor["!cols"] = [{ wch: 60 }, { wch: 45 }, { wch: 15 }, { wch: 15 }];
-      applyHeaderStyle(wsMonitor, 3, 4);
-      applyBorders(wsMonitor);
+      applyInstitutionalStyle(wsMonitor, 4);
+      applyTableHeaderStyle(wsMonitor, monOffset, 4);
+      applyAllBorders(wsMonitor);
       XLSX.utils.book_append_sheet(wb, wsMonitor, "Monitoramento");
 
       // --- Sheet 5: Atendimentos Técnicos ---
@@ -461,17 +424,15 @@ export default function DashboardRelatorioMensalTab() {
           ];
         });
 
-        const atendData = [
-          ["ATENDIMENTOS TÉCNICOS"],
-          [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`],
-          [],
+        const { data: atendData, dataStartOffset: atendOffset } = addInstitutionalHeader([
           ["Data", "Tipo", "Participante", "Profissional", "Descrição", "Encaminhamento"],
           ...atendRows,
-        ];
+        ], `ATENDIMENTOS TÉCNICOS — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
         const wsAtend = XLSX.utils.aoa_to_sheet(atendData);
         wsAtend["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 30 }, { wch: 20 }, { wch: 50 }, { wch: 30 }];
-        applyHeaderStyle(wsAtend, 3, 6);
-        applyBorders(wsAtend);
+        applyInstitutionalStyle(wsAtend, 6);
+        applyTableHeaderStyle(wsAtend, atendOffset, 6);
+        applyAllBorders(wsAtend);
         XLSX.utils.book_append_sheet(wb, wsAtend, "Atendimentos");
       }
 
@@ -511,9 +472,8 @@ export default function DashboardRelatorioMensalTab() {
         while (usedSheetNames.has(sheetName)) { sheetName = sheetName.slice(0, 25) + `_${suffix++}`; }
         usedSheetNames.add(sheetName);
 
-        const header1 = [`SCFV — CAIA Medianeira — Matriz de Frequência`];
-        const header2 = [`Turma: ${t.nome} | Bairro: ${bairroNome} | Faixa: ${t.faixa_etaria || "N/I"} | Período: ${t.periodo || "N/I"}`];
-        const header3 = [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano} | Exportado em: ${new Date().toLocaleString("pt-BR")}`];
+        const turmaInfoLine = `Turma: ${t.nome} | Bairro: ${bairroNome} | Faixa: ${t.faixa_etaria || "N/I"} | Período: ${t.periodo || "N/I"}`;
+        const subInfoLine = `Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`;
 
         const colHeaders = ["Nº", "Nome do Participante", ...datas.map(d => d.slice(5))];
         const rows = tParts.map((p: any, idx: number) => {
@@ -525,13 +485,16 @@ export default function DashboardRelatorioMensalTab() {
           return row;
         });
 
-        const sheetData = [header1, header2, header3, [], colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]];
+        const { data: sheetData, dataStartOffset: matOffset } = addInstitutionalHeader(
+          [colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]],
+          "MATRIZ DE FREQUÊNCIA", turmaInfoLine, subInfoLine,
+        );
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
         ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...datas.map(() => ({ wch: 6 }))];
+        applyInstitutionalStyle(ws, colHeaders.length, { hasTurmaInfo: true, hasSubInfo: true });
+        applyTableHeaderStyle(ws, matOffset, colHeaders.length);
 
-        applyHeaderStyle(ws, 4, colHeaders.length);
-
-        const dataStartRow = 5;
+        const dataStartRow = matOffset + 1;
         tParts.forEach((p: any, pIdx: number) => {
           const excelRow = dataStartRow + pIdx;
           const isDesligado = p.status === "desligado";

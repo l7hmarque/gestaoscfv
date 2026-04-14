@@ -70,6 +70,8 @@ const TIPOS_DOCUMENTO = [
   { value: "outro", label: "Outro" },
 ];
 
+import { addInstitutionalHeader, applyInstitutionalStyle, applyTableHeaderStyle, applyAllBorders } from "@/lib/xlsxInstHeader";
+
 function applyBorders(ws: XLSX.WorkSheet) {
   const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
   const border = { style: "thin" as const, color: { rgb: "000000" } };
@@ -82,38 +84,17 @@ function applyBorders(ws: XLSX.WorkSheet) {
   }
 }
 
+function addInstHeader(rows: any[][], title: string): { data: any[][]; offset: number } {
+  const { data, dataStartOffset } = addInstitutionalHeader(rows, title);
+  return { data, offset: dataStartOffset };
+}
+
+function applyInstStyle(ws: XLSX.WorkSheet, totalCols = 2) {
+  applyInstitutionalStyle(ws, totalCols);
+}
+
 function applyHeaderStyle(ws: XLSX.WorkSheet, row: number, colCount: number) {
-  const border = { style: "thin" as const, color: { rgb: "000000" } };
-  for (let c = 0; c < colCount; c++) {
-    const addr = XLSX.utils.encode_cell({ r: row, c });
-    if (!ws[addr]) ws[addr] = { v: "", t: "s" };
-    ws[addr].s = {
-      font: { bold: true },
-      fill: { fgColor: { rgb: "D9D9D9" } },
-      border: { top: border, bottom: border, left: border, right: border },
-      alignment: { wrapText: true, vertical: "center" },
-    };
-  }
-}
-
-/** Prepend 3-line institutional header + blank row to any sheet data array */
-function addInstHeader(rows: any[][], title: string): any[][] {
-  return [
-    ["Sociedade Civil Nossa Senhora Aparecida"],
-    ["Centro de Atenção Integral ao Adolescente - Medianeira"],
-    [title],
-    [],
-    ...rows,
-  ];
-}
-
-/** Style institutional header rows (first 3) */
-function applyInstStyle(ws: XLSX.WorkSheet) {
-  const instStyle = { font: { bold: true, sz: 14 }, alignment: { horizontal: "center" as const } };
-  for (let r = 0; r < 3; r++) {
-    const addr = XLSX.utils.encode_cell({ r, c: 0 });
-    if (ws[addr]) ws[addr].s = instStyle;
-  }
+  applyTableHeaderStyle(ws, row, colCount);
 }
 
 /** Helper to enrich presencas with relatorio_presenca fallback */
@@ -279,7 +260,7 @@ export default function ExportarRelatoriosPage() {
       const atendByTipo: Record<string, number> = {};
       filteredAtendimentos.forEach((a: any) => { const t = a.tipo || "atendimento_individual"; atendByTipo[t] = (atendByTipo[t] || 0) + 1; });
 
-      const resumoData = addInstHeader([
+      const { data: resumoData } = addInstHeader([
         ["ATENDIDOS NO MÊS", atendidosFiltered.length],
         [],
         ["POR BAIRRO"],
@@ -311,14 +292,15 @@ export default function ExportarRelatoriosPage() {
         atividadesRows.push([proposta, r.nome_atividade || "", r.analise_ia || "", ""]);
       });
       if (!atividadesRows.length) atividadesRows.push(["Nenhuma atividade registrada", "", "", ""]);
-      const wsAtiv = XLSX.utils.aoa_to_sheet(addInstHeader([
+      const { data: ativData, offset: ativOff } = addInstHeader([
         ["Atividades Propostas", "Atividades Desenvolvidas", "Resultados Alcançados", "Justificativas"],
         ...atividadesRows,
-      ], `ATIVIDADES — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
+      ], `ATIVIDADES — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
+      const wsAtiv = XLSX.utils.aoa_to_sheet(ativData);
       wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
       autoFitColumns(wsAtiv);
-      applyInstStyle(wsAtiv);
-      applyHeaderStyle(wsAtiv, 4, 4);
+      applyInstStyle(wsAtiv, 4);
+      applyHeaderStyle(wsAtiv, ativOff, 4);
       applyBorders(wsAtiv);
       XLSX.utils.book_append_sheet(wb, wsAtiv, "Atividades");
 
@@ -354,14 +336,15 @@ export default function ExportarRelatoriosPage() {
         totalCriancas += totalBairro; totalMeta += metaBairro;
       });
       metasRows.push(["TOTAL", `${totalCriancas}/${totalMeta}`, `${totalMeta > 0 ? Math.round((totalCriancas/totalMeta)*100) : 0}%`, ""]);
-      const wsMetas = XLSX.utils.aoa_to_sheet(addInstHeader([
+      const { data: metaData, offset: metaOff } = addInstHeader([
         ["Metas Propostas", "Quant.", "Resultados Alcançados", "Justificativa"],
         ...metasRows,
-      ], `METAS — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
+      ], `METAS — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
+      const wsMetas = XLSX.utils.aoa_to_sheet(metaData);
       wsMetas["!cols"] = [{ wch: 55 }, { wch: 35 }, { wch: 50 }, { wch: 25 }];
       autoFitColumns(wsMetas);
-      applyInstStyle(wsMetas);
-      applyHeaderStyle(wsMetas, 4, 4);
+      applyInstStyle(wsMetas, 4);
+      applyHeaderStyle(wsMetas, metaOff, 4);
       applyBorders(wsMetas);
       XLSX.utils.book_append_sheet(wb, wsMetas, "Metas");
 
@@ -369,17 +352,18 @@ export default function ExportarRelatoriosPage() {
       const totalPresReg = activePresencas.length;
       const totalPres = activePresencas.filter((p: any) => p.presente).length;
       const pctGeral = totalPresReg > 0 ? Math.round((totalPres / totalPresReg) * 100) : 0;
-      const wsMonitor = XLSX.utils.aoa_to_sheet(addInstHeader([
+      const { data: monData, offset: monOff } = addInstHeader([
         ["Objetivo", "Indicador", "Meta Prevista", "Meta Atingida"],
         ["Assegurar espaços de referência para o convívio grupal", "Participação nas atividades", "100%", `${pctGeral}%`],
         ["Desenvolvimento de potencialidades e habilidades", "Participação em atividades culturais e esportivas", "100%", `${pctGeral}%`],
         ["Inserção e permanência no sistema educacional", "Matrícula, rendimento e frequência", "100%", `${pctGeral}%`],
         ["Acesso a benefícios socioassistenciais", "Quantidade de beneficiários", "100%", "100%"],
-      ], `MONITORAMENTO — ${MESES_NOMES[mesNum - 1]} / ${ano}`));
+      ], `MONITORAMENTO — ${MESES_NOMES[mesNum - 1]} / ${ano}`);
+      const wsMonitor = XLSX.utils.aoa_to_sheet(monData);
       wsMonitor["!cols"] = [{ wch: 60 }, { wch: 45 }, { wch: 15 }, { wch: 15 }];
       autoFitColumns(wsMonitor);
-      applyInstStyle(wsMonitor);
-      applyHeaderStyle(wsMonitor, 4, 4);
+      applyInstStyle(wsMonitor, 4);
+      applyHeaderStyle(wsMonitor, monOff, 4);
       applyBorders(wsMonitor);
       XLSX.utils.book_append_sheet(wb, wsMonitor, "Monitoramento");
 
@@ -425,20 +409,18 @@ export default function ExportarRelatoriosPage() {
           return row;
         });
 
-        const sheetData = [
-          ["Sociedade Civil Nossa Senhora Aparecida"],
-          ["Centro de Atenção Integral ao Adolescente - Medianeira"],
-          [`SCFV — Matriz de Frequência`],
-          [],
-          [`Turma: ${t.nome} | Bairro: ${bairroNome} | Período: ${t.periodo || "N/I"}`],
-          [`Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`], [], colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`],
-        ];
+        const turmaInfoLine = `Turma: ${t.nome} | Bairro: ${bairroNome} | Período: ${t.periodo || "N/I"}`;
+        const subInfoLine = `Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`;
+        const { data: sheetData, dataStartOffset: matOffset } = addInstitutionalHeader(
+          [colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]],
+          "MATRIZ DE FREQUÊNCIA", turmaInfoLine, subInfoLine,
+        );
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
         ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...datas.map(() => ({ wch: 6 }))];
-        // Auto-fit name column
         autoFitColumns(ws, { max: 55 });
-        applyHeaderStyle(ws, 8, colHeaders.length);
-        const dataStartRow = 9;
+        applyInstitutionalStyle(ws, colHeaders.length, { hasTurmaInfo: true, hasSubInfo: true });
+        applyHeaderStyle(ws, matOffset, colHeaders.length);
+        const dataStartRow = matOffset + 1;
         tParts.forEach((p: any, pIdx: number) => {
           const excelRow = dataStartRow + pIdx;
           datas.forEach((d, dIdx) => {
@@ -514,14 +496,14 @@ export default function ExportarRelatoriosPage() {
 
       // XLSX
       const wb = XLSX.utils.book_new();
-      const resumoRows = addInstHeader([
+      const { data: pcData } = addInstHeader([
         ["Item", "Valor"],
         ["Total Recebido (Parcelas)", totalRec],
         ["Despesas no Mês", totalDesp],
         ["Estornos no Mês", totalEst],
         ["Saldo Acumulado", saldoPC],
       ], "PRESTAÇÃO DE CONTAS — " + mesLabel);
-      const wsResumoPC = XLSX.utils.aoa_to_sheet(resumoRows);
+      const wsResumoPC = XLSX.utils.aoa_to_sheet(pcData);
       wsResumoPC["!cols"] = [{ wch: 35 }, { wch: 20 }];
       autoFitColumns(wsResumoPC);
       applyInstStyle(wsResumoPC);

@@ -100,14 +100,16 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   // Row 0: Institution
   rows.push(["Sociedade Civil Nossa Senhora Aparecida"]);
   // Row 1: CAIA
-  rows.push(["Centro de Atenção Integral ao Adolescente - CAIA Medianeira"]);
-  // Row 2: blank separator
+  rows.push(["Centro de Atenção Integral ao Adolescente"]);
+  // Row 2: Termo
+  rows.push(["SCFV CAIA - Termo de Colaboração 001/2022"]);
+  // Row 3: blank separator
   rows.push([""]);
-  // Row 3: Title
+  // Row 4: Title
   rows.push([`LISTA DE PRESENÇA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`]);
-  // Row 4: Turma name (large and bold)
+  // Row 5: Turma name (large and bold)
   rows.push([`${turma.nome}`]);
-  // Row 5: Info line
+  // Row 6: Info line
   const periodoInfo = turma.periodo ? periodoLabel[turma.periodo] || turma.periodo : "";
   const faixaInfo = turma.faixa_etaria ? faixaLabel[turma.faixa_etaria] || turma.faixa_etaria : "";
   const educadorInfo = turma.profiles?.nome || "";
@@ -119,10 +121,10 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
     bairroInfo && `Bairro: ${bairroInfo}`,
   ].filter(Boolean).join("  ·  ");
   rows.push([infoParts]);
-  // Row 6: blank separator
+  // Row 7: blank separator
   rows.push([""]);
 
-  const headerStartRow = 7;
+  const headerStartRow = 8;
   // Row 7: Table header
   rows.push(["Nº", "Nome do Participante", ...datas]);
 
@@ -150,7 +152,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
 
   // Merges for header rows
   const merges: XLSX.Range[] = [];
-  for (let r = 0; r <= 6; r++) {
+  for (let r = 0; r <= 7; r++) {
     merges.push({ s: { r, c: 0 }, e: { r, c: totalCols - 1 } });
   }
   merges.push({ s: { r: signRow, c: 1 }, e: { r: signRow, c: totalCols - 1 } });
@@ -165,11 +167,12 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
 
       if (r === 0) ws[addr].s = institutionStyle;
       else if (r === 1) ws[addr].s = subtitleStyle;
-      else if (r === 2) ws[addr].s = { border: bordersLight, fill: { fgColor: { rgb: "FFFFFF" } } };
-      else if (r === 3) ws[addr].s = titleStyle;
-      else if (r === 4) ws[addr].s = turmaNameStyle;
-      else if (r === 5) ws[addr].s = infoStyle;
-      else if (r === 6) ws[addr].s = { border: bordersLight, fill: { fgColor: { rgb: "FFFFFF" } } };
+      else if (r === 2) ws[addr].s = subtitleStyle;
+      else if (r === 3) ws[addr].s = { border: bordersLight, fill: { fgColor: { rgb: "FFFFFF" } } };
+      else if (r === 4) ws[addr].s = titleStyle;
+      else if (r === 5) ws[addr].s = turmaNameStyle;
+      else if (r === 6) ws[addr].s = infoStyle;
+      else if (r === 7) ws[addr].s = { border: bordersLight, fill: { fgColor: { rgb: "FFFFFF" } } };
       else if (r === headerStartRow) ws[addr].s = hdrStyle;
       else if (r > headerStartRow && r < headerStartRow + 1 + orderedMembers.length) {
         const memberIdx = r - headerStartRow - 1;
@@ -211,9 +214,10 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   ws["!rows"] = [];
   ws["!rows"][0] = { hpt: 22 };
   ws["!rows"][1] = { hpt: 16 };
-  ws["!rows"][3] = { hpt: 22 };
+  ws["!rows"][2] = { hpt: 14 };
   ws["!rows"][4] = { hpt: 22 };
-  ws["!rows"][5] = { hpt: 16 };
+  ws["!rows"][5] = { hpt: 22 };
+  ws["!rows"][6] = { hpt: 16 };
   for (let r = headerStartRow + 1; r < headerStartRow + 1 + orderedMembers.length; r++) {
     ws["!rows"][r] = { hpt: 18 };
   }
