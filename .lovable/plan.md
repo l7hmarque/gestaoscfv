@@ -1,39 +1,64 @@
 
 
-## Plano: Cabeçalho institucional bonito nas matrizes de frequência XLSX
+## Plano: Correções múltiplas no perfil do participante + investigação de frequência
 
-### Problema atual
-Os cabeçalhos das matrizes de frequência XLSX são simples texto sem formatação profissional — sem centralização adequada, sem logos, e com informações incompletas (falta "SCFV CAIA - Termo de Colaboração 001/2022").
+### 1. Campos escapando ao editar perfil (input perde foco)
 
-### O que será feito
+**Causa raiz**: Os componentes `EditField` e `Info` estão definidos **dentro** da função de renderização do componente `ParticipantePerfilPage` (linhas 266-271). Cada vez que `setForm` é chamado (a cada letra digitada), o React recria esses componentes como novas funções, causando unmount/remount e perda de foco.
 
-Padronizar o cabeçalho em **todos os locais** que geram matrizes de frequência XLSX, com:
-- Texto institucional centralizado e estilizado (3 linhas):
-  1. **Sociedade Civil Nossa Senhora Aparecida**
-  2. **Centro de Atenção Integral ao Adolescente**
-  3. **SCFV CAIA - Termo de Colaboração 001/2022**
-- Logos translúcidos da SCNSA e do CAIA (PNG) inseridos como imagens no cabeçalho
-- Fundo azul claro (#EBF5FB), fontes em azul escuro (#1A5276), bordas, centralização
-- Estilo consistente com o que já existe em `exportListaPresenca.ts` (que já tem um cabeçalho bonito)
+**Correção**: Mover `EditField` e `Info` para **fora** do componente principal, como componentes standalone que recebem `form`, `set` via props. Isso segue o padrão já documentado na memória `tecnico/padroes-componentes`.
 
-### Arquivos afetados
+### 2. Erro "invalid input syntax for type timestamp with time zone: ''"
 
-1. **`src/pages/relatorios/ExportarRelatoriosPage.tsx`** — Funções `addInstHeader()` e `applyInstStyle()` + cabeçalho das matrizes por turma (linhas 428-434)
-2. **`src/pages/dashboard/DashboardRelatorioMensalTab.tsx`** — Cabeçalho das matrizes por turma (linhas 514-528)
-3. **`src/lib/exportListaPresenca.ts`** — Já tem cabeçalho bonito, mas atualizar o texto da linha 2 para incluir "SCFV CAIA - Termo de Colaboração 001/2022"
+**Causa raiz**: Na linha 112, todos os campos do participante são convertidos para string no form state (`f[k] = v == null ? "" : String(v)`). Quando o save acontece (linha 130), o payload inclui `visualizado_em: ""` (string vazia) que é um timestamp. A linha 132 só nullifica `bairro_id`, `ponto_transporte_id`, `data_nascimento`, `iniciou_em`, `data_desligamento` — mas falta `visualizado_em` e `updated_at` (que foi deletado mas `visualizado_em` não).
 
-### Abordagem técnica
+**Correção**: Adicionar `visualizado_em` à lista de campos que devem ser nullificados quando vazios, ou melhor, excluí-lo do payload (assim como `created_at`/`updated_at`). Também garantir que qualquer campo de data/timestamp vazio seja convertido para `null`.
 
-1. **Criar helper centralizado** em `src/lib/xlsxInstHeader.ts` com:
-   - Função `addInstitutionalHeader(ws, totalCols, title, turmaInfo)` que aplica o cabeçalho com merges, estilos, e opcionalmente logos
-   - Logos armazenados como imagens no Supabase Storage (bucket `documentos`) ou em `public/`
-   - Uso de `xlsx-js-style` para inserir imagens como base64
+### 3. Capitalização padronizada dos dados
 
-2. **Substituir** os cabeçalhos simples nos 3 arquivos pelo helper centralizado
+**Correção**: No `handleSave`, antes de enviar o payload:
+- `nome_completo` → Title Case (Nome e Sobrenome)  
+- `responsavel1_nome`, `responsavel2_nome` → Title Case
+- `escola` → Title Case
+- `endereco_rua`, `endereco_bairro` → Title Case
+- `cpf` → formatado sem máscara (só dígitos, já está assim)
+- `responsavel1_whatsapp`, `responsavel2_whatsapp` → só dígitos (já está assim)
 
-3. **Logos**: Aguardar envio dos PNGs pelo usuário, depois incluir como assets em `public/` e referenciá-los no helper
+Nota: O sistema atual usa MAIÚSCULAS para padronização (memória `tecnico/padronizacao-dados`). Preciso verificar se o pedido de "Nome e Sobrenome" do usuário significa mudar para Title Case ou manter o padrão existente. O pedido diz `<-ex`, indicando que é um exemplo do formato. Vou aplicar Title Case conforme pedido.
 
-### Aguardando do usuário
+### 4. Idade irregular: ISABELLY VITORIA DOS SANTOS MELO
 
-Envie os **2 logos em PNG com fundo transparente** (SCNSA e CAIA) para que eu possa incluí-los no cabeçalho. Enquanto isso, posso já implementar a estrutura do cabeçalho com o texto e estilos, e adicionar os logos assim que recebê-los.
+**Encontrado**: `data_nascimento: 2026-10-17` — data no futuro, claramente errada. Único participante com idade < 5 anos.
+
+**Correção**: Via script, corrigir a data de nascimento. Provavelmente deveria ser `2016-10-17` (9 anos) em vez de `2026-10-17`.
+
+### 5. Listas de presença exportadas sem informação de presença
+
+**Investigação**: Os dados de presença **existem** no banco (104 presenças, 1753 ausências para março/2025). O código de exportação tanto em `ExportarRelatoriosPage.tsx` quanto em `DashboardRelatorioMensalTab.tsx` faz corretamente:
+- Busca `presencas` filtradas por data
+- Enriquece com fallback de `relatorio_presenca`
+- Itera pelas datas e marca `■` quando encontra `presente: true`
+
+**Possível causa**: O `turma_participantes` é buscado **sem filtrar** por `data_saida`. Os participantes transferidos (27 deles) têm `data_saida = 2025-03-01` nas turmas antigas. Porém, ao gerar a matriz, o export busca `tpIds = turmaParticipantes.filter(tp => tp.turma_id === t.id)` — isso inclui participantes que já saíram da turma, mas NÃO inclui participantes que entraram via transferência (porque a presença foi registrada na turma antiga). 
+
+Na verdade, o problema mais provável é que ao gerar matrizes, `fetchAllRows("turma_participantes")` traz TODOS os vínculos (incluindo os com `data_saida`), mas a presença foi registrada na turma correta. Preciso verificar se os IDs de presença correspondem aos IDs de turma corretamente.
+
+Vou verificar mais cuidadosamente: a presença inserida pelo script anterior usou a turma_id do participante no momento da inserção. Se o participante foi transferido, a presença deveria ter sido registrada na turma **nova** (pós-transferência). Mas olhando o script anterior, as presenças foram registradas na turma que o participante estava vinculado **antes** da transferência.
+
+**Diagnóstico final**: As matrizes podem estar mostrando participantes nas turmas certas, mas as presenças estão associadas a turmas diferentes. Preciso cruzar os dados para confirmar.
+
+### Arquivos a alterar
+
+1. **`src/pages/participantes/ParticipantePerfilPage.tsx`**:
+   - Mover `EditField` e `Info` para fora do componente
+   - Adicionar `visualizado_em` à exclusão do payload
+   - Aplicar Title Case nos campos textuais ao salvar
+
+2. **Script de correção de dados**:
+   - Corrigir data de nascimento da ISABELLY (2026→2016)
+   - Verificar e corrigir mapeamento presença↔turma se necessário
+
+3. **`src/pages/relatorios/ExportarRelatoriosPage.tsx`** e **`src/pages/dashboard/DashboardRelatorioMensalTab.tsx`**:
+   - Filtrar `turma_participantes` para excluir vínculos com `data_saida` anterior ao mês (para não listar participantes transferidos nas turmas antigas)
+   - OU incluir ambas as turmas (antiga e nova) para cada participante no período
 
