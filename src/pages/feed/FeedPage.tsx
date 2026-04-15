@@ -56,8 +56,8 @@ const FeedPage = () => {
   const fetchAll = async () => {
     // First fetch posts to get IDs, then fetch related data only for those posts
     const [{ data: p }, { data: m }] = await Promise.all([
-      supabase.from("feed_posts").select("*").neq("tipo", "conquista").order("created_at", { ascending: false }).limit(100),
-      supabase.from("mural_posts").select("*").order("fixado", { ascending: false }).order("created_at", { ascending: false }).limit(50),
+      supabase.from("feed_posts").select("id,autor_id,conteudo,tipo,created_at,mencoes,relatorio_id").neq("tipo", "conquista").order("created_at", { ascending: false }).limit(100),
+      supabase.from("mural_posts").select("id,autor_id,conteudo,tipo,titulo,created_at,fixado").order("fixado", { ascending: false }).order("created_at", { ascending: false }).limit(50),
     ]);
     const postIds = (p || []).map((x: any) => x.id);
     const [{ data: f }, { data: r }, { data: c }] = postIds.length > 0
