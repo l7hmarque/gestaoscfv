@@ -11,37 +11,60 @@ export function SysCFVLogo({ collapsed = false, size = "md" }: SysCFVLogoProps) 
       <svg
         width={iconSize}
         height={iconSize}
-        viewBox="0 0 40 40"
+        viewBox="0 0 48 48"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="shrink-0"
       >
-        {/* Hexagonal shield shape */}
+        {/* Geometric heart formed by S-C-V letter strokes */}
+        {/* Left curve (S shape flows into heart left) */}
         <path
-          d="M20 2L36 11V29L20 38L4 29V11L20 2Z"
-          fill="hsl(var(--primary))"
+          d="M24 44 C24 44, 4 32, 4 18 C4 10, 10 4, 18 4 C22 4, 24 7, 24 7"
           stroke="hsl(var(--primary))"
-          strokeWidth="1"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
         />
-        {/* Inner angular arrow — "forward motion" */}
+        {/* Right curve (mirrored, completing heart) */}
         <path
-          d="M14 15L22 20L14 25V15Z"
-          fill="hsl(var(--primary-foreground))"
+          d="M24 44 C24 44, 44 32, 44 18 C44 10, 38 4, 30 4 C26 4, 24 7, 24 7"
+          stroke="hsl(var(--primary))"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
         />
+        {/* S stroke — left inner curve */}
         <path
-          d="M19 15L27 20L19 25V15Z"
-          fill="hsl(var(--primary-foreground))"
-          fillOpacity="0.6"
+          d="M16 14 C16 14, 20 12, 20 16 C20 20, 14 20, 14 24 C14 28, 20 28, 20 28"
+          stroke="hsl(var(--primary))"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          fill="none"
         />
-        {/* Horizontal bar — stability */}
-        <rect
-          x="12"
-          y="28"
-          width="16"
-          height="2"
-          rx="1"
-          fill="hsl(var(--primary-foreground))"
-          fillOpacity="0.5"
+        {/* C stroke — center arc */}
+        <path
+          d="M28 15 C25 13, 22 15, 22 20 C22 25, 25 27, 28 25"
+          stroke="hsl(var(--primary))"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          fill="none"
+        />
+        {/* V stroke — right chevron */}
+        <path
+          d="M30 14 L34 26 L38 14"
+          stroke="hsl(var(--primary))"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+        {/* Small filled heart accent at the center-bottom */}
+        <path
+          d="M24 36 L22 33 C21 31, 22 30, 24 32 C26 30, 27 31, 26 33 Z"
+          fill="hsl(var(--primary))"
+          fillOpacity="0.7"
         />
       </svg>
       {!collapsed && (
