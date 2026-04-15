@@ -94,7 +94,7 @@ export default function CronogramaPage() {
   const [loading, setLoading] = useState(true);
   const [newCenarioName, setNewCenarioName] = useState("");
   const [newCenarioOpen, setNewCenarioOpen] = useState(false);
-  const [conflicts, setConflicts] = useState<string[]>([]);
+  
   const [dragOverCell, setDragOverCell] = useState<string | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
