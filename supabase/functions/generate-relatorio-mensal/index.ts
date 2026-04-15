@@ -311,7 +311,7 @@ function generateMonthSheets(
 
   for (const t of turmasAtivas) {
     const tpIds = turmaParticipantes.filter((tp: any) => tp.turma_id === t.id).map((tp: any) => tp.participante_id);
-    const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean) as any[];
+    const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean).filter((p: any) => !p.created_at || p.created_at < endDate) as any[];
     const tPresencas = presencas.filter((p: any) => p.turma_id === t.id);
 
     const relIdsForTurma = relatorioTurmas.filter((rt: any) => rt.turma_id === t.id).map((rt: any) => rt.relatorio_id);
@@ -337,7 +337,7 @@ function generateMonthSheets(
     const header1 = [`SCFV — CAIA Medianeira — Matriz de Frequência`];
     const header2 = [`Turma: ${t.nome} | Bairro: ${bairroNome} | Faixa: ${t.faixa_etaria || "N/I"} | Período: ${t.periodo || "N/I"}`];
     const header3 = [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum} | Exportado em: ${new Date().toLocaleString("pt-BR")}`];
-    const colHeaders = ["Nº", "Nome do Participante", ...datas.map(d => d.slice(5))];
+    const colHeaders = ["Nº", "Nome do Participante", ...datas.map((d: string) => d.slice(8,10) + "/" + d.slice(5,7))];
     const rows = tParts.map((p: any, idx: number) => {
       const isDesligado = p.status === "desligado";
       const dataDeslig = p.data_desligamento || null;

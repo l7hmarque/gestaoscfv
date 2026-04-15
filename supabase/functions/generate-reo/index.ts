@@ -702,7 +702,8 @@ Deno.serve(async (req: Request) => {
         }
 
         const tpMembers = turmaParticipantes.filter((tp: any) => tp.turma_id === t.id);
-        const memberParts = tpMembers.map((tp: any) => partMap[tp.participante_id]).filter(Boolean);
+        const endDate = mesNum === 12 ? `${anoNum + 1}-01-01` : `${anoNum}-${String(mesNum + 1).padStart(2, "0")}-01`;
+        const memberParts = tpMembers.map((tp: any) => partMap[tp.participante_id]).filter(Boolean).filter((p: any) => !p.created_at || p.created_at < endDate);
         const sorted = [...memberParts].sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo));
         if (sorted.length === 0 && datas.length === 0) continue;
 
@@ -728,7 +729,7 @@ Deno.serve(async (req: Request) => {
         const header1 = [`SCFV — CAIA Medianeira — Lista de Presença`];
         const header2 = [`Turma: ${t.nome} | Bairro: ${bn} | Período: ${t.periodo || "N/I"}`];
         const header3 = [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum} | Educador(a): ${educador?.nome || "N/I"}`];
-        const colHeaders = ["Nº", "Nome do Participante", ...allDates.map((d: string) => d.slice(5))];
+        const colHeaders = ["Nº", "Nome do Participante", ...allDates.map((d: string) => d.slice(8,10) + "/" + d.slice(5,7))];
         const rows = sorted.map((p: any, idx: number) => {
           const isDesligado = p.status === "desligado";
           const dataDeslig = p.data_desligamento || null;
@@ -898,7 +899,8 @@ Deno.serve(async (req: Request) => {
 
         // Get members for this turma
         const tpMembers = turmaParticipantes.filter((tp: any) => tp.turma_id === turma.id);
-        const memberParts = tpMembers.map((tp: any) => partMap[tp.participante_id]).filter(Boolean);
+        const endDateFilter = mesNum === 12 ? `${anoNum + 1}-01-01` : `${anoNum}-${String(mesNum + 1).padStart(2, "0")}-01`;
+        const memberParts = tpMembers.map((tp: any) => partMap[tp.participante_id]).filter(Boolean).filter((p: any) => !p.created_at || p.created_at < endDateFilter);
         const sorted = [...memberParts].sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo));
         if (sorted.length === 0) continue;
 

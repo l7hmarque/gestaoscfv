@@ -41,47 +41,47 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   const sorted = [...members].sort((a, b) => a.nome.localeCompare(b.nome));
   const totalCols = 2 + datas.length;
 
-  // --- Styles ---
+  // --- Styles (grayscale only: black, white, grey) ---
   const border = { style: "thin" as const, color: { rgb: "000000" } };
   const borders = { top: border, bottom: border, left: border, right: border };
-  const borderLight = { style: "thin" as const, color: { rgb: "AAAAAA" } };
-  const bordersLight = { top: borderLight, bottom: borderLight, left: borderLight, right: borderLight };
-  const noBorder = { top: { style: "thin" as const, color: { rgb: "FFFFFF" } }, bottom: { style: "thin" as const, color: { rgb: "FFFFFF" } }, left: { style: "thin" as const, color: { rgb: "FFFFFF" } }, right: { style: "thin" as const, color: { rgb: "FFFFFF" } } };
 
-  // Header styles with borders
   const institutionStyle = {
     font: { bold: true, sz: 11, color: { rgb: "000000" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     border: borders,
-    fill: { fgColor: { rgb: "F0F0F0" } },
+    fill: { fgColor: { rgb: "E8E8E8" } },
   };
   const subtitleStyle = {
     font: { bold: true, sz: 9, color: { rgb: "333333" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     border: borders,
-    fill: { fgColor: { rgb: "F0F0F0" } },
+    fill: { fgColor: { rgb: "E8E8E8" } },
   };
   const titleStyle = {
     font: { bold: true, sz: 13, color: { rgb: "FFFFFF" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const },
     border: borders,
-    fill: { fgColor: { rgb: "333333" } },
+    fill: { fgColor: { rgb: "000000" } },
   };
   const turmaNameStyle = {
-    font: { bold: true, sz: 12 },
+    font: { bold: true, sz: 12, color: { rgb: "000000" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const },
-    border: bordersLight,
-    fill: { fgColor: { rgb: "E0E0E0" } },
+    border: borders,
+    fill: { fgColor: { rgb: "D0D0D0" } },
   };
   const infoStyle = {
-    font: { sz: 9 },
+    font: { sz: 9, color: { rgb: "333333" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const },
-    border: bordersLight,
-    fill: { fgColor: { rgb: "FAFAFA" } },
+    border: borders,
+    fill: { fgColor: { rgb: "F5F5F5" } },
+  };
+  const separatorStyle = {
+    border: borders,
+    fill: { fgColor: { rgb: "FFFFFF" } },
   };
   const hdrStyle = {
     font: { bold: true, color: { rgb: "FFFFFF" }, sz: 8 },
-    fill: { fgColor: { rgb: "444444" } },
+    fill: { fgColor: { rgb: "333333" } },
     border: borders,
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
   };
@@ -91,7 +91,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   const signStyle = {
     font: { sz: 9, italic: true },
     alignment: { horizontal: "center" as const, vertical: "center" as const },
-    border: { top: border, bottom: noBorder.bottom, left: noBorder.left, right: noBorder.right },
+    border: borders,
   };
 
   // Build AOA
@@ -168,11 +168,11 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
       if (r === 0) ws[addr].s = institutionStyle;
       else if (r === 1) ws[addr].s = subtitleStyle;
       else if (r === 2) ws[addr].s = subtitleStyle;
-      else if (r === 3) ws[addr].s = { border: bordersLight, fill: { fgColor: { rgb: "FFFFFF" } } };
+      else if (r === 3) ws[addr].s = separatorStyle;
       else if (r === 4) ws[addr].s = titleStyle;
       else if (r === 5) ws[addr].s = turmaNameStyle;
       else if (r === 6) ws[addr].s = infoStyle;
-      else if (r === 7) ws[addr].s = { border: bordersLight, fill: { fgColor: { rgb: "FFFFFF" } } };
+      else if (r === 7) ws[addr].s = separatorStyle;
       else if (r === headerStartRow) ws[addr].s = hdrStyle;
       else if (r > headerStartRow && r < headerStartRow + 1 + orderedMembers.length) {
         const memberIdx = r - headerStartRow - 1;
@@ -187,7 +187,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
       } else if (r === signRow) {
         ws[addr].s = signStyle;
       } else {
-        ws[addr].s = { border: noBorder };
+        ws[addr].s = { border: borders };
       }
     }
   }

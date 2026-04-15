@@ -81,8 +81,9 @@ const PresencaExportarPage = () => {
       for (const turma of filteredTurmas) {
         const { data: tpData } = await supabase
           .from("turma_participantes")
-          .select("participante_id, participantes(nome_completo, status, data_desligamento)")
+          .select("participante_id, participantes(nome_completo, status, data_desligamento, created_at)")
           .eq("turma_id", turma.id);
+        const endDate = Number(mesSel) === 12 ? `${Number(anoSel)+1}-01-01` : `${anoSel}-${String(Number(mesSel)+1).padStart(2,"0")}-01`;
 
         const { data: presData } = await supabase
           .from("presenca")
@@ -95,6 +96,7 @@ const PresencaExportarPage = () => {
         const datas = Array.from(datasSet).sort();
 
         const participantes = (tpData || [])
+          .filter((tp: any) => !tp.participantes?.created_at || tp.participantes.created_at < endDate)
           .map((tp: any) => {
             const isDesligado = tp.participantes?.status === "desligado";
             const dataDeslig = tp.participantes?.data_desligamento || null;
@@ -148,10 +150,12 @@ const PresencaExportarPage = () => {
       for (const turma of turmasComDias) {
         const { data: tpData } = await supabase
           .from("turma_participantes")
-          .select("participante_id, participantes(nome_completo)")
+          .select("participante_id, participantes(nome_completo, created_at)")
           .eq("turma_id", turma.id);
+        const endDateLista = Number(mesSel) === 12 ? `${Number(anoSel)+1}-01-01` : `${anoSel}-${String(Number(mesSel)+1).padStart(2,"0")}-01`;
 
         const participantes = (tpData || [])
+          .filter((tp: any) => !tp.participantes?.created_at || tp.participantes.created_at < endDateLista)
           .map((tp: any) => {
             const isDesligado = tp.participantes?.status === "desligado";
             const dataDeslig = tp.participantes?.data_desligamento || null;
