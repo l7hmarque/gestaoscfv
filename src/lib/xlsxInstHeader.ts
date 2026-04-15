@@ -8,27 +8,27 @@ const INST_LINES = [
 
 const border = { style: "thin" as const, color: { rgb: "000000" } };
 const borders = { top: border, bottom: border, left: border, right: border };
-const borderLight = { style: "thin" as const, color: { rgb: "AAAAAA" } };
+const borderLight = { style: "thin" as const, color: { rgb: "808080" } };
 const bordersLight = { top: borderLight, bottom: borderLight, left: borderLight, right: borderLight };
 
 const instStyles = [
   {
-    font: { bold: true, sz: 12, color: { rgb: "1A5276" } },
+    font: { bold: true, sz: 12, color: { rgb: "000000" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     border: borders,
-    fill: { fgColor: { rgb: "EBF5FB" } },
+    fill: { fgColor: { rgb: "F2F2F2" } },
   },
   {
-    font: { bold: true, sz: 10, color: { rgb: "2C3E50" } },
+    font: { bold: true, sz: 10, color: { rgb: "222222" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     border: borders,
-    fill: { fgColor: { rgb: "EBF5FB" } },
+    fill: { fgColor: { rgb: "F2F2F2" } },
   },
   {
-    font: { bold: true, sz: 9, color: { rgb: "2C3E50" } },
+    font: { bold: true, sz: 9, color: { rgb: "333333" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     border: borders,
-    fill: { fgColor: { rgb: "EBF5FB" } },
+    fill: { fgColor: { rgb: "F2F2F2" } },
   },
 ];
 
@@ -36,21 +36,21 @@ const titleStyle = {
   font: { bold: true, sz: 13, color: { rgb: "FFFFFF" } },
   alignment: { horizontal: "center" as const, vertical: "center" as const },
   border: borders,
-  fill: { fgColor: { rgb: "1A5276" } },
+  fill: { fgColor: { rgb: "000000" } },
 };
 
 const turmaInfoStyle = {
-  font: { bold: true, sz: 11 },
+  font: { bold: true, sz: 11, color: { rgb: "000000" } },
   alignment: { horizontal: "center" as const, vertical: "center" as const },
-  border: bordersLight,
-  fill: { fgColor: { rgb: "D5F5E3" } },
+  border: borders,
+  fill: { fgColor: { rgb: "D9D9D9" } },
 };
 
 const subInfoStyle = {
-  font: { sz: 9 },
+  font: { sz: 9, color: { rgb: "333333" } },
   alignment: { horizontal: "center" as const, vertical: "center" as const },
-  border: bordersLight,
-  fill: { fgColor: { rgb: "FAFAFA" } },
+  border: borders,
+  fill: { fgColor: { rgb: "F7F7F7" } },
 };
 
 /**
@@ -91,12 +91,11 @@ export function applyInstitutionalStyle(
   const hasTurma = opts?.hasTurmaInfo ?? false;
   const hasSub = opts?.hasSubInfo ?? false;
 
-  // Rows: 0=inst1, 1=inst2, 2=inst3, 3=blank, 4=title, 5?=turma, 6?=sub, 7?=blank
   const blankRow = 3;
   const titleRow = 4;
   const turmaRow = hasTurma ? 5 : -1;
   const subRow = hasTurma && hasSub ? 6 : (!hasTurma && hasSub ? 5 : -1);
-  const lastHeaderRow = Math.max(titleRow, turmaRow, subRow) + 1; // blank separator
+  const lastHeaderRow = Math.max(titleRow, turmaRow, subRow) + 1;
 
   for (let r = 0; r <= lastHeaderRow; r++) {
     merges.push({ s: { r, c: 0 }, e: { r, c: totalCols - 1 } });
@@ -120,7 +119,6 @@ export function applyInstitutionalStyle(
 
   ws["!merges"] = merges;
 
-  // Row heights
   const rowInfo = ws["!rows"] || [];
   rowInfo[0] = { hpt: 22 };
   rowInfo[1] = { hpt: 18 };
@@ -130,7 +128,6 @@ export function applyInstitutionalStyle(
   if (subRow >= 0) rowInfo[subRow] = { hpt: 16 };
   ws["!rows"] = rowInfo;
 
-  // Ensure min total width for header text
   const cols = ws["!cols"] || [];
   let totalWidth = 0;
   for (let c = 0; c < totalCols; c++) totalWidth += (cols[c]?.wch || 8);
@@ -147,22 +144,21 @@ export function applyTableHeaderStyle(ws: XLSX.WorkSheet, row: number, colCount:
     if (!ws[addr]) ws[addr] = { v: "", t: "s" };
     ws[addr].s = {
       font: { bold: true, color: { rgb: "FFFFFF" }, sz: 9 },
-      fill: { fgColor: { rgb: "1A5276" } },
+      fill: { fgColor: { rgb: "333333" } },
       border: borders,
       alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     };
   }
 }
 
-/** Apply thin borders to all non-empty cells */
+/** Apply thin borders to all cells in the used range, including blank cells */
 export function applyAllBorders(ws: XLSX.WorkSheet) {
   const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
   for (let r = range.s.r; r <= range.e.r; r++) {
     for (let c = range.s.c; c <= range.e.c; c++) {
       const addr = XLSX.utils.encode_cell({ r, c });
-      if (ws[addr]) {
-        ws[addr].s = { ...(ws[addr].s || {}), border: borders };
-      }
+      if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+      ws[addr].s = { ...(ws[addr].s || {}), border: borders };
     }
   }
 }
