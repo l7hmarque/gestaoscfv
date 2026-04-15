@@ -16,55 +16,39 @@ export function SysCFVLogo({ collapsed = false, size = "md" }: SysCFVLogoProps) 
         xmlns="http://www.w3.org/2000/svg"
         className="shrink-0"
       >
-        {/* Geometric heart formed by S-C-V letter strokes */}
-        {/* Left curve (S shape flows into heart left) */}
-        <path
-          d="M24 44 C24 44, 4 32, 4 18 C4 10, 10 4, 18 4 C22 4, 24 7, 24 7"
-          stroke="hsl(var(--primary))"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-        {/* Right curve (mirrored, completing heart) */}
-        <path
-          d="M24 44 C24 44, 44 32, 44 18 C44 10, 38 4, 30 4 C26 4, 24 7, 24 7"
-          stroke="hsl(var(--primary))"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-        {/* S stroke — left inner curve */}
-        <path
-          d="M16 14 C16 14, 20 12, 20 16 C20 20, 14 20, 14 24 C14 28, 20 28, 20 28"
-          stroke="hsl(var(--primary))"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          fill="none"
-        />
-        {/* C stroke — center arc */}
-        <path
-          d="M28 15 C25 13, 22 15, 22 20 C22 25, 25 27, 28 25"
-          stroke="hsl(var(--primary))"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          fill="none"
-        />
-        {/* V stroke — right chevron */}
-        <path
-          d="M30 14 L34 26 L38 14"
-          stroke="hsl(var(--primary))"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-        {/* Small filled heart accent at the center-bottom */}
-        <path
-          d="M24 36 L22 33 C21 31, 22 30, 24 32 C26 30, 27 31, 26 33 Z"
+        {/* Outer geometric shape — rounded square/shield */}
+        <rect
+          x="2" y="2" width="44" height="44" rx="10"
           fill="hsl(var(--primary))"
-          fillOpacity="0.7"
+        />
+
+        {/* Inner letters S-C-V arranged so their curves form a heart shape */}
+        {/* S — left side, its curves form the left lobe of the heart */}
+        <path
+          d="M13 14 C17 11, 21 13, 20 16 C19 19, 14 19, 13 22 C12 25, 15 28, 19 28"
+          stroke="hsl(var(--primary-foreground))"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          fill="none"
+        />
+
+        {/* C — right side, its arc forms the right lobe of the heart */}
+        <path
+          d="M35 14 C31 11, 27 13, 28 16 C29 19, 34 19, 35 22 C36 25, 33 28, 29 28"
+          stroke="hsl(var(--primary-foreground))"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          fill="none"
+        />
+
+        {/* V — bottom center, the two strokes meet at a point forming the heart's bottom tip */}
+        <path
+          d="M19 28 L24 38 L29 28"
+          stroke="hsl(var(--primary-foreground))"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
         />
       </svg>
       {!collapsed && (
