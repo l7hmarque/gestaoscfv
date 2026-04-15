@@ -152,24 +152,39 @@ export default function CronogramaPage() {
   const getSlots = (dia: string, periodo: string, bairroId: string): Slot[] =>
     slots.filter(s => s.dia_semana === dia && s.periodo === periodo && s.bairro_id === bairroId);
 
-  const countSlots = (type: "educador" | "oficineiro" | "turma", id: string) => {
-    return slots.filter(s => {
-      if (type === "educador") return s.educador_id === id;
-      if (type === "oficineiro") return s.oficineiro_id === id;
-      return s.turma_id === id;
-    }).length;
-  };
+  const slotCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    slots.forEach(s => {
+      if (s.educador_id) map.set(`educador-${s.educador_id}`, (map.get(`educador-${s.educador_id}`) || 0) + 1);
+      if (s.oficineiro_id) map.set(`oficineiro-${s.oficineiro_id}`, (map.get(`oficineiro-${s.oficineiro_id}`) || 0) + 1);
+      if (s.turma_id) map.set(`turma-${s.turma_id}`, (map.get(`turma-${s.turma_id}`) || 0) + 1);
+    });
+    return map;
+  }, [slots]);
+
+  const countSlots = (type: "educador" | "oficineiro" | "turma", id: string) =>
+    slotCounts.get(`${type}-${id}`) || 0;
 
   /* ---- Frequency rule helpers ---- */
+  const turmaFreqMap = useMemo(() => {
+    const daysPerTurma = new Map<string, Set<string>>();
+    slots.forEach(s => {
+      if (!s.turma_id) return;
+      if (!daysPerTurma.has(s.turma_id)) daysPerTurma.set(s.turma_id, new Set());
+      daysPerTurma.get(s.turma_id)!.add(s.dia_semana);
+    });
+    return daysPerTurma;
+  }, [slots]);
+
   const getTurmaFreq = (turma: any): { current: number; rule: FreqRule | undefined } => {
     const upper = (turma.nome || "").toUpperCase();
     const rule = freqRules.find(r => upper.startsWith(r.turma_prefix.toUpperCase()));
-    const current = new Set(slots.filter(s => s.turma_id === turma.id).map(s => s.dia_semana)).size;
+    const current = turmaFreqMap.get(turma.id)?.size || 0;
     return { current, rule };
   };
 
-  // Conflict detection
-  useEffect(() => {
+  // Conflict detection (memoized)
+  const conflicts = useMemo(() => {
     const c: string[] = [];
     const checkDoubleBooking = (key: "educador_id" | "oficineiro_id", label: string) => {
       const map = new Map<string, { dia: string; periodo: string; bairro: string }[]>();
@@ -214,8 +229,8 @@ export default function CronogramaPage() {
       }
     });
 
-    setConflicts(c);
-  }, [slots, profiles, scfvBairros, disponibilidades, freqRules, turmas]);
+    return c;
+  }, [slots, profiles, disponibilidades, freqRules, turmas, turmaFreqMap]);
 
   // Drag & Drop
   const handleDragStart = (e: DragEvent, payload: DragPayload) => {
