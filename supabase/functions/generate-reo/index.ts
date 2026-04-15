@@ -702,7 +702,8 @@ Deno.serve(async (req: Request) => {
         }
 
         const tpMembers = turmaParticipantes.filter((tp: any) => tp.turma_id === t.id);
-        const memberParts = tpMembers.map((tp: any) => partMap[tp.participante_id]).filter(Boolean);
+        const endDate = mesNum === 12 ? `${anoNum + 1}-01-01` : `${anoNum}-${String(mesNum + 1).padStart(2, "0")}-01`;
+        const memberParts = tpMembers.map((tp: any) => partMap[tp.participante_id]).filter(Boolean).filter((p: any) => !p.created_at || p.created_at < endDate);
         const sorted = [...memberParts].sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo));
         if (sorted.length === 0 && datas.length === 0) continue;
 
