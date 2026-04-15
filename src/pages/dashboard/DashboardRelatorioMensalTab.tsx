@@ -445,7 +445,7 @@ export default function DashboardRelatorioMensalTab() {
       for (const turma of turmasAtivas) {
         const t = turma as any;
         const tpIds = turmaParticipantes.filter((tp: any) => tp.turma_id === t.id).map((tp: any) => tp.participante_id);
-        const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean) as any[];
+        const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean).filter((p: any) => !p.created_at || p.created_at < endDate) as any[];
         const tPresencas = presencas.filter((p: any) => p.turma_id === t.id);
 
         // Build relatorio_presenca fallback
@@ -475,7 +475,7 @@ export default function DashboardRelatorioMensalTab() {
         const turmaInfoLine = `Turma: ${t.nome} | Bairro: ${bairroNome} | Faixa: ${t.faixa_etaria || "N/I"} | Período: ${t.periodo || "N/I"}`;
         const subInfoLine = `Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`;
 
-        const colHeaders = ["Nº", "Nome do Participante", ...datas.map(d => d.slice(5))];
+        const colHeaders = ["Nº", "Nome do Participante", ...datas.map(d => d.slice(8,10) + "/" + d.slice(5,7))];
         const rows = tParts.map((p: any, idx: number) => {
           const isDesligado = p.status === "desligado";
           const dataDeslig = p.data_desligamento || null;

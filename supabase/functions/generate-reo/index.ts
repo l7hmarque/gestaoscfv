@@ -728,7 +728,7 @@ Deno.serve(async (req: Request) => {
         const header1 = [`SCFV — CAIA Medianeira — Lista de Presença`];
         const header2 = [`Turma: ${t.nome} | Bairro: ${bn} | Período: ${t.periodo || "N/I"}`];
         const header3 = [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum} | Educador(a): ${educador?.nome || "N/I"}`];
-        const colHeaders = ["Nº", "Nome do Participante", ...allDates.map((d: string) => d.slice(5))];
+        const colHeaders = ["Nº", "Nome do Participante", ...allDates.map((d: string) => d.slice(8,10) + "/" + d.slice(5,7))];
         const rows = sorted.map((p: any, idx: number) => {
           const isDesligado = p.status === "desligado";
           const dataDeslig = p.data_desligamento || null;

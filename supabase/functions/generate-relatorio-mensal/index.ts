@@ -337,7 +337,7 @@ function generateMonthSheets(
     const header1 = [`SCFV — CAIA Medianeira — Matriz de Frequência`];
     const header2 = [`Turma: ${t.nome} | Bairro: ${bairroNome} | Faixa: ${t.faixa_etaria || "N/I"} | Período: ${t.periodo || "N/I"}`];
     const header3 = [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum} | Exportado em: ${new Date().toLocaleString("pt-BR")}`];
-    const colHeaders = ["Nº", "Nome do Participante", ...datas.map(d => d.slice(5))];
+    const colHeaders = ["Nº", "Nome do Participante", ...datas.map((d: string) => d.slice(8,10) + "/" + d.slice(5,7))];
     const rows = tParts.map((p: any, idx: number) => {
       const isDesligado = p.status === "desligado";
       const dataDeslig = p.data_desligamento || null;
