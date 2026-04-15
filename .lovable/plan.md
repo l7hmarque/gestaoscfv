@@ -1,50 +1,80 @@
 
 
-## Plano: Filtros na Busca Ativa + Correção de Badge de Status
+## Diagnóstico: Por que o site está lento
 
-### Problemas identificados
+Analisei o código, as requisições de rede e os logs. Os principais gargalos são:
 
-1. **Filtros insuficientes** — A busca ativa só tem 2 filtros (status genérico e bairro). Faltam filtros por: período (manhã/tarde), faixa etária, turma, quantidade de faltas, e se já teve contato de busca ativa ou não.
+### Problema 1 — Dashboard puxa TODAS as linhas do banco para o navegador
 
-2. **Badge incorreto** — Na linha 836, participantes com status `busca_ativa` estão caindo no ramo `else` do ternário (`p.status === "ativo" ? "secondary" : "destructive"`), recebendo badge `destructive` (vermelho = "desligado"). O mesmo ocorre na linha 421-423 que agrupa `inativo` e `desligado` com o mesmo `motivo_alerta: "Desligado/Inativo recente"`. Participantes com `busca_ativa` devem ter badge laranja/amarelo, não vermelho.
+O `useDashboardData` faz `fetchAllRows` em **6 tabelas inteiras** (participantes, turmas, relatorios_atividade, planejamentos, bairros, relatorio_presenca) e faz toda a agregação no JavaScript do navegador. A tabela `relatorio_presenca` cresce com cada registro de presença — centenas/milhares de linhas sendo baixadas e processadas no browser a cada visita ao dashboard.
 
-### Mudanças
+### Problema 2 — Cronograma re-renderiza demais
 
-**1. Mais filtros na Busca Ativa** (`EquipeTecnicaPage.tsx`)
+O componente `CronogramaPage` (870 linhas) tem um `useEffect` de detecção de conflitos que roda a cada mudança de `slots`, iterando todos os slots múltiplas vezes. As funções `countSlots` e `getTurmaFreq` são chamadas inline no render sem memoização.
 
-Adicionar filtros:
-- **Período** (manhã/tarde/integral) — filtra por `p.periodo`
-- **Faixa etária** (6-8, 9-11, 12-17, idosos) — derivada de `data_nascimento`
-- **Turma** — dropdown com turmas ativas, filtra via `turmaParticipantes`
-- **Qtd mínima de faltas** — slider ou select (2, 3, 5, 10+)
-- **Contato realizado** — "Todos", "Sem contato", "Com contato" — baseado em `buscaAtivaRegistros`
-- **Busca textual** — campo de texto para nome
+### Problema 3 — Requisições em cascata (waterfall)
 
-**2. Corrigir badge de status** (`EquipeTecnicaPage.tsx`)
+No Feed, após buscar `feed_posts`, uma segunda rodada de requests busca `feed_fotos`, `feed_reacoes` e `feed_comentarios`. No Index, busca-se `profiles` para achar o `user_id` e depois `recados` — sequencial.
 
-Na renderização do card (linha 836):
-- `busca_ativa` → badge laranja (`bg-orange-100 text-orange-800`)
-- `desligado` → badge vermelho (destructive)
-- `ativo` → badge secundário
-- Usar `STATUS_LABELS` e `STATUS_COLORS` de `constants.ts` para consistência
+---
 
-Na detecção de alertas (linha 421):
-- Separar `inativo`/`busca_ativa` de `desligado` no motivo de alerta
-- `busca_ativa` → motivo "Em busca ativa"
-- `desligado` → motivo "Desligado recente"
+## Plano de Otimização
 
-**3. Borda do card** (linha 821)
+### 1. Mover agregação do Dashboard para o banco (maior impacto)
 
-Atualizar a cor da borda-esquerda:
-- `ativo` → amarelo/amber (faltas)
-- `busca_ativa` → laranja
-- `desligado` → vermelho
+Criar uma **função SQL (RPC)** `get_dashboard_stats` que retorna os dados já agregados. Em vez de baixar milhares de linhas de `relatorio_presenca` e `participantes`, o banco faz os counts, agrupamentos e médias e retorna um JSON pequeno.
 
-### Arquivo editado
+- **Migration**: criar função `get_dashboard_stats()` que retorna JSON com totais, agrupamentos por faixa/gênero/bairro/período, médias ELO/adesão, presença mensal, delta, alertas
+- **`useDashboardData.ts`**: trocar 6x `fetchAllRows` por 1x `supabase.rpc("get_dashboard_stats")`
+
+### 2. Memoizar cálculos pesados do Cronograma
+
+- Envolver `countSlots` e `getTurmaFreq` em `useMemo` dependendo de `slots`
+- Memoizar a lista de conflitos com `useMemo` em vez de `useEffect` + `setState` (evita re-render duplo)
+- Extrair componentes menores (`SlotCell`, `TurmaStrip`) com `React.memo`
+
+### 3. Selecionar apenas colunas necessárias
+
+- Dashboard: se mantiver client-side como fallback, usar `select` específico em vez de `select("*")` para reduzir payload
+- Feed: usar `select("id,autor_id,conteudo,tipo,created_at")` em vez de `*`
+- Cronograma: `profiles` já usa `select("id, nome, cargo, ativo")` — OK
+
+### 4. Lazy load de dados secundários
+
+- No Index (página inicial): os `pinnedPosts` e contagens podem usar `staleTime` do React Query para não re-buscar a cada navegação
+- Feed: carregar fotos/reações/comentários só dos posts visíveis (virtualização futura), não de todos os 100
+
+---
+
+### Arquivos editados
 
 | Arquivo | Mudança |
 |---|---|
-| `src/pages/equipe-tecnica/EquipeTecnicaPage.tsx` | Filtros adicionais + correção de badges + labels de motivo |
+| Migration SQL | Função RPC `get_dashboard_stats` |
+| `src/hooks/useDashboardData.ts` | Trocar fetchAllRows por RPC |
+| `src/pages/cronograma/CronogramaPage.tsx` | useMemo para conflitos, countSlots, getTurmaFreq |
+| `src/pages/feed/FeedPage.tsx` | Select específico, limitar fetch de fotos/reações |
 
-### Zero alteração em lógica de negócio ou banco de dados
+### Resultado esperado
+
+- Dashboard: de ~6 requests (milhares de rows) para 1 request (1 JSON pequeno)
+- Cronograma: menos re-renders, cálculos memoizados
+- Feed: payloads menores
+
+### Detalhes técnicos da RPC
+
+```sql
+CREATE OR REPLACE FUNCTION get_dashboard_stats()
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER AS $$
+DECLARE result jsonb;
+BEGIN
+  -- Agregações diretas no banco:
+  -- COUNT participantes ativos, turmas ativas, relatórios, planejamentos
+  -- GROUP BY faixa etária, gênero, bairro, período
+  -- AVG score_elo, pct_adesao por mês
+  -- Presença mensal: JOIN relatorio_presenca com relatorios_atividade
+  -- Tudo retornado em um único JSON
+  RETURN result;
+END; $$;
+```
 
