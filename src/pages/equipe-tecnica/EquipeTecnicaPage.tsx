@@ -1039,9 +1039,68 @@ const EquipeTecnicaPage = () => {
                 <Textarea value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} className="mt-1 min-h-[100px]" placeholder="Relato do atendimento..." />
               </div>
               <div>
-                <Label className="text-xs">Encaminhamento (opcional)</Label>
-                <Textarea value={form.encaminhamento} onChange={e => setForm(f => ({ ...f, encaminhamento: e.target.value }))} className="mt-1 min-h-[60px]" placeholder="Encaminhamento realizado..." />
+                <Label className="text-xs">Encaminhamento interno (opcional)</Label>
+                <Textarea value={form.encaminhamento} onChange={e => setForm(f => ({ ...f, encaminhamento: e.target.value }))} className="mt-1 min-h-[60px]" placeholder="Orientação/encaminhamento interno..." />
               </div>
+
+              {/* Toggle: Encaminhamento à rede de proteção */}
+              <div className="rounded-lg border p-3 space-y-3 bg-muted/30">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Checkbox checked={!!form.criar_enc_externo} onCheckedChange={v => setForm(f => ({ ...f, criar_enc_externo: !!v }))} />
+                  <div className="flex-1">
+                    <span className="text-xs font-medium flex items-center gap-1"><Network className="h-3.5 w-3.5" />Encaminhar à rede de proteção</span>
+                    <span className="block text-[11px] text-muted-foreground">Cria registro vinculado em CRAS, CAPS, UBS, Conselho Tutelar etc.</span>
+                  </div>
+                </label>
+                {form.criar_enc_externo && (
+                  <div className="space-y-2 pl-6">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Tipo de Órgão</Label>
+                        <Select value={form.enc_tipo} onValueChange={v => setForm(f => ({ ...f, enc_tipo: v }))}>
+                          <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cras">CRAS</SelectItem>
+                            <SelectItem value="creas">CREAS</SelectItem>
+                            <SelectItem value="caps">CAPS</SelectItem>
+                            <SelectItem value="ubs">UBS / Saúde</SelectItem>
+                            <SelectItem value="conselho_tutelar">Conselho Tutelar</SelectItem>
+                            <SelectItem value="escola">Escola</SelectItem>
+                            <SelectItem value="ministerio_publico">Ministério Público</SelectItem>
+                            <SelectItem value="outro">Outro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Nome do Órgão</Label>
+                        <Input value={form.enc_orgao} onChange={e => setForm(f => ({ ...f, enc_orgao: e.target.value }))} placeholder="Ex: CRAS Jd. Irene" className="mt-1 h-8 text-xs" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Contato</Label>
+                        <Input value={form.enc_contato} onChange={e => setForm(f => ({ ...f, enc_contato: e.target.value }))} placeholder="Telefone/responsável" className="mt-1 h-8 text-xs" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Status inicial</Label>
+                        <Select value={form.enc_status} onValueChange={v => setForm(f => ({ ...f, enc_status: v }))}>
+                          <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="aberto">Aberto</SelectItem>
+                            <SelectItem value="em_andamento">Em andamento</SelectItem>
+                            <SelectItem value="concluido">Concluído</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Previsão de retorno (opcional)</Label>
+                      <Input type="date" value={form.enc_data_retorno} onChange={e => setForm(f => ({ ...f, enc_data_retorno: e.target.value }))} className="mt-1 h-8 text-xs" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <Button onClick={handleCreate} className="w-full">Registrar</Button>
             </div>
           </DialogContent>
