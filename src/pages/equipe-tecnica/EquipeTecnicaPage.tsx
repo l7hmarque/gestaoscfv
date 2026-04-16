@@ -1305,13 +1305,13 @@ const EquipeTecnicaPage = () => {
                         const part = participantes.find(p => p.id === e.participante_id);
                         const statusColor = e.status === "concluido" ? "default" : e.status === "em_andamento" ? "secondary" : "outline";
                         return (
-                          <div key={e.id} className="flex items-center justify-between gap-2 text-xs border-b pb-1.5 last:border-0">
+                          <button key={e.id} type="button" onClick={() => openEncEdit(e)} className="w-full text-left flex items-center justify-between gap-2 text-xs border-b pb-1.5 last:border-0 hover:bg-muted/50 rounded px-1 transition-colors">
                             <div className="flex-1 min-w-0">
                               <div className="font-medium truncate">{part?.nome_completo || "—"}</div>
                               <div className="text-muted-foreground truncate">{e.orgao} · {format(new Date(e.data_encaminhamento + "T12:00:00"), "dd/MM/yyyy")}</div>
                             </div>
                             <Badge variant={statusColor as any} className="text-[10px] shrink-0">{e.status}</Badge>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
