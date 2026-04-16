@@ -1253,6 +1253,73 @@ const EquipeTecnicaPage = () => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Rede de Proteção (Encaminhamentos Externos) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Network className="h-4 w-4" />Rede de Proteção</h3>
+              <span className="text-xs text-muted-foreground">{encExternos.length} encaminhamento(s) registrado(s)</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card><CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold">{encExternos.length}</p>
+                <p className="text-xs text-muted-foreground">Total</p>
+              </CardContent></Card>
+              <Card><CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold text-amber-600">{encExternos.filter(e => e.status === "aberto").length}</p>
+                <p className="text-xs text-muted-foreground">Em aberto</p>
+              </CardContent></Card>
+              <Card><CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold text-blue-600">{encExternos.filter(e => e.status === "em_andamento").length}</p>
+                <p className="text-xs text-muted-foreground">Em andamento</p>
+              </CardContent></Card>
+              <Card><CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold text-emerald-600">{encExternos.filter(e => e.status === "concluido").length}</p>
+                <p className="text-xs text-muted-foreground">Concluídos</p>
+              </CardContent></Card>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm">Encaminhamentos por Órgão</CardTitle></CardHeader>
+                <CardContent>
+                  {encPorOrgao.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie data={encPorOrgao} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75} label={({ name, value }) => `${name}: ${value}`} labelLine={false}>
+                          {encPorOrgao.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : <p className="text-sm text-muted-foreground text-center py-8">Nenhum encaminhamento</p>}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2 flex-row items-center justify-between">
+                  <CardTitle className="text-sm">Últimos Encaminhamentos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {encExternos.length > 0 ? (
+                    <div className="space-y-1.5 max-h-[220px] overflow-auto">
+                      {encExternos.slice(0, 8).map(e => {
+                        const part = participantes.find(p => p.id === e.participante_id);
+                        const statusColor = e.status === "concluido" ? "default" : e.status === "em_andamento" ? "secondary" : "outline";
+                        return (
+                          <div key={e.id} className="flex items-center justify-between gap-2 text-xs border-b pb-1.5 last:border-0">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium truncate">{part?.nome_completo || "—"}</div>
+                              <div className="text-muted-foreground truncate">{e.orgao} · {format(new Date(e.data_encaminhamento + "T12:00:00"), "dd/MM/yyyy")}</div>
+                            </div>
+                            <Badge variant={statusColor as any} className="text-[10px] shrink-0">{e.status}</Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : <p className="text-sm text-muted-foreground text-center py-8">Sem registros</p>}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </TabsContent>
 
         {/* ATENDIMENTOS */}
