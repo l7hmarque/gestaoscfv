@@ -424,6 +424,19 @@ const EquipeTecnicaPage = () => {
     return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [participantesAtivos]);
 
+  const encPorOrgao = useMemo(() => {
+    const map: Record<string, number> = {};
+    encExternos.forEach(e => { const k = (e.tipo || "outro").toUpperCase(); map[k] = (map[k] || 0) + 1; });
+    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [encExternos]);
+
+  const encPorStatus = useMemo(() => {
+    const labels: Record<string, string> = { aberto: "Aberto", em_andamento: "Em andamento", concluido: "Concluído", sem_retorno: "Sem retorno" };
+    const map: Record<string, number> = {};
+    encExternos.forEach(e => { const k = labels[e.status] || e.status || "—"; map[k] = (map[k] || 0) + 1; });
+    return Object.entries(map).map(([name, value]) => ({ name, value }));
+  }, [encExternos]);
+
   const alertasFrequencia = useMemo(() => {
     const ultimosDias = format(subDays(now, 30), "yyyy-MM-dd");
     const porParticipante: Record<string, { total: number; faltas: number }> = {};
