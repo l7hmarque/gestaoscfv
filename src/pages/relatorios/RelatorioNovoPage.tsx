@@ -892,6 +892,11 @@ const RelatorioNovoPage = () => {
                       }}
                     />
                     <span className={cn("text-sm flex-1", !presente && "text-muted-foreground line-through")}>{p.nome}</span>
+                    {form.periodo_atividade && p.periodo && p.periodo !== form.periodo_atividade && (
+                      <Badge variant="outline" className="text-[9px] shrink-0 border-amber-400 text-amber-600">
+                        {p.periodo === "manha" ? "Manhã" : "Tarde"} → {form.periodo_atividade === "manha" ? "Manhã" : "Tarde"}
+                      </Badge>
+                    )}
                     {!presente && (
                       <Input
                         value={form.justificativas[p.id] || ""}
