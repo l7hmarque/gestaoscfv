@@ -112,7 +112,7 @@ const RelatorioNovoPage = () => {
   useEffect(() => {
     const fetchBase = async () => {
       const [t, e, r] = await Promise.all([
-        supabase.from("turmas").select("id, nome, educador_id, oficina").eq("ativa", true).order("nome"),
+        supabase.from("turmas").select("id, nome, educador_id, oficina, periodo").eq("ativa", true).order("nome"),
         supabase.from("profiles").select("id, nome, user_id"),
         supabase.from("user_roles").select("user_id, role"),
       ]);
@@ -172,13 +172,21 @@ const RelatorioNovoPage = () => {
     const fetchParts = async () => {
       const { data } = await supabase
         .from("turma_participantes")
-        .select("participante_id, data_saida, participantes(id, nome_completo)")
+        .select("participante_id, data_saida, participantes(id, nome_completo, status, periodo)")
         .in("turma_id", form.turma_ids)
         .is("data_saida" as any, null);
       if (data) {
-        const unique = new Map<string, string>();
-        data.forEach((d: any) => { if (d.participantes) unique.set(d.participantes.id, d.participantes.nome_completo); });
-        const list = Array.from(unique, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+        const unique = new Map<string, { nome: string; status: string; periodo: string | null }>();
+        data.forEach((d: any) => {
+          if (d.participantes && !unique.has(d.participantes.id)) {
+            unique.set(d.participantes.id, { nome: d.participantes.nome_completo, status: d.participantes.status, periodo: d.participantes.periodo });
+          }
+        });
+        // Filter: only ativo and busca_ativa
+        const ALLOWED_STATUS = new Set(["ativo", "busca_ativa"]);
+        const list = Array.from(unique, ([id, info]) => ({ id, nome: info.nome, status: info.status, periodo: info.periodo }))
+          .filter(p => ALLOWED_STATUS.has(p.status || "ativo"))
+          .sort((a, b) => a.nome.localeCompare(b.nome));
         setParticipantesTurma(list);
         setForm(f => {
           const activeIds = new Set(list.map(p => p.id));
