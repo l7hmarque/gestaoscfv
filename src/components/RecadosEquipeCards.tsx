@@ -69,8 +69,8 @@ export function RecadosEquipeCards({ onPendingCount, onRegistrarAtendimento, ate
   const partName = (id: string) => participantes.find(p => p.id === id)?.nome_completo || "";
   const statusInfo = (s: string) => STATUS_OPTIONS.find(o => o.value === s) || STATUS_OPTIONS[0];
 
-  const pendentes = recados.filter(r => (r as any).status !== "concluido");
-  const concluidos = recados.filter(r => (r as any).status === "concluido");
+  const pendentes = recados.filter(r => !["concluido", "resolvido"].includes((r as any).status));
+  const concluidos = recados.filter(r => ["concluido", "resolvido"].includes((r as any).status));
 
   if (loading) return null;
 
