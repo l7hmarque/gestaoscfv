@@ -1118,7 +1118,7 @@ const EquipeTecnicaPage = () => {
               <Badge variant="destructive" className="ml-1 h-5 min-w-[20px] px-1 text-[10px]">{recadosPendentes}</Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="encaminhamentos" className="gap-1"><Network className="h-3.5 w-3.5" />Encaminhamentos</TabsTrigger>
+          
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
           <TabsTrigger value="alertas" className="gap-1">
             Alertas
