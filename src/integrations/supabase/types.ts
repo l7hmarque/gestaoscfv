@@ -1870,6 +1870,7 @@ export type Database = {
           created_at: string | null
           data: string
           dia_semana: string | null
+          educador_apoio_id: string | null
           educador_id: string | null
           engajamento: string[] | null
           id: string
@@ -1900,6 +1901,7 @@ export type Database = {
           created_at?: string | null
           data: string
           dia_semana?: string | null
+          educador_apoio_id?: string | null
           educador_id?: string | null
           engajamento?: string[] | null
           id?: string
@@ -1930,6 +1932,7 @@ export type Database = {
           created_at?: string | null
           data?: string
           dia_semana?: string | null
+          educador_apoio_id?: string | null
           educador_id?: string | null
           engajamento?: string[] | null
           id?: string
@@ -1953,6 +1956,13 @@ export type Database = {
           tipo_atividade_detalhe?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "relatorios_atividade_educador_apoio_id_fkey"
+            columns: ["educador_apoio_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "relatorios_atividade_educador_id_fkey"
             columns: ["educador_id"]
