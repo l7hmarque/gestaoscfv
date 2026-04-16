@@ -1,50 +1,63 @@
+## Plano: Integração Recados Técnicos ↔ Atendimentos + Relatório Equipe Técnica
+
+### Contexto
+
+Hoje os recados técnicos (`recados.tipo_recado='tecnico'`) e os atendimentos (`atendimentos`) vivem em silos separados. Quando um educador envia um chamado para a equipe técnica e a psicóloga/AS realiza o atendimento, não há vínculo entre eles. Isso impede rastreabilidade no relatório.
+
+### Parte 1 — Vínculo Recado ↔ Atendimento
+
+**Schema (migration)**: adicionar coluna `recado_origem_id uuid` em `atendimentos` (nullable, sem FK rígida para preservar histórico se o recado for excluído).
+
+**Fluxo na UI**:
+
+- Em `EquipeTecnicaPage`, na aba de Recados, cada recado técnico ganha botão **"Registrar atendimento"** que abre o diálogo de novo atendimento já pré-preenchido com `participante_id` e `recado_origem_id`.
+- Ao salvar o atendimento, o recado é atualizado para `status='resolvido'` automaticamente.
+- No card do recado, se já houver atendimento vinculado, mostra link "Ver atendimento #X" e data.
+
+### Parte 2 — Relatório de Atividades da Equipe Técnica (P&B)
+
+Atualizar o relatório existente em `EquipeTecnicaPage` (PDF + XLSX) com paleta grayscale (preto/cinza/branco, sem cores), seguindo `mem://estilo/documentos-institucionais-padrao`. Adicionar **nova seção "Chamados Técnicos"** com:
+
+1. **Resumo**: total de recados técnicos no período, % resolvidos, tempo médio até resolução, pendentes.
+2. **Detalhamento**: tabela com data envio, remetente (educador), participante, conteúdo do chamado, status, data resolução, atendimento vinculado (se houver), descrição resumida do atendimento.
+3. **Indicador de eficácia**: chamados que geraram atendimento formal vs apenas resolução administrativa.
+
+Disponível em PDF e XLSX (com `wrapText` e `autoFitColumns` já corrigidos).
+
+### Parte 3 — Outras vinculações sugeridas (para você escolher)
+
+Listo abaixo as ideias que considero mais úteis para controle/monitoramento/avaliação. Marque quais quer incluir neste mesmo ciclo ou em ciclos seguintes:
 
 
-## Plano: Lógica Automática e Contínua de Busca Ativa
+| #      | Vinculação                                                                                                                              | Benefício                                                 | Complexidade | &nbsp; |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------------ | ------ |
+| A      | **Atendimento ↔ Busca Ativa** (`busca_ativa_registros.atendimento_id`)                                                                  | Rastreia se a busca virou atendimento formal e o desfecho | Baixa        | &nbsp; |
+| B      | **Atendimento ↔ Relato Equipe Técnica** (relatos pedagógicos que viram atendimento)                                                     | Fecha o ciclo educador → técnica → registro               | Baixa        | &nbsp; |
+| C      | **Participante ↔ Linha do tempo unificada** (timeline com presenças, BA, atendimentos, recados, transferências, desligamento) no perfil | Visão 360° por participante para coordenação              | Média        | &nbsp; |
+| &nbsp; | &nbsp;                                                                                                                                  | &nbsp;                                                    | &nbsp;       | &nbsp; |
+| &nbsp; | &nbsp;                                                                                                                                  | &nbsp;                                                    | &nbsp;       | &nbsp; |
+| F      | **Relatório de Atividade ↔ Frequência consolidada por participante** (link direto do relatório para o histórico do participante)        | Auditoria rápida de presença declarada                    | Baixa        | &nbsp; |
+| G      | **Conquistas ↔ Métricas reais** (gamificação alimentada por: nº de atendimentos, recados resolvidos, presenças marcadas no prazo)       | Engajamento da equipe                                     | Baixa        | &nbsp; |
+| H      | **Encaminhamentos externos** (CRAS, CAPS, UBS) como entidade própria vinculada a atendimento + acompanhamento de retorno                | Controle de rede de proteção                              | Alta         | &nbsp; |
+| I      | **Indicadores de risco automáticos** (participante com BA + laudo + faltas + sem atendimento recente = alerta vermelho na lista)        | Priorização da equipe técnica                             | Média        | &nbsp; |
+| J      | **Planejamento ↔ Resultado real** (planejamento previsto vs relatório executado, taxa de cumprimento por educador)                      | Avaliação pedagógica                                      | Média        | &nbsp; |
 
-### Diagnóstico
-
-Os 107 originais foram todos marcados em lote no dia 14/04 sem critério dinâmico. Minha reclassificação corrigiu o estoque podre, mas **não criou a regra contínua**. Por isso "zerou" e vai continuar zerado até alguém faltar muito — mas hoje **nada detecta isso automaticamente**.
-
-### Regra a implementar
-
-Um participante `ativo` vira `busca_ativa` quando atender QUALQUER um dos critérios:
-
-1. **3 faltas consecutivas** nas últimas atividades da(s) turma(s) dele (já existe a query, é a usada no alerta do dashboard)
-2. **14 dias corridos sem nenhuma presença** registrada, tendo histórico anterior
-
-E volta para `ativo` automaticamente quando for marcado presente em qualquer atividade (isso já implementamos no `RelatorioNovoPage` e `PresencaPage`).
-
-### Implementação técnica
-
-**1. Função SQL `recalcular_busca_ativa()` (RPC)**
-- Roda sobre todos os participantes `ativo` + `busca_ativa`
-- Para cada um, checa as duas condições acima
-- Atualiza `participantes.status` conforme o resultado
-- Insere registro em `busca_ativa_registros` (motivo: "Detecção automática — N faltas consecutivas" ou "14 dias sem presença")
-- Registra em `audit_log`
-
-**2. Trigger de invocação**
-- Edge function `recalcular-busca-ativa` que chama a RPC
-- Botão manual em `EquipeTecnicaPage` aba Busca Ativa: "Recalcular agora"
-- Chamada automática ao final de `handleSave` em `RelatorioNovoPage` (após cada relatório novo, recalcula só os participantes da turma daquele relatório — versão leve)
-
-**3. Aplicação imediata após criar a função**
-- Rodar `recalcular_busca_ativa()` uma vez agora
-- Mostrar relatório XLSX: quantos voltaram para BA, com nome, turma, motivo (3 faltas / 14 dias), data da última presença
 
 ### Detalhes técnicos
 
-- Migration: criar função `recalcular_busca_ativa()` como `SECURITY DEFINER`
-- Edge function nova: `recalcular-busca-ativa` (chamável via botão)
-- Hook leve no `handleSave` do relatório: roda só para os IDs daquela turma
-- Sem mudança de schema — só função + edge function + 1 botão na UI
+- **Migration**: `ALTER TABLE atendimentos ADD COLUMN recado_origem_id uuid`. Sem FK (preserva histórico).
+- **Sem mudança de RLS** — políticas atuais cobrem.
+- **Edge functions**: nenhuma.
+- **Hook novo** em `RecadosEquipeCards` ou diálogo dedicado para criar atendimento a partir de recado.
+- Atualização do gerador XLSX/PDF existente em `EquipeTecnicaPage` (paleta grayscale + nova seção).
 
 ### Ordem de execução
 
-1. Criar a função SQL
-2. Criar edge function que invoca a RPC
-3. Adicionar botão "Recalcular Busca Ativa" na aba Busca Ativa da Equipe Técnica
-4. Integrar chamada leve no `handleSave` de `RelatorioNovoPage`
-5. Rodar uma vez e gerar XLSX com a nova lista de busca ativa
+1. Migration: coluna `recado_origem_id` em `atendimentos`.
+2. UI: botão "Registrar atendimento" no card de recado técnico + auto-resolução do recado.
+3. Atualizar relatório PDF/XLSX da Equipe Técnica: paleta grayscale + seção Chamados Técnicos.
+4. Aguardar sua escolha das vinculações A–J para próximo ciclo.
 
+### Pergunta para você
+
+Quais das vinculações A–J você quer incluir já neste ciclo (junto com a parte 1 e 2)? Recomendo **A, B, C, F** como pacote inicial — todas baixas/médias e de alto impacto para coordenação. RESPOSTA: A, B, C, F, H, I, J.
