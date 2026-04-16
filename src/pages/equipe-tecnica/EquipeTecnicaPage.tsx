@@ -302,10 +302,29 @@ const EquipeTecnicaPage = () => {
       } catch (e) { console.warn(e); }
     }
 
-    toast.success("Atendimento registrado!" + (form.recado_origem_id ? " Recado marcado como resolvido." : ""));
+    // Vínculo: criar encaminhamento externo se solicitado
+    let encMsg = "";
+    if (form.criar_enc_externo && form.enc_orgao?.trim()) {
+      const { error: encErr } = await (supabase.from as any)("encaminhamentos_externos").insert({
+        participante_id: form.participante_id,
+        profissional_id: myProfileId,
+        atendimento_id: novoAtd?.id,
+        tipo: form.enc_tipo || "cras",
+        orgao: form.enc_orgao,
+        motivo: form.descricao,
+        contato: form.enc_contato || null,
+        data_encaminhamento: form.data_atendimento,
+        data_retorno: form.enc_data_retorno || null,
+        status: form.enc_status || "aberto",
+      });
+      if (encErr) { toast.error("Atendimento salvo, mas erro no encaminhamento: " + encErr.message); }
+      else { encMsg = " Encaminhamento à rede registrado."; }
+    }
+
+    toast.success("Atendimento registrado!" + (form.recado_origem_id ? " Recado marcado como resolvido." : "") + encMsg);
     setDialogOpen(false);
     setRecadoOrigem(null);
-    setForm({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "", recado_origem_id: null, relato_origem_id: null, busca_ativa_origem_id: null });
+    setForm({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "", recado_origem_id: null, relato_origem_id: null, busca_ativa_origem_id: null, criar_enc_externo: false, enc_tipo: "cras", enc_orgao: "", enc_contato: "", enc_status: "aberto", enc_data_retorno: "" });
     loadAll();
   };
 
