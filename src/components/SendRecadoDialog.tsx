@@ -35,7 +35,7 @@ export function SendRecadoDialog({ toTecnicos, trigger }: Props) {
   const loadData = async () => {
     const [{ data: prof }, { data: parts }, { data: rl }] = await Promise.all([
       supabase.from("profiles").select("id, nome, cargo, user_id").eq("ativo", true),
-      supabase.from("participantes").select("id, nome_completo").eq("status", "ativo").order("nome_completo"),
+      supabase.from("participantes").select("id, nome_completo, status").in("status", ["ativo", "busca_ativa"] as any).order("nome_completo"),
       supabase.from("user_roles").select("user_id, role"),
     ]);
     setProfiles(prof || []);
@@ -106,7 +106,7 @@ export function SendRecadoDialog({ toTecnicos, trigger }: Props) {
               <SelectTrigger className="mt-1"><SelectValue placeholder="Nenhum" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Nenhum</SelectItem>
-                {participantes.map(p => <SelectItem key={p.id} value={p.id}>{p.nome_completo}</SelectItem>)}
+                {participantes.map(p => <SelectItem key={p.id} value={p.id}>{p.nome_completo}{p.status === "busca_ativa" ? " (BA)" : ""}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

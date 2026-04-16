@@ -229,6 +229,21 @@ const EquipeTecnicaPage = () => {
       encaminhamento: form.encaminhamento || null,
     } as any);
     if (error) { toast.error("Erro: " + error.message); return; }
+
+    // Mirror busca_ativa/visita_domiciliar atendimentos into busca_ativa_registros
+    if (form.tipo === "busca_ativa" || form.tipo === "visita_domiciliar") {
+      try {
+        await (supabase.from as any)("busca_ativa_registros").insert({
+          participante_id: form.participante_id,
+          profissional_id: myProfileId,
+          tipo_contato: form.tipo,
+          descricao: form.descricao,
+          resultado: "em_andamento",
+          data_registro: form.data_atendimento,
+        });
+      } catch (e) { console.warn(e); }
+    }
+
     toast.success("Atendimento registrado!");
     setDialogOpen(false);
     setForm({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "" });
@@ -241,7 +256,7 @@ const EquipeTecnicaPage = () => {
   const fimMes = endOfMonth(now);
 
   const atdMes = useMemo(() => atendimentos.filter(a => a.data_atendimento >= format(mesAtual, "yyyy-MM-dd") && a.data_atendimento <= format(fimMes, "yyyy-MM-dd")), [atendimentos]);
-  const participantesAtivos = useMemo(() => participantes.filter(p => p.status === "ativo"), [participantes]);
+  const participantesAtivos = useMemo(() => participantes.filter(p => p.status === "ativo" || p.status === "busca_ativa"), [participantes]);
   const pendentes = useMemo(() => participantes.filter(p => p.status === "pendente"), [participantes]);
   const comLaudo = useMemo(() => participantesAtivos.filter(p => p.laudo && p.laudo.trim()).length, [participantesAtivos]);
 
@@ -502,8 +517,33 @@ const EquipeTecnicaPage = () => {
     });
   }, [buscaAtivaParticipantes, baFilterStatus, baFilterBairro, baFilterPeriodo, baFilterFaixa, baFilterTurma, baFilterMinFaltas, baFilterContato, baFilterNome, turmaParticipantesMap, buscaAtivaRegistros]);
 
-  // Get busca ativa registros for a participant
-  const getBARegistros = (pid: string) => buscaAtivaRegistros.filter(r => r.participante_id === pid);
+  // Get busca ativa registros for a participant — merge from busca_ativa_registros + atendimentos
+  const getBARegistros = (pid: string) => {
+    const direct = buscaAtivaRegistros.filter(r => r.participante_id === pid);
+    const fromAtd = atendimentos
+      .filter(a => a.participante_id === pid && (a.tipo === "busca_ativa" || a.tipo === "visita_domiciliar"))
+      .map(a => ({
+        id: `atd_${a.id}`,
+        participante_id: a.participante_id,
+        profissional_id: a.profissional_id,
+        tipo_contato: a.tipo,
+        descricao: a.descricao,
+        resultado: a.encaminhamento || null,
+        created_at: a.created_at || a.data_atendimento,
+        data_registro: a.data_atendimento,
+      }));
+    // Dedupe by descricao+date proximity
+    const all = [...direct, ...fromAtd];
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const r of all) {
+      const key = `${r.descricao?.slice(0, 60)}_${(r.data_registro || r.created_at || "").slice(0, 10)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(r);
+    }
+    return out.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+  };
   const getBAAtendimentos = (pid: string) => atendimentos.filter(a => a.participante_id === pid && (a.tipo === "busca_ativa" || a.tipo === "visita_domiciliar"));
 
   // Presenca history for selected participant (last 30 days)
@@ -540,6 +580,19 @@ const EquipeTecnicaPage = () => {
       descricao: `[Busca Ativa] ${baForm.tipo_contato.map(t => TIPOS_CONTATO_BA.find(x => x.value === t)?.label || t).join(", ")} — ${baForm.descricao}`,
       encaminhamento: STATUS_BA.find(s => s.value === baForm.resultado)?.label || null,
     } as any);
+
+    // Auto-update status: vai_retornar → ativo, encaminhar_desligamento → desligado
+    if (baForm.resultado === "vai_retornar" && baSelectedParticipante.status !== "ativo") {
+      await supabase.from("participantes").update({ status: "ativo" } as any).eq("id", baSelectedParticipante.id);
+      toast.success("Participante reativado automaticamente");
+    } else if (baForm.resultado === "encaminhar_desligamento" && baSelectedParticipante.status !== "desligado") {
+      await supabase.from("participantes").update({ status: "busca_ativa" } as any).eq("id", baSelectedParticipante.id);
+    } else if (baSelectedParticipante.status === "ativo") {
+      // Manter como busca_ativa se for primeira busca em ativo (em andamento)
+      if (baForm.resultado === "em_andamento") {
+        await supabase.from("participantes").update({ status: "busca_ativa" } as any).eq("id", baSelectedParticipante.id);
+      }
+    }
 
     toast.success("Busca ativa registrada!");
     setBaSaving(false);
@@ -601,7 +654,7 @@ const EquipeTecnicaPage = () => {
                 <Select value={form.participante_id} onValueChange={v => setForm(f => ({ ...f, participante_id: v }))}>
                   <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>
-                    {participantesAtivos.map(p => <SelectItem key={p.id} value={p.id}>{p.nome_completo}</SelectItem>)}
+                    {participantesAtivos.map(p => <SelectItem key={p.id} value={p.id}>{p.nome_completo}{p.status === "busca_ativa" ? " (BA)" : ""}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

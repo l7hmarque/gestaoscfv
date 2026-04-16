@@ -80,6 +80,7 @@ const ParticipantePerfilPage = () => {
   const [loading, setLoading] = useState(true);
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [docs, setDocs] = useState<DocRow[]>([]);
+  const [presenca30, setPresenca30] = useState<any[]>([]);
   const [estrangeiroCpf, setEstrangeiroCpf] = useState(false);
   const [atendimentos, setAtendimentos] = useState<any[]>([]);
   const [allProfiles, setAllProfiles] = useState<any[]>([]);
@@ -114,13 +115,16 @@ const ParticipantePerfilPage = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [{ data: p }, { data: b }, { data: pt }, { data: tp }, { data: docData }, { data: atdData }] = await Promise.all([
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today.getTime() - 30 * 86400000).toISOString().slice(0, 10);
+    const [{ data: p }, { data: b }, { data: pt }, { data: tp }, { data: docData }, { data: atdData }, { data: presData }] = await Promise.all([
       supabase.from("participantes").select("*").eq("id", id!).single(),
       supabase.from("bairros").select("*").order("nome"),
       supabase.from("pontos_transporte").select("*").order("nome"),
       supabase.from("turma_participantes").select("turma_id, turmas(nome)").eq("participante_id", id!),
       supabase.from("participante_documentos" as any).select("*").eq("participante_id", id!).order("created_at", { ascending: false }),
       supabase.from("atendimentos").select("*").eq("participante_id", id!).order("data_atendimento", { ascending: false }),
+      supabase.from("presenca").select("data, presente, justificativa, turma_id, turmas(nome)").eq("participante_id", id!).gte("data", thirtyDaysAgo).order("data", { ascending: false }),
     ]);
     setParticipante(p as any);
     setBairros(b || []);
@@ -128,6 +132,7 @@ const ParticipantePerfilPage = () => {
     setTurmas((tp || []).map((t: any) => ({ turma_id: t.turma_id, turma_nome: t.turmas?.nome || "" })));
     setDocs((docData || []) as unknown as DocRow[]);
     setAtendimentos(atdData || []);
+    setPresenca30((presData || []) as any[]);
     if (p) {
       const f: Record<string, string> = {};
       Object.entries(p).forEach(([k, v]) => { f[k] = v == null ? "" : String(v); });
@@ -658,7 +663,42 @@ const ParticipantePerfilPage = () => {
           </Card>
         )}
 
-        {/* Seção Sigilosa */}
+        {/* Frequência (últimos 30 dias) */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Frequência (últimos 30 dias)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {presenca30.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Sem registros de presença nos últimos 30 dias</p>
+            ) : (
+              <>
+                {(() => {
+                  const tot = presenca30.length;
+                  const pres = presenca30.filter(r => r.presente).length;
+                  const pct = tot > 0 ? Math.round((pres / tot) * 100) : 0;
+                  return (
+                    <div className="flex items-center gap-3 mb-3 text-xs">
+                      <Badge variant="secondary">{pres} presenças / {tot} registros</Badge>
+                      <Badge variant={pct >= 80 ? "default" : pct >= 65 ? "secondary" : "destructive"}>{pct}% adesão</Badge>
+                    </div>
+                  );
+                })()}
+                <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                  {presenca30.map((r, i) => (
+                    <div key={i} className="flex items-center justify-between border-b py-1.5 text-xs">
+                      <span className="font-medium">{r.data}</span>
+                      <span className="flex-1 mx-2 text-muted-foreground truncate">{r.turmas?.nome || "—"}</span>
+                      <Badge variant={r.presente ? "default" : "destructive"} className="text-[10px]">{r.presente ? "Presente" : "Ausente"}</Badge>
+                      {!r.presente && r.justificativa && <span className="ml-2 text-[10px] text-muted-foreground italic max-w-[150px] truncate">{r.justificativa}</span>}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         {canSeeConfidential && (
           <Card className="border-destructive/50">
             <CardHeader className="pb-2">
