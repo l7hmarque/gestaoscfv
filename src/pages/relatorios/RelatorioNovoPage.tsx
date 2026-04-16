@@ -680,25 +680,56 @@ const RelatorioNovoPage = () => {
 
       {/* Turmas */}
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Turmas {form.educador_id && <span className="text-xs font-normal text-muted-foreground ml-2">★ = turmas do educador selecionado</span>}</CardTitle></CardHeader>
-        <CardContent>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Turmas e Período {form.educador_id && <span className="text-xs font-normal text-muted-foreground ml-2">★ = turmas do educador selecionado</span>}</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
           {turmas.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma turma ativa</p> : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {[...turmas].sort((a, b) => {
-                if (!form.educador_id) return 0;
-                const aLinked = a.educador_id === form.educador_id ? 0 : 1;
-                const bLinked = b.educador_id === form.educador_id ? 0 : 1;
-                return aLinked - bLinked;
-              }).map(t => {
-                const isLinked = form.educador_id && t.educador_id === form.educador_id;
+            <>
+              {/* Group by periodo */}
+              {(["manha", "tarde", "integral"] as const).map(per => {
+                const perTurmas = [...turmas].filter(t => (t.periodo || "manha") === per).sort((a, b) => {
+                  if (!form.educador_id) return 0;
+                  return (a.educador_id === form.educador_id ? 0 : 1) - (b.educador_id === form.educador_id ? 0 : 1);
+                });
+                if (perTurmas.length === 0) return null;
+                const label = per === "manha" ? "Manhã" : per === "tarde" ? "Tarde" : "Integral";
                 return (
-                  <label key={t.id} className={cn("flex items-center gap-2 text-sm cursor-pointer rounded-md px-2 py-1 transition-colors", isLinked && "bg-primary/10 ring-1 ring-primary/30 font-medium")}>
-                    <Checkbox checked={form.turma_ids.includes(t.id)} onCheckedChange={() => toggleTurma(t.id)} />
-                    {isLinked && <span className="text-primary text-xs">★</span>}
-                    {t.nome}
-                  </label>
+                  <div key={per}>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{label}</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {perTurmas.map(t => {
+                        const isLinked = form.educador_id && t.educador_id === form.educador_id;
+                        return (
+                          <label key={t.id} className={cn("flex items-center gap-2 text-sm cursor-pointer rounded-md px-2 py-1 transition-colors", isLinked && "bg-primary/10 ring-1 ring-primary/30 font-medium")}>
+                            <Checkbox checked={form.turma_ids.includes(t.id)} onCheckedChange={() => toggleTurma(t.id)} />
+                            {isLinked && <span className="text-primary text-xs">★</span>}
+                            {t.nome}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                 );
               })}
+            </>
+          )}
+
+          {/* Período da Atividade */}
+          {form.turma_ids.length > 0 && (
+            <div className="space-y-1 pt-2 border-t">
+              <Label className="text-xs">Período da Atividade {(() => {
+                const selectedPeriodos = new Set(form.turma_ids.map(id => turmas.find(t => t.id === id)?.periodo || "manha"));
+                return selectedPeriodos.size > 1 ? <span className="text-destructive">*</span> : null;
+              })()}</Label>
+              <Select value={form.periodo_atividade} onValueChange={v => setForm(f => ({ ...f, periodo_atividade: v }))}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Selecionar período" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manha">Manhã</SelectItem>
+                  <SelectItem value="tarde">Tarde</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Participantes presentes com período diferente serão automaticamente transferidos.
+              </p>
             </div>
           )}
         </CardContent>
