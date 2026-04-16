@@ -601,6 +601,25 @@ const EquipeTecnicaPage = () => {
     loadAll();
   };
 
+  const [recalculando, setRecalculando] = useState(false);
+  const handleRecalcularBA = async () => {
+    if (guardDemo(isDemo)) return;
+    setRecalculando(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("recalcular_busca_ativa", { _participante_ids: null });
+      if (error) throw error;
+      const r = data?.resultado || data || {};
+      const para_ba = r.movidos_para_busca_ativa ?? 0;
+      const para_ativo = r.retornados_para_ativo ?? 0;
+      toast.success(`Recálculo concluído: ${para_ba} para Busca Ativa, ${para_ativo} retornaram para Ativo`);
+      await loadAll();
+    } catch (e: any) {
+      toast.error("Erro no recálculo: " + (e.message || e));
+    } finally {
+      setRecalculando(false);
+    }
+  };
+
   const exportRelatorioBuscaAtiva = () => {
     if (filteredBA.length === 0) { toast.error("Nenhum participante para exportar"); return; }
 
