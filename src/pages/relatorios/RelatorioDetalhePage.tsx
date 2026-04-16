@@ -370,11 +370,12 @@ const RelatorioDetalhePage = () => {
       return;
     }
     // Get all participants linked to selected turmas
-    const { data: tp } = await supabase.from("turma_participantes").select("participante_id, participantes(id, nome_completo, status)").in("turma_id", tIds);
-    // Deduplicate
+    const { data: tp } = await supabase.from("turma_participantes").select("participante_id, participantes(id, nome_completo, status)").in("turma_id", tIds).is("data_saida" as any, null);
+    // Deduplicate and filter by status
+    const ALLOWED_STATUS = new Set(["ativo", "busca_ativa"]);
     const uniqueMap = new Map<string, any>();
     (tp || []).forEach((row: any) => {
-      if (row.participantes && !uniqueMap.has(row.participantes.id)) {
+      if (row.participantes && !uniqueMap.has(row.participantes.id) && ALLOWED_STATUS.has(row.participantes.status || "ativo")) {
         uniqueMap.set(row.participantes.id, row.participantes);
       }
     });
@@ -851,6 +852,12 @@ const RelatorioDetalhePage = () => {
 
       <div className="flex gap-2 flex-wrap text-xs text-muted-foreground">
         <span>📅 {format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy")}</span>
+        {item.dia_semana && <span>({item.dia_semana})</span>}
+        {(item as any).periodo_atividade && (
+          <Badge variant="outline" className="text-[10px]">
+            {(item as any).periodo_atividade === "manha" ? "Manhã" : (item as any).periodo_atividade === "tarde" ? "Tarde" : "Integral"}
+          </Badge>
+        )}
         {item.dia_semana && <span>({item.dia_semana})</span>}
         {item.profiles?.nome && <span>👤 {item.profiles.nome}</span>}
         {Array.isArray(item.tipo_atividade) && item.tipo_atividade.length > 0 ? (

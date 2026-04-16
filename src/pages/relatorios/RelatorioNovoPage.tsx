@@ -84,6 +84,7 @@ const RelatorioNovoPage = () => {
     educador_id: "",
     planejamento_id: "",
     turma_ids: [] as string[],
+    periodo_atividade: "" as string,
     iniciativa: 3,
     autonomia: 3,
     colaboracao: 3,
@@ -111,7 +112,7 @@ const RelatorioNovoPage = () => {
   useEffect(() => {
     const fetchBase = async () => {
       const [t, e, r] = await Promise.all([
-        supabase.from("turmas").select("id, nome, educador_id, oficina").eq("ativa", true).order("nome"),
+        supabase.from("turmas").select("id, nome, educador_id, oficina, periodo").eq("ativa", true).order("nome"),
         supabase.from("profiles").select("id, nome, user_id"),
         supabase.from("user_roles").select("user_id, role"),
       ]);
@@ -171,13 +172,21 @@ const RelatorioNovoPage = () => {
     const fetchParts = async () => {
       const { data } = await supabase
         .from("turma_participantes")
-        .select("participante_id, data_saida, participantes(id, nome_completo)")
+        .select("participante_id, data_saida, participantes(id, nome_completo, status, periodo)")
         .in("turma_id", form.turma_ids)
         .is("data_saida" as any, null);
       if (data) {
-        const unique = new Map<string, string>();
-        data.forEach((d: any) => { if (d.participantes) unique.set(d.participantes.id, d.participantes.nome_completo); });
-        const list = Array.from(unique, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+        const unique = new Map<string, { nome: string; status: string; periodo: string | null }>();
+        data.forEach((d: any) => {
+          if (d.participantes && !unique.has(d.participantes.id)) {
+            unique.set(d.participantes.id, { nome: d.participantes.nome_completo, status: d.participantes.status, periodo: d.participantes.periodo });
+          }
+        });
+        // Filter: only ativo and busca_ativa
+        const ALLOWED_STATUS = new Set(["ativo", "busca_ativa"]);
+        const list = Array.from(unique, ([id, info]) => ({ id, nome: info.nome, status: info.status, periodo: info.periodo }))
+          .filter(p => ALLOWED_STATUS.has(p.status || "ativo"))
+          .sort((a, b) => a.nome.localeCompare(b.nome));
         setParticipantesTurma(list);
         setForm(f => {
           const activeIds = new Set(list.map(p => p.id));
@@ -247,6 +256,7 @@ const RelatorioNovoPage = () => {
         tipo_atividade_detalhe: form.tipo_atividade_detalhe || null,
         educador_id: form.educador_id || null,
         planejamento_id: form.planejamento_id || null,
+        periodo_atividade: form.periodo_atividade || null,
         iniciativa: form.iniciativa,
         autonomia: form.autonomia,
         colaboracao: form.colaboracao,
@@ -310,7 +320,91 @@ const RelatorioNovoPage = () => {
         }
       }
 
-      // fotos
+      // Auto-transfer de período: participantes presentes com período diferente do relatório
+      if (form.periodo_atividade && form.periodo_atividade !== "integral") {
+        const presenteIds = participantesTurma
+          .filter(p => form.presenca[p.id] && p.periodo && p.periodo !== form.periodo_atividade)
+          .map(p => p.id);
+
+        if (presenteIds.length > 0) {
+          const transferWarnings: string[] = [];
+          for (const pid of presenteIds) {
+            const part = participantesTurma.find(p => p.id === pid);
+            if (!part) continue;
+            try {
+              // 1. Update participantes.periodo
+              await supabase.from("participantes").update({ periodo: form.periodo_atividade as any }).eq("id", pid);
+
+              // 2. Find current turma_participantes links and set data_saida
+              const { data: currentLinks } = await supabase
+                .from("turma_participantes")
+                .select("id, turma_id")
+                .eq("participante_id", pid)
+                .is("data_saida", null);
+
+              const oldTurmaIds = (currentLinks || []).map((l: any) => l.turma_id);
+
+              // Find destination turmas matching new period
+              const { data: destTurmas } = await supabase
+                .from("turmas")
+                .select("id, nome, periodo")
+                .eq("ativa", true)
+                .eq("periodo", form.periodo_atividade as any);
+
+              if (destTurmas && destTurmas.length > 0) {
+                // Close old links
+                for (const link of (currentLinks || [])) {
+                  await supabase.from("turma_participantes").update({
+                    data_saida: format(form.data!, "yyyy-MM-dd"),
+                    motivo_saida: `Transferência automática de período (${part.periodo} → ${form.periodo_atividade})`,
+                  } as any).eq("id", link.id);
+                }
+
+                // Find best matching turma (same bairro if possible)
+                const { data: partData } = await supabase.from("participantes").select("bairro_id").eq("id", pid).single();
+                let destTurma = destTurmas[0];
+                if (partData?.bairro_id) {
+                  const { data: bairroTurmas } = await supabase
+                    .from("turmas")
+                    .select("id, nome, periodo")
+                    .eq("ativa", true)
+                    .eq("periodo", form.periodo_atividade as any)
+                    .contains("bairro_ids", [partData.bairro_id]);
+                  if (bairroTurmas && bairroTurmas.length > 0) destTurma = bairroTurmas[0];
+                }
+
+                // Check if already linked to dest turma
+                const alreadyLinked = oldTurmaIds.includes(destTurma.id);
+                if (!alreadyLinked) {
+                  await supabase.from("turma_participantes").insert({
+                    participante_id: pid,
+                    turma_id: destTurma.id,
+                  } as any);
+                }
+
+                // Register transfer
+                await supabase.from("participante_transferencias").insert({
+                  participante_id: pid,
+                  turma_origem_id: oldTurmaIds[0] || null,
+                  turma_destino_id: destTurma.id,
+                  motivo: `Transferência automática: período ${part.periodo} → ${form.periodo_atividade} (relatório de atividade)`,
+                } as any);
+              } else {
+                transferWarnings.push(part.nome);
+              }
+            } catch (e) {
+              console.warn(`Erro ao transferir participante ${pid}:`, e);
+              transferWarnings.push(part.nome);
+            }
+          }
+          if (transferWarnings.length > 0) {
+            toast.warning(`Não foi possível transferir: ${transferWarnings.join(", ")} — sem turma destino compatível`);
+          } else if (presenteIds.length > 0) {
+            toast.success(`${presenteIds.length} participante(s) transferido(s) para o período ${form.periodo_atividade === "manha" ? "Manhã" : "Tarde"}`);
+          }
+        }
+      }
+
       for (let i = 0; i < fotos.length; i++) {
         const file = fotos[i];
         const ext = file.name.split(".").pop();
@@ -586,25 +680,56 @@ const RelatorioNovoPage = () => {
 
       {/* Turmas */}
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Turmas {form.educador_id && <span className="text-xs font-normal text-muted-foreground ml-2">★ = turmas do educador selecionado</span>}</CardTitle></CardHeader>
-        <CardContent>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Turmas e Período {form.educador_id && <span className="text-xs font-normal text-muted-foreground ml-2">★ = turmas do educador selecionado</span>}</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
           {turmas.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma turma ativa</p> : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {[...turmas].sort((a, b) => {
-                if (!form.educador_id) return 0;
-                const aLinked = a.educador_id === form.educador_id ? 0 : 1;
-                const bLinked = b.educador_id === form.educador_id ? 0 : 1;
-                return aLinked - bLinked;
-              }).map(t => {
-                const isLinked = form.educador_id && t.educador_id === form.educador_id;
+            <>
+              {/* Group by periodo */}
+              {(["manha", "tarde", "integral"] as const).map(per => {
+                const perTurmas = [...turmas].filter(t => (t.periodo || "manha") === per).sort((a, b) => {
+                  if (!form.educador_id) return 0;
+                  return (a.educador_id === form.educador_id ? 0 : 1) - (b.educador_id === form.educador_id ? 0 : 1);
+                });
+                if (perTurmas.length === 0) return null;
+                const label = per === "manha" ? "Manhã" : per === "tarde" ? "Tarde" : "Integral";
                 return (
-                  <label key={t.id} className={cn("flex items-center gap-2 text-sm cursor-pointer rounded-md px-2 py-1 transition-colors", isLinked && "bg-primary/10 ring-1 ring-primary/30 font-medium")}>
-                    <Checkbox checked={form.turma_ids.includes(t.id)} onCheckedChange={() => toggleTurma(t.id)} />
-                    {isLinked && <span className="text-primary text-xs">★</span>}
-                    {t.nome}
-                  </label>
+                  <div key={per}>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{label}</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {perTurmas.map(t => {
+                        const isLinked = form.educador_id && t.educador_id === form.educador_id;
+                        return (
+                          <label key={t.id} className={cn("flex items-center gap-2 text-sm cursor-pointer rounded-md px-2 py-1 transition-colors", isLinked && "bg-primary/10 ring-1 ring-primary/30 font-medium")}>
+                            <Checkbox checked={form.turma_ids.includes(t.id)} onCheckedChange={() => toggleTurma(t.id)} />
+                            {isLinked && <span className="text-primary text-xs">★</span>}
+                            {t.nome}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                 );
               })}
+            </>
+          )}
+
+          {/* Período da Atividade */}
+          {form.turma_ids.length > 0 && (
+            <div className="space-y-1 pt-2 border-t">
+              <Label className="text-xs">Período da Atividade {(() => {
+                const selectedPeriodos = new Set(form.turma_ids.map(id => turmas.find(t => t.id === id)?.periodo || "manha"));
+                return selectedPeriodos.size > 1 ? <span className="text-destructive">*</span> : null;
+              })()}</Label>
+              <Select value={form.periodo_atividade} onValueChange={v => setForm(f => ({ ...f, periodo_atividade: v }))}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Selecionar período" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manha">Manhã</SelectItem>
+                  <SelectItem value="tarde">Tarde</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Participantes presentes com período diferente serão automaticamente transferidos.
+              </p>
             </div>
           )}
         </CardContent>
@@ -767,6 +892,11 @@ const RelatorioNovoPage = () => {
                       }}
                     />
                     <span className={cn("text-sm flex-1", !presente && "text-muted-foreground line-through")}>{p.nome}</span>
+                    {form.periodo_atividade && p.periodo && p.periodo !== form.periodo_atividade && (
+                      <Badge variant="outline" className="text-[9px] shrink-0 border-amber-400 text-amber-600">
+                        {p.periodo === "manha" ? "Manhã" : "Tarde"} → {form.periodo_atividade === "manha" ? "Manhã" : "Tarde"}
+                      </Badge>
+                    )}
                     {!presente && (
                       <Input
                         value={form.justificativas[p.id] || ""}
