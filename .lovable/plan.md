@@ -1,54 +1,38 @@
 
 
-## Plano: Correção de Status na Chamada + Sistema de Período Automático
+## Plano: 3 Correções — Cards, Profissional Extra, Scroll Preservado
 
-### Problema 1: Participantes com status errado na chamada do relatório
+### 1. Cards de Planejamentos e Relatórios — limitar badges de turmas
 
-**Causa raiz**: A query em `RelatorioNovoPage.tsx` (linha 172-176) busca `turma_participantes WHERE data_saida IS NULL` e faz join com `participantes(id, nome_completo)` — mas **não filtra pelo status** do participante. Resultado:
-- Desligados sem `data_saida` preenchida → aparecem
-- Busca Ativa → na verdade aparecem normalmente (114 registros com `data_saida IS NULL`). Se estão faltando, pode ser que não estejam vinculados às turmas selecionadas.
+**Problema**: Quando há muitas turmas vinculadas, as badges ocupam espaço excessivo e desconfiguam o card.
 
-**Correção**: Alterar a query para incluir o `status` do participante e filtrar:
-- Incluir: `ativo`, `busca_ativa`
-- Excluir: `desligado`, `pendente`, `incompleto`
+**Solução**: Mostrar no máximo 2 badges de turma e, se houver mais, exibir um "+N" resumido. Aplicar em ambos os arquivos.
 
-Aplicar no `RelatorioNovoPage.tsx` e no `RelatorioDetalhePage.tsx` (modo edição).
+**Arquivos**: `PlanejamentosPage.tsx` (linhas 155-163), `RelatoriosPage.tsx` (linhas 263-270)
 
 ---
 
-### Problema 2 + 3: Seleção multi-período + auto-atualização de período
+### 2. Opção de +1 profissional no relatório de atividade
 
-**Nova coluna**: Adicionar `periodo_atividade` (text, nullable, default NULL) na tabela `relatorios_atividade` — valores: `manha`, `tarde`, `integral`.
+**Problema**: Atualmente o relatório só permite um educador. Precisa de campo para um segundo profissional de apoio.
 
-**Mudanças no formulário de relatório**:
-1. Permitir selecionar turmas de qualquer período (já funciona, só organizar visualmente por período)
-2. Adicionar campo "Período da Atividade" (Manhã/Tarde) — obrigatório quando turmas de períodos diferentes são selecionadas
-3. Na lista de chamada, indicar ao lado do nome se o participante é de turma com período diferente do selecionado (ex: badge "Tarde → Manhã")
+**Solução**:
+- **Migração SQL**: Adicionar coluna `educador_apoio_id uuid DEFAULT NULL` na tabela `relatorios_atividade` com FK para `profiles(id)`.
+- **RelatorioNovoPage.tsx**: Adicionar segundo Combobox "Profissional de Apoio" abaixo do educador principal. Salvar no campo `educador_apoio_id`.
+- **RelatorioDetalhePage.tsx**: Exibir o nome do profissional de apoio na visualização e permitir edição no modo edição.
+- **RelatoriosPage.tsx**: Exibir o nome do apoio no card (se existir), ex: "+ Fulano".
 
-**Lógica de auto-atualização ao salvar** (somente participantes marcados como PRESENTES):
+---
 
-```text
-Para cada participante presente no relatório:
-  SE participante.periodo ≠ periodo_atividade:
-    1. Atualizar participantes.periodo = periodo_atividade
-    2. Em turma_participantes: setar data_saida na turma antiga
-    3. Encontrar turma destino (mesmo bairro + faixa_etária + novo período)
-    4. Criar link em turma_participantes para turma destino
-    5. Registrar em participante_transferencias
-    6. Registrar em audit_log
-```
+### 3. Preservar posição do scroll ao mudar período/status
 
-**Segurança e integridade**:
-- Só transfere participantes que estavam **presentes** — ausentes mantêm o período atual
-- Só transfere se existir turma destino compatível (mesmo bairro + faixa etária)
-- Se não encontrar turma destino, pula o participante e exibe aviso
-- Registra tudo no `audit_log` e `participante_transferencias`
-- Não afeta dados históricos de presença (registros antigos permanecem com a turma original)
+**Problema**: `fetchData()` recarrega toda a lista e o scroll volta ao topo.
 
-**Impacto downstream** (sem alterações necessárias):
-- Listas de presença física (XLSX): já consultam `turma_participantes` com `data_saida IS NULL` — transferidos automaticamente saem da lista antiga e entram na nova
-- REO e Relatório Mensal: mesma lógica, sem alteração
-- Dashboard e KPIs: sem impacto, pois usam dados agregados
+**Solução**: Em `ParticipantesPage.tsx`, nas funções `handlePeriodoChange` e `handleStatusChange` (e `handleDesligamento`), salvar `window.scrollY` antes do `fetchData()` e restaurar com `requestAnimationFrame(() => window.scrollTo(0, savedY))` após o setState atualizar. Usar uma ref para não perder o valor.
+
+Alternativamente, fazer update otimista: atualizar o array `participantes` localmente sem refetch completo, chamando `setParticipantes(prev => prev.map(...))` após o update no Supabase.
+
+**Abordagem escolhida**: Update otimista — ao mudar período ou status com sucesso, atualizar o item no array local em vez de chamar `fetchData()`. Isso é mais rápido e preserva o scroll naturalmente. Manter `fetchData()` apenas para ações destrutivas (desligamento).
 
 ---
 
@@ -56,12 +40,10 @@ Para cada participante presente no relatório:
 
 | Arquivo | Mudança |
 |---|---|
-| **Migração SQL** | Adicionar coluna `periodo_atividade` em `relatorios_atividade` |
-| `src/pages/relatorios/RelatorioNovoPage.tsx` | Filtrar status na query; agrupar turmas por período; campo `periodo_atividade`; lógica de auto-transferência ao salvar |
-| `src/pages/relatorios/RelatorioDetalhePage.tsx` | Exibir `periodo_atividade`; filtrar status no modo edição |
-
-### Não precisa alterar
-- Exportações (REO, Relatório Mensal, Listas de Presença) — já usam `turma_participantes.data_saida IS NULL`, então participantes transferidos refletem automaticamente
-- Dashboard — já usa dados agregados
-- Perfil do participante — já mostra período atualizado
+| **Migração SQL** | `ALTER TABLE relatorios_atividade ADD COLUMN educador_apoio_id uuid DEFAULT NULL` |
+| `src/pages/planejamentos/PlanejamentosPage.tsx` | Limitar badges a 2 + contador |
+| `src/pages/relatorios/RelatoriosPage.tsx` | Limitar badges a 2 + contador; exibir apoio |
+| `src/pages/relatorios/RelatorioNovoPage.tsx` | Campo Combobox "Profissional de Apoio" |
+| `src/pages/relatorios/RelatorioDetalhePage.tsx` | Exibir/editar profissional de apoio |
+| `src/pages/participantes/ParticipantesPage.tsx` | Update otimista em vez de refetch total |
 
