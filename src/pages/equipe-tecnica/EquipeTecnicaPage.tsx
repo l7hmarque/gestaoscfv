@@ -1758,6 +1758,90 @@ const EquipeTecnicaPage = () => {
         </TabsContent>
       </Tabs>
 
+      {/* Dialog de edição de Encaminhamento (acessível a partir do dashboard) */}
+      <Dialog open={encDialogOpen} onOpenChange={setEncDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{encEdit ? "Editar Encaminhamento" : "Novo Encaminhamento Externo"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Participante</Label>
+              <Select value={encForm.participante_id} onValueChange={v => setEncForm(f => ({ ...f, participante_id: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {participantes.filter(p => p.status === "ativo" || p.status === "busca_ativa").map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.nome_completo}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Tipo de Órgão</Label>
+                <Select value={encForm.tipo} onValueChange={v => setEncForm(f => ({ ...f, tipo: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cras">CRAS</SelectItem>
+                    <SelectItem value="creas">CREAS</SelectItem>
+                    <SelectItem value="caps">CAPS</SelectItem>
+                    <SelectItem value="ubs">UBS / Saúde</SelectItem>
+                    <SelectItem value="conselho_tutelar">Conselho Tutelar</SelectItem>
+                    <SelectItem value="escola">Escola</SelectItem>
+                    <SelectItem value="ministerio_publico">Ministério Público</SelectItem>
+                    <SelectItem value="outro">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Nome do Órgão / Unidade</Label>
+                <Input value={encForm.orgao} onChange={e => setEncForm(f => ({ ...f, orgao: e.target.value }))} placeholder="Ex: CRAS Jd. Irene" className="mt-1" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Data Encaminhamento</Label>
+                <Input type="date" value={encForm.data_encaminhamento} onChange={e => setEncForm(f => ({ ...f, data_encaminhamento: e.target.value }))} className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Contato (telefone/responsável)</Label>
+                <Input value={encForm.contato} onChange={e => setEncForm(f => ({ ...f, contato: e.target.value }))} className="mt-1" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Motivo</Label>
+              <Textarea value={encForm.motivo} onChange={e => setEncForm(f => ({ ...f, motivo: e.target.value }))} className="mt-1 min-h-[60px]" placeholder="Descreva o motivo do encaminhamento" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Status</Label>
+                <Select value={encForm.status} onValueChange={v => setEncForm(f => ({ ...f, status: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="aberto">Aberto</SelectItem>
+                    <SelectItem value="em_andamento">Em andamento</SelectItem>
+                    <SelectItem value="concluido">Concluído</SelectItem>
+                    <SelectItem value="sem_retorno">Sem retorno</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Data Retorno</Label>
+                <Input type="date" value={encForm.data_retorno} onChange={e => setEncForm(f => ({ ...f, data_retorno: e.target.value }))} className="mt-1" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Observações do retorno</Label>
+              <Textarea value={encForm.observacoes_retorno} onChange={e => setEncForm(f => ({ ...f, observacoes_retorno: e.target.value }))} className="mt-1 min-h-[60px]" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEncDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveEnc}>{encEdit ? "Atualizar" : "Registrar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Atendimento Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
