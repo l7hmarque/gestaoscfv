@@ -103,6 +103,7 @@ const EquipeTecnicaPage = () => {
   const [baForm, setBaForm] = useState({ tipo_contato: [] as string[], descricao: "", resultado: "em_andamento" });
   const [baSaving, setBaSaving] = useState(false);
   const [recadosPendentes, setRecadosPendentes] = useState(0);
+  const [recalculando, setRecalculando] = useState(false);
 
   const [activeTab, setActiveTab] = useState("dashboard");
 
@@ -601,7 +602,6 @@ const EquipeTecnicaPage = () => {
     loadAll();
   };
 
-  const [recalculando, setRecalculando] = useState(false);
   const handleRecalcularBA = async () => {
     if (guardDemo(isDemo)) return;
     setRecalculando(true);
@@ -971,6 +971,9 @@ const EquipeTecnicaPage = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <Button variant="default" size="sm" onClick={handleRecalcularBA} disabled={recalculando} className="gap-1">
+                <Activity className="h-3.5 w-3.5" />{recalculando ? "Recalculando..." : "Recalcular Busca Ativa"}
+              </Button>
               <Button variant="outline" size="sm" onClick={exportRelatorioBuscaAtiva} disabled={filteredBA.length === 0} className="gap-1">
                 <Download className="h-3.5 w-3.5" />Exportar Relatório
               </Button>
