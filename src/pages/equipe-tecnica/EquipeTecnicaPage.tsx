@@ -1372,7 +1372,11 @@ const EquipeTecnicaPage = () => {
 
         {/* RECADOS */}
         <TabsContent value="recados" className="space-y-4">
-          <RecadosEquipeCards onPendingCount={setRecadosPendentes} />
+          <RecadosEquipeCards
+            onPendingCount={setRecadosPendentes}
+            onRegistrarAtendimento={handleRegistrarFromRecado}
+            atendimentosVinculados={atendimentosPorRecado}
+          />
         </TabsContent>
 
         {/* RELATÓRIOS */}
