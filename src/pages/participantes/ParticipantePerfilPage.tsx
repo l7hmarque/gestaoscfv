@@ -80,6 +80,7 @@ const ParticipantePerfilPage = () => {
   const [loading, setLoading] = useState(true);
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [docs, setDocs] = useState<DocRow[]>([]);
+  const [presenca30, setPresenca30] = useState<any[]>([]);
   const [estrangeiroCpf, setEstrangeiroCpf] = useState(false);
   const [atendimentos, setAtendimentos] = useState<any[]>([]);
   const [allProfiles, setAllProfiles] = useState<any[]>([]);
@@ -114,13 +115,16 @@ const ParticipantePerfilPage = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [{ data: p }, { data: b }, { data: pt }, { data: tp }, { data: docData }, { data: atdData }] = await Promise.all([
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today.getTime() - 30 * 86400000).toISOString().slice(0, 10);
+    const [{ data: p }, { data: b }, { data: pt }, { data: tp }, { data: docData }, { data: atdData }, { data: presData }] = await Promise.all([
       supabase.from("participantes").select("*").eq("id", id!).single(),
       supabase.from("bairros").select("*").order("nome"),
       supabase.from("pontos_transporte").select("*").order("nome"),
       supabase.from("turma_participantes").select("turma_id, turmas(nome)").eq("participante_id", id!),
       supabase.from("participante_documentos" as any).select("*").eq("participante_id", id!).order("created_at", { ascending: false }),
       supabase.from("atendimentos").select("*").eq("participante_id", id!).order("data_atendimento", { ascending: false }),
+      supabase.from("presenca").select("data, presente, justificativa, turma_id, turmas(nome)").eq("participante_id", id!).gte("data", thirtyDaysAgo).order("data", { ascending: false }),
     ]);
     setParticipante(p as any);
     setBairros(b || []);
@@ -128,6 +132,7 @@ const ParticipantePerfilPage = () => {
     setTurmas((tp || []).map((t: any) => ({ turma_id: t.turma_id, turma_nome: t.turmas?.nome || "" })));
     setDocs((docData || []) as unknown as DocRow[]);
     setAtendimentos(atdData || []);
+    setPresenca30((presData || []) as any[]);
     if (p) {
       const f: Record<string, string> = {};
       Object.entries(p).forEach(([k, v]) => { f[k] = v == null ? "" : String(v); });
