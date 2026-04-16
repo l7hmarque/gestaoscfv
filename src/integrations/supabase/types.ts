@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       atendimentos: {
         Row: {
+          busca_ativa_origem_id: string | null
           created_at: string
           data_atendimento: string
           descricao: string
@@ -23,10 +24,13 @@ export type Database = {
           id: string
           participante_id: string
           profissional_id: string
+          recado_origem_id: string | null
+          relato_origem_id: string | null
           sigiloso: boolean
           tipo: string
         }
         Insert: {
+          busca_ativa_origem_id?: string | null
           created_at?: string
           data_atendimento?: string
           descricao?: string
@@ -34,10 +38,13 @@ export type Database = {
           id?: string
           participante_id: string
           profissional_id: string
+          recado_origem_id?: string | null
+          relato_origem_id?: string | null
           sigiloso?: boolean
           tipo?: string
         }
         Update: {
+          busca_ativa_origem_id?: string | null
           created_at?: string
           data_atendimento?: string
           descricao?: string
@@ -45,6 +52,8 @@ export type Database = {
           id?: string
           participante_id?: string
           profissional_id?: string
+          recado_origem_id?: string | null
+          relato_origem_id?: string | null
           sigiloso?: boolean
           tipo?: string
         }
@@ -165,6 +174,7 @@ export type Database = {
       }
       busca_ativa_registros: {
         Row: {
+          atendimento_id: string | null
           created_at: string
           data_registro: string
           descricao: string
@@ -175,6 +185,7 @@ export type Database = {
           tipo_contato: string
         }
         Insert: {
+          atendimento_id?: string | null
           created_at?: string
           data_registro?: string
           descricao?: string
@@ -185,6 +196,7 @@ export type Database = {
           tipo_contato?: string
         }
         Update: {
+          atendimento_id?: string | null
           created_at?: string
           data_registro?: string
           descricao?: string
@@ -624,6 +636,57 @@ export type Database = {
           versao?: number
           vigencia_fim?: string | null
           vigencia_inicio?: string | null
+        }
+        Relationships: []
+      }
+      encaminhamentos_externos: {
+        Row: {
+          atendimento_id: string | null
+          contato: string | null
+          created_at: string
+          data_encaminhamento: string
+          data_retorno: string | null
+          id: string
+          motivo: string
+          observacoes_retorno: string | null
+          orgao: string
+          participante_id: string
+          profissional_id: string
+          status: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          atendimento_id?: string | null
+          contato?: string | null
+          created_at?: string
+          data_encaminhamento?: string
+          data_retorno?: string | null
+          id?: string
+          motivo?: string
+          observacoes_retorno?: string | null
+          orgao: string
+          participante_id: string
+          profissional_id: string
+          status?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          atendimento_id?: string | null
+          contato?: string | null
+          created_at?: string
+          data_encaminhamento?: string
+          data_retorno?: string | null
+          id?: string
+          motivo?: string
+          observacoes_retorno?: string | null
+          orgao?: string
+          participante_id?: string
+          profissional_id?: string
+          status?: string
+          tipo?: string
+          updated_at?: string
         }
         Relationships: []
       }
