@@ -131,7 +131,12 @@ const EquipeTecnicaPage = () => {
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }, { data: roles }, { data: bairrosData }, { data: baRegs }, { data: pDocs }] = await Promise.all([
+    const [
+      { data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp },
+      { data: roles }, { data: bairrosData }, { data: baRegs }, { data: pDocs },
+      { data: recs }, { data: enc }, { data: relatos }, { data: relatoParts },
+      { data: plans }, { data: planTurmas }, { data: rels }, { data: relTurmas },
+    ] = await Promise.all([
       supabase.from("atendimentos").select("*").order("data_atendimento", { ascending: false }),
       supabase.from("participantes").select("id, nome_completo, status, data_nascimento, bairro_id, periodo, laudo, categoria_vulnerabilidade, foto_url, responsavel1_nome, responsavel1_whatsapp, responsavel2_nome, responsavel2_whatsapp, endereco_rua, endereco_numero, endereco_bairro, escola, data_desligamento, motivo_desligamento, restricao_alimentar, serie, genero, cor_raca, created_at").order("nome_completo"),
       supabase.from("profiles").select("id, nome, cargo, user_id"),
@@ -142,6 +147,14 @@ const EquipeTecnicaPage = () => {
       supabase.from("bairros").select("id, nome"),
       (supabase.from as any)("busca_ativa_registros").select("*").order("created_at", { ascending: false }),
       supabase.from("participante_documentos" as any).select("*"),
+      supabase.from("recados").select("*").eq("tipo_recado", "tecnico").order("created_at", { ascending: false }),
+      (supabase.from as any)("encaminhamentos_externos").select("*").order("data_encaminhamento", { ascending: false }),
+      (supabase.from as any)("relato_equipe_tecnica").select("*").order("created_at", { ascending: false }),
+      (supabase.from as any)("relato_equipe_participantes").select("*"),
+      supabase.from("planejamentos").select("id, titulo, data_aplicacao, educador_id, tema").gte("data_aplicacao", format(subDays(new Date(), 90), "yyyy-MM-dd")),
+      supabase.from("planejamento_turmas").select("planejamento_id, turma_id"),
+      supabase.from("relatorios_atividade").select("id, data, educador_id, planejamento_id, num_participantes, num_matriculados, pct_adesao, score_elo, objetivo_alcancado").gte("data", format(subDays(new Date(), 90), "yyyy-MM-dd")),
+      supabase.from("relatorio_turmas").select("relatorio_id, turma_id"),
     ]);
     setAtendimentos(atd || []);
     setParticipantes(part || []);
@@ -151,6 +164,14 @@ const EquipeTecnicaPage = () => {
     setUserRoles((roles || []).map((r: any) => r.role));
     setBairros(bairrosData || []);
     setBuscaAtivaRegistros(baRegs || []);
+    setRecados(recs || []);
+    setEncExternos(enc || []);
+    setRelatosEquipe(relatos || []);
+    setRelatoParticipantes(relatoParts || []);
+    setPlanejamentos(plans || []);
+    setPlanejamentoTurmas(planTurmas || []);
+    setRelatorios(rels || []);
+    setRelatorioTurmas(relTurmas || []);
 
     // Group docs by participante_id
     const docsMap: Record<string, any[]> = {};
