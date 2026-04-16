@@ -320,7 +320,91 @@ const RelatorioNovoPage = () => {
         }
       }
 
-      // fotos
+      // Auto-transfer de período: participantes presentes com período diferente do relatório
+      if (form.periodo_atividade && form.periodo_atividade !== "integral") {
+        const presenteIds = participantesTurma
+          .filter(p => form.presenca[p.id] && p.periodo && p.periodo !== form.periodo_atividade)
+          .map(p => p.id);
+
+        if (presenteIds.length > 0) {
+          const transferWarnings: string[] = [];
+          for (const pid of presenteIds) {
+            const part = participantesTurma.find(p => p.id === pid);
+            if (!part) continue;
+            try {
+              // 1. Update participantes.periodo
+              await supabase.from("participantes").update({ periodo: form.periodo_atividade as any }).eq("id", pid);
+
+              // 2. Find current turma_participantes links and set data_saida
+              const { data: currentLinks } = await supabase
+                .from("turma_participantes")
+                .select("id, turma_id")
+                .eq("participante_id", pid)
+                .is("data_saida", null);
+
+              const oldTurmaIds = (currentLinks || []).map((l: any) => l.turma_id);
+
+              // Find destination turmas matching new period
+              const { data: destTurmas } = await supabase
+                .from("turmas")
+                .select("id, nome, periodo")
+                .eq("ativa", true)
+                .eq("periodo", form.periodo_atividade as any);
+
+              if (destTurmas && destTurmas.length > 0) {
+                // Close old links
+                for (const link of (currentLinks || [])) {
+                  await supabase.from("turma_participantes").update({
+                    data_saida: format(form.data!, "yyyy-MM-dd"),
+                    motivo_saida: `Transferência automática de período (${part.periodo} → ${form.periodo_atividade})`,
+                  } as any).eq("id", link.id);
+                }
+
+                // Find best matching turma (same bairro if possible)
+                const { data: partData } = await supabase.from("participantes").select("bairro_id").eq("id", pid).single();
+                let destTurma = destTurmas[0];
+                if (partData?.bairro_id) {
+                  const { data: bairroTurmas } = await supabase
+                    .from("turmas")
+                    .select("id, nome")
+                    .eq("ativa", true)
+                    .eq("periodo", form.periodo_atividade as any)
+                    .contains("bairro_ids", [partData.bairro_id]);
+                  if (bairroTurmas && bairroTurmas.length > 0) destTurma = bairroTurmas[0];
+                }
+
+                // Check if already linked to dest turma
+                const alreadyLinked = oldTurmaIds.includes(destTurma.id);
+                if (!alreadyLinked) {
+                  await supabase.from("turma_participantes").insert({
+                    participante_id: pid,
+                    turma_id: destTurma.id,
+                  } as any);
+                }
+
+                // Register transfer
+                await supabase.from("participante_transferencias").insert({
+                  participante_id: pid,
+                  turma_origem_id: oldTurmaIds[0] || null,
+                  turma_destino_id: destTurma.id,
+                  motivo: `Transferência automática: período ${part.periodo} → ${form.periodo_atividade} (relatório de atividade)`,
+                } as any);
+              } else {
+                transferWarnings.push(part.nome);
+              }
+            } catch (e) {
+              console.warn(`Erro ao transferir participante ${pid}:`, e);
+              transferWarnings.push(part.nome);
+            }
+          }
+          if (transferWarnings.length > 0) {
+            toast.warning(`Não foi possível transferir: ${transferWarnings.join(", ")} — sem turma destino compatível`);
+          } else if (presenteIds.length > 0) {
+            toast.success(`${presenteIds.length} participante(s) transferido(s) para o período ${form.periodo_atividade === "manha" ? "Manhã" : "Tarde"}`);
+          }
+        }
+      }
+
       for (let i = 0; i < fotos.length; i++) {
         const file = fotos[i];
         const ext = file.name.split(".").pop();
