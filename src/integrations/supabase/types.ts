@@ -2313,9 +2313,10 @@ export type Database = {
           status2: string
         }[]
       }
-      get_dashboard_stats:
-        | { Args: never; Returns: Json }
-        | { Args: { _ano?: number; _mes?: number }; Returns: Json }
+      get_dashboard_stats: {
+        Args: { _ano?: number; _mes?: number }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
