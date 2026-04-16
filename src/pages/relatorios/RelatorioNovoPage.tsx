@@ -366,7 +366,7 @@ const RelatorioNovoPage = () => {
                 if (partData?.bairro_id) {
                   const { data: bairroTurmas } = await supabase
                     .from("turmas")
-                    .select("id, nome")
+                    .select("id, nome, periodo")
                     .eq("ativa", true)
                     .eq("periodo", form.periodo_atividade as any)
                     .contains("bairro_ids", [partData.bairro_id]);
