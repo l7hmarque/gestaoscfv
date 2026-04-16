@@ -1884,6 +1884,7 @@ export type Database = {
             | null
           observacoes: string | null
           pct_adesao: number | null
+          periodo_atividade: string | null
           planejamento_id: string | null
           respeito_mutuo: number | null
           score_elo: number | null
@@ -1913,6 +1914,7 @@ export type Database = {
             | null
           observacoes?: string | null
           pct_adesao?: number | null
+          periodo_atividade?: string | null
           planejamento_id?: string | null
           respeito_mutuo?: number | null
           score_elo?: number | null
@@ -1942,6 +1944,7 @@ export type Database = {
             | null
           observacoes?: string | null
           pct_adesao?: number | null
+          periodo_atividade?: string | null
           planejamento_id?: string | null
           respeito_mutuo?: number | null
           score_elo?: number | null

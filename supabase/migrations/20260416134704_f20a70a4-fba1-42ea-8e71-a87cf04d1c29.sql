@@ -1,0 +1,1 @@
+ALTER TABLE public.relatorios_atividade ADD COLUMN periodo_atividade text DEFAULT NULL;
