@@ -370,11 +370,12 @@ const RelatorioDetalhePage = () => {
       return;
     }
     // Get all participants linked to selected turmas
-    const { data: tp } = await supabase.from("turma_participantes").select("participante_id, participantes(id, nome_completo, status)").in("turma_id", tIds);
-    // Deduplicate
+    const { data: tp } = await supabase.from("turma_participantes").select("participante_id, participantes(id, nome_completo, status)").in("turma_id", tIds).is("data_saida" as any, null);
+    // Deduplicate and filter by status
+    const ALLOWED_STATUS = new Set(["ativo", "busca_ativa"]);
     const uniqueMap = new Map<string, any>();
     (tp || []).forEach((row: any) => {
-      if (row.participantes && !uniqueMap.has(row.participantes.id)) {
+      if (row.participantes && !uniqueMap.has(row.participantes.id) && ALLOWED_STATUS.has(row.participantes.status || "ativo")) {
         uniqueMap.set(row.participantes.id, row.participantes);
       }
     });
