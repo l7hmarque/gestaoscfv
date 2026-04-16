@@ -853,6 +853,12 @@ const RelatorioDetalhePage = () => {
       <div className="flex gap-2 flex-wrap text-xs text-muted-foreground">
         <span>📅 {format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy")}</span>
         {item.dia_semana && <span>({item.dia_semana})</span>}
+        {(item as any).periodo_atividade && (
+          <Badge variant="outline" className="text-[10px]">
+            {(item as any).periodo_atividade === "manha" ? "Manhã" : (item as any).periodo_atividade === "tarde" ? "Tarde" : "Integral"}
+          </Badge>
+        )}
+        {item.dia_semana && <span>({item.dia_semana})</span>}
         {item.profiles?.nome && <span>👤 {item.profiles.nome}</span>}
         {Array.isArray(item.tipo_atividade) && item.tipo_atividade.length > 0 ? (
           item.tipo_atividade.map((v: string) => {
