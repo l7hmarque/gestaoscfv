@@ -262,11 +262,16 @@ const RelatoriosPage = () => {
                           )}
                           {item.relatorio_turmas?.length > 0 && (
                             <div className="flex gap-1 flex-wrap justify-end">
-                              {item.relatorio_turmas.map((rt: any) => (
+                              {item.relatorio_turmas.slice(0, 2).map((rt: any) => (
                                 <Badge key={rt.turma_id} variant="secondary" className="text-[10px] px-1.5 py-0">
                                   {rt.turmas?.nome}
                                 </Badge>
                               ))}
+                              {item.relatorio_turmas.length > 2 && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                  +{item.relatorio_turmas.length - 2}
+                                </Badge>
+                              )}
                             </div>
                           )}
                         </div>

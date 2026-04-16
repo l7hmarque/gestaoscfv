@@ -154,11 +154,16 @@ const PlanejamentosPage = () => {
                       )}
                       {item.planejamento_turmas?.length > 0 && (
                         <div className="flex gap-1 flex-wrap justify-end">
-                          {item.planejamento_turmas.map((pt: any) => (
+                          {item.planejamento_turmas.slice(0, 2).map((pt: any) => (
                             <Badge key={pt.turma_id} variant="secondary" className="text-[10px] px-1.5 py-0">
                               {pt.turmas?.nome}
                             </Badge>
                           ))}
+                          {item.planejamento_turmas.length > 2 && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              +{item.planejamento_turmas.length - 2}
+                            </Badge>
+                          )}
                         </div>
                       )}
                     </div>
