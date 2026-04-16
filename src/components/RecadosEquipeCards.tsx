@@ -117,18 +117,35 @@ export function RecadosEquipeCards({ onPendingCount, onRegistrarAtendimento, ate
                 </div>
               </div>
               <p className="text-sm line-clamp-3 bg-muted/50 rounded px-2 py-1.5">{r.conteudo}</p>
-              <div className="flex items-center gap-2">
+              {atendimentosVinculados[r.id] && (
+                <div className="flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 rounded px-2 py-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Atendimento registrado em {format(new Date(atendimentosVinculados[r.id].data_atendimento + "T12:00:00"), "dd/MM/yyyy")}
+                </div>
+              )}
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground">Status:</span>
                 <Select value={(r as any).status || "pendente"} onValueChange={(v) => handleStatusChange(r.id, v)}>
                   <SelectTrigger className="h-7 text-xs w-40">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {STATUS_OPTIONS.map(o => (
+                    {STATUS_OPTIONS.filter(o => o.value !== "concluido").map(o => (
                       <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {onRegistrarAtendimento && r.participante_id && !atendimentosVinculados[r.id] && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1 ml-auto"
+                    onClick={() => onRegistrarAtendimento(r)}
+                  >
+                    <ClipboardPlus className="h-3.5 w-3.5" />
+                    Registrar atendimento
+                  </Button>
+                )}
               </div>
             </div>
           );
