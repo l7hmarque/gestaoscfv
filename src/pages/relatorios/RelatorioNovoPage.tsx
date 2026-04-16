@@ -257,6 +257,7 @@ const RelatorioNovoPage = () => {
         tipo_atividade: form.tipo_atividade,
         tipo_atividade_detalhe: form.tipo_atividade_detalhe || null,
         educador_id: form.educador_id || null,
+        educador_apoio_id: form.educador_apoio_id || null,
         planejamento_id: form.planejamento_id || null,
         periodo_atividade: form.periodo_atividade || null,
         iniciativa: form.iniciativa,
