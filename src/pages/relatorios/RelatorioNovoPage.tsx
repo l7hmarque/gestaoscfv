@@ -323,7 +323,29 @@ const RelatorioNovoPage = () => {
         }
       }
 
-      // Auto-transfer de período: participantes presentes com período diferente do relatório
+      // Auto-revert busca_ativa → ativo: presentes que estavam em busca ativa retornam automaticamente
+      try {
+        const presentesIds = participantesTurma
+          .filter(p => form.presenca[p.id] && (p.status === "busca_ativa"))
+          .map(p => p.id);
+        if (presentesIds.length > 0) {
+          await supabase.from("participantes").update({ status: "ativo" } as any).in("id", presentesIds);
+          // Mirror em busca_ativa_registros + atendimentos
+          const dataStr = format(form.data, "yyyy-MM-dd");
+          const baRows = presentesIds.map(pid => ({
+            participante_id: pid,
+            profissional_id: user?.id || null,
+            tipo_contato: "presenca_atividade",
+            descricao: `Retorno automático: marcado como presente em ${dataStr}`,
+            resultado: "vai_retornar",
+            data_registro: dataStr,
+          }));
+          await (supabase.from as any)("busca_ativa_registros").insert(baRows);
+          toast.info(`${presentesIds.length} participante(s) retornaram da busca ativa automaticamente`);
+        }
+      } catch (e) {
+        console.warn("Erro auto-revert busca ativa:", e);
+      }
       if (form.periodo_atividade && form.periodo_atividade !== "integral") {
         const presenteIds = participantesTurma
           .filter(p => form.presenca[p.id] && p.periodo && p.periodo !== form.periodo_atividade)
