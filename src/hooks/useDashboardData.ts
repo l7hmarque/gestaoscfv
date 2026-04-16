@@ -1,6 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+export interface AtividadeRecente {
+  id: string;
+  nome_atividade: string;
+  data: string;
+  educador: string;
+  num_participantes: number;
+}
+
 export interface DashboardData {
   totalParticipantesAtivos: number;
   totalTurmasAtivas: number;
@@ -21,6 +29,7 @@ export interface DashboardData {
   totalParticipantesAlerta: number;
   presencaMensal: { mes: string; presentes: number; total: number; pct: number }[];
   deltaParticipantes: number;
+  atividadesRecentes: AtividadeRecente[];
 }
 
 const COMPETENCIA_LABELS: Record<string, string> = {
@@ -31,11 +40,16 @@ const COMPETENCIA_LABELS: Record<string, string> = {
   respeito_mutuo: "Respeito Mútuo",
 };
 
-export function useDashboardData() {
+export function useDashboardData(mes?: number | null, ano?: number | null) {
   const { data, isLoading: loading } = useQuery({
-    queryKey: ["dashboard-data"],
+    queryKey: ["dashboard-data", mes, ano],
     queryFn: async (): Promise<DashboardData> => {
-      const { data: raw, error } = await supabase.rpc("get_dashboard_stats");
+      const params: Record<string, unknown> = {};
+      if (mes && ano) {
+        params._mes = mes;
+        params._ano = ano;
+      }
+      const { data: raw, error } = await supabase.rpc("get_dashboard_stats", params as any);
       if (error) throw error;
 
       const d = raw as any;
@@ -68,6 +82,13 @@ export function useDashboardData() {
           pct: Number(x.pct),
         })),
         deltaParticipantes: Number(d.deltaParticipantes ?? 0),
+        atividadesRecentes: (d.atividadesRecentes || []).map((x: any) => ({
+          id: x.id,
+          nome_atividade: x.nome_atividade || "Atividade",
+          data: x.data,
+          educador: x.educador || "Desconhecido",
+          num_participantes: Number(x.num_participantes ?? 0),
+        })),
       };
     },
     staleTime: 5 * 60 * 1000,
