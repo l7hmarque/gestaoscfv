@@ -710,7 +710,39 @@ const RelatorioDetalhePage = () => {
               </Popover>
             </div>
 
-            {/* Tipo de Atividade */}
+            {/* Profissional de Apoio */}
+            <div className="space-y-1">
+              <Label className="text-xs">Profissional de Apoio</Label>
+              <Popover open={apoioEditOpen} onOpenChange={setApoioEditOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={apoioEditOpen} className="w-full justify-between text-sm font-normal">
+                    {editForm.educador_apoio_id ? allEducadores.find(e => e.id === editForm.educador_apoio_id)?.nome || "Selecionar" : "Nenhum"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar profissional..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem value="__none__" onSelect={() => { setEditForm(f => ({ ...f, educador_apoio_id: "" })); setApoioEditOpen(false); }}>
+                          <Check className={cn("mr-2 h-4 w-4", !editForm.educador_apoio_id ? "opacity-100" : "opacity-0")} />
+                          Nenhum
+                        </CommandItem>
+                        {allEducadores.filter(e => e.id !== editForm.educador_id).map(e => (
+                          <CommandItem key={e.id} value={e.nome} onSelect={() => { setEditForm(f => ({ ...f, educador_apoio_id: e.id })); setApoioEditOpen(false); }}>
+                            <Check className={cn("mr-2 h-4 w-4", editForm.educador_apoio_id === e.id ? "opacity-100" : "opacity-0")} />
+                            {e.nome}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
             <div className="space-y-1">
               <Label className="text-xs">Tipo de Atividade</Label>
               <div className="grid grid-cols-2 gap-2">
