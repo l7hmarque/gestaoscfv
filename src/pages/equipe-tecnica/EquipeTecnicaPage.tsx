@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2, Phone, MapPin, Search, Eye, UserCheck, UserX, Mail, ChevronDown, ChevronUp, Check, X as XIcon, FileImage } from "lucide-react";
+import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2, Phone, MapPin, Search, Eye, UserCheck, UserX, Mail, ChevronDown, ChevronUp, Check, X as XIcon, FileImage, Network, ShieldAlert, Target, Link2 } from "lucide-react";
 import { calcFaixaFromDate, displayAge, PERIODO_LABELS } from "@/lib/constants";
 import { RecadosEquipeCards } from "@/components/RecadosEquipeCards";
 import * as XLSX from "xlsx-js-style";
@@ -76,10 +76,30 @@ const EquipeTecnicaPage = () => {
   const [filterProf, setFilterProf] = useState("");
   const [relDataInicio, setRelDataInicio] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [relDataFim, setRelDataFim] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
-  const [form, setForm] = useState({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "" });
+  const [form, setForm] = useState<{ participante_id: string; data_atendimento: string; tipo: string; descricao: string; encaminhamento: string; recado_origem_id?: string | null; relato_origem_id?: string | null; busca_ativa_origem_id?: string | null }>({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "", recado_origem_id: null, relato_origem_id: null, busca_ativa_origem_id: null });
   const [myProfileId, setMyProfileId] = useState("");
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const { log: auditLog } = useAuditLog();
+
+  // Recados (para vinculação)
+  const [recados, setRecados] = useState<any[]>([]);
+  const [recadoOrigem, setRecadoOrigem] = useState<any | null>(null);
+
+  // Encaminhamentos externos
+  const [encExternos, setEncExternos] = useState<any[]>([]);
+  const [encDialogOpen, setEncDialogOpen] = useState(false);
+  const [encForm, setEncForm] = useState({ participante_id: "", orgao: "", tipo: "cras", motivo: "", data_encaminhamento: format(new Date(), "yyyy-MM-dd"), data_retorno: "", status: "aberto", observacoes_retorno: "", contato: "" });
+  const [encEdit, setEncEdit] = useState<any | null>(null);
+
+  // Relatos da equipe técnica (vínculo B)
+  const [relatosEquipe, setRelatosEquipe] = useState<any[]>([]);
+  const [relatoParticipantes, setRelatoParticipantes] = useState<any[]>([]);
+
+  // Planejamentos (vínculo J)
+  const [planejamentos, setPlanejamentos] = useState<any[]>([]);
+  const [planejamentoTurmas, setPlanejamentoTurmas] = useState<any[]>([]);
+  const [relatorios, setRelatorios] = useState<any[]>([]);
+  const [relatorioTurmas, setRelatorioTurmas] = useState<any[]>([]);
 
   // Delete state
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
@@ -111,7 +131,12 @@ const EquipeTecnicaPage = () => {
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp }, { data: roles }, { data: bairrosData }, { data: baRegs }, { data: pDocs }] = await Promise.all([
+    const [
+      { data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp },
+      { data: roles }, { data: bairrosData }, { data: baRegs }, { data: pDocs },
+      { data: recs }, { data: enc }, { data: relatos }, { data: relatoParts },
+      { data: plans }, { data: planTurmas }, { data: rels }, { data: relTurmas },
+    ] = await Promise.all([
       supabase.from("atendimentos").select("*").order("data_atendimento", { ascending: false }),
       supabase.from("participantes").select("id, nome_completo, status, data_nascimento, bairro_id, periodo, laudo, categoria_vulnerabilidade, foto_url, responsavel1_nome, responsavel1_whatsapp, responsavel2_nome, responsavel2_whatsapp, endereco_rua, endereco_numero, endereco_bairro, escola, data_desligamento, motivo_desligamento, restricao_alimentar, serie, genero, cor_raca, created_at").order("nome_completo"),
       supabase.from("profiles").select("id, nome, cargo, user_id"),
@@ -122,6 +147,14 @@ const EquipeTecnicaPage = () => {
       supabase.from("bairros").select("id, nome"),
       (supabase.from as any)("busca_ativa_registros").select("*").order("created_at", { ascending: false }),
       supabase.from("participante_documentos" as any).select("*"),
+      supabase.from("recados").select("*").eq("tipo_recado", "tecnico").order("created_at", { ascending: false }),
+      (supabase.from as any)("encaminhamentos_externos").select("*").order("data_encaminhamento", { ascending: false }),
+      (supabase.from as any)("relato_equipe_tecnica").select("*").order("created_at", { ascending: false }),
+      (supabase.from as any)("relato_equipe_participantes").select("*"),
+      supabase.from("planejamentos").select("id, titulo, data_aplicacao, educador_id, tema").gte("data_aplicacao", format(subDays(new Date(), 90), "yyyy-MM-dd")),
+      supabase.from("planejamento_turmas").select("planejamento_id, turma_id"),
+      supabase.from("relatorios_atividade").select("id, data, educador_id, planejamento_id, num_participantes, num_matriculados, pct_adesao, score_elo, objetivo_alcancado").gte("data", format(subDays(new Date(), 90), "yyyy-MM-dd")),
+      supabase.from("relatorio_turmas").select("relatorio_id, turma_id"),
     ]);
     setAtendimentos(atd || []);
     setParticipantes(part || []);
@@ -131,6 +164,14 @@ const EquipeTecnicaPage = () => {
     setUserRoles((roles || []).map((r: any) => r.role));
     setBairros(bairrosData || []);
     setBuscaAtivaRegistros(baRegs || []);
+    setRecados(recs || []);
+    setEncExternos(enc || []);
+    setRelatosEquipe(relatos || []);
+    setRelatoParticipantes(relatoParts || []);
+    setPlanejamentos(plans || []);
+    setPlanejamentoTurmas(planTurmas || []);
+    setRelatorios(rels || []);
+    setRelatorioTurmas(relTurmas || []);
 
     // Group docs by participante_id
     const docsMap: Record<string, any[]> = {};
@@ -221,18 +262,33 @@ const EquipeTecnicaPage = () => {
   const handleCreate = async () => {
     if (guardDemo(isDemo)) return;
     if (!form.participante_id || !form.descricao.trim()) { toast.error("Preencha participante e descrição"); return; }
-    const { error } = await supabase.from("atendimentos").insert({
+    const insertPayload: any = {
       participante_id: form.participante_id,
       profissional_id: myProfileId,
       data_atendimento: form.data_atendimento,
       tipo: form.tipo,
       descricao: form.descricao,
       encaminhamento: form.encaminhamento || null,
-    } as any);
+    };
+    if (form.recado_origem_id) insertPayload.recado_origem_id = form.recado_origem_id;
+    if (form.relato_origem_id) insertPayload.relato_origem_id = form.relato_origem_id;
+    if (form.busca_ativa_origem_id) insertPayload.busca_ativa_origem_id = form.busca_ativa_origem_id;
+
+    const { data: novoAtd, error } = await supabase.from("atendimentos").insert(insertPayload).select().single();
     if (error) { toast.error("Erro: " + error.message); return; }
 
+    // Vínculo: recado → resolvido + atendimento_id NÃO existe em recados, mas mudamos status
+    if (form.recado_origem_id) {
+      await supabase.from("recados").update({ status: "resolvido" } as any).eq("id", form.recado_origem_id);
+    }
+
+    // Vínculo: busca_ativa_registros → atendimento_id
+    if (form.busca_ativa_origem_id) {
+      await (supabase.from as any)("busca_ativa_registros").update({ atendimento_id: novoAtd?.id }).eq("id", form.busca_ativa_origem_id);
+    }
+
     // Mirror busca_ativa/visita_domiciliar atendimentos into busca_ativa_registros
-    if (form.tipo === "busca_ativa" || form.tipo === "visita_domiciliar") {
+    if ((form.tipo === "busca_ativa" || form.tipo === "visita_domiciliar") && !form.busca_ativa_origem_id) {
       try {
         await (supabase.from as any)("busca_ativa_registros").insert({
           participante_id: form.participante_id,
@@ -241,14 +297,84 @@ const EquipeTecnicaPage = () => {
           descricao: form.descricao,
           resultado: "em_andamento",
           data_registro: form.data_atendimento,
+          atendimento_id: novoAtd?.id,
         });
       } catch (e) { console.warn(e); }
     }
 
-    toast.success("Atendimento registrado!");
+    toast.success("Atendimento registrado!" + (form.recado_origem_id ? " Recado marcado como resolvido." : ""));
     setDialogOpen(false);
-    setForm({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "" });
+    setRecadoOrigem(null);
+    setForm({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "", recado_origem_id: null, relato_origem_id: null, busca_ativa_origem_id: null });
     loadAll();
+  };
+
+  // Abre o diálogo de novo atendimento já vinculado a um recado técnico
+  const handleRegistrarFromRecado = (recado: any) => {
+    setRecadoOrigem(recado);
+    setForm({
+      participante_id: recado.participante_id || "",
+      data_atendimento: format(new Date(), "yyyy-MM-dd"),
+      tipo: "atendimento_individual",
+      descricao: `[Originado do chamado #${recado.numero}]\n\n${recado.conteudo}\n\n— Atendimento realizado: `,
+      encaminhamento: "",
+      recado_origem_id: recado.id,
+      relato_origem_id: null,
+      busca_ativa_origem_id: null,
+    });
+    setDialogOpen(true);
+  };
+
+  // Encaminhamentos externos handlers
+  const handleSaveEnc = async () => {
+    if (guardDemo(isDemo)) return;
+    if (!encForm.participante_id || !encForm.orgao.trim() || !encForm.motivo.trim()) {
+      toast.error("Preencha participante, órgão e motivo");
+      return;
+    }
+    const payload: any = {
+      ...encForm,
+      profissional_id: myProfileId,
+      data_retorno: encForm.data_retorno || null,
+    };
+    if (encEdit) {
+      const { error } = await (supabase.from as any)("encaminhamentos_externos").update(payload).eq("id", encEdit.id);
+      if (error) { toast.error("Erro: " + error.message); return; }
+      toast.success("Encaminhamento atualizado");
+    } else {
+      const { error } = await (supabase.from as any)("encaminhamentos_externos").insert(payload);
+      if (error) { toast.error("Erro: " + error.message); return; }
+      toast.success("Encaminhamento registrado");
+    }
+    setEncDialogOpen(false);
+    setEncEdit(null);
+    setEncForm({ participante_id: "", orgao: "", tipo: "cras", motivo: "", data_encaminhamento: format(new Date(), "yyyy-MM-dd"), data_retorno: "", status: "aberto", observacoes_retorno: "", contato: "" });
+    loadAll();
+  };
+
+  const handleDeleteEnc = async (id: string) => {
+    if (guardDemo(isDemo)) return;
+    if (!confirm("Excluir este encaminhamento?")) return;
+    const { error } = await (supabase.from as any)("encaminhamentos_externos").delete().eq("id", id);
+    if (error) { toast.error("Erro: " + error.message); return; }
+    toast.success("Encaminhamento excluído");
+    loadAll();
+  };
+
+  const openEncEdit = (e: any) => {
+    setEncEdit(e);
+    setEncForm({
+      participante_id: e.participante_id,
+      orgao: e.orgao,
+      tipo: e.tipo,
+      motivo: e.motivo,
+      data_encaminhamento: e.data_encaminhamento,
+      data_retorno: e.data_retorno || "",
+      status: e.status,
+      observacoes_retorno: e.observacoes_retorno || "",
+      contato: e.contato || "",
+    });
+    setEncDialogOpen(true);
   };
 
   // Dashboard calculations
@@ -331,15 +457,49 @@ const EquipeTecnicaPage = () => {
     return atendimentos.filter(a => a.data_atendimento >= relDataInicio && a.data_atendimento <= relDataFim);
   }, [atendimentos, relDataInicio, relDataFim]);
 
+  // Recados técnicos no período do relatório
+  const relRecados = useMemo(() => {
+    const ini = new Date(relDataInicio + "T00:00:00").getTime();
+    const fim = new Date(relDataFim + "T23:59:59").getTime();
+    return recados.filter(r => {
+      const t = new Date(r.created_at).getTime();
+      return t >= ini && t <= fim;
+    });
+  }, [recados, relDataInicio, relDataFim]);
+
+  // Mapa recado → atendimento vinculado (por recado_origem_id)
+  const atendimentosPorRecado = useMemo(() => {
+    const m: Record<string, any> = {};
+    atendimentos.forEach(a => { if ((a as any).recado_origem_id) m[(a as any).recado_origem_id] = a; });
+    return m;
+  }, [atendimentos]);
+
+  const relEncaminhamentos = useMemo(() => {
+    return encExternos.filter(e => e.data_encaminhamento >= relDataInicio && e.data_encaminhamento <= relDataFim);
+  }, [encExternos, relDataInicio, relDataFim]);
+
   const generateRelatorioEquipe = (formato: "xlsx" | "pdf") => {
-    if (relAtendimentos.length === 0) { toast.error("Nenhum atendimento no período"); return; }
+    if (relAtendimentos.length === 0 && relRecados.length === 0 && relEncaminhamentos.length === 0) {
+      toast.error("Nenhum dado no período"); return;
+    }
     const periodoLabel = `${format(new Date(relDataInicio + "T12:00:00"), "dd/MM/yyyy")} a ${format(new Date(relDataFim + "T12:00:00"), "dd/MM/yyyy")}`;
 
+    // Métricas dos chamados
+    const totalChamados = relRecados.length;
+    const chamadosResolvidos = relRecados.filter(r => ["concluido", "resolvido"].includes(r.status)).length;
+    const chamadosComAtd = relRecados.filter(r => atendimentosPorRecado[r.id]).length;
+    const pctResolvidos = totalChamados > 0 ? Math.round((chamadosResolvidos / totalChamados) * 100) : 0;
+    const pctComAtd = totalChamados > 0 ? Math.round((chamadosComAtd / totalChamados) * 100) : 0;
+
     if (formato === "xlsx") {
+      // Paleta P&B (grayscale)
       const border = { style: "thin" as const, color: { rgb: "000000" } };
-      const hdr = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1565C0" } }, border: { top: border, bottom: border, left: border, right: border } };
-      const cell = { border: { top: border, bottom: border, left: border, right: border } };
+      const hdr = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F1F1F" } }, border: { top: border, bottom: border, left: border, right: border }, alignment: { wrapText: true, vertical: "center" as const } };
+      const subHdr = { font: { bold: true, color: { rgb: "000000" } }, fill: { fgColor: { rgb: "D9D9D9" } }, border: { top: border, bottom: border, left: border, right: border } };
+      const cell = { border: { top: border, bottom: border, left: border, right: border }, alignment: { wrapText: true, vertical: "top" as const } };
       const wb = XLSX.utils.book_new();
+
+      // === Aba 1: Atendimentos ===
       const rows: any[][] = [
         ["Sociedade Civil Nossa Senhora Aparecida"],
         ["Centro de Atenção Integral ao Adolescente - Medianeira"],
@@ -348,81 +508,244 @@ const EquipeTecnicaPage = () => {
         ["Período: " + periodoLabel],
         ["Gerado em: " + new Date().toLocaleString("pt-BR")],
         [],
-        ["Data", "Profissional", "Participante", "Tipo", "Descrição", "Encaminhamento"],
+        ["Data", "Profissional", "Participante", "Tipo", "Origem", "Descrição", "Encaminhamento"],
       ];
       relAtendimentos.forEach(a => {
+        const origem = (a as any).recado_origem_id ? "Chamado técnico" : (a as any).relato_origem_id ? "Relato pedagógico" : (a as any).busca_ativa_origem_id ? "Busca ativa" : "Direto";
         rows.push([
           format(new Date(a.data_atendimento + "T12:00:00"), "dd/MM/yyyy"),
           profName(a.profissional_id),
           partName(a.participante_id),
           tipoLabel(a.tipo),
+          origem,
           a.descricao || "",
           a.encaminhamento || "",
         ]);
       });
       const ws = XLSX.utils.aoa_to_sheet(rows);
-      ws["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 28 }, { wch: 20 }, { wch: 40 }, { wch: 30 }];
+      ws["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 28 }, { wch: 20 }, { wch: 18 }, { wch: 50 }, { wch: 30 }];
       autoFitColumns(ws, { min: 10 });
-      for (let c = 0; c < 6; c++) {
+      for (let c = 0; c < 7; c++) {
         const addr = XLSX.utils.encode_cell({ r: 7, c });
         if (ws[addr]) ws[addr].s = hdr;
       }
       for (let r = 8; r < rows.length; r++) {
-        for (let c = 0; c < 6; c++) {
+        for (let c = 0; c < 7; c++) {
           const addr = XLSX.utils.encode_cell({ r, c });
           if (ws[addr]) ws[addr].s = cell;
         }
       }
       XLSX.utils.book_append_sheet(wb, ws, "Atendimentos");
 
+      // === Aba 2: Chamados Técnicos ===
+      const recadoRows: any[][] = [
+        ["CHAMADOS TÉCNICOS — " + periodoLabel],
+        [],
+        ["Total de chamados", totalChamados],
+        ["Resolvidos", `${chamadosResolvidos} (${pctResolvidos}%)`],
+        ["Geraram atendimento formal", `${chamadosComAtd} (${pctComAtd}%)`],
+        ["Pendentes", totalChamados - chamadosResolvidos],
+        [],
+        ["Data envio", "Remetente", "Destinatário", "Participante", "Conteúdo", "Status", "Atendimento vinculado"],
+      ];
+      relRecados.forEach(r => {
+        const atd = atendimentosPorRecado[r.id];
+        recadoRows.push([
+          format(new Date(r.created_at), "dd/MM/yyyy HH:mm"),
+          profName(r.remetente_id),
+          profName(r.destinatario_id),
+          r.participante_id ? partName(r.participante_id) : "—",
+          r.conteudo,
+          r.status === "resolvido" || r.status === "concluido" ? "Resolvido" : r.status === "em_andamento" ? "Em andamento" : "Pendente",
+          atd ? `Sim — ${format(new Date(atd.data_atendimento + "T12:00:00"), "dd/MM/yyyy")} — ${tipoLabel(atd.tipo)}` : "Não",
+        ]);
+      });
+      const wsRec = XLSX.utils.aoa_to_sheet(recadoRows);
+      wsRec["!cols"] = [{ wch: 16 }, { wch: 22 }, { wch: 22 }, { wch: 26 }, { wch: 50 }, { wch: 14 }, { wch: 35 }];
+      autoFitColumns(wsRec, { min: 10 });
+      // header row 8 (index 7)
+      for (let c = 0; c < 7; c++) {
+        const a = XLSX.utils.encode_cell({ r: 7, c });
+        if (wsRec[a]) wsRec[a].s = hdr;
+      }
+      for (let r = 8; r < recadoRows.length; r++) {
+        for (let c = 0; c < 7; c++) {
+          const a = XLSX.utils.encode_cell({ r, c });
+          if (wsRec[a]) wsRec[a].s = cell;
+        }
+      }
+      XLSX.utils.book_append_sheet(wb, wsRec, "Chamados Técnicos");
+
+      // === Aba 3: Encaminhamentos Externos ===
+      if (relEncaminhamentos.length > 0) {
+        const encRows: any[][] = [
+          ["ENCAMINHAMENTOS À REDE EXTERNA — " + periodoLabel],
+          [],
+          ["Data", "Participante", "Órgão", "Tipo", "Motivo", "Status", "Data Retorno", "Observações"],
+        ];
+        relEncaminhamentos.forEach(e => {
+          encRows.push([
+            format(new Date(e.data_encaminhamento + "T12:00:00"), "dd/MM/yyyy"),
+            partName(e.participante_id),
+            e.orgao,
+            (e.tipo || "").toUpperCase(),
+            e.motivo,
+            e.status,
+            e.data_retorno ? format(new Date(e.data_retorno + "T12:00:00"), "dd/MM/yyyy") : "—",
+            e.observacoes_retorno || "—",
+          ]);
+        });
+        const wsEnc = XLSX.utils.aoa_to_sheet(encRows);
+        wsEnc["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 22 }, { wch: 10 }, { wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 35 }];
+        autoFitColumns(wsEnc, { min: 10 });
+        for (let c = 0; c < 8; c++) {
+          const a = XLSX.utils.encode_cell({ r: 2, c });
+          if (wsEnc[a]) wsEnc[a].s = hdr;
+        }
+        for (let r = 3; r < encRows.length; r++) {
+          for (let c = 0; c < 8; c++) {
+            const a = XLSX.utils.encode_cell({ r, c });
+            if (wsEnc[a]) wsEnc[a].s = cell;
+          }
+        }
+        XLSX.utils.book_append_sheet(wb, wsEnc, "Encaminhamentos Externos");
+      }
+
+      // === Aba 4: Resumo ===
       const tipoMap: Record<string, number> = {};
       relAtendimentos.forEach(a => { tipoMap[tipoLabel(a.tipo)] = (tipoMap[tipoLabel(a.tipo)] || 0) + 1; });
-      const resumoRows: any[][] = [["Tipo", "Quantidade"]];
+      const resumoRows: any[][] = [
+        ["RESUMO POR TIPO DE ATENDIMENTO"],
+        [],
+        ["Tipo", "Quantidade"],
+      ];
       Object.entries(tipoMap).forEach(([tipo, qt]) => resumoRows.push([tipo, qt]));
       resumoRows.push(["TOTAL", relAtendimentos.length]);
       const wsR = XLSX.utils.aoa_to_sheet(resumoRows);
-      wsR["!cols"] = [{ wch: 25 }, { wch: 12 }];
+      wsR["!cols"] = [{ wch: 30 }, { wch: 14 }];
+      for (let c = 0; c < 2; c++) {
+        const a = XLSX.utils.encode_cell({ r: 2, c });
+        if (wsR[a]) wsR[a].s = hdr;
+      }
+      for (let r = 3; r < resumoRows.length; r++) {
+        for (let c = 0; c < 2; c++) {
+          const a = XLSX.utils.encode_cell({ r, c });
+          if (wsR[a]) wsR[a].s = r === resumoRows.length - 1 ? subHdr : cell;
+        }
+      }
       XLSX.utils.book_append_sheet(wb, wsR, "Resumo");
 
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
       saveAs(new Blob([buf]), sysCfvFileName("RelEquipeTecnica", "xlsx"));
       toast.success("Relatório XLSX gerado!");
     } else {
+      // PDF P&B
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-      doc.setFontSize(14);
-      doc.text("RELATÓRIO DE ATIVIDADES DA EQUIPE TÉCNICA", 14, 15);
-      doc.setFontSize(9);
-      doc.text("Período: " + periodoLabel, 14, 22);
-      doc.text("Gerado em: " + new Date().toLocaleString("pt-BR"), 14, 27);
+      const GRAY_DARK: [number, number, number] = [31, 31, 31];
+      const GRAY_LIGHT: [number, number, number] = [240, 240, 240];
 
+      doc.setFontSize(13);
+      doc.setTextColor(0, 0, 0);
+      doc.text("RELATÓRIO DE ATIVIDADES DA EQUIPE TÉCNICA", 14, 15);
+      doc.setFontSize(8);
+      doc.text("Período: " + periodoLabel, 14, 21);
+      doc.text("Gerado em: " + new Date().toLocaleString("pt-BR"), 14, 26);
+
+      // Tabela atendimentos
       autoTable(doc, {
         startY: 32,
-        head: [["Data", "Profissional", "Participante", "Tipo", "Descrição", "Encaminhamento"]],
-        body: relAtendimentos.map(a => [
-          format(new Date(a.data_atendimento + "T12:00:00"), "dd/MM/yyyy"),
-          profName(a.profissional_id),
-          partName(a.participante_id),
-          tipoLabel(a.tipo),
-          a.descricao || "—",
-          a.encaminhamento || "—",
-        ]),
-        styles: { fontSize: 7, cellPadding: 1.5 },
-        headStyles: { fillColor: [21, 101, 192], fontSize: 7 },
-        alternateRowStyles: { fillColor: [240, 240, 240] },
-        columnStyles: { 4: { cellWidth: 60 }, 5: { cellWidth: 40 } },
+        head: [["Data", "Profissional", "Participante", "Tipo", "Origem", "Descrição", "Encaminhamento"]],
+        body: relAtendimentos.map(a => {
+          const origem = (a as any).recado_origem_id ? "Chamado" : (a as any).relato_origem_id ? "Relato" : (a as any).busca_ativa_origem_id ? "Busca ativa" : "Direto";
+          return [
+            format(new Date(a.data_atendimento + "T12:00:00"), "dd/MM/yyyy"),
+            profName(a.profissional_id),
+            partName(a.participante_id),
+            tipoLabel(a.tipo),
+            origem,
+            a.descricao || "—",
+            a.encaminhamento || "—",
+          ];
+        }),
+        styles: { fontSize: 7, cellPadding: 1.5, textColor: [0, 0, 0], lineColor: [120, 120, 120] },
+        headStyles: { fillColor: GRAY_DARK, textColor: 255, fontSize: 7 },
+        alternateRowStyles: { fillColor: GRAY_LIGHT },
+        columnStyles: { 5: { cellWidth: 70 }, 6: { cellWidth: 40 } },
       });
 
-      const lastY = (doc as any).lastAutoTable?.finalY || 100;
+      // Seção Chamados Técnicos
+      let lastY = (doc as any).lastAutoTable?.finalY || 100;
+      if (lastY > 170) { doc.addPage(); lastY = 15; }
       doc.setFontSize(11);
-      doc.text("Resumo por Tipo", 14, lastY + 8);
+      doc.setFont(undefined, "bold");
+      doc.text("CHAMADOS TÉCNICOS", 14, lastY + 10);
+      doc.setFont(undefined, "normal");
+      doc.setFontSize(8);
+      doc.text(`Total: ${totalChamados} | Resolvidos: ${chamadosResolvidos} (${pctResolvidos}%) | Geraram atendimento formal: ${chamadosComAtd} (${pctComAtd}%) | Pendentes: ${totalChamados - chamadosResolvidos}`, 14, lastY + 16);
+
+      autoTable(doc, {
+        startY: lastY + 20,
+        head: [["Data", "Remetente", "Participante", "Conteúdo", "Status", "Atendimento"]],
+        body: relRecados.map(r => {
+          const atd = atendimentosPorRecado[r.id];
+          return [
+            format(new Date(r.created_at), "dd/MM/yyyy"),
+            profName(r.remetente_id),
+            r.participante_id ? partName(r.participante_id) : "—",
+            r.conteudo,
+            r.status === "resolvido" || r.status === "concluido" ? "Resolvido" : r.status === "em_andamento" ? "Em andamento" : "Pendente",
+            atd ? `${format(new Date(atd.data_atendimento + "T12:00:00"), "dd/MM/yyyy")} — ${tipoLabel(atd.tipo)}` : "—",
+          ];
+        }),
+        styles: { fontSize: 7, cellPadding: 1.5, textColor: [0, 0, 0], lineColor: [120, 120, 120] },
+        headStyles: { fillColor: GRAY_DARK, textColor: 255, fontSize: 7 },
+        alternateRowStyles: { fillColor: GRAY_LIGHT },
+        columnStyles: { 3: { cellWidth: 80 }, 5: { cellWidth: 45 } },
+      });
+
+      // Seção Encaminhamentos Externos
+      if (relEncaminhamentos.length > 0) {
+        lastY = (doc as any).lastAutoTable?.finalY || 100;
+        if (lastY > 170) { doc.addPage(); lastY = 15; }
+        doc.setFontSize(11);
+        doc.setFont(undefined, "bold");
+        doc.text("ENCAMINHAMENTOS À REDE EXTERNA", 14, lastY + 10);
+        doc.setFont(undefined, "normal");
+        autoTable(doc, {
+          startY: lastY + 14,
+          head: [["Data", "Participante", "Órgão", "Tipo", "Motivo", "Status", "Retorno"]],
+          body: relEncaminhamentos.map(e => [
+            format(new Date(e.data_encaminhamento + "T12:00:00"), "dd/MM/yyyy"),
+            partName(e.participante_id),
+            e.orgao,
+            (e.tipo || "").toUpperCase(),
+            e.motivo,
+            e.status,
+            e.data_retorno ? format(new Date(e.data_retorno + "T12:00:00"), "dd/MM/yyyy") : "—",
+          ]),
+          styles: { fontSize: 7, cellPadding: 1.5, textColor: [0, 0, 0], lineColor: [120, 120, 120] },
+          headStyles: { fillColor: GRAY_DARK, textColor: 255, fontSize: 7 },
+          alternateRowStyles: { fillColor: GRAY_LIGHT },
+          columnStyles: { 4: { cellWidth: 70 } },
+        });
+      }
+
+      // Resumo por tipo
+      lastY = (doc as any).lastAutoTable?.finalY || 100;
+      if (lastY > 180) { doc.addPage(); lastY = 15; }
+      doc.setFontSize(11);
+      doc.setFont(undefined, "bold");
+      doc.text("RESUMO POR TIPO", 14, lastY + 10);
+      doc.setFont(undefined, "normal");
       const tipoMap2: Record<string, number> = {};
       relAtendimentos.forEach(a => { tipoMap2[tipoLabel(a.tipo)] = (tipoMap2[tipoLabel(a.tipo)] || 0) + 1; });
       autoTable(doc, {
-        startY: lastY + 12,
+        startY: lastY + 14,
         head: [["Tipo", "Quantidade"]],
         body: [...Object.entries(tipoMap2).map(([t, q]) => [t, String(q)]), ["TOTAL", String(relAtendimentos.length)]],
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [21, 101, 192] },
+        styles: { fontSize: 8, textColor: [0, 0, 0], lineColor: [120, 120, 120] },
+        headStyles: { fillColor: GRAY_DARK, textColor: 255 },
+        alternateRowStyles: { fillColor: GRAY_LIGHT },
       });
 
       doc.save(sysCfvFileName("RelEquipeTecnica", "pdf"));
@@ -1049,7 +1372,11 @@ const EquipeTecnicaPage = () => {
 
         {/* RECADOS */}
         <TabsContent value="recados" className="space-y-4">
-          <RecadosEquipeCards onPendingCount={setRecadosPendentes} />
+          <RecadosEquipeCards
+            onPendingCount={setRecadosPendentes}
+            onRegistrarAtendimento={handleRegistrarFromRecado}
+            atendimentosVinculados={atendimentosPorRecado}
+          />
         </TabsContent>
 
         {/* RELATÓRIOS */}

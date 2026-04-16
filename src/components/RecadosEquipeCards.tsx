@@ -5,18 +5,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Mail, User, Clock } from "lucide-react";
+import { Mail, User, Clock, ClipboardPlus, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 const STATUS_OPTIONS = [
   { value: "pendente", label: "Pendente", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" },
   { value: "em_andamento", label: "Em andamento", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400" },
+  { value: "resolvido", label: "Resolvido", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" },
   { value: "concluido", label: "Concluído", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" },
 ];
 
-export function RecadosEquipeCards({ onPendingCount }: { onPendingCount?: (count: number) => void }) {
+interface RecadosEquipeCardsProps {
+  onPendingCount?: (count: number) => void;
+  onRegistrarAtendimento?: (recado: any) => void;
+  atendimentosVinculados?: Record<string, any>; // recado_id -> atendimento
+}
+
+export function RecadosEquipeCards({ onPendingCount, onRegistrarAtendimento, atendimentosVinculados = {} }: RecadosEquipeCardsProps) {
   const { user } = useAuth();
   const [recados, setRecados] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -61,8 +69,8 @@ export function RecadosEquipeCards({ onPendingCount }: { onPendingCount?: (count
   const partName = (id: string) => participantes.find(p => p.id === id)?.nome_completo || "";
   const statusInfo = (s: string) => STATUS_OPTIONS.find(o => o.value === s) || STATUS_OPTIONS[0];
 
-  const pendentes = recados.filter(r => (r as any).status !== "concluido");
-  const concluidos = recados.filter(r => (r as any).status === "concluido");
+  const pendentes = recados.filter(r => !["concluido", "resolvido"].includes((r as any).status));
+  const concluidos = recados.filter(r => ["concluido", "resolvido"].includes((r as any).status));
 
   if (loading) return null;
 
@@ -109,18 +117,35 @@ export function RecadosEquipeCards({ onPendingCount }: { onPendingCount?: (count
                 </div>
               </div>
               <p className="text-sm line-clamp-3 bg-muted/50 rounded px-2 py-1.5">{r.conteudo}</p>
-              <div className="flex items-center gap-2">
+              {atendimentosVinculados[r.id] && (
+                <div className="flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 rounded px-2 py-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Atendimento registrado em {format(new Date(atendimentosVinculados[r.id].data_atendimento + "T12:00:00"), "dd/MM/yyyy")}
+                </div>
+              )}
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground">Status:</span>
                 <Select value={(r as any).status || "pendente"} onValueChange={(v) => handleStatusChange(r.id, v)}>
                   <SelectTrigger className="h-7 text-xs w-40">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {STATUS_OPTIONS.map(o => (
+                    {STATUS_OPTIONS.filter(o => o.value !== "concluido").map(o => (
                       <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {onRegistrarAtendimento && r.participante_id && !atendimentosVinculados[r.id] && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1 ml-auto"
+                    onClick={() => onRegistrarAtendimento(r)}
+                  >
+                    <ClipboardPlus className="h-3.5 w-3.5" />
+                    Registrar atendimento
+                  </Button>
+                )}
               </div>
             </div>
           );
