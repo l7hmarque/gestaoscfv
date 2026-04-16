@@ -663,7 +663,42 @@ const ParticipantePerfilPage = () => {
           </Card>
         )}
 
-        {/* Seção Sigilosa */}
+        {/* Frequência (últimos 30 dias) */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Frequência (últimos 30 dias)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {presenca30.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Sem registros de presença nos últimos 30 dias</p>
+            ) : (
+              <>
+                {(() => {
+                  const tot = presenca30.length;
+                  const pres = presenca30.filter(r => r.presente).length;
+                  const pct = tot > 0 ? Math.round((pres / tot) * 100) : 0;
+                  return (
+                    <div className="flex items-center gap-3 mb-3 text-xs">
+                      <Badge variant="secondary">{pres} presenças / {tot} registros</Badge>
+                      <Badge variant={pct >= 80 ? "default" : pct >= 65 ? "secondary" : "destructive"}>{pct}% adesão</Badge>
+                    </div>
+                  );
+                })()}
+                <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                  {presenca30.map((r, i) => (
+                    <div key={i} className="flex items-center justify-between border-b py-1.5 text-xs">
+                      <span className="font-medium">{r.data}</span>
+                      <span className="flex-1 mx-2 text-muted-foreground truncate">{r.turmas?.nome || "—"}</span>
+                      <Badge variant={r.presente ? "default" : "destructive"} className="text-[10px]">{r.presente ? "Presente" : "Ausente"}</Badge>
+                      {!r.presente && r.justificativa && <span className="ml-2 text-[10px] text-muted-foreground italic max-w-[150px] truncate">{r.justificativa}</span>}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         {canSeeConfidential && (
           <Card className="border-destructive/50">
             <CardHeader className="pb-2">
