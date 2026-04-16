@@ -262,18 +262,33 @@ const EquipeTecnicaPage = () => {
   const handleCreate = async () => {
     if (guardDemo(isDemo)) return;
     if (!form.participante_id || !form.descricao.trim()) { toast.error("Preencha participante e descrição"); return; }
-    const { error } = await supabase.from("atendimentos").insert({
+    const insertPayload: any = {
       participante_id: form.participante_id,
       profissional_id: myProfileId,
       data_atendimento: form.data_atendimento,
       tipo: form.tipo,
       descricao: form.descricao,
       encaminhamento: form.encaminhamento || null,
-    } as any);
+    };
+    if (form.recado_origem_id) insertPayload.recado_origem_id = form.recado_origem_id;
+    if (form.relato_origem_id) insertPayload.relato_origem_id = form.relato_origem_id;
+    if (form.busca_ativa_origem_id) insertPayload.busca_ativa_origem_id = form.busca_ativa_origem_id;
+
+    const { data: novoAtd, error } = await supabase.from("atendimentos").insert(insertPayload).select().single();
     if (error) { toast.error("Erro: " + error.message); return; }
 
+    // Vínculo: recado → resolvido + atendimento_id NÃO existe em recados, mas mudamos status
+    if (form.recado_origem_id) {
+      await supabase.from("recados").update({ status: "resolvido" } as any).eq("id", form.recado_origem_id);
+    }
+
+    // Vínculo: busca_ativa_registros → atendimento_id
+    if (form.busca_ativa_origem_id) {
+      await (supabase.from as any)("busca_ativa_registros").update({ atendimento_id: novoAtd?.id }).eq("id", form.busca_ativa_origem_id);
+    }
+
     // Mirror busca_ativa/visita_domiciliar atendimentos into busca_ativa_registros
-    if (form.tipo === "busca_ativa" || form.tipo === "visita_domiciliar") {
+    if ((form.tipo === "busca_ativa" || form.tipo === "visita_domiciliar") && !form.busca_ativa_origem_id) {
       try {
         await (supabase.from as any)("busca_ativa_registros").insert({
           participante_id: form.participante_id,
@@ -282,14 +297,84 @@ const EquipeTecnicaPage = () => {
           descricao: form.descricao,
           resultado: "em_andamento",
           data_registro: form.data_atendimento,
+          atendimento_id: novoAtd?.id,
         });
       } catch (e) { console.warn(e); }
     }
 
-    toast.success("Atendimento registrado!");
+    toast.success("Atendimento registrado!" + (form.recado_origem_id ? " Recado marcado como resolvido." : ""));
     setDialogOpen(false);
-    setForm({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "" });
+    setRecadoOrigem(null);
+    setForm({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "", recado_origem_id: null, relato_origem_id: null, busca_ativa_origem_id: null });
     loadAll();
+  };
+
+  // Abre o diálogo de novo atendimento já vinculado a um recado técnico
+  const handleRegistrarFromRecado = (recado: any) => {
+    setRecadoOrigem(recado);
+    setForm({
+      participante_id: recado.participante_id || "",
+      data_atendimento: format(new Date(), "yyyy-MM-dd"),
+      tipo: "atendimento_individual",
+      descricao: `[Originado do chamado #${recado.numero}]\n\n${recado.conteudo}\n\n— Atendimento realizado: `,
+      encaminhamento: "",
+      recado_origem_id: recado.id,
+      relato_origem_id: null,
+      busca_ativa_origem_id: null,
+    });
+    setDialogOpen(true);
+  };
+
+  // Encaminhamentos externos handlers
+  const handleSaveEnc = async () => {
+    if (guardDemo(isDemo)) return;
+    if (!encForm.participante_id || !encForm.orgao.trim() || !encForm.motivo.trim()) {
+      toast.error("Preencha participante, órgão e motivo");
+      return;
+    }
+    const payload: any = {
+      ...encForm,
+      profissional_id: myProfileId,
+      data_retorno: encForm.data_retorno || null,
+    };
+    if (encEdit) {
+      const { error } = await (supabase.from as any)("encaminhamentos_externos").update(payload).eq("id", encEdit.id);
+      if (error) { toast.error("Erro: " + error.message); return; }
+      toast.success("Encaminhamento atualizado");
+    } else {
+      const { error } = await (supabase.from as any)("encaminhamentos_externos").insert(payload);
+      if (error) { toast.error("Erro: " + error.message); return; }
+      toast.success("Encaminhamento registrado");
+    }
+    setEncDialogOpen(false);
+    setEncEdit(null);
+    setEncForm({ participante_id: "", orgao: "", tipo: "cras", motivo: "", data_encaminhamento: format(new Date(), "yyyy-MM-dd"), data_retorno: "", status: "aberto", observacoes_retorno: "", contato: "" });
+    loadAll();
+  };
+
+  const handleDeleteEnc = async (id: string) => {
+    if (guardDemo(isDemo)) return;
+    if (!confirm("Excluir este encaminhamento?")) return;
+    const { error } = await (supabase.from as any)("encaminhamentos_externos").delete().eq("id", id);
+    if (error) { toast.error("Erro: " + error.message); return; }
+    toast.success("Encaminhamento excluído");
+    loadAll();
+  };
+
+  const openEncEdit = (e: any) => {
+    setEncEdit(e);
+    setEncForm({
+      participante_id: e.participante_id,
+      orgao: e.orgao,
+      tipo: e.tipo,
+      motivo: e.motivo,
+      data_encaminhamento: e.data_encaminhamento,
+      data_retorno: e.data_retorno || "",
+      status: e.status,
+      observacoes_retorno: e.observacoes_retorno || "",
+      contato: e.contato || "",
+    });
+    setEncDialogOpen(true);
   };
 
   // Dashboard calculations
