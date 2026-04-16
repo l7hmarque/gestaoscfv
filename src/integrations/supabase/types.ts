@@ -2337,6 +2337,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      recalcular_busca_ativa: {
+        Args: { _participante_ids?: string[] }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
