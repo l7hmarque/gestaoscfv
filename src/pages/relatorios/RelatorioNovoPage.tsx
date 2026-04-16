@@ -74,6 +74,7 @@ const RelatorioNovoPage = () => {
   const [participantesTurma, setParticipantesTurma] = useState<any[]>([]);
   const [fotos, setFotos] = useState<File[]>([]);
   const [educadorOpen, setEducadorOpen] = useState(false);
+  const [apoioOpen, setApoioOpen] = useState(false);
 
   const [form, setForm] = useState({
     data: null as Date | null,
@@ -82,6 +83,7 @@ const RelatorioNovoPage = () => {
     tipo_atividade: [] as string[],
     tipo_atividade_detalhe: "",
     educador_id: "",
+    educador_apoio_id: "",
     planejamento_id: "",
     turma_ids: [] as string[],
     periodo_atividade: "" as string,
@@ -255,6 +257,7 @@ const RelatorioNovoPage = () => {
         tipo_atividade: form.tipo_atividade,
         tipo_atividade_detalhe: form.tipo_atividade_detalhe || null,
         educador_id: form.educador_id || null,
+        educador_apoio_id: form.educador_apoio_id || null,
         planejamento_id: form.planejamento_id || null,
         periodo_atividade: form.periodo_atividade || null,
         iniciativa: form.iniciativa,
@@ -667,6 +670,37 @@ const RelatorioNovoPage = () => {
                 </PopoverContent>
               </Popover>
             </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Profissional de Apoio (opcional)</Label>
+            <Popover open={apoioOpen} onOpenChange={setApoioOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" aria-expanded={apoioOpen} className="w-full justify-between text-sm font-normal">
+                  {form.educador_apoio_id ? educadores.find(e => e.id === form.educador_apoio_id)?.nome || "Selecionar" : "Nenhum"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar profissional..." />
+                  <CommandList>
+                    <CommandEmpty>Nenhum encontrado.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem value="__none__" onSelect={() => { setForm(f => ({ ...f, educador_apoio_id: "" })); setApoioOpen(false); }}>
+                        <Check className={cn("mr-2 h-4 w-4", !form.educador_apoio_id ? "opacity-100" : "opacity-0")} />
+                        Nenhum
+                      </CommandItem>
+                      {educadores.filter(e => e.id !== form.educador_id).map(e => (
+                        <CommandItem key={e.id} value={e.nome} onSelect={() => { setForm(f => ({ ...f, educador_apoio_id: e.id })); setApoioOpen(false); }}>
+                          <Check className={cn("mr-2 h-4 w-4", form.educador_apoio_id === e.id ? "opacity-100" : "opacity-0")} />
+                          {e.nome}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Planejamento Vinculado {form.educador_id ? "" : "(selecione educador para filtrar)"}</Label>

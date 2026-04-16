@@ -167,6 +167,7 @@ const RelatorioDetalhePage = () => {
     data: null as Date | null,
     dia_semana: "",
     educador_id: "",
+    educador_apoio_id: "",
     tipo_atividade: [] as string[],
     tipo_atividade_detalhe: "",
     iniciativa: 3,
@@ -182,6 +183,7 @@ const RelatorioDetalhePage = () => {
   });
   const [allEducadores, setAllEducadores] = useState<any[]>([]);
   const [educadorOpen, setEducadorOpen] = useState(false);
+  const [apoioEditOpen, setApoioEditOpen] = useState(false);
 
   const editScoreElo = useMemo(() => {
     const s = (editForm.iniciativa + editForm.autonomia + editForm.colaboracao + editForm.comunicacao + editForm.respeito_mutuo) / 5;
@@ -217,7 +219,7 @@ const RelatorioDetalhePage = () => {
     const fetch = async () => {
       const [r, f] = await Promise.all([
         supabase.from("relatorios_atividade")
-          .select("*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome)")
+          .select("*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome), apoio_profile:profiles!relatorios_atividade_educador_apoio_id_fkey(nome)")
           .eq("id", id).single(),
         supabase.from("relatorio_fotos").select("*").eq("relatorio_id", id).order("ordem"),
       ]);
@@ -344,6 +346,7 @@ const RelatorioDetalhePage = () => {
       data: item?.data ? new Date(item.data + "T12:00:00") : null,
       dia_semana: item?.dia_semana || "",
       educador_id: item?.educador_id || "",
+      educador_apoio_id: (item as any)?.educador_apoio_id || "",
       tipo_atividade: Array.isArray(item?.tipo_atividade) ? item.tipo_atividade : [],
       tipo_atividade_detalhe: item?.tipo_atividade_detalhe || "",
       iniciativa: item?.iniciativa || 3,
@@ -418,6 +421,7 @@ const RelatorioDetalhePage = () => {
         data: editForm.data ? format(editForm.data, "yyyy-MM-dd") : item.data,
         dia_semana: editForm.dia_semana,
         educador_id: editForm.educador_id || null,
+        educador_apoio_id: editForm.educador_apoio_id || null,
         tipo_atividade: editForm.tipo_atividade,
         tipo_atividade_detalhe: editForm.tipo_atividade_detalhe || null,
         iniciativa: editForm.iniciativa,
@@ -462,7 +466,7 @@ const RelatorioDetalhePage = () => {
       // 4. Refresh data
       const [{ data: updatedReport }, { data: newTurmaData }] = await Promise.all([
         supabase.from("relatorios_atividade")
-          .select("*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome)")
+          .select("*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome), apoio_profile:profiles!relatorios_atividade_educador_apoio_id_fkey(nome)")
           .eq("id", id).single(),
         supabase.from("relatorio_turmas").select("turma_id, turmas(nome)").eq("relatorio_id", id),
       ]);
@@ -706,7 +710,39 @@ const RelatorioDetalhePage = () => {
               </Popover>
             </div>
 
-            {/* Tipo de Atividade */}
+            {/* Profissional de Apoio */}
+            <div className="space-y-1">
+              <Label className="text-xs">Profissional de Apoio</Label>
+              <Popover open={apoioEditOpen} onOpenChange={setApoioEditOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={apoioEditOpen} className="w-full justify-between text-sm font-normal">
+                    {editForm.educador_apoio_id ? allEducadores.find(e => e.id === editForm.educador_apoio_id)?.nome || "Selecionar" : "Nenhum"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar profissional..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem value="__none__" onSelect={() => { setEditForm(f => ({ ...f, educador_apoio_id: "" })); setApoioEditOpen(false); }}>
+                          <Check className={cn("mr-2 h-4 w-4", !editForm.educador_apoio_id ? "opacity-100" : "opacity-0")} />
+                          Nenhum
+                        </CommandItem>
+                        {allEducadores.filter(e => e.id !== editForm.educador_id).map(e => (
+                          <CommandItem key={e.id} value={e.nome} onSelect={() => { setEditForm(f => ({ ...f, educador_apoio_id: e.id })); setApoioEditOpen(false); }}>
+                            <Check className={cn("mr-2 h-4 w-4", editForm.educador_apoio_id === e.id ? "opacity-100" : "opacity-0")} />
+                            {e.nome}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
             <div className="space-y-1">
               <Label className="text-xs">Tipo de Atividade</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -860,6 +896,10 @@ const RelatorioDetalhePage = () => {
         )}
         {item.dia_semana && <span>({item.dia_semana})</span>}
         {item.profiles?.nome && <span>👤 {item.profiles.nome}</span>}
+        {(item as any).educador_apoio_id && (() => {
+          const apoioNome = (item as any).apoio_profile?.nome;
+          return apoioNome ? <span className="text-muted-foreground">+ {apoioNome}</span> : null;
+        })()}
         {Array.isArray(item.tipo_atividade) && item.tipo_atividade.length > 0 ? (
           item.tipo_atividade.map((v: string) => {
             const tipos = [

@@ -1,0 +1,1 @@
+ALTER TABLE public.relatorios_atividade ADD COLUMN educador_apoio_id uuid DEFAULT NULL REFERENCES public.profiles(id);
