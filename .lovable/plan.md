@@ -1,50 +1,50 @@
 
 
-## Plano de Reclassificação dos 107 Participantes em Busca Ativa
+## Plano: Lógica Automática e Contínua de Busca Ativa
 
-### Diagnóstico real (dados consolidados de `presenca` + `relatorio_presenca`)
+### Diagnóstico
 
-| Categoria | Quantidade | Ação |
-|---|---|---|
-| Tem presença em **Abril/2026** | **30** | → `ativo` |
-| Última presença há < 30 dias (sem ser abril) | 0 | → manter `busca_ativa` |
-| Última presença entre 30–90 dias | 0 | → manter `busca_ativa` |
-| Última presença > 90 dias | 0 | → manter `busca_ativa` |
-| Nunca teve presença + cadastro > 6 meses | **48** | → `desligado` (motivo: "Reclassificação automática — sem presença histórica") |
-| Nunca teve presença + cadastro recente (< 6 meses ou sem `iniciou_em`) | **29** | → `ativo` |
-| **TOTAL** | **107** | |
+Os 107 originais foram todos marcados em lote no dia 14/04 sem critério dinâmico. Minha reclassificação corrigiu o estoque podre, mas **não criou a regra contínua**. Por isso "zerou" e vai continuar zerado até alguém faltar muito — mas hoje **nada detecta isso automaticamente**.
 
-Observação: nenhum dos 107 cai nas faixas 30–90d ou >90d. A regra "presença > 90 dias mantém BA" fica registrada mas hoje não atinge ninguém.
+### Regra a implementar
 
-### Análise de períodos (Mar+Abr/2026, base universal — 59 participantes ativos com presença)
+Um participante `ativo` vira `busca_ativa` quando atender QUALQUER um dos critérios:
 
-| Período cadastrado | Vão só manhã | Vão só tarde | Vão ambos | Divergência |
-|---|---|---|---|---|
-| Manhã (44) | 5 | 0 | 39 | 0 |
-| Tarde (15) | 0 | 1 | 14 | 0 |
+1. **3 faltas consecutivas** nas últimas atividades da(s) turma(s) dele (já existe a query, é a usada no alerta do dashboard)
+2. **14 dias corridos sem nenhuma presença** registrada, tendo histórico anterior
 
-**Nenhum participante tem cadastro divergente do período em que efetivamente comparece.** Os 53 que aparecem em manhã+tarde refletem turmas cruzadas (Karatê, oficinas) — comportamento esperado, sem ação.
+E volta para `ativo` automaticamente quando for marcado presente em qualquer atividade (isso já implementamos no `RelatorioNovoPage` e `PresencaPage`).
 
-### Operações a executar
+### Implementação técnica
 
-1. **UPDATE 30 participantes**: `status='busca_ativa' → 'ativo'` (presença em abril/2026). Inserir `busca_ativa_registros` com `resultado='ja_retornou'` e `audit_log` "Reclassificação automática — presença confirmada em Abril/2026".
-2. **UPDATE 29 participantes**: `status='busca_ativa' → 'ativo'` (cadastro recente, ainda não compareceram). `audit_log` "Reclassificação — cadastro recente sem presença, mantido como ativo aguardando início".
-3. **UPDATE 48 participantes**: `status='busca_ativa' → 'desligado'`, `data_desligamento=CURRENT_DATE`, `motivo_desligamento='Sem frequência histórica'`, `justificativa_desligamento='Reclassificação automática 2026-04-16 — cadastro > 6 meses sem qualquer presença registrada'`. `audit_log` correspondente.
-4. **Relatório XLSX em `/mnt/documents/`** com 3 abas: "Ativados por Presença Abril" (30), "Ativados Cadastro Recente" (29), "Desligados Sem Histórico" (48), com colunas: nome, bairro, período, iniciou_em, última presença.
-5. **Relatório XLSX adicional**: "Análise de Períodos Mar+Abr/2026" — lista nominal dos 59 com colunas (nome, período cadastro, total presenças manhã, total presenças tarde, recomendação).
+**1. Função SQL `recalcular_busca_ativa()` (RPC)**
+- Roda sobre todos os participantes `ativo` + `busca_ativa`
+- Para cada um, checa as duas condições acima
+- Atualiza `participantes.status` conforme o resultado
+- Insere registro em `busca_ativa_registros` (motivo: "Detecção automática — N faltas consecutivas" ou "14 dias sem presença")
+- Registra em `audit_log`
+
+**2. Trigger de invocação**
+- Edge function `recalcular-busca-ativa` que chama a RPC
+- Botão manual em `EquipeTecnicaPage` aba Busca Ativa: "Recalcular agora"
+- Chamada automática ao final de `handleSave` em `RelatorioNovoPage` (após cada relatório novo, recalcula só os participantes da turma daquele relatório — versão leve)
+
+**3. Aplicação imediata após criar a função**
+- Rodar `recalcular_busca_ativa()` uma vez agora
+- Mostrar relatório XLSX: quantos voltaram para BA, com nome, turma, motivo (3 faltas / 14 dias), data da última presença
 
 ### Detalhes técnicos
 
-- Todas as operações são `UPDATE`/`INSERT` em dados (não migration) → tool `supabase--read_query` com INSERT permitido via Lovable Cloud.
-- Preserva histórico: `data_desligamento` e `motivo_desligamento` populados conforme padrão `mem://funcionalidades/desligamento-participantes`.
-- Nenhuma alteração em `turma_participantes` — vínculos atuais permanecem (importante para os 30 que estão ativos efetivamente).
-- Nenhuma alteração de schema/RLS/edge function.
+- Migration: criar função `recalcular_busca_ativa()` como `SECURITY DEFINER`
+- Edge function nova: `recalcular-busca-ativa` (chamável via botão)
+- Hook leve no `handleSave` do relatório: roda só para os IDs daquela turma
+- Sem mudança de schema — só função + edge function + 1 botão na UI
 
 ### Ordem de execução
 
-1. Gerar XLSX de pré-visualização (ler dados, sem escrever no banco).
-2. Executar UPDATE dos 30 (abril) + audit_log + busca_ativa_registros.
-3. Executar UPDATE dos 29 (cadastro recente) + audit_log.
-4. Executar UPDATE dos 48 (desligados) + audit_log.
-5. Confirmar contagem final: 0 em busca_ativa, +59 ativos, +48 desligados.
+1. Criar a função SQL
+2. Criar edge function que invoca a RPC
+3. Adicionar botão "Recalcular Busca Ativa" na aba Busca Ativa da Equipe Técnica
+4. Integrar chamada leve no `handleSave` de `RelatorioNovoPage`
+5. Rodar uma vez e gerar XLSX com a nova lista de busca ativa
 
