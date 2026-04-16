@@ -167,6 +167,7 @@ const RelatorioDetalhePage = () => {
     data: null as Date | null,
     dia_semana: "",
     educador_id: "",
+    educador_apoio_id: "",
     tipo_atividade: [] as string[],
     tipo_atividade_detalhe: "",
     iniciativa: 3,
@@ -182,6 +183,7 @@ const RelatorioDetalhePage = () => {
   });
   const [allEducadores, setAllEducadores] = useState<any[]>([]);
   const [educadorOpen, setEducadorOpen] = useState(false);
+  const [apoioEditOpen, setApoioEditOpen] = useState(false);
 
   const editScoreElo = useMemo(() => {
     const s = (editForm.iniciativa + editForm.autonomia + editForm.colaboracao + editForm.comunicacao + editForm.respeito_mutuo) / 5;
@@ -217,7 +219,7 @@ const RelatorioDetalhePage = () => {
     const fetch = async () => {
       const [r, f] = await Promise.all([
         supabase.from("relatorios_atividade")
-          .select("*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome)")
+          .select("*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome), apoio_profile:profiles!relatorios_atividade_educador_apoio_id_fkey(nome)")
           .eq("id", id).single(),
         supabase.from("relatorio_fotos").select("*").eq("relatorio_id", id).order("ordem"),
       ]);
@@ -860,6 +862,10 @@ const RelatorioDetalhePage = () => {
         )}
         {item.dia_semana && <span>({item.dia_semana})</span>}
         {item.profiles?.nome && <span>👤 {item.profiles.nome}</span>}
+        {(item as any).educador_apoio_id && (() => {
+          const apoioNome = (item as any).apoio_profile?.nome;
+          return apoioNome ? <span className="text-muted-foreground">+ {apoioNome}</span> : null;
+        })()}
         {Array.isArray(item.tipo_atividade) && item.tipo_atividade.length > 0 ? (
           item.tipo_atividade.map((v: string) => {
             const tipos = [
