@@ -466,7 +466,7 @@ const RelatorioDetalhePage = () => {
       // 4. Refresh data
       const [{ data: updatedReport }, { data: newTurmaData }] = await Promise.all([
         supabase.from("relatorios_atividade")
-          .select("*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome)")
+          .select("*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome), apoio_profile:profiles!relatorios_atividade_educador_apoio_id_fkey(nome)")
           .eq("id", id).single(),
         supabase.from("relatorio_turmas").select("turma_id, turmas(nome)").eq("relatorio_id", id),
       ]);
