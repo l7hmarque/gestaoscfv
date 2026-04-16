@@ -714,7 +714,7 @@ const RelatorioNovoPage = () => {
 
       {/* Turmas */}
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-base">Turmas e Período {form.educador_id && <span className="text-xs font-normal text-muted-foreground ml-2">★ = turmas do educador selecionado</span>}</CardTitle></CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Turmas (Lista de Chamada) {form.educador_id && <span className="text-xs font-normal text-muted-foreground ml-2">★ = turmas do educador selecionado</span>}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {turmas.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma turma ativa</p> : (
             <>
@@ -762,7 +762,7 @@ const RelatorioNovoPage = () => {
                 </SelectContent>
               </Select>
               <p className="text-[10px] text-muted-foreground">
-                Participantes presentes com período diferente serão automaticamente transferidos.
+                Selecione o período em que a atividade foi realizada. As turmas acima servem apenas para compor a lista de presença. Participantes presentes com período diferente serão automaticamente transferidos.
               </p>
             </div>
           )}
