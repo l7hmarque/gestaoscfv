@@ -70,7 +70,7 @@ const TurmaDetalhePage = () => {
     const [{ data: t }, { data: tp }, { data: ap }, { data: b }, { data: e }, { data: ptData }, { data: rtData }] = await Promise.all([
       supabase.from("turmas").select("*, profiles(nome), bairros(nome)").eq("id", id!).single(),
       supabase.from("turma_participantes").select("id, participante_id, data_saida, motivo_saida, participantes(nome_completo, periodo, status, data_desligamento)").eq("turma_id", id!),
-      supabase.from("participantes").select("id, nome_completo, periodo").eq("status", "ativo").order("nome_completo"),
+      supabase.from("participantes").select("id, nome_completo, periodo, status").in("status", ["ativo", "busca_ativa"] as any).order("nome_completo"),
       supabase.from("bairros").select("*").order("nome"),
       supabase.from("profiles").select("*").order("nome"),
       supabase.from("planejamento_turmas").select("planejamento_id, planejamentos(id, titulo, data_aplicacao)").eq("turma_id", id!),

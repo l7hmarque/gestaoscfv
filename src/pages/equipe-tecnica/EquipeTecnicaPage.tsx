@@ -241,7 +241,7 @@ const EquipeTecnicaPage = () => {
   const fimMes = endOfMonth(now);
 
   const atdMes = useMemo(() => atendimentos.filter(a => a.data_atendimento >= format(mesAtual, "yyyy-MM-dd") && a.data_atendimento <= format(fimMes, "yyyy-MM-dd")), [atendimentos]);
-  const participantesAtivos = useMemo(() => participantes.filter(p => p.status === "ativo"), [participantes]);
+  const participantesAtivos = useMemo(() => participantes.filter(p => p.status === "ativo" || p.status === "busca_ativa"), [participantes]);
   const pendentes = useMemo(() => participantes.filter(p => p.status === "pendente"), [participantes]);
   const comLaudo = useMemo(() => participantesAtivos.filter(p => p.laudo && p.laudo.trim()).length, [participantesAtivos]);
 

@@ -48,7 +48,7 @@ export default function DashboardTransporteTab() {
     const [bRes, pRes, partRes] = await Promise.all([
       supabase.from("bairros").select("*").order("nome"),
       supabase.from("pontos_transporte").select("*").order("nome") as any,
-      supabase.from("participantes").select("id, nome_completo, periodo, ponto_transporte_id").eq("status", "ativo"),
+      supabase.from("participantes").select("id, nome_completo, periodo, ponto_transporte_id").in("status", ["ativo", "busca_ativa"] as any),
     ]);
     setBairros(bRes.data || []);
     setPontos(pRes.data || []);

@@ -109,7 +109,7 @@ const TurmaNovaPage = () => {
       const { data: participantes } = await supabase
         .from("participantes")
         .select("id, bairro_id, periodo, data_nascimento")
-        .eq("status", "ativo")
+        .in("status", ["ativo", "busca_ativa"] as any)
         .in("bairro_id", bairroIds);
 
       if (participantes && participantes.length > 0) {
@@ -187,7 +187,7 @@ const TurmaNovaPage = () => {
       const { data: participantes } = await supabase
         .from("participantes")
         .select("id, bairro_id, periodo, data_nascimento")
-        .eq("status", "ativo")
+        .in("status", ["ativo", "busca_ativa"] as any)
         .in("bairro_id", batchBairros);
 
       if (participantes && participantes.length > 0) {
