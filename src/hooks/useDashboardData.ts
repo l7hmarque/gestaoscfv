@@ -44,12 +44,10 @@ export function useDashboardData(mes?: number | null, ano?: number | null) {
   const { data, isLoading: loading } = useQuery({
     queryKey: ["dashboard-data", mes, ano],
     queryFn: async (): Promise<DashboardData> => {
-      const params: Record<string, unknown> = {};
-      if (mes && ano) {
-        params._mes = mes;
-        params._ano = ano;
-      }
-      const { data: raw, error } = await supabase.rpc("get_dashboard_stats", params as any);
+      const { data: raw, error } = await supabase.rpc("get_dashboard_stats", {
+        _mes: mes ?? null,
+        _ano: ano ?? null,
+      } as any);
       if (error) throw error;
 
       const d = raw as any;
