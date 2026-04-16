@@ -7,16 +7,24 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Mail, User, Clock } from "lucide-react";
+import { Mail, User, Clock, ClipboardPlus, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 const STATUS_OPTIONS = [
   { value: "pendente", label: "Pendente", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" },
   { value: "em_andamento", label: "Em andamento", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400" },
+  { value: "resolvido", label: "Resolvido", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" },
   { value: "concluido", label: "Concluído", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" },
 ];
 
-export function RecadosEquipeCards({ onPendingCount }: { onPendingCount?: (count: number) => void }) {
+interface RecadosEquipeCardsProps {
+  onPendingCount?: (count: number) => void;
+  onRegistrarAtendimento?: (recado: any) => void;
+  atendimentosVinculados?: Record<string, any>; // recado_id -> atendimento
+}
+
+export function RecadosEquipeCards({ onPendingCount, onRegistrarAtendimento, atendimentosVinculados = {} }: RecadosEquipeCardsProps) {
   const { user } = useAuth();
   const [recados, setRecados] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
