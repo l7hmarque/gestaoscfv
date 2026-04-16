@@ -76,7 +76,7 @@ const EquipeTecnicaPage = () => {
   const [filterProf, setFilterProf] = useState("");
   const [relDataInicio, setRelDataInicio] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [relDataFim, setRelDataFim] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
-  const [form, setForm] = useState<{ participante_id: string; data_atendimento: string; tipo: string; descricao: string; encaminhamento: string; recado_origem_id?: string | null; relato_origem_id?: string | null; busca_ativa_origem_id?: string | null }>({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "", recado_origem_id: null, relato_origem_id: null, busca_ativa_origem_id: null });
+  const [form, setForm] = useState<{ participante_id: string; data_atendimento: string; tipo: string; descricao: string; encaminhamento: string; recado_origem_id?: string | null; relato_origem_id?: string | null; busca_ativa_origem_id?: string | null; criar_enc_externo?: boolean; enc_tipo?: string; enc_orgao?: string; enc_contato?: string; enc_status?: string; enc_data_retorno?: string }>({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "", recado_origem_id: null, relato_origem_id: null, busca_ativa_origem_id: null, criar_enc_externo: false, enc_tipo: "cras", enc_orgao: "", enc_contato: "", enc_status: "aberto", enc_data_retorno: "" });
   const [myProfileId, setMyProfileId] = useState("");
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const { log: auditLog } = useAuditLog();
