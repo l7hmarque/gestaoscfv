@@ -154,79 +154,85 @@ const ParticipantesPage = () => {
   const handlePeriodoChange = async (p: Tables<"participantes">, newPeriodo: string) => {
     if (guardDemo(isDemo)) return;
     const oldPeriodo = p.periodo;
+
+    // Pre-validate: must have at least one compatible destination turma BEFORE unlinking
+    const faixa = calcFaixaFromDate(p.data_nascimento);
+    if (!p.bairro_id || !faixa) {
+      toast.error("Participante sem bairro ou faixa etária — defina antes de transferir");
+      return;
+    }
+    let destQuery = supabase.from("turmas").select("id, nome, educador_id").eq("ativa", true).eq("bairro_id", p.bairro_id).eq("faixa_etaria", faixa as any);
+    if (newPeriodo !== "integral") destQuery = destQuery.eq("periodo", newPeriodo as any);
+    const { data: destTurmas } = await destQuery;
+
+    if (!destTurmas || destTurmas.length === 0) {
+      toast.error(`Nenhuma turma compatível para ${periodoLabel[newPeriodo]} — período NÃO alterado`);
+      return;
+    }
+
     const { error } = await supabase.from("participantes").update({ periodo: newPeriodo } as any).eq("id", p.id);
     if (error) { toast.error(error.message); return; }
     await auditLog({ acao: "alteração de período", tabela: "participantes", registro_id: p.id, detalhes: `Período: ${periodoLabel[oldPeriodo || ""] || "—"} → ${periodoLabel[newPeriodo]}` });
 
-    // Auto-transfer turmas: mark old turmas with data_saida, link to new matching turmas
     if (p.status === "ativo" || p.status === "busca_ativa") {
       try {
         const today = new Date().toISOString().split("T")[0];
-        // Get current active turma links
+        // Get current active turma links — only SCFV turmas with matching faixa (avoid unlinking Karate etc.)
         const { data: currentLinks } = await supabase
           .from("turma_participantes")
-          .select("id, turma_id, turmas(nome, periodo, educador_id)")
+          .select("id, turma_id, turmas(nome, periodo, educador_id, faixa_etaria, oficina)")
           .eq("participante_id", p.id)
           .is("data_saida" as any, null);
 
-        const oldTurmaIds = (currentLinks || []).map((l: any) => l.turma_id);
+        // Only unlink from SCFV turmas (no oficina) matching faixa — preserve Karate / extracurricular
+        const linksToUnlink = (currentLinks || []).filter((l: any) => {
+          const t = l.turmas;
+          if (!t) return false;
+          const isOficina = t.oficina && t.oficina !== "" && t.oficina !== "__none__";
+          return !isOficina && t.faixa_etaria === faixa;
+        });
+        const oldTurmaIds = linksToUnlink.map((l: any) => l.turma_id);
 
-        // Mark old turmas with data_saida
-        if (oldTurmaIds.length > 0) {
-          for (const link of (currentLinks || [])) {
-            await supabase.from("turma_participantes")
-              .update({ data_saida: today, motivo_saida: "Transferência de período" } as any)
-              .eq("id", link.id);
+        for (const link of linksToUnlink) {
+          await supabase.from("turma_participantes")
+            .update({ data_saida: today, motivo_saida: "Transferência de período" } as any)
+            .eq("id", link.id);
+        }
+
+        const newLinks = destTurmas.map(t => ({ turma_id: t.id, participante_id: p.id }));
+        await supabase.from("turma_participantes").upsert(newLinks, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
+
+        for (const oldId of oldTurmaIds) {
+          for (const newT of destTurmas) {
+            await (supabase.from("participante_transferencias") as any).insert({
+              participante_id: p.id,
+              turma_origem_id: oldId,
+              turma_destino_id: newT.id,
+              motivo: "Transferência de período",
+            });
           }
         }
 
-        // Find new compatible turmas
-        const faixa = calcFaixaFromDate(p.data_nascimento);
-        if (p.bairro_id && faixa) {
-          let query = supabase.from("turmas").select("id, nome, educador_id").eq("ativa", true).eq("bairro_id", p.bairro_id).eq("faixa_etaria", faixa as any);
-          if (newPeriodo !== "integral") query = query.eq("periodo", newPeriodo as any);
-          const { data: newTurmas } = await query;
-
-          if (newTurmas && newTurmas.length > 0) {
-            const newLinks = newTurmas.map(t => ({ turma_id: t.id, participante_id: p.id }));
-            await supabase.from("turma_participantes").upsert(newLinks, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
-
-            // Register transfers
-            for (const oldId of oldTurmaIds) {
-              for (const newT of newTurmas) {
-                await (supabase.from("participante_transferencias") as any).insert({
-                  participante_id: p.id,
-                  turma_origem_id: oldId,
-                  turma_destino_id: newT.id,
-                  motivo: "Transferência de período",
-                });
-              }
-            }
-
-            // Notify educators
-            const myProfile = await supabase.from("profiles").select("id").eq("user_id", user!.id).single();
-            if (myProfile.data) {
-              const educadorIds = new Set<string>();
-              (currentLinks || []).forEach((l: any) => {
-                if (l.turmas?.educador_id && l.turmas.educador_id !== myProfile.data!.id) educadorIds.add(l.turmas.educador_id);
-              });
-              newTurmas.forEach(t => {
-                if (t.educador_id && t.educador_id !== myProfile.data!.id) educadorIds.add(t.educador_id);
-              });
-              const recados = Array.from(educadorIds).map(edId => ({
-                remetente_id: myProfile.data!.id,
-                destinatario_id: edId,
-                participante_id: p.id,
-                conteudo: `${p.nome_completo} foi transferido(a) de período (${periodoLabel[oldPeriodo || ""] || "—"} → ${periodoLabel[newPeriodo]}). Turmas atualizadas automaticamente.`,
-              }));
-              if (recados.length > 0) await supabase.from("recados").insert(recados);
-            }
-
-            toast.info(`Transferido para ${newTurmas.length} turma(s). ${oldTurmaIds.length > 0 ? "Frequências anteriores preservadas." : ""}`);
-          } else {
-            toast.warning("Nenhuma turma compatível encontrada no novo período");
-          }
+        // Notify educators
+        const myProfile = await supabase.from("profiles").select("id").eq("user_id", user!.id).single();
+        if (myProfile.data) {
+          const educadorIds = new Set<string>();
+          linksToUnlink.forEach((l: any) => {
+            if (l.turmas?.educador_id && l.turmas.educador_id !== myProfile.data!.id) educadorIds.add(l.turmas.educador_id);
+          });
+          destTurmas.forEach(t => {
+            if (t.educador_id && t.educador_id !== myProfile.data!.id) educadorIds.add(t.educador_id);
+          });
+          const recados = Array.from(educadorIds).map(edId => ({
+            remetente_id: myProfile.data!.id,
+            destinatario_id: edId,
+            participante_id: p.id,
+            conteudo: `${p.nome_completo} foi transferido(a) de período (${periodoLabel[oldPeriodo || ""] || "—"} → ${periodoLabel[newPeriodo]}). Turmas atualizadas automaticamente.`,
+          }));
+          if (recados.length > 0) await supabase.from("recados").insert(recados);
         }
+
+        toast.info(`Transferido para ${destTurmas.length} turma(s). ${oldTurmaIds.length > 0 ? "Frequências preservadas." : ""}`);
       } catch (err) {
         console.error("Erro na transferência automática:", err);
         toast.warning("Período alterado, mas houve erro na transferência automática de turmas");
@@ -234,7 +240,6 @@ const ParticipantesPage = () => {
     }
 
     toast.success(`Período alterado para ${periodoLabel[newPeriodo]}`);
-    // Optimistic update to preserve scroll position
     setParticipantes(prev => prev.map(x => x.id === p.id ? { ...x, periodo: newPeriodo as any } : x));
   };
 
