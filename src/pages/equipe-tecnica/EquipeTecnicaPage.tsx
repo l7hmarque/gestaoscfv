@@ -76,7 +76,7 @@ const EquipeTecnicaPage = () => {
   const [filterProf, setFilterProf] = useState("");
   const [relDataInicio, setRelDataInicio] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [relDataFim, setRelDataFim] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
-  const [form, setForm] = useState<{ participante_id: string; data_atendimento: string; tipo: string; descricao: string; encaminhamento: string; recado_origem_id?: string | null; relato_origem_id?: string | null; busca_ativa_origem_id?: string | null }>({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "", recado_origem_id: null, relato_origem_id: null, busca_ativa_origem_id: null });
+  const [form, setForm] = useState<{ participante_id: string; data_atendimento: string; tipo: string; descricao: string; encaminhamento: string; recado_origem_id?: string | null; relato_origem_id?: string | null; busca_ativa_origem_id?: string | null; criar_enc_externo?: boolean; enc_tipo?: string; enc_orgao?: string; enc_contato?: string; enc_status?: string; enc_data_retorno?: string }>({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "", recado_origem_id: null, relato_origem_id: null, busca_ativa_origem_id: null, criar_enc_externo: false, enc_tipo: "cras", enc_orgao: "", enc_contato: "", enc_status: "aberto", enc_data_retorno: "" });
   const [myProfileId, setMyProfileId] = useState("");
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const { log: auditLog } = useAuditLog();
@@ -302,10 +302,29 @@ const EquipeTecnicaPage = () => {
       } catch (e) { console.warn(e); }
     }
 
-    toast.success("Atendimento registrado!" + (form.recado_origem_id ? " Recado marcado como resolvido." : ""));
+    // Vínculo: criar encaminhamento externo se solicitado
+    let encMsg = "";
+    if (form.criar_enc_externo && form.enc_orgao?.trim()) {
+      const { error: encErr } = await (supabase.from as any)("encaminhamentos_externos").insert({
+        participante_id: form.participante_id,
+        profissional_id: myProfileId,
+        atendimento_id: novoAtd?.id,
+        tipo: form.enc_tipo || "cras",
+        orgao: form.enc_orgao,
+        motivo: form.descricao,
+        contato: form.enc_contato || null,
+        data_encaminhamento: form.data_atendimento,
+        data_retorno: form.enc_data_retorno || null,
+        status: form.enc_status || "aberto",
+      });
+      if (encErr) { toast.error("Atendimento salvo, mas erro no encaminhamento: " + encErr.message); }
+      else { encMsg = " Encaminhamento à rede registrado."; }
+    }
+
+    toast.success("Atendimento registrado!" + (form.recado_origem_id ? " Recado marcado como resolvido." : "") + encMsg);
     setDialogOpen(false);
     setRecadoOrigem(null);
-    setForm({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "", recado_origem_id: null, relato_origem_id: null, busca_ativa_origem_id: null });
+    setForm({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "", recado_origem_id: null, relato_origem_id: null, busca_ativa_origem_id: null, criar_enc_externo: false, enc_tipo: "cras", enc_orgao: "", enc_contato: "", enc_status: "aberto", enc_data_retorno: "" });
     loadAll();
   };
 
@@ -404,6 +423,19 @@ const EquipeTecnicaPage = () => {
     participantesAtivos.forEach(p => { const cat = p.categoria_vulnerabilidade || "Não informado"; map[cat] = (map[cat] || 0) + 1; });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [participantesAtivos]);
+
+  const encPorOrgao = useMemo(() => {
+    const map: Record<string, number> = {};
+    encExternos.forEach(e => { const k = (e.tipo || "outro").toUpperCase(); map[k] = (map[k] || 0) + 1; });
+    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [encExternos]);
+
+  const encPorStatus = useMemo(() => {
+    const labels: Record<string, string> = { aberto: "Aberto", em_andamento: "Em andamento", concluido: "Concluído", sem_retorno: "Sem retorno" };
+    const map: Record<string, number> = {};
+    encExternos.forEach(e => { const k = labels[e.status] || e.status || "—"; map[k] = (map[k] || 0) + 1; });
+    return Object.entries(map).map(([name, value]) => ({ name, value }));
+  }, [encExternos]);
 
   const alertasFrequencia = useMemo(() => {
     const ultimosDias = format(subDays(now, 30), "yyyy-MM-dd");
@@ -1020,9 +1052,68 @@ const EquipeTecnicaPage = () => {
                 <Textarea value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} className="mt-1 min-h-[100px]" placeholder="Relato do atendimento..." />
               </div>
               <div>
-                <Label className="text-xs">Encaminhamento (opcional)</Label>
-                <Textarea value={form.encaminhamento} onChange={e => setForm(f => ({ ...f, encaminhamento: e.target.value }))} className="mt-1 min-h-[60px]" placeholder="Encaminhamento realizado..." />
+                <Label className="text-xs">Encaminhamento interno (opcional)</Label>
+                <Textarea value={form.encaminhamento} onChange={e => setForm(f => ({ ...f, encaminhamento: e.target.value }))} className="mt-1 min-h-[60px]" placeholder="Orientação/encaminhamento interno..." />
               </div>
+
+              {/* Toggle: Encaminhamento à rede de proteção */}
+              <div className="rounded-lg border p-3 space-y-3 bg-muted/30">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Checkbox checked={!!form.criar_enc_externo} onCheckedChange={v => setForm(f => ({ ...f, criar_enc_externo: !!v }))} />
+                  <div className="flex-1">
+                    <span className="text-xs font-medium flex items-center gap-1"><Network className="h-3.5 w-3.5" />Encaminhar à rede de proteção</span>
+                    <span className="block text-[11px] text-muted-foreground">Cria registro vinculado em CRAS, CAPS, UBS, Conselho Tutelar etc.</span>
+                  </div>
+                </label>
+                {form.criar_enc_externo && (
+                  <div className="space-y-2 pl-6">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Tipo de Órgão</Label>
+                        <Select value={form.enc_tipo} onValueChange={v => setForm(f => ({ ...f, enc_tipo: v }))}>
+                          <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cras">CRAS</SelectItem>
+                            <SelectItem value="creas">CREAS</SelectItem>
+                            <SelectItem value="caps">CAPS</SelectItem>
+                            <SelectItem value="ubs">UBS / Saúde</SelectItem>
+                            <SelectItem value="conselho_tutelar">Conselho Tutelar</SelectItem>
+                            <SelectItem value="escola">Escola</SelectItem>
+                            <SelectItem value="ministerio_publico">Ministério Público</SelectItem>
+                            <SelectItem value="outro">Outro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Nome do Órgão</Label>
+                        <Input value={form.enc_orgao} onChange={e => setForm(f => ({ ...f, enc_orgao: e.target.value }))} placeholder="Ex: CRAS Jd. Irene" className="mt-1 h-8 text-xs" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Contato</Label>
+                        <Input value={form.enc_contato} onChange={e => setForm(f => ({ ...f, enc_contato: e.target.value }))} placeholder="Telefone/responsável" className="mt-1 h-8 text-xs" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Status inicial</Label>
+                        <Select value={form.enc_status} onValueChange={v => setForm(f => ({ ...f, enc_status: v }))}>
+                          <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="aberto">Aberto</SelectItem>
+                            <SelectItem value="em_andamento">Em andamento</SelectItem>
+                            <SelectItem value="concluido">Concluído</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Previsão de retorno (opcional)</Label>
+                      <Input type="date" value={form.enc_data_retorno} onChange={e => setForm(f => ({ ...f, enc_data_retorno: e.target.value }))} className="mt-1 h-8 text-xs" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <Button onClick={handleCreate} className="w-full">Registrar</Button>
             </div>
           </DialogContent>
@@ -1040,7 +1131,7 @@ const EquipeTecnicaPage = () => {
               <Badge variant="destructive" className="ml-1 h-5 min-w-[20px] px-1 text-[10px]">{recadosPendentes}</Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="encaminhamentos" className="gap-1"><Network className="h-3.5 w-3.5" />Encaminhamentos</TabsTrigger>
+          
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
           <TabsTrigger value="alertas" className="gap-1">
             Alertas
@@ -1161,6 +1252,73 @@ const EquipeTecnicaPage = () => {
                 <p className="text-[10px] text-muted-foreground text-center">Turmas ativas por dia (probabilidade de maior volume)</p>
               </CardContent>
             </Card>
+          </div>
+
+          {/* Rede de Proteção (Encaminhamentos Externos) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Network className="h-4 w-4" />Rede de Proteção</h3>
+              <span className="text-xs text-muted-foreground">{encExternos.length} encaminhamento(s) registrado(s)</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card><CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold">{encExternos.length}</p>
+                <p className="text-xs text-muted-foreground">Total</p>
+              </CardContent></Card>
+              <Card><CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold text-amber-600">{encExternos.filter(e => e.status === "aberto").length}</p>
+                <p className="text-xs text-muted-foreground">Em aberto</p>
+              </CardContent></Card>
+              <Card><CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold text-blue-600">{encExternos.filter(e => e.status === "em_andamento").length}</p>
+                <p className="text-xs text-muted-foreground">Em andamento</p>
+              </CardContent></Card>
+              <Card><CardContent className="pt-4 text-center">
+                <p className="text-2xl font-bold text-emerald-600">{encExternos.filter(e => e.status === "concluido").length}</p>
+                <p className="text-xs text-muted-foreground">Concluídos</p>
+              </CardContent></Card>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm">Encaminhamentos por Órgão</CardTitle></CardHeader>
+                <CardContent>
+                  {encPorOrgao.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie data={encPorOrgao} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75} label={({ name, value }) => `${name}: ${value}`} labelLine={false}>
+                          {encPorOrgao.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : <p className="text-sm text-muted-foreground text-center py-8">Nenhum encaminhamento</p>}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2 flex-row items-center justify-between">
+                  <CardTitle className="text-sm">Últimos Encaminhamentos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {encExternos.length > 0 ? (
+                    <div className="space-y-1.5 max-h-[220px] overflow-auto">
+                      {encExternos.slice(0, 8).map(e => {
+                        const part = participantes.find(p => p.id === e.participante_id);
+                        const statusColor = e.status === "concluido" ? "default" : e.status === "em_andamento" ? "secondary" : "outline";
+                        return (
+                          <button key={e.id} type="button" onClick={() => openEncEdit(e)} className="w-full text-left flex items-center justify-between gap-2 text-xs border-b pb-1.5 last:border-0 hover:bg-muted/50 rounded px-1 transition-colors">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium truncate">{part?.nome_completo || "—"}</div>
+                              <div className="text-muted-foreground truncate">{e.orgao} · {format(new Date(e.data_encaminhamento + "T12:00:00"), "dd/MM/yyyy")}</div>
+                            </div>
+                            <Badge variant={statusColor as any} className="text-[10px] shrink-0">{e.status}</Badge>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : <p className="text-sm text-muted-foreground text-center py-8">Sem registros</p>}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </TabsContent>
 
@@ -1380,166 +1538,6 @@ const EquipeTecnicaPage = () => {
           />
         </TabsContent>
 
-        {/* ENCAMINHAMENTOS EXTERNOS */}
-        <TabsContent value="encaminhamentos" className="space-y-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h3 className="text-sm font-semibold flex items-center gap-2"><Network className="h-4 w-4" />Rede de Proteção</h3>
-              <p className="text-xs text-muted-foreground">Encaminhamentos a CRAS, CAPS, UBS, Conselho Tutelar e demais órgãos.</p>
-            </div>
-            <Button size="sm" className="gap-1" onClick={() => { setEncEdit(null); setEncForm({ participante_id: "", orgao: "", tipo: "cras", motivo: "", data_encaminhamento: format(new Date(), "yyyy-MM-dd"), data_retorno: "", status: "aberto", observacoes_retorno: "", contato: "" }); setEncDialogOpen(true); }}>
-              <Plus className="h-3.5 w-3.5" />Novo encaminhamento
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card><CardContent className="pt-4 text-center">
-              <p className="text-2xl font-bold">{encExternos.length}</p>
-              <p className="text-xs text-muted-foreground">Total</p>
-            </CardContent></Card>
-            <Card><CardContent className="pt-4 text-center">
-              <p className="text-2xl font-bold text-amber-600">{encExternos.filter(e => e.status === "aberto").length}</p>
-              <p className="text-xs text-muted-foreground">Em aberto</p>
-            </CardContent></Card>
-            <Card><CardContent className="pt-4 text-center">
-              <p className="text-2xl font-bold text-blue-600">{encExternos.filter(e => e.status === "em_andamento").length}</p>
-              <p className="text-xs text-muted-foreground">Em andamento</p>
-            </CardContent></Card>
-            <Card><CardContent className="pt-4 text-center">
-              <p className="text-2xl font-bold text-emerald-600">{encExternos.filter(e => e.status === "concluido").length}</p>
-              <p className="text-xs text-muted-foreground">Concluídos</p>
-            </CardContent></Card>
-          </div>
-
-          <div className="border rounded-lg overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">Data</TableHead>
-                  <TableHead className="text-xs">Participante</TableHead>
-                  <TableHead className="text-xs">Órgão</TableHead>
-                  <TableHead className="text-xs">Tipo</TableHead>
-                  <TableHead className="text-xs">Motivo</TableHead>
-                  <TableHead className="text-xs">Status</TableHead>
-                  <TableHead className="text-xs">Retorno</TableHead>
-                  <TableHead className="text-xs w-20"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {encExternos.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum encaminhamento registrado</TableCell></TableRow>
-                ) : encExternos.map(e => {
-                  const part = participantes.find(p => p.id === e.participante_id);
-                  const statusColor = e.status === "concluido" ? "default" : e.status === "em_andamento" ? "secondary" : "outline";
-                  return (
-                    <TableRow key={e.id}>
-                      <TableCell className="text-xs">{format(new Date(e.data_encaminhamento + "T12:00:00"), "dd/MM/yyyy")}</TableCell>
-                      <TableCell className="text-xs font-medium">{part?.nome_completo || "—"}</TableCell>
-                      <TableCell className="text-xs">{e.orgao}</TableCell>
-                      <TableCell className="text-xs uppercase">{e.tipo}</TableCell>
-                      <TableCell className="text-xs max-w-xs truncate" title={e.motivo}>{e.motivo}</TableCell>
-                      <TableCell><Badge variant={statusColor as any} className="text-[10px]">{e.status}</Badge></TableCell>
-                      <TableCell className="text-xs">{e.data_retorno ? format(new Date(e.data_retorno + "T12:00:00"), "dd/MM/yyyy") : "—"}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEncEdit(e); setEncForm({ participante_id: e.participante_id, orgao: e.orgao, tipo: e.tipo, motivo: e.motivo, data_encaminhamento: e.data_encaminhamento, data_retorno: e.data_retorno || "", status: e.status, observacoes_retorno: e.observacoes_retorno || "", contato: e.contato || "" }); setEncDialogOpen(true); }}>
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteEnc(e.id)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-
-          <Dialog open={encDialogOpen} onOpenChange={setEncDialogOpen}>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{encEdit ? "Editar Encaminhamento" : "Novo Encaminhamento Externo"}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-xs">Participante</Label>
-                  <Select value={encForm.participante_id} onValueChange={v => setEncForm(f => ({ ...f, participante_id: v }))}>
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {participantes.filter(p => p.status === "ativo" || p.status === "busca_ativa").map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.nome_completo}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Tipo de Órgão</Label>
-                    <Select value={encForm.tipo} onValueChange={v => setEncForm(f => ({ ...f, tipo: v }))}>
-                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="cras">CRAS</SelectItem>
-                        <SelectItem value="creas">CREAS</SelectItem>
-                        <SelectItem value="caps">CAPS</SelectItem>
-                        <SelectItem value="ubs">UBS / Saúde</SelectItem>
-                        <SelectItem value="conselho_tutelar">Conselho Tutelar</SelectItem>
-                        <SelectItem value="escola">Escola</SelectItem>
-                        <SelectItem value="ministerio_publico">Ministério Público</SelectItem>
-                        <SelectItem value="outro">Outro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Nome do Órgão / Unidade</Label>
-                    <Input value={encForm.orgao} onChange={e => setEncForm(f => ({ ...f, orgao: e.target.value }))} placeholder="Ex: CRAS Jd. Irene" className="mt-1" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Data Encaminhamento</Label>
-                    <Input type="date" value={encForm.data_encaminhamento} onChange={e => setEncForm(f => ({ ...f, data_encaminhamento: e.target.value }))} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Contato (telefone/responsável)</Label>
-                    <Input value={encForm.contato} onChange={e => setEncForm(f => ({ ...f, contato: e.target.value }))} className="mt-1" />
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs">Motivo</Label>
-                  <Textarea value={encForm.motivo} onChange={e => setEncForm(f => ({ ...f, motivo: e.target.value }))} className="mt-1 min-h-[60px]" placeholder="Descreva o motivo do encaminhamento" />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Status</Label>
-                    <Select value={encForm.status} onValueChange={v => setEncForm(f => ({ ...f, status: v }))}>
-                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="aberto">Aberto</SelectItem>
-                        <SelectItem value="em_andamento">Em andamento</SelectItem>
-                        <SelectItem value="concluido">Concluído</SelectItem>
-                        <SelectItem value="sem_retorno">Sem retorno</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Data Retorno</Label>
-                    <Input type="date" value={encForm.data_retorno} onChange={e => setEncForm(f => ({ ...f, data_retorno: e.target.value }))} className="mt-1" />
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs">Observações do retorno</Label>
-                  <Textarea value={encForm.observacoes_retorno} onChange={e => setEncForm(f => ({ ...f, observacoes_retorno: e.target.value }))} className="mt-1 min-h-[60px]" />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setEncDialogOpen(false)}>Cancelar</Button>
-                <Button onClick={handleSaveEnc}>{encEdit ? "Atualizar" : "Registrar"}</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </TabsContent>
 
         {/* RELATÓRIOS */}
         <TabsContent value="relatorios" className="space-y-4">
@@ -1759,6 +1757,90 @@ const EquipeTecnicaPage = () => {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Dialog de edição de Encaminhamento (acessível a partir do dashboard) */}
+      <Dialog open={encDialogOpen} onOpenChange={setEncDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{encEdit ? "Editar Encaminhamento" : "Novo Encaminhamento Externo"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Participante</Label>
+              <Select value={encForm.participante_id} onValueChange={v => setEncForm(f => ({ ...f, participante_id: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {participantes.filter(p => p.status === "ativo" || p.status === "busca_ativa").map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.nome_completo}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Tipo de Órgão</Label>
+                <Select value={encForm.tipo} onValueChange={v => setEncForm(f => ({ ...f, tipo: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cras">CRAS</SelectItem>
+                    <SelectItem value="creas">CREAS</SelectItem>
+                    <SelectItem value="caps">CAPS</SelectItem>
+                    <SelectItem value="ubs">UBS / Saúde</SelectItem>
+                    <SelectItem value="conselho_tutelar">Conselho Tutelar</SelectItem>
+                    <SelectItem value="escola">Escola</SelectItem>
+                    <SelectItem value="ministerio_publico">Ministério Público</SelectItem>
+                    <SelectItem value="outro">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Nome do Órgão / Unidade</Label>
+                <Input value={encForm.orgao} onChange={e => setEncForm(f => ({ ...f, orgao: e.target.value }))} placeholder="Ex: CRAS Jd. Irene" className="mt-1" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Data Encaminhamento</Label>
+                <Input type="date" value={encForm.data_encaminhamento} onChange={e => setEncForm(f => ({ ...f, data_encaminhamento: e.target.value }))} className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Contato (telefone/responsável)</Label>
+                <Input value={encForm.contato} onChange={e => setEncForm(f => ({ ...f, contato: e.target.value }))} className="mt-1" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Motivo</Label>
+              <Textarea value={encForm.motivo} onChange={e => setEncForm(f => ({ ...f, motivo: e.target.value }))} className="mt-1 min-h-[60px]" placeholder="Descreva o motivo do encaminhamento" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Status</Label>
+                <Select value={encForm.status} onValueChange={v => setEncForm(f => ({ ...f, status: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="aberto">Aberto</SelectItem>
+                    <SelectItem value="em_andamento">Em andamento</SelectItem>
+                    <SelectItem value="concluido">Concluído</SelectItem>
+                    <SelectItem value="sem_retorno">Sem retorno</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Data Retorno</Label>
+                <Input type="date" value={encForm.data_retorno} onChange={e => setEncForm(f => ({ ...f, data_retorno: e.target.value }))} className="mt-1" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Observações do retorno</Label>
+              <Textarea value={encForm.observacoes_retorno} onChange={e => setEncForm(f => ({ ...f, observacoes_retorno: e.target.value }))} className="mt-1 min-h-[60px]" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEncDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveEnc}>{encEdit ? "Atualizar" : "Registrar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Atendimento Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
