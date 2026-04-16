@@ -84,6 +84,7 @@ const RelatorioNovoPage = () => {
     educador_id: "",
     planejamento_id: "",
     turma_ids: [] as string[],
+    periodo_atividade: "" as string,
     iniciativa: 3,
     autonomia: 3,
     colaboracao: 3,
