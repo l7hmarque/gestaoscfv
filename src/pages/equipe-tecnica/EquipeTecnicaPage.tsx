@@ -76,10 +76,30 @@ const EquipeTecnicaPage = () => {
   const [filterProf, setFilterProf] = useState("");
   const [relDataInicio, setRelDataInicio] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [relDataFim, setRelDataFim] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
-  const [form, setForm] = useState({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "" });
+  const [form, setForm] = useState<{ participante_id: string; data_atendimento: string; tipo: string; descricao: string; encaminhamento: string; recado_origem_id?: string | null; relato_origem_id?: string | null; busca_ativa_origem_id?: string | null }>({ participante_id: "", data_atendimento: format(new Date(), "yyyy-MM-dd"), tipo: "atendimento_individual", descricao: "", encaminhamento: "", recado_origem_id: null, relato_origem_id: null, busca_ativa_origem_id: null });
   const [myProfileId, setMyProfileId] = useState("");
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const { log: auditLog } = useAuditLog();
+
+  // Recados (para vinculação)
+  const [recados, setRecados] = useState<any[]>([]);
+  const [recadoOrigem, setRecadoOrigem] = useState<any | null>(null);
+
+  // Encaminhamentos externos
+  const [encExternos, setEncExternos] = useState<any[]>([]);
+  const [encDialogOpen, setEncDialogOpen] = useState(false);
+  const [encForm, setEncForm] = useState({ participante_id: "", orgao: "", tipo: "cras", motivo: "", data_encaminhamento: format(new Date(), "yyyy-MM-dd"), data_retorno: "", status: "aberto", observacoes_retorno: "", contato: "" });
+  const [encEdit, setEncEdit] = useState<any | null>(null);
+
+  // Relatos da equipe técnica (vínculo B)
+  const [relatosEquipe, setRelatosEquipe] = useState<any[]>([]);
+  const [relatoParticipantes, setRelatoParticipantes] = useState<any[]>([]);
+
+  // Planejamentos (vínculo J)
+  const [planejamentos, setPlanejamentos] = useState<any[]>([]);
+  const [planejamentoTurmas, setPlanejamentoTurmas] = useState<any[]>([]);
+  const [relatorios, setRelatorios] = useState<any[]>([]);
+  const [relatorioTurmas, setRelatorioTurmas] = useState<any[]>([]);
 
   // Delete state
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
