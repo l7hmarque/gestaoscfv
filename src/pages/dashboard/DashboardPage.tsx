@@ -283,16 +283,19 @@ function IndicadoresTab() {
       <AlertaCard count={data.totalParticipantesAlerta} />
       {/* Main charts + Recent activities */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <ChartCard title="Frequência Mensal" subtitle="Presentes vs Total" className="lg:col-span-3">
+        <ChartCard title="Frequência Mensal" subtitle="Presentes vs Total · meses parciais marcados com *" className="lg:col-span-3">
           {(ref) => (
             <div className="h-52" ref={ref}>
               {data.presencaMensal.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.presencaMensal} barGap={2}>
+                  <BarChart data={data.presencaMensal.map((m) => ({ ...m, mesLabel: m.parcial ? `${m.mes}*` : m.mes }))} barGap={2}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,90%)" />
-                    <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="mesLabel" tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} width={35} allowDecimals={false} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Tooltip
+                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                      labelFormatter={(label: string) => label.endsWith("*") ? `${label.replace("*","")} (parcial)` : label}
+                    />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Bar dataKey="total" name="Total" fill="hsl(215,20%,93%)" radius={[3, 3, 0, 0]} />
                     <Bar dataKey="presentes" name="Presentes" fill="hsl(0,58%,56%)" radius={[3, 3, 0, 0]} />
