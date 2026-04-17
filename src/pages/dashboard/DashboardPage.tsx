@@ -525,6 +525,7 @@ function DashboardHeader() {
 }
 
 
+export default function DashboardPage() {
   return (
     <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-5 max-w-[1400px]">
       <DashboardHeader />
