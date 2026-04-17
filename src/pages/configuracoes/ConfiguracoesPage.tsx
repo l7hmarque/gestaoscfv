@@ -349,6 +349,23 @@ export default function ConfiguracoesPage() {
                   </div>
                 ))}
               </div>
+
+              <div className="border-t pt-4">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Marco Operacional
+                </Label>
+                <p className="text-[11px] text-muted-foreground mt-1 mb-2">
+                  Data a partir da qual os indicadores institucionais (dashboard, ELO, adesão, presença, top educadores) começam a contar.
+                  Registros anteriores são mantidos no histórico, mas não compõem as métricas analíticas.
+                </p>
+                <Input
+                  type="date"
+                  value={configs["data_inicio_operacional"] || "2026-04-01"}
+                  onChange={e => setConfigs(prev => ({ ...prev, data_inicio_operacional: e.target.value }))}
+                  className="mt-1 max-w-xs"
+                />
+              </div>
+
               <Button onClick={saveConfigs} disabled={saving} className="gap-2">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Salvar Configurações
