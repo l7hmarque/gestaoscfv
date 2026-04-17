@@ -13,9 +13,12 @@ export interface DashboardData {
   totalParticipantesAtivos: number;
   totalTurmasAtivas: number;
   totalRelatorios: number;
+  totalConsolidadosChamada: number;
   totalPlanejamentos: number;
   mediaELO: number;
+  mediaELON: number;
   mediaAdesao: number;
+  mediaAdesaoConsolidada: number;
   participantesPorFaixa: { faixa: string; count: number }[];
   participantesPorGenero: { genero: string; count: number }[];
   participantesPorBairro: { bairro: string; count: number }[];
@@ -27,7 +30,7 @@ export interface DashboardData {
   taxaFrequenciaGeral: number;
   topEducadores: { nome: string; count: number }[];
   totalParticipantesAlerta: number;
-  presencaMensal: { mes: string; presentes: number; total: number; pct: number }[];
+  presencaMensal: { mes: string; presentes: number; total: number; pct: number; parcial?: boolean }[];
   deltaParticipantes: number;
   atividadesRecentes: AtividadeRecente[];
 }
