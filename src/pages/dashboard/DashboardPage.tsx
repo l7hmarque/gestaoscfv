@@ -40,11 +40,16 @@ const quickShortcuts = [
 ];
 
 /* ── KPI Card ── */
-function KPICard({ icon: Icon, label, value, sub, color, delta }: {
-  icon: any; label: string; value: string | number; sub?: string; color: string; delta?: number;
+function KPICard({ icon: Icon, label, value, sub, color, delta, deltaLabel, tooltip }: {
+  icon: any; label: string; value: string | number; sub?: string; color: string;
+  delta?: number; deltaLabel?: string; tooltip?: string;
 }) {
   return (
-    <Card className="hover:shadow-md transition-shadow border-l-4" style={{ borderLeftColor: color }}>
+    <Card
+      className="hover:shadow-md transition-shadow border-l-4"
+      style={{ borderLeftColor: color }}
+      title={tooltip}
+    >
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-start justify-between">
           <div className="min-w-0 flex-1">
@@ -66,7 +71,7 @@ function KPICard({ icon: Icon, label, value, sub, color, delta }: {
               <span className={`text-[11px] font-medium ${delta > 0 ? "text-emerald-600" : "text-red-500"}`}>
                 {delta > 0 ? "+" : ""}{delta}
               </span>
-              <span className="text-[11px] text-muted-foreground">vs mês anterior</span>
+              <span className="text-[11px] text-muted-foreground">{deltaLabel ?? "vs mês anterior"}</span>
             </>
           )}
           {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
