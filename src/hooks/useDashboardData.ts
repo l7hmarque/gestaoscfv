@@ -13,9 +13,12 @@ export interface DashboardData {
   totalParticipantesAtivos: number;
   totalTurmasAtivas: number;
   totalRelatorios: number;
+  totalConsolidadosChamada: number;
   totalPlanejamentos: number;
   mediaELO: number;
+  mediaELON: number;
   mediaAdesao: number;
+  mediaAdesaoConsolidada: number;
   participantesPorFaixa: { faixa: string; count: number }[];
   participantesPorGenero: { genero: string; count: number }[];
   participantesPorBairro: { bairro: string; count: number }[];
@@ -27,7 +30,7 @@ export interface DashboardData {
   taxaFrequenciaGeral: number;
   topEducadores: { nome: string; count: number }[];
   totalParticipantesAlerta: number;
-  presencaMensal: { mes: string; presentes: number; total: number; pct: number }[];
+  presencaMensal: { mes: string; presentes: number; total: number; pct: number; parcial?: boolean }[];
   deltaParticipantes: number;
   atividadesRecentes: AtividadeRecente[];
 }
@@ -56,9 +59,12 @@ export function useDashboardData(mes?: number | null, ano?: number | null) {
         totalParticipantesAtivos: d.totalParticipantesAtivos ?? 0,
         totalTurmasAtivas: d.totalTurmasAtivas ?? 0,
         totalRelatorios: d.totalRelatorios ?? 0,
+        totalConsolidadosChamada: d.totalConsolidadosChamada ?? 0,
         totalPlanejamentos: d.totalPlanejamentos ?? 0,
         mediaELO: Number(d.mediaELO ?? 0),
+        mediaELON: Number(d.mediaELON ?? 0),
         mediaAdesao: Number(d.mediaAdesao ?? 0),
+        mediaAdesaoConsolidada: Number(d.mediaAdesaoConsolidada ?? 0),
         participantesPorFaixa: (d.participantesPorFaixa || []).map((x: any) => ({ faixa: x.faixa, count: Number(x.count) })),
         participantesPorGenero: (d.participantesPorGenero || []).map((x: any) => ({ genero: x.genero, count: Number(x.count) })),
         participantesPorBairro: (d.participantesPorBairro || []).map((x: any) => ({ bairro: x.bairro, count: Number(x.count) })),
@@ -78,6 +84,7 @@ export function useDashboardData(mes?: number | null, ano?: number | null) {
           presentes: Number(x.presentes),
           total: Number(x.total),
           pct: Number(x.pct),
+          parcial: Boolean(x.parcial),
         })),
         deltaParticipantes: Number(d.deltaParticipantes ?? 0),
         atividadesRecentes: (d.atividadesRecentes || []).map((x: any) => ({

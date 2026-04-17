@@ -40,11 +40,16 @@ const quickShortcuts = [
 ];
 
 /* ── KPI Card ── */
-function KPICard({ icon: Icon, label, value, sub, color, delta }: {
-  icon: any; label: string; value: string | number; sub?: string; color: string; delta?: number;
+function KPICard({ icon: Icon, label, value, sub, color, delta, deltaLabel, tooltip }: {
+  icon: any; label: string; value: string | number; sub?: string; color: string;
+  delta?: number; deltaLabel?: string; tooltip?: string;
 }) {
   return (
-    <Card className="hover:shadow-md transition-shadow border-l-4" style={{ borderLeftColor: color }}>
+    <Card
+      className="hover:shadow-md transition-shadow border-l-4"
+      style={{ borderLeftColor: color }}
+      title={tooltip}
+    >
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-start justify-between">
           <div className="min-w-0 flex-1">
@@ -66,7 +71,7 @@ function KPICard({ icon: Icon, label, value, sub, color, delta }: {
               <span className={`text-[11px] font-medium ${delta > 0 ? "text-emerald-600" : "text-red-500"}`}>
                 {delta > 0 ? "+" : ""}{delta}
               </span>
-              <span className="text-[11px] text-muted-foreground">vs mês anterior</span>
+              <span className="text-[11px] text-muted-foreground">{deltaLabel ?? "vs mês anterior"}</span>
             </>
           )}
           {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
@@ -232,35 +237,65 @@ function IndicadoresTab() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KPICard icon={Users} label="Participantes Ativos" value={data.totalParticipantesAtivos} delta={data.deltaParticipantes} color="hsl(210,60%,50%)" />
+        <KPICard
+          icon={Users}
+          label="Participantes Ativos"
+          value={data.totalParticipantesAtivos}
+          delta={data.deltaParticipantes}
+          deltaLabel="vs 30 dias atrás"
+          tooltip="Comparação de cadastros ativos hoje vs há 30 dias (baseado em iniciou_em / data_desligamento)"
+          color="hsl(210,60%,50%)"
+        />
         <KPICard icon={TrendingUp} label="Frequência Geral" value={`${data.taxaFrequenciaGeral}%`} color="hsl(142,50%,40%)" />
         <KPICard icon={GraduationCap} label="Turmas Ativas" value={data.totalTurmasAtivas} color="hsl(262,50%,55%)" />
-        <KPICard icon={FileText} label="Relatórios" value={data.totalRelatorios} color="hsl(0,58%,56%)" />
+        <KPICard
+          icon={FileText}
+          label="Relatórios"
+          value={data.totalRelatorios}
+          sub={data.totalConsolidadosChamada > 0 ? `+${data.totalConsolidadosChamada} consolidados` : undefined}
+          tooltip="Relatórios pedagógicos reais (exclui consolidados de chamada física importada)"
+          color="hsl(0,58%,56%)"
+        />
       </div>
 
       {/* Second row KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <KPICard icon={BookOpen} label="Planejamentos" value={data.totalPlanejamentos} color="hsl(30,70%,55%)" />
-        <KPICard icon={TrendingUp} label="Média ELO" value={data.mediaELO.toFixed(2)} sub="de 5.00" color="hsl(0,58%,56%)" />
-        <KPICard icon={Percent} label="Média Adesão" value={`${data.mediaAdesao.toFixed(0)}%`} color="hsl(210,22%,49%)" />
+        <KPICard
+          icon={TrendingUp}
+          label="Média ELO"
+          value={data.mediaELO.toFixed(2)}
+          sub={`n=${data.mediaELON} relatórios`}
+          color="hsl(0,58%,56%)"
+        />
+        <KPICard
+          icon={Percent}
+          label="Média Adesão"
+          value={`${data.mediaAdesao.toFixed(0)}%`}
+          sub={data.mediaAdesaoConsolidada > 0 ? `consol.: ${data.mediaAdesaoConsolidada.toFixed(0)}%` : undefined}
+          tooltip="Média de adesão calculada apenas sobre relatórios pedagógicos reais"
+          color="hsl(210,22%,49%)"
+        />
         <KPICard icon={Activity} label="Educadores Ativos" value={data.topEducadores.length} sub="com relatórios" color="hsl(142,50%,40%)" />
       </div>
 
       {/* Alerta */}
       <AlertaCard count={data.totalParticipantesAlerta} />
-
       {/* Main charts + Recent activities */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <ChartCard title="Frequência Mensal" subtitle="Presentes vs Total" className="lg:col-span-3">
+        <ChartCard title="Frequência Mensal" subtitle="Presentes vs Total · meses parciais marcados com *" className="lg:col-span-3">
           {(ref) => (
             <div className="h-52" ref={ref}>
               {data.presencaMensal.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.presencaMensal} barGap={2}>
+                  <BarChart data={data.presencaMensal.map((m) => ({ ...m, mesLabel: m.parcial ? `${m.mes}*` : m.mes }))} barGap={2}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,90%)" />
-                    <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="mesLabel" tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} width={35} allowDecimals={false} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Tooltip
+                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                      labelFormatter={(label: string) => label.endsWith("*") ? `${label.replace("*","")} (parcial)` : label}
+                    />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Bar dataKey="total" name="Total" fill="hsl(215,20%,93%)" radius={[3, 3, 0, 0]} />
                     <Bar dataKey="presentes" name="Presentes" fill="hsl(0,58%,56%)" radius={[3, 3, 0, 0]} />
