@@ -1,49 +1,62 @@
 
 
-## Entendimento
+## Diagnóstico
 
-Você vai me enviar de volta a planilha `SysCFV_DivergenciasChamada_2026-03.xlsx` que gerei, com a coluna **"Ação Sugerida"** editada por você (nas 5 abas) refletindo o que **deve** ser feito — não o que sugeri. Adicionalmente, está enviando agora o **PDF DESLIGAMENTOS.pdf** com nomes + datas de desligamento que devem ser cruzados com a aba **"Candidatos Desligamento"**.
+**Por que não aparecem no dashboard:**
+- 2.006 presenças foram inseridas em `presenca` (tabela de chamada manual).
+- **Zero** registros foram criados em `relatorio_presenca` (tabela vinculada a `relatorios_atividade`).
+- A função `get_dashboard_stats` calcula KPIs (`taxaFrequenciaGeral`, `presencaMensal`, `mediaELO`) **somente** a partir de `relatorio_presenca`.
+- O REO, Relatório Mensal e Relatório de Gestão também leem de `relatorio_presenca` (memória `presenca-logica` confirma: "frequência institucional registrada prioritariamente via Relatórios de Atividade").
+- Resultado: dados inseridos ficam invisíveis nas exportações institucionais.
 
-Pode haver duplicação: alguns participantes podem aparecer tanto no PDF quanto marcados manualmente por você na planilha. A fonte de verdade é o que estiver decidido — se aparece em qualquer um dos dois com decisão de desligar, desliga; usar a data mais antiga entre as duas fontes quando houver conflito.
+**Outros pontos críticos a auditar:**
+- 0 relatórios de atividade existem em março/2026 → score ELO, competências, objetivos zerados no dashboard.
+- 18 mudanças de período (`MOVER_PERIODO`) ajustaram `participantes.periodo`, mas não há garantia de que `turma_participantes` foi reposicionado.
+- 111 marcações `busca_ativa` foram aplicadas, mas a RPC `recalcular_busca_ativa` pode reverter se houver presenças recentes.
 
-## Plano
+## O que precisa ser feito
 
-### Fase A — Análise (esta etapa, sem alterar dados)
-1. Ler o PDF `DESLIGAMENTOS.pdf` com `document--parse_document` e extrair pares **Nome → Data desligamento** (incluindo motivo se houver).
-2. Aguardar você me reenviar o XLSX revisado.
-3. Para cada aba da planilha revisada, mapear linha por linha as ações que você marcou:
-   - **Reposicionar**: `MUDAR_PERIODO` / `MANTER` / `DESLIGAR` / `OUTRO`
-   - **Sem Vínculo**: `VINCULAR` / `DESLIGAR` / `IGNORAR`
-   - **Candidatos Desligamento**: `DESLIGAR` / `MANTER` / `BUSCA_ATIVA` (cruzando com PDF)
-   - **Manuscritos-Desligados**: `MATRICULAR` / `MERGE` / `IGNORAR`
-   - **Inserir Presença**: `INSERIR` / `IGNORAR`
-4. Cruzar **Candidatos Desligamento × PDF**:
-   - Match fuzzy nome (similarity ≥ 0.7), mesmo bairro
-   - Se PDF diz "desligar em DD/MM" e você marcou MANTER → respeitar **sua decisão** (você é a fonte final)
-   - Se você marcou DESLIGAR sem data e PDF tem data → usar a data do PDF
-   - Se ambos dizem desligar com datas diferentes → usar a **mais antiga**
-5. Gerar um **plano de execução consolidado em XLSX** (`SysCFV_PlanoExecucao_2026-03.xlsx`) com uma aba única listando todas as operações finais resolvidas:
-   | Ordem | Ação | Participante | ID | Data | Motivo | Origem (PDF/XLSX/Ambos) | Tabelas afetadas |
+### 1. Gerar `relatorios_atividade` sintéticos para março/2026
+Para cada combinação **turma + dia letivo** com presenças importadas:
+- Criar 1 `relatorios_atividade` com `tipo_atividade='regular'`, `nome_atividade='Atividade SCFV (consolidado lista física março/2026)'`, `educador_id` = educador titular da turma (fallback: coordenação), `data` do dia.
+- Criar 1 `relatorio_turmas` vinculando à turma.
+- Migrar/espelhar cada linha de `presenca` para `relatorio_presenca` (mesmos `participante_id`, `presente`, `justificativa`).
+- Calcular `num_participantes` e `pct_adesao` automaticamente.
+- **Não preencher** `score_elo` nem competências (ficarão null — não distorce médias).
 
-### Fase B — Você revisa o plano consolidado
-Confere se as resoluções de conflito ficaram corretas (especialmente onde PDF e XLSX divergem). Aprova ou ajusta.
+### 2. Validar consistência de período e turma
+- Verificar se os 18 participantes com `MOVER_PERIODO` têm `turma_participantes` ativo na turma do novo período.
+- Listar divergências em XLSX para revisão.
 
-### Fase C — Execução (próximo ciclo, com sua confirmação)
-Para cada linha aprovada, executar via `supabase--read_query` (leitura) + tool de insert (escrita):
-- **Desligar**: `UPDATE participantes SET status='desligado', data_desligamento=X, motivo_desligamento=Y` + fechar `turma_participantes` (data_saida) + `audit_log`
-- **Reposicionar período**: `UPDATE participantes SET periodo=X` + fechar vínculo antigo + abrir vínculo novo + inserir `participante_transferencias` + `audit_log`
-- **Vincular**: inserir em `turma_participantes` (data_entrada=hoje) + `audit_log`
-- **Inserir presença retroativa**: inserir em `presenca` (data, presente=true, justificativa="Importação lista chamada março/2026") + `audit_log`
-- **Matricular novo**: criar em `participantes` com dados básicos do PDF + bairro deduzido da turma da lista
-- **Merge**: chamar edge function `merge-participantes`
+### 3. Validar `busca_ativa`
+- Rodar `recalcular_busca_ativa()` para reconciliar status com base nas novas presenças importadas (quem foi marcado BA mas tem presença em março volta para ativo).
 
-Tudo registrado em `audit_log` com user_nome="Sistema (importação chamada março/2026)" e justificativa apontando origem (PDF / XLSX / decisão manual).
+### 4. Entregar relatório de auditoria pós-execução
+XLSX **SysCFV_AuditoriaPosExecucao_Marco2026.xlsx** com abas:
+- **Resumo** — contagens antes/depois (relatórios criados, presenças espelhadas, BA recalculados).
+- **Relatorios_Criados** — lista dos relatórios sintéticos com turma, data, educador, nº participantes.
+- **Periodo_Divergencias** — participantes com período no cadastro ≠ período da turma vinculada.
+- **BA_Reconciliados** — quem voltou de busca_ativa para ativo.
 
-### Não-objetivos
-- Não vou desligar/reposicionar/inserir nada antes de você aprovar o **Plano de Execução Consolidado** da Fase B.
-- Não vou usar minhas sugestões originais — apenas as **suas decisões editadas** + cruzamento com o PDF.
-- Em caso de conflito irreconciliável (ex: nome no PDF que não bate com nada), gero uma aba separada **"Pendentes"** para resolução manual.
+## Indicadores que vão melhorar após execução
 
-### Próximo passo
-Me envie o XLSX revisado. Em paralelo, parto agora para a Fase A passo 1 (extrair o PDF) para já ter os dados prontos quando o XLSX chegar.
+| Indicador | Estado atual | Após execução |
+|---|---|---|
+| `taxaFrequenciaGeral` (mar/2026) | 0% | calculado real |
+| `presencaMensal` no gráfico | sem ponto mar/2026 | ponto visível |
+| `totalRelatorios` (mar/2026) | 0 | ~50-80 relatórios |
+| REO março — frequência por turma | vazio | preenchido |
+| Relatório Mensal — matriz de frequência | vazio | preenchido |
+| Top educadores | sem mar/2026 | computado |
+
+## Amarras técnicas
+
+- `relatorios_atividade.educador_id` é nullable, mas o dashboard agrupa por educador — usar fallback configurável.
+- `score_elo`, `iniciativa`, `autonomia`, etc. ficam `null` — a função `get_dashboard_stats` filtra `WHERE score_elo IS NOT NULL`, então **não vai distorcer médias**.
+- Operação é idempotente: antes de criar, verificar se já existe `relatorios_atividade` na data+turma com `nome_atividade` começando com "Atividade SCFV (consolidado lista física".
+- Auditoria: cada relatório criado registra em `audit_log` com `acao='import_chamada_marco_2026'`.
+
+## Decisões necessárias antes de executar
+
+Vou perguntar 3 pontos críticos via `ask_questions` antes de iniciar a execução, principalmente sobre: (a) preencher ou não competências/ELO com média histórica do educador, (b) tratar dias sem turma resolvível, (c) sobrescrever ou complementar caso já exista relatório no mesmo dia/turma.
 
