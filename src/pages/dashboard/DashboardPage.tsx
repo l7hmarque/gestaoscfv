@@ -19,6 +19,7 @@ import DashboardProfissionaisTab from "./DashboardProfissionaisTab";
 import DashboardTransporteTab from "./DashboardTransporteTab";
 import DashboardAdminTab from "./DashboardAdminTab";
 import DashboardRelatorioMensalTab from "./DashboardRelatorioMensalTab";
+import { PendenciasIntegridadeBanner } from "@/components/PendenciasIntegridadeBanner";
 
 const COLORS = [
   "hsl(0,58%,56%)", "hsl(210,22%,49%)", "hsl(142,50%,40%)",
@@ -505,6 +506,8 @@ export default function DashboardPage() {
         <h1 className="text-lg sm:text-xl font-bold text-foreground">Dashboard</h1>
         <p className="text-xs text-muted-foreground">Visão geral do projeto</p>
       </div>
+
+      <PendenciasIntegridadeBanner />
 
       <Tabs defaultValue="indicadores" className="space-y-4">
         <TabsList className="flex-wrap h-auto gap-1">
