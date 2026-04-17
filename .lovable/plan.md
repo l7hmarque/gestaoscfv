@@ -2,61 +2,60 @@
 
 ## Diagnóstico
 
-**Por que não aparecem no dashboard:**
-- 2.006 presenças foram inseridas em `presenca` (tabela de chamada manual).
-- **Zero** registros foram criados em `relatorio_presenca` (tabela vinculada a `relatorios_atividade`).
-- A função `get_dashboard_stats` calcula KPIs (`taxaFrequenciaGeral`, `presencaMensal`, `mediaELO`) **somente** a partir de `relatorio_presenca`.
-- O REO, Relatório Mensal e Relatório de Gestão também leem de `relatorio_presenca` (memória `presenca-logica` confirma: "frequência institucional registrada prioritariamente via Relatórios de Atividade").
-- Resultado: dados inseridos ficam invisíveis nas exportações institucionais.
+**Os dados ESTÃO espelhados, mas só 12,6% são presentes.** A confusão vem de dois pontos:
 
-**Outros pontos críticos a auditar:**
-- 0 relatórios de atividade existem em março/2026 → score ELO, competências, objetivos zerados no dashboard.
-- 18 mudanças de período (`MOVER_PERIODO`) ajustaram `participantes.periodo`, mas não há garantia de que `turma_participantes` foi reposicionado.
-- 111 marcações `busca_ativa` foram aplicadas, mas a RPC `recalcular_busca_ativa` pode reverter se houver presenças recentes.
+### 1. Realidade dos dados originais (tabela `presenca`)
+- **2.006 registros** em março/2026
+- **Apenas 253 presentes** (12,6%)
+- **1.753 ausentes** (87,4%)
 
-## O que precisa ser feito
+Isso reflete fielmente as listas físicas digitalizadas — a maioria dos participantes faltou nos dias importados (provável: lista incluía toda a turma, marcando ausentes os que não estavam, ou houve baixa frequência real em março).
 
-### 1. Gerar `relatorios_atividade` sintéticos para março/2026
-Para cada combinação **turma + dia letivo** com presenças importadas:
-- Criar 1 `relatorios_atividade` com `tipo_atividade='regular'`, `nome_atividade='Atividade SCFV (consolidado lista física março/2026)'`, `educador_id` = educador titular da turma (fallback: coordenação), `data` do dia.
-- Criar 1 `relatorio_turmas` vinculando à turma.
-- Migrar/espelhar cada linha de `presenca` para `relatorio_presenca` (mesmos `participante_id`, `presente`, `justificativa`).
-- Calcular `num_participantes` e `pct_adesao` automaticamente.
-- **Não preencher** `score_elo` nem competências (ficarão null — não distorce médias).
+### 2. Espelhamento em `relatorio_presenca` está correto
+- 2.006 registros → 253 presentes / 1.753 ausentes (idêntico à origem). Espelho 1:1 funcionou.
 
-### 2. Validar consistência de período e turma
-- Verificar se os 18 participantes com `MOVER_PERIODO` têm `turma_participantes` ativo na turma do novo período.
-- Listar divergências em XLSX para revisão.
+### 3. PROBLEMA REAL identificado: relatórios "fantasma"
+A query mostrou **dois bugs** nos relatórios sintéticos:
 
-### 3. Validar `busca_ativa`
-- Rodar `recalcular_busca_ativa()` para reconciliar status com base nas novas presenças importadas (quem foi marcado BA mas tem presença em março volta para ativo).
+**Bug A — `num_participantes` e `pct_adesao` zerados** em TODOS os 232 relatórios:
+- Ficaram com `num_participantes=0` e `pct_adesao=0.00`
+- O dashboard usa `pct_adesao` para `mediaAdesao` → vai puxar a média para baixo artificialmente.
 
-### 4. Entregar relatório de auditoria pós-execução
-XLSX **SysCFV_AuditoriaPosExecucao_Marco2026.xlsx** com abas:
-- **Resumo** — contagens antes/depois (relatórios criados, presenças espelhadas, BA recalculados).
-- **Relatorios_Criados** — lista dos relatórios sintéticos com turma, data, educador, nº participantes.
-- **Periodo_Divergencias** — participantes com período no cadastro ≠ período da turma vinculada.
-- **BA_Reconciliados** — quem voltou de busca_ativa para ativo.
+**Bug B — Relatórios sem `relatorio_turmas` nem presenças** (ex: `f8210495...`, `4a657004...`):
+- Existem múltiplos relatórios criados no mesmo dia/turma (duplicatas) onde só 1 ficou com as presenças e os outros ficaram vazios.
+- No dia 03/03 há 16 relatórios mas o histograma mostra vários com `qtd_turmas=0` e `total_rp=0`.
+- Isso polui `totalRelatorios` no dashboard (vai contar 232 em vez dos ~80 reais).
 
-## Indicadores que vão melhorar após execução
+## Plano de correção
 
-| Indicador | Estado atual | Após execução |
-|---|---|---|
-| `taxaFrequenciaGeral` (mar/2026) | 0% | calculado real |
-| `presencaMensal` no gráfico | sem ponto mar/2026 | ponto visível |
-| `totalRelatorios` (mar/2026) | 0 | ~50-80 relatórios |
-| REO março — frequência por turma | vazio | preenchido |
-| Relatório Mensal — matriz de frequência | vazio | preenchido |
-| Top educadores | sem mar/2026 | computado |
+### Etapa 1 — Limpar relatórios fantasma
+Deletar relatórios sintéticos de março/2026 que estão **sem `relatorio_turmas` E sem `relatorio_presenca`** (são lixo de tentativa duplicada). Estimativa: ~30-50 registros.
 
-## Amarras técnicas
+### Etapa 2 — Recalcular `num_participantes` e `pct_adesao`
+Para cada relatório sintético restante:
+```
+num_participantes = COUNT(relatorio_presenca WHERE presente=true)
+total_esperado    = COUNT(relatorio_presenca)
+pct_adesao        = (num_participantes / total_esperado) * 100
+```
 
-- `relatorios_atividade.educador_id` é nullable, mas o dashboard agrupa por educador — usar fallback configurável.
-- `score_elo`, `iniciativa`, `autonomia`, etc. ficam `null` — a função `get_dashboard_stats` filtra `WHERE score_elo IS NOT NULL`, então **não vai distorcer médias**.
-- Operação é idempotente: antes de criar, verificar se já existe `relatorios_atividade` na data+turma com `nome_atividade` começando com "Atividade SCFV (consolidado lista física".
-- Auditoria: cada relatório criado registra em `audit_log` com `acao='import_chamada_marco_2026'`.
+### Etapa 3 — Verificar duplicatas turma+data
+Se ainda houver mais de 1 relatório sintético na mesma turma+data após Etapa 1, consolidar em 1 só (mover presenças para o relatório "principal" e deletar os outros).
 
-## Decisões necessárias antes de executar
+### Etapa 4 — Auditoria final XLSX
+Gerar **SysCFV_AuditoriaCorrecao_Marco2026.xlsx** com:
+- **Resumo**: antes/depois (relatórios deletados, recalculados, consolidados)
+- **Relatorios_Final**: lista limpa com data, turma, presentes, ausentes, % adesão
+- **Frequencia_Por_Turma**: matriz turma × indicador (taxa real de frequência)
 
-Vou perguntar 3 pontos críticos via `ask_questions` antes de iniciar a execução, principalmente sobre: (a) preencher ou não competências/ELO com média histórica do educador, (b) tratar dias sem turma resolvível, (c) sobrescrever ou complementar caso já exista relatório no mesmo dia/turma.
+## Resposta direta à sua pergunta
+
+> "Por que os relatórios não têm nenhum presente?"
+
+Eles **têm presentes sim** — mas só 253 de 2.006 registros são presentes (12,6%), espelhando as listas físicas reais. O que parece "vazio" no XLSX de auditoria é porque a coluna `num_participantes` ficou zerada (bug do script de criação) e há ~30-50 relatórios duplicados completamente vazios poluindo a contagem.
+
+Após a correção:
+- Dashboard mostrará taxa de frequência real de março (~12,6%) — que pode indicar problema operacional a investigar.
+- `totalRelatorios` cairá de 232 para ~80 (valor real).
+- `mediaAdesao` deixará de ser puxada para 0 pelos fantasmas.
 
