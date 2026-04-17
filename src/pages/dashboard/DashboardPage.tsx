@@ -502,10 +502,7 @@ function IndicadoresTab() {
 export default function DashboardPage() {
   return (
     <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-5 max-w-[1400px]">
-      <div>
-        <h1 className="text-lg sm:text-xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-xs text-muted-foreground">Visão geral do projeto</p>
-      </div>
+      <DashboardHeader />
 
       <PendenciasIntegridadeBanner />
 
