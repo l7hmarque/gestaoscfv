@@ -1,61 +1,76 @@
 
 
-## Diagnóstico
+## Diagnóstico do "-46 vs mês anterior"
 
-**Os dados ESTÃO espelhados, mas só 12,6% são presentes.** A confusão vem de dois pontos:
+O delta no card **Participantes Ativos** **NÃO compara cadastros**. A função `get_dashboard_stats` calcula assim (linhas 269-291 do RPC):
 
-### 1. Realidade dos dados originais (tabela `presenca`)
-- **2.006 registros** em março/2026
-- **Apenas 253 presentes** (12,6%)
-- **1.753 ausentes** (87,4%)
-
-Isso reflete fielmente as listas físicas digitalizadas — a maioria dos participantes faltou nos dias importados (provável: lista incluía toda a turma, marcando ausentes os que não estavam, ou houve baixa frequência real em março).
-
-### 2. Espelhamento em `relatorio_presenca` está correto
-- 2.006 registros → 253 presentes / 1.753 ausentes (idêntico à origem). Espelho 1:1 funcionou.
-
-### 3. PROBLEMA REAL identificado: relatórios "fantasma"
-A query mostrou **dois bugs** nos relatórios sintéticos:
-
-**Bug A — `num_participantes` e `pct_adesao` zerados** em TODOS os 232 relatórios:
-- Ficaram com `num_participantes=0` e `pct_adesao=0.00`
-- O dashboard usa `pct_adesao` para `mediaAdesao` → vai puxar a média para baixo artificialmente.
-
-**Bug B — Relatórios sem `relatorio_turmas` nem presenças** (ex: `f8210495...`, `4a657004...`):
-- Existem múltiplos relatórios criados no mesmo dia/turma (duplicatas) onde só 1 ficou com as presenças e os outros ficaram vazios.
-- No dia 03/03 há 16 relatórios mas o histograma mostra vários com `qtd_turmas=0` e `total_rp=0`.
-- Isso polui `totalRelatorios` no dashboard (vai contar 232 em vez dos ~80 reais).
-
-## Plano de correção
-
-### Etapa 1 — Limpar relatórios fantasma
-Deletar relatórios sintéticos de março/2026 que estão **sem `relatorio_turmas` E sem `relatorio_presenca`** (são lixo de tentativa duplicada). Estimativa: ~30-50 registros.
-
-### Etapa 2 — Recalcular `num_participantes` e `pct_adesao`
-Para cada relatório sintético restante:
 ```
-num_participantes = COUNT(relatorio_presenca WHERE presente=true)
-total_esperado    = COUNT(relatorio_presenca)
-pct_adesao        = (num_participantes / total_esperado) * 100
+v_last_month = '2026-04' (último mês com presença)
+v_prev_month = '2026-03' (penúltimo)
+v_last_count = COUNT DISTINCT participantes presentes em ABR = 59
+v_prev_count = COUNT DISTINCT participantes presentes em MAR = 105
+deltaParticipantes = 59 - 105 = -46
 ```
 
-### Etapa 3 — Verificar duplicatas turma+data
-Se ainda houver mais de 1 relatório sintético na mesma turma+data após Etapa 1, consolidar em 1 só (mover presenças para o relatório "principal" e deletar os outros).
+Ou seja: o "-46" compara **quantos participantes distintos tiveram pelo menos 1 presença** entre março e abril/2026. Como abril ainda está em curso (só 431 registros vs 2.006 de março), o delta fica artificialmente negativo. **O card mostra "60 ativos" (cadastro) mas o delta vem de outro universo (presença mensal)** — isso é confuso e tecnicamente errado.
 
-### Etapa 4 — Auditoria final XLSX
-Gerar **SysCFV_AuditoriaCorrecao_Marco2026.xlsx** com:
-- **Resumo**: antes/depois (relatórios deletados, recalculados, consolidados)
-- **Relatorios_Final**: lista limpa com data, turma, presentes, ausentes, % adesão
-- **Frequencia_Por_Turma**: matriz turma × indicador (taxa real de frequência)
+## Outros indicadores precisam de refinamento
 
-## Resposta direta à sua pergunta
+Auditando o RPC + o que está exibido:
 
-> "Por que os relatórios não têm nenhum presente?"
+| Indicador | Problema atual | Correção |
+|---|---|---|
+| **Delta Participantes Ativos** | Compara presentes distintos entre 2 últimos meses (mistura conceitos) | Comparar **cadastros ativos** atual vs 30 dias atrás (`iniciou_em`/`data_desligamento`) |
+| **Média ELO** | 156 relatórios sintéticos mar/2026 com `score_elo NULL` derruba contagem mas a `AVG` ignora NULL — OK mas card não diz "n=X" | Adicionar contador "baseado em N relatórios" |
+| **Média Adesão** | Sintéticos têm `pct_adesao=23%` (12,6% real + ausentes) puxando média geral para baixo | Filtrar sintéticos OU calcular adesão = presentes/cadastrados-da-turma-no-dia |
+| **Frequência Geral** | Inclui ABRIL incompleto sem aviso visual | Marcar mês corrente como "parcial" no gráfico |
+| **Total Relatórios** | Conta 156 sintéticos como se fossem reais → infla métrica de produção pedagógica | Separar "Relatórios reais" vs "Consolidados de chamada física" |
+| **Top Educadores** | Sintéticos usam fallback coordenação → infla 1 perfil | Excluir sintéticos do ranking |
+| **Frequência Mensal (gráfico)** | Mostra abril com poucos dias úteis sem indicação | Adicionar label "(parcial)" + linha pontilhada |
+| **Atividades Recentes** | Mostra "Atividade SCFV (consolidado lista física março/2026)" 5x | Filtrar sintéticos OU agrupar por mês |
 
-Eles **têm presentes sim** — mas só 253 de 2.006 registros são presentes (12,6%), espelhando as listas físicas reais. O que parece "vazio" no XLSX de auditoria é porque a coluna `num_participantes` ficou zerada (bug do script de criação) e há ~30-50 relatórios duplicados completamente vazios poluindo a contagem.
+## Plano de refinamento
 
-Após a correção:
-- Dashboard mostrará taxa de frequência real de março (~12,6%) — que pode indicar problema operacional a investigar.
-- `totalRelatorios` cairá de 232 para ~80 (valor real).
-- `mediaAdesao` deixará de ser puxada para 0 pelos fantasmas.
+### 1. Refatorar `get_dashboard_stats` (migração SQL)
+
+**a) Delta de Participantes Ativos** — recalcular com base em cadastro real:
+```sql
+v_delta_participantes = 
+  (COUNT participantes WHERE status='ativo' AND iniciou_em <= today)
+  - (COUNT participantes WHERE iniciou_em <= today - 30 days 
+       AND (data_desligamento IS NULL OR data_desligamento > today - 30 days))
+```
+
+**b) Marcar relatórios sintéticos** — adicionar coluna ou usar filtro:
+- Identificador: `nome_atividade LIKE 'Atividade SCFV (consolidado%'`
+- Criar 2 KPIs separados:
+  - `totalRelatorios` = só reais
+  - `totalConsolidadosChamada` = sintéticos
+- Excluir sintéticos do `topEducadores` e da `mediaELO` (já são NULL, mas explicitar)
+
+**c) Adesão refinada**: dividir em `mediaAdesao` (real) e `mediaAdesaoConsolidada` (sintéticos).
+
+**d) `presencaMensal`**: incluir flag `parcial: boolean` (true se mês = mês corrente).
+
+### 2. Atualizar `useDashboardData.ts` + tipos
+Adicionar campos novos: `totalConsolidadosChamada`, `mediaAdesaoConsolidada`, `presencaMensal[].parcial`.
+
+### 3. Atualizar `DashboardPage.tsx` (IndicadoresTab)
+- Card Participantes Ativos: tooltip explicando delta = "vs 30 dias atrás (cadastro)"
+- Novo card "Consolidados de Chamada (mar/2026): 156" — visualmente diferente (cinza/secundário)
+- Card Média Adesão: mostrar "real: X% / consolidados: 23%"
+- Gráfico Frequência Mensal: barra de abril com hachura + label "(parcial)"
+- Atividades Recentes: filtrar `nome_atividade NOT LIKE 'Atividade SCFV (consolidado%'`
+
+### 4. Auditoria visual
+Após deploy, verificar:
+- Card Participantes Ativos mostra delta coerente (provável 0 ou pequeno positivo)
+- Total Relatórios separado dos consolidados
+- Abril marcado como parcial no gráfico
+
+## Decisão necessária antes de executar
+
+Vou confirmar 2 pontos via `ask_questions` antes de implementar:
+1. **Como tratar relatórios sintéticos** nas métricas: (a) excluir totalmente do dashboard, (b) mantê-los em KPI separado, ou (c) incluir tudo junto com aviso visual?
+2. **Cálculo do delta** de participantes ativos: comparar com (a) 30 dias atrás, (b) mês anterior fechado, ou (c) início do mês corrente?
 
