@@ -48,7 +48,7 @@ const ParticipanteNovoPage = () => {
     vinculo_resp2: "",
     origem_encaminhamento: "", responsavel_tecnico: "",
     categoria_vulnerabilidade: "", situacao_moradia: "", uf_origem: "",
-    restricao_alimentar: "", laudo: "", iniciou_em: "",
+    restricao_alimentar: "", laudo: "", iniciou_em: new Date().toISOString().slice(0, 10),
     remedio_continuo: "", outras_condicoes: "",
   });
 
@@ -125,6 +125,7 @@ const ParticipanteNovoPage = () => {
     e.preventDefault();
     if (guardDemo(isDemo)) return;
     if (!form.nome_completo.trim()) { toast.error("Nome é obrigatório"); return; }
+    if (!form.iniciou_em) { toast.error("Data de Início no SCFV é obrigatória"); return; }
     setSaving(true);
 
     try {
