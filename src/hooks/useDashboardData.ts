@@ -33,6 +33,7 @@ export interface DashboardData {
   presencaMensal: { mes: string; presentes: number; total: number; pct: number; parcial?: boolean }[];
   deltaParticipantes: number;
   atividadesRecentes: AtividadeRecente[];
+  dataInicioOperacional: string | null;
 }
 
 const COMPETENCIA_LABELS: Record<string, string> = {
@@ -94,6 +95,7 @@ export function useDashboardData(mes?: number | null, ano?: number | null) {
           educador: x.educador || "Desconhecido",
           num_participantes: Number(x.num_participantes ?? 0),
         })),
+        dataInicioOperacional: d.dataInicioOperacional ?? null,
       };
     },
     staleTime: 5 * 60 * 1000,

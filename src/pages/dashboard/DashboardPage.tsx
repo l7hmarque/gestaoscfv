@@ -499,13 +499,36 @@ function IndicadoresTab() {
   );
 }
 
-export default function DashboardPage() {
+function DashboardHeader() {
+  const { data } = useDashboardData();
+  const dataCorte = data?.dataInicioOperacional;
+  const dataFmt = dataCorte
+    ? new Date(dataCorte + "T00:00:00").toLocaleDateString("pt-BR")
+    : null;
   return (
-    <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-5 max-w-[1400px]">
+    <div className="flex items-start justify-between gap-3 flex-wrap">
       <div>
         <h1 className="text-lg sm:text-xl font-bold text-foreground">Dashboard</h1>
         <p className="text-xs text-muted-foreground">Visão geral do projeto</p>
       </div>
+      {dataFmt && (
+        <div
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border bg-muted/40 text-[11px] text-muted-foreground"
+          title={`Indicadores institucionais consideram apenas dados a partir de ${dataFmt}, marco operacional do SysCFV. Registros anteriores referem-se a chamadas físicas consolidadas.`}
+        >
+          <Clock size={12} className="opacity-70" />
+          <span>Indicadores a partir de {dataFmt}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+export default function DashboardPage() {
+  return (
+    <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-5 max-w-[1400px]">
+      <DashboardHeader />
 
       <PendenciasIntegridadeBanner />
 
