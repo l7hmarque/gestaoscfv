@@ -35,9 +35,9 @@ export function PendenciasIntegridadeBanner() {
   ].filter((i) => i.n > 0);
 
   return (
-    <Card className="border-l-4 border-l-warning bg-warning/5 p-3 print:hidden">
+    <Card className="border-l-4 border-l-destructive bg-destructive/5 p-3 print:hidden">
       <div className="flex items-start gap-3">
-        <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+        <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-sm font-medium text-foreground">
@@ -45,7 +45,7 @@ export function PendenciasIntegridadeBanner() {
             </p>
             <Link
               to="/banco-dados"
-              className="text-xs text-warning hover:underline flex items-center gap-0.5"
+              className="text-xs text-destructive hover:underline flex items-center gap-0.5"
             >
               Revisar <ChevronRight className="h-3 w-3" />
             </Link>
