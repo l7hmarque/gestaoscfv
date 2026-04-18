@@ -2406,6 +2406,7 @@ export type Database = {
         Args: { _participante_ids?: string[] }
         Returns: Json
       }
+      recalcular_vinculos_turmas: { Args: never; Returns: Json }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
