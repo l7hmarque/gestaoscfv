@@ -242,9 +242,14 @@ const TurmasPage = () => {
           ) : (
             <>
               {isCoordenacao && (
-                <Button size="sm" variant="outline" onClick={() => setBatchMode(true)} className="text-xs">
-                  <CheckSquare className="h-3.5 w-3.5 mr-1" />Excluir em lote
-                </Button>
+                <>
+                  <Button size="sm" variant="outline" onClick={() => setRecalcOpen(true)} className="text-xs">
+                    <RefreshCw className="h-3.5 w-3.5 mr-1" />Recalcular vínculos
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setBatchMode(true)} className="text-xs">
+                    <CheckSquare className="h-3.5 w-3.5 mr-1" />Excluir em lote
+                  </Button>
+                </>
               )}
               <Button size="sm" variant="outline" onClick={() => setExportOpen(true)}>
                 <Download className="h-4 w-4 mr-1" />Listas de Presença
@@ -256,6 +261,43 @@ const TurmasPage = () => {
           )}
         </div>
       </div>
+
+      {/* Recalcular vínculos dialog */}
+      <Dialog open={recalcOpen} onOpenChange={(open) => { setRecalcOpen(open); if (!open) setRecalcResult(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Recalcular vínculos das turmas</DialogTitle>
+            <DialogDescription>
+              Reorganiza participantes ativos e em busca ativa nas turmas existentes com base em <strong>período</strong>, <strong>bairro</strong> e <strong>faixa etária</strong> do cadastro. Apenas divergências são corrigidas — vínculos corretos são preservados.
+            </DialogDescription>
+          </DialogHeader>
+          {recalcResult ? (
+            <div className="text-sm space-y-2 border rounded p-3 bg-muted/30">
+              <div className="flex justify-between"><span>Vínculos adicionados:</span><strong className="text-green-700">+{recalcResult.vinculos_adicionados}</strong></div>
+              <div className="flex justify-between"><span>Vínculos removidos:</span><strong className="text-destructive">−{recalcResult.vinculos_removidos}</strong></div>
+              <div className="flex justify-between"><span>Sem turma compatível:</span><strong>{recalcResult.sem_turma_compativel}</strong></div>
+              {recalcResult.sem_turma_compativel > 0 && (
+                <details className="mt-2">
+                  <summary className="text-xs text-muted-foreground cursor-pointer">Ver lista de participantes sem turma compatível</summary>
+                  <div className="mt-1 max-h-40 overflow-y-auto text-xs space-y-0.5">
+                    {(recalcResult.sem_turma_lista || []).map((p: any) => (
+                      <div key={p.id}>• {p.nome} <span className="text-muted-foreground">({p.periodo || "?"} / {p.faixa || "sem faixa"})</span></div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground border-l-2 border-amber-500 pl-2 py-1">
+              ⚠️ Esta ação modifica vínculos em massa. Garanta que os cadastros (período, bairro e data de nascimento) estão corretos antes de prosseguir.
+            </div>
+          )}
+          <Button onClick={handleRecalcular} disabled={recalculando} className="w-full gap-1">
+            <RefreshCw className={`h-4 w-4 ${recalculando ? "animate-spin" : ""}`} />
+            {recalculando ? "Recalculando..." : recalcResult ? "Executar novamente" : "Executar recálculo"}
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       {/* Export dialog */}
       <Dialog open={exportOpen} onOpenChange={setExportOpen}>
