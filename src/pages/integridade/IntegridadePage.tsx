@@ -179,7 +179,7 @@ function PeriodoDivergenteSection({ items, onRefresh }: { items: Detalhes["perio
             <TableHead>Cadastro</TableHead>
             <TableHead>Turma atual</TableHead>
             <TableHead>Período da turma</TableHead>
-            <TableHead>Mover para turma de {""}</TableHead>
+            <TableHead>Nova turma (do período do participante)</TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
