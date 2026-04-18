@@ -201,6 +201,18 @@ const TurmasPage = () => {
     }
   };
 
+  const handleRecalcular = async () => {
+    if (guardDemo(isDemo)) return;
+    setRecalculando(true);
+    setRecalcResult(null);
+    const { data, error } = await supabase.rpc("recalcular_vinculos_turmas" as any);
+    setRecalculando(false);
+    if (error) { toast.error("Erro ao recalcular: " + error.message); return; }
+    setRecalcResult(data);
+    toast.success(`Recálculo concluído: +${(data as any)?.vinculos_adicionados || 0} / −${(data as any)?.vinculos_removidos || 0}`);
+    fetchTurmas();
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
