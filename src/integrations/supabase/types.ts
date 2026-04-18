@@ -2394,6 +2394,7 @@ export type Database = {
         Returns: Json
       }
       get_pendencias_integridade: { Args: never; Returns: Json }
+      get_pendencias_integridade_detalhes: { Args: never; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
