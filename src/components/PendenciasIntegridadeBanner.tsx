@@ -44,7 +44,7 @@ export function PendenciasIntegridadeBanner() {
               {data.total} pendência{data.total > 1 ? "s" : ""} de integridade detectada{data.total > 1 ? "s" : ""}
             </p>
             <Link
-              to="/banco-dados"
+              to="/banco-de-dados"
               className="text-xs text-destructive hover:underline flex items-center gap-0.5"
             >
               Revisar <ChevronRight className="h-3 w-3" />
