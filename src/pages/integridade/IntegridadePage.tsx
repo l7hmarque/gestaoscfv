@@ -124,15 +124,44 @@ function SectionShell({
   );
 }
 
+interface TurmaOpt { id: string; nome: string; periodo: string; faixa_etaria: string | null }
+
 function PeriodoDivergenteSection({ items, onRefresh }: { items: Detalhes["periodo_divergente"]; onRefresh: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [turmas, setTurmas] = useState<TurmaOpt[]>([]);
+  const [destino, setDestino] = useState<Record<string, string>>({});
 
-  const alinharParticipante = async (participante_id: string, novo: string) => {
-    setBusy(participante_id);
+  useEffect(() => {
+    supabase.from("turmas").select("id, nome, periodo, faixa_etaria").eq("ativa", true).order("nome")
+      .then(({ data }) => setTurmas((data ?? []) as TurmaOpt[]));
+  }, []);
+
+  const alinharCadastro = async (participante_id: string, novo: string) => {
+    setBusy(participante_id + ":cad");
     const { error } = await supabase.from("participantes").update({ periodo: novo as any }).eq("id", participante_id);
     setBusy(null);
     if (error) { toast.error(error.message); return; }
-    toast.success("Período do participante atualizado");
+    toast.success("Período do cadastro atualizado");
+    onRefresh();
+  };
+
+  const moverTurma = async (it: Detalhes["periodo_divergente"][number]) => {
+    const nova_turma_id = destino[`${it.participante_id}-${it.turma_id}`];
+    if (!nova_turma_id) { toast.error("Selecione a nova turma"); return; }
+    setBusy(it.participante_id + ":turma");
+    // Remove vínculo antigo e cria novo
+    const { error: delErr } = await supabase
+      .from("turma_participantes")
+      .delete()
+      .eq("participante_id", it.participante_id)
+      .eq("turma_id", it.turma_id);
+    if (delErr) { setBusy(null); toast.error(delErr.message); return; }
+    const { error: insErr } = await supabase
+      .from("turma_participantes")
+      .insert({ participante_id: it.participante_id, turma_id: nova_turma_id });
+    setBusy(null);
+    if (insErr) { toast.error(insErr.message); return; }
+    toast.success("Participante movido para a nova turma");
     onRefresh();
   };
 
@@ -141,46 +170,81 @@ function PeriodoDivergenteSection({ items, onRefresh }: { items: Detalhes["perio
       icon={Users}
       title="Períodos divergentes"
       count={items.length}
-      description="Participante e turma com períodos diferentes (manhã/tarde). Alinhe ao período correto."
+      description="Participante e turma com períodos diferentes. Escolha mover o participante para uma turma do período correto, ou ajustar o cadastro se o período no perfil estiver errado."
     >
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Participante</TableHead>
-            <TableHead>Período do participante</TableHead>
-            <TableHead>Turma</TableHead>
+            <TableHead>Cadastro</TableHead>
+            <TableHead>Turma atual</TableHead>
             <TableHead>Período da turma</TableHead>
-            <TableHead className="text-right">Ação</TableHead>
+            <TableHead>Mover para turma de {""}</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {items.map((it) => (
-            <TableRow key={`${it.participante_id}-${it.turma_id}`}>
-              <TableCell>
-                <Link to={`/participantes/${it.participante_id}`} className="text-primary hover:underline">
-                  {it.participante_nome}
-                </Link>
-              </TableCell>
-              <TableCell><Badge variant="outline">{periodoLabel(it.participante_periodo)}</Badge></TableCell>
-              <TableCell>
-                <Link to={`/turmas/${it.turma_id}`} className="text-primary hover:underline">{it.turma_nome}</Link>
-              </TableCell>
-              <TableCell><Badge variant="outline">{periodoLabel(it.turma_periodo)}</Badge></TableCell>
-              <TableCell className="text-right">
-                <div className="flex gap-2 justify-end flex-wrap">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={busy === it.participante_id}
-                    onClick={() => alinharParticipante(it.participante_id, it.turma_periodo)}
+          {items.map((it) => {
+            const key = `${it.participante_id}-${it.turma_id}`;
+            const opcoes = turmas.filter((t) => t.periodo === it.participante_periodo);
+            return (
+              <TableRow key={key}>
+                <TableCell>
+                  <Link to={`/participantes/${it.participante_id}`} className="text-primary hover:underline">
+                    {it.participante_nome}
+                  </Link>
+                </TableCell>
+                <TableCell><Badge variant="outline">{periodoLabel(it.participante_periodo)}</Badge></TableCell>
+                <TableCell>
+                  <Link to={`/turmas/${it.turma_id}`} className="text-primary hover:underline">{it.turma_nome}</Link>
+                </TableCell>
+                <TableCell><Badge variant="outline">{periodoLabel(it.turma_periodo)}</Badge></TableCell>
+                <TableCell>
+                  <Select
+                    value={destino[key] ?? ""}
+                    onValueChange={(v) => setDestino((s) => ({ ...s, [key]: v }))}
                   >
-                    {busy === it.participante_id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRight className="h-3 w-3 mr-1" />}
-                    Alinhar ao da turma
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
+                    <SelectTrigger className="w-[280px]">
+                      <SelectValue placeholder={`Turmas de ${periodoLabel(it.participante_periodo)}`} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {opcoes.length === 0 ? (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">Nenhuma turma do período</div>
+                      ) : (
+                        opcoes.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.nome}{t.faixa_etaria ? ` (${t.faixa_etaria})` : ""}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex gap-2 justify-end flex-wrap">
+                    <Button
+                      size="sm"
+                      disabled={busy === it.participante_id + ":turma" || !destino[key]}
+                      onClick={() => moverTurma(it)}
+                    >
+                      {busy === it.participante_id + ":turma" ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRight className="h-3 w-3 mr-1" />}
+                      Mover de turma
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy === it.participante_id + ":cad"}
+                      onClick={() => alinharCadastro(it.participante_id, it.turma_periodo)}
+                      title="Use se o período no cadastro do participante é que está errado"
+                    >
+                      {busy === it.participante_id + ":cad" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                      Ajustar cadastro
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </SectionShell>
