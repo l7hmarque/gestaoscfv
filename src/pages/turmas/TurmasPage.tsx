@@ -46,6 +46,9 @@ const TurmasPage = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
   const [batchJustificativa, setBatchJustificativa] = useState("");
+  const [recalcOpen, setRecalcOpen] = useState(false);
+  const [recalculando, setRecalculando] = useState(false);
+  const [recalcResult, setRecalcResult] = useState<any>(null);
 
   const isDemo = useIsDemo();
 
