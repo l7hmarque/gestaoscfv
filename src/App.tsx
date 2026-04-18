@@ -52,6 +52,7 @@ const ConfiguracoesPage = lazy(() => import("./pages/configuracoes/Configuracoes
 const MuralPage = lazy(() => import("./pages/mural/MuralPage"));
 const CronogramaPage = lazy(() => import("./pages/cronograma/CronogramaPage"));
 const DesignPreviewPage = lazy(() => import("./pages/preview/DesignPreviewPage"));
+const IntegridadePage = lazy(() => import("./pages/integridade/IntegridadePage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
