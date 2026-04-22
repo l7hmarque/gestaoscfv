@@ -1,97 +1,109 @@
+# Privacidade dos recados + Check-in com janela de antecedência
 
+Duas entregas conectadas: **isolar o canal de mensagens da família** (hoje vazando recados internos/técnicos) e adicionar um **check-in diário** que precisa ser feito **no dia anterior ou até 1h antes do início (07:00 GMT-3)**, visível ao motorista no painel de pontos.
 
-# Módulo Cozinha — Painel do Cozinheiro (com Mapa de Restrições Alimentares)
+## 1. Privacidade — recados dedicados à família
 
-Hub dedicado em `/cozinha` para o cargo de Cozinheiro, com gestão de insumos, cardápios semanais, relatórios de consumo e **mapa visual de restrições alimentares** dos participantes ativos cruzado com os dias em que frequentam.
+Edge function `public-familia-data` hoje seleciona qualquer linha de `recados` ligada ao `participante_id`, expondo correspondência interna sigilosa.
 
-## O que será entregue
+- Nova tabela `recados_familia`: `id`, `participante_id` (FK), `remetente_id` (profile, FK), `conteudo`, `lido_em` (timestamp null), `created_at`.
+- RLS: SELECT/INSERT/UPDATE/DELETE só para `coordenacao` OR `tecnico` OR `educador` (família acessa via edge function com token, nunca por RLS).
+- `public-familia-data` case `recados` reescrito para ler **apenas** `recados_familia` (e marcar `lido_em = now()`).
+- `SendRecadoDialog` ganha prop `paraFamilia` que roteia o insert para `recados_familia`. Botão "Enviar recado à família" no perfil do participante e na listagem.
+- Aba Recados do portal da família continua igual visualmente, alimentada pelo novo canal.
 
-### 1. Rota `/cozinha` (acesso `cozinheiro` + `coordenacao`)
-Item na sidebar, grupo **Gestão**, ícone ChefHat. Bloqueado para outros perfis com redirect.
+## 2. Check-in da família com janela de antecedência
 
-### 2. Layout em 5 abas
+**Regra de negócio (timezone America/Sao_Paulo, GMT-3):**
 
-**Aba 1 — Painel (default)**
-KPIs operacionais:
-- Refeições previstas hoje (participantes ativos por período × cardápio do dia)
-- Itens em estoque baixo (qtd ≤ estoque_minimo) com alerta vermelho
-- Itens vencendo em 7 dias / vencidos
-- **Total de participantes ativos com restrição alimentar** + atalho para a aba Restrições
-- Lista rápida das próximas 3 refeições da semana
-- Atalho "Compartilhar cardápio no Feed"
+- Check-in para o dia D pode ser feito a partir de **D-7 até as 06:00 de D** (1h antes das 07:00, horário-padrão de início do turno da manhã).
+- Após 06:00 de D, o card fica **bloqueado** com mensagem clara: "Janela de confirmação encerrada — fale com a coordenação".
+- Default exibido para a família: **dia seguinte** (após 18:00) ou **dia atual** (entre 00:00 e 06:00). Permitido também escolher os próximos 7 dias úteis.
+- Validação dupla: client-side (UX) + server-side na edge function (autoridade), usando `Intl.DateTimeFormat` com `timeZone: 'America/Sao_Paulo'` para evitar bug de fuso do navegador da família.
 
-**Aba 2 — Estoque (Insumos)**
-CRUD completo: nome, categoria (Hortifruti, Carnes, Grãos, Laticínios, Mercearia, Limpeza, Outros), unidade (kg, L, un, pct), qtd atual, estoque mínimo, validade, valor unitário, observação. Filtros por categoria/status, busca, badges coloridas (OK/baixo/vencendo/vencido). Ações **Entrada (+)** e **Saída (−)** com modal de qtd + motivo. Exportação XLSX/PDF `SysCFV_EstoqueCozinha_{data}_{hora}`.
+**Tabela nova `participante_checkins**`:
 
-**Aba 3 — Cardápio Semanal**
-Grade segunda→sexta × Café da Manhã / Almoço / Lanche da Tarde. Editor inline com seleção de insumos do estoque + qtd prevista. Badge de viabilidade (verde/vermelho). Botões "Replicar semana anterior" e "Compartilhar no Feed/Mural". Visível só a cozinheiro/coord (demais veem só o que for publicado).
+- `id`, `participante_id` (FK), `data` (date), `periodo` (`manha`|`tarde`), `confirmado` (boolean), `confirmado_em` (timestamptz), `confirmado_por` (text — nome do responsável, opcional), `observacao` (text null), `created_at`, `updated_at`.
+- Unique `(participante_id, data, periodo)`.
 
-**Aba 4 — Restrições Alimentares (NOVO)**
-Mapa operacional para o cozinheiro planejar refeições seguras:
+**RLS**:
 
-- **Visão "Por Dia da Semana" (default)**: 5 colunas (seg–sex), cada uma listando os participantes ativos com `restricao_alimentar` preenchida que frequentam aquele dia, agrupados por período (Manhã/Tarde). Cada card mostra: nome, idade, período, **badge da restrição** (cor por categoria detectada: lactose, glúten, alergia, vegetariano, diabetes, outros) e **texto livre completo** da restrição em tooltip/expandível. Também exibe "remédio contínuo" e "outras condições" quando relevantes.
-- **Visão "Por Restrição"**: agrupa por tipo de restrição detectada e mostra todos os participantes afetados + dias que frequentam.
-- **Visão "Tabela completa"**: DataTable filtrável (nome, restrição, período, dias, turma, bairro) exportável em XLSX/PDF — `SysCFV_RestricoesAlimentares_{data}_{hora}` — para imprimir e fixar na cozinha.
-- Filtros: período, bairro, busca por nome, busca por palavra na restrição.
-- Banner de alerta quando houver restrição grave (alergia/anafilaxia detectada por palavras-chave) com destaque vermelho.
+- SELECT: `coordenacao` OR `motorista` OR `tecnico` OR `educador` OR `cozinheiro`.
+- INSERT/UPDATE: equipe operacional (não-visitante). Família escreve apenas via edge function.
+- DELETE: `coordenacao`.
 
-**Como os dias são determinados**: cruza `participantes` (status=ativo, com `restricao_alimentar` ou `remedio_continuo` não-nulos) com `turma_participantes` → `turmas.dias_semana` (array). Se o participante não tiver turma vinculada, assume todos os dias úteis do período dele e marca como "sem turma vinculada" (ícone âmbar).
+**Edge function `public-familia-data` — 2 novos cases**:
 
-**Aba 5 — Movimentações & Relatórios**
-Histórico cronológico de entradas/saídas/ajustes, filtros por período/item/tipo, gráfico recharts de consumo dos 30 dias (top 10 itens), exportação XLSX do consumo do mês.
+- `checkins` → retorna últimos 14 dias do participante + status do dia atual e do próximo dia útil.
+- `registrar_checkin` → upsert idempotente por `(participante_id, data, periodo)`. **Bloqueia** se `now()` (em America/Sao_Paulo) já passou de `data 06:00`. Bloqueia também se `data` está mais de 7 dias no futuro. Aceita `confirmado=true` ou `false` (cancelar). Retorna erro 422 amigável se fora da janela.
+
+**UI no portal da família** (`FamiliaDashboardPage`) — seção **"Confirmar presença"** acima de Atividades:
+
+- Card grande com foto, nome curto e título dinâmico:
+  - Antes das 06:00 do dia D: **"Vai hoje? (DD/MM)"**
+  - Após 06:00 e antes das 18:00: **"Confirmar amanhã (DD/MM)"** + nota "Hoje já está fechado" - caso o participante tenha atividades no dia seguinte.
+  - Após 18:00: **"Vai amanhã? (DD/MM)"**
+- Dois botões enormes: **"✅ SIM, vai"** (verde dominante) e **"❌ Hoje não vai"** (vermelho secundário). Períodos manhã/tarde mostrados conforme turma; ambos empilhados se Integral. Se clicar em nao vai, campo de justificativa obrigatorio persuadindo de forma inteligente ao usuario escrever o motivo que nao vai .
+- Se check in for Nao Vai, nome da criança ao lancar presenca no relatorio de atividades fica pre selecionado como falta e com a justificativa colocada pelo responsavel. 
+- Quando o dia escolhido **não é dia de atividade da criança** (cruzando `turmas.dias_semana`): "Não há atividade neste dia 🌿".
+- **Estado bloqueado** (após 06:00 do dia consultado): card cinza, ícone cadeado, texto "Janela encerrada às 06:00 — fale com a coordenação". Botão sutil "Confirmar para amanhã" desloca para D+1.
+- Picker discreto "Confirmar para outro dia" abre os próximos 7 dias úteis.
+- **Reforço imediato (criação de hábito)**:
+  - Confete `canvas-confetti` + toast "Obrigado! O motorista já foi avisado 🚐".
+  - Card vira verde com "✅ Confirmado às HH:mm" e botão "Cancelar (até 06:00 de DD/MM)".
+  - **Streak** "🔥 X dias confirmando" calculado dos últimos 14 dias.
+  - Badge no topo "Última confirmação: DD/MM HH:mm".
+  - Lembrete passivo: se houver atividade amanhã e ainda não confirmou após 19:00 do dia anterior, borda âmbar pulsante e texto "⏰ Confirme agora — janela fecha às 06:00".
+
+**Visibilidade para o motorista** (`DashboardTransporteTab`):
+
+- Nova seção **"Embarques de hoje"** no topo (só `motorista` e `coordenacao`).
+- Por ponto, lista os participantes do período corrente com 3 estados:
+  - 🟢 **Confirmado** — verde, hora e nome de quem confirmou.
+  - 🔴 **Não vai** — vermelho riscado.
+  - ⚪ **Sem resposta** — cinza, "Sem confirmação até 06:00".
+- Cabeçalho de cada ponto: `🟢 X · 🔴 Y · ⚪ Z`.
+- Botão "Marcar como embarcou" para confirmação manual. E botao "Nao embarcou". Com registro de horário GMT -3 para as marcações. 
+- Auto-refresh 60s + realtime opcional via `postgres_changes` em `participante_checkins`.
 
 ## Detalhes técnicos
 
-**Backend (1 migration)** — 3 tabelas + RLS + 2 RPCs:
+**Migration única**:
 
-1. `cozinha_insumos` — `id`, `nome`, `categoria`, `unidade`, `quantidade_atual` (numeric default 0), `estoque_minimo` (numeric default 0), `validade` (date null), `valor_unitario` (numeric null), `observacao`, `created_at`, `updated_at`.
-2. `cozinha_movimentacoes` — `id`, `insumo_id` (FK), `tipo` ('entrada'|'saida'|'ajuste'), `quantidade`, `motivo`, `responsavel_id` (FK profiles), `created_at`. **Trigger** atualiza `cozinha_insumos.quantidade_atual` automaticamente.
-3. `cozinha_cardapio` — `id`, `semana_inicio` (date — segunda), `dia_semana` (1–5), `refeicao` ('cafe'|'almoco'|'lanche'), `prato`, `insumos_previstos` (jsonb `[{insumo_id, quantidade}]`), `criado_por`, timestamps. Unique (semana_inicio, dia_semana, refeicao).
+1. `recados_familia` + RLS (4 policies) + trigger `updated_at`.
+2. `participante_checkins` + unique `(participante_id, data, periodo)` + RLS (4 policies) + trigger `updated_at` + index `(participante_id, data)` para o painel do motorista.
 
-**RLS** (alinhado ao endurecimento recente):
-- SELECT/INSERT/UPDATE/DELETE: somente `cozinheiro` OU `coordenacao`.
-- `responsavel_id` em movimentações deve casar com profile do `auth.uid()`.
+**Edge function `public-familia-data/index.ts**`:
 
-**RPCs `SECURITY DEFINER` + `SET search_path = public` + gate `has_role(auth.uid(),'cozinheiro') OR has_role(auth.uid(),'coordenacao')`**:
+- Case `recados` → `recados_familia`.
+- Cases `checkins` (leitura 14d) e `registrar_checkin` (upsert com **gate de janela** usando `new Date().toLocaleString('en-US', {timeZone:'America/Sao_Paulo'})`).
+- Mantém validação HMAC já existente.
 
-- `get_cozinha_stats()` → KPIs do painel (estoque baixo, vencendo, refeições hoje, top consumo 30d, total restrições).
-- `get_restricoes_alimentares()` → retorna jsonb com array de participantes ativos que tenham `restricao_alimentar` OU `remedio_continuo` OU `outras_condicoes` preenchidos, incluindo: id, nome, idade, periodo, bairro, foto_url, restricao_alimentar (texto), remedio_continuo, outras_condicoes, turmas (array de `{id, nome, dias_semana[]}`) e `dias_frequenta` (união dos dias_semana das turmas, ou `['seg','ter','qua','qui','sex']` quando sem turma vinculada).
+**Frontend**:
 
-**Frontend (6 arquivos novos + 2 edições)**:
-- `src/pages/cozinha/CozinhaPage.tsx` — shell com Tabs controladas (5 abas).
-- `src/pages/cozinha/PainelTab.tsx` — KPIs + alertas + atalho para Restrições.
-- `src/pages/cozinha/EstoqueTab.tsx` — DataTable + diálogos CRUD/entrada/saída.
-- `src/pages/cozinha/CardapioTab.tsx` — grade 5×3 + editor + viabilidade.
-- `src/pages/cozinha/RestricoesTab.tsx` — 3 visões (Por Dia / Por Restrição / Tabela), filtros, exportação, detector de palavras-chave para badge de gravidade.
-- `src/pages/cozinha/MovimentacoesTab.tsx` — histórico + gráfico + export.
-- `src/hooks/useCozinhaData.ts` — TanStack Query para `get_cozinha_stats` e `get_restricoes_alimentares`.
-- Edição `src/components/AppSidebar.tsx` — item "Cozinha" visível se role = `cozinheiro` OR `coordenacao`.
-- Edição `src/App.tsx` — rota lazy `/cozinha` em `<ProtectedRoute>`.
-
-**Detecção de categoria/gravidade da restrição** (no frontend, sem mudar dados):
-- Categoria por palavras-chave em `restricao_alimentar`: lactose/leite → laticínio; glúten/trigo → glúten; alergia/anafilaxia/amendoim/castanha → alergia (vermelho); vegetariano/vegano → vegetariano; diabetes/diabético → diabetes; senão "outros".
-- Gravidade alta = qualquer ocorrência de "anafil", "alergia grave", "epipen" → banner vermelho fixo no topo da aba.
-
-**Estilo**: cards com borda lateral 4px (verde/âmbar/vermelho conforme status/gravidade), grayscale para exportações, nomenclatura `SysCFV_{Categoria}_{data}_{hora}`.
+- `src/pages/familia/FamiliaDashboardPage.tsx` — seção check-in com botões grandes, picker D±7, estados bloqueado/confirmado/pendente, streak, confete (`canvas-confetti`).
+- `src/components/SendRecadoDialog.tsx` — prop `paraFamilia` roteando para `recados_familia`. Botão de gatilho em `ParticipantePerfilPage.tsx` e `ParticipantesPage.tsx`.
+- `src/pages/dashboard/DashboardTransporteTab.tsx` — seção "Embarques de hoje" com cards por ponto, contadores, badges, auto-refresh, botão "Marcar embarque".
+- Helper compartilhado `src/lib/checkinWindow.ts` com `isCheckinAberto(dataAlvo: Date)` e `proximaJanelaTexto()` baseados em America/Sao_Paulo (mesma lógica do server, no client só para UX).
 
 ## Diagrama
 
 ```text
-/cozinha (cozinheiro + coordenacao)
-  ├── Painel        → get_cozinha_stats() — alertas + refeições hoje + total restrições
-  ├── Estoque       → cozinha_insumos + entrada/saída
-  ├── Cardápio      → cozinha_cardapio (5×3) + viabilidade
-  ├── Restrições    → get_restricoes_alimentares() — visões Por Dia / Por Restrição / Tabela
-  └── Movimentações → cozinha_movimentacoes + gráfico 30d
+JANELA DE CHECK-IN (America/Sao_Paulo)
+  D-7 ──────────────────────────► D 06:00 ✖ fechado
+                                  ▲
+                                  │ 1h antes do início (07:00)
+PORTAL DA FAMÍLIA
+  ├── Card "Vai amanhã?" / "Vai hoje?"  ──[POST registrar_checkin]──► gate servidor
+  │     └── ✅ confete + 🔥 streak + "Confirmado HH:mm"
+  └── Recados (canal limpo)  ◄──[GET recados]── recados_familia
 
-cruzamento de dados (Restrições)
-  participantes (restricao_alimentar IS NOT NULL)
-       └─► turma_participantes ─► turmas.dias_semana[]
-                                   └─► dias_frequenta (união)
+PAINEL TRANSPORTE (motorista + coord)
+  └── Embarques de hoje ── 🟢 confirmado · 🔴 não vai · ⚪ pendente   (refresh 60s)
 ```
 
 ## Fora do escopo
-- Compras/cotação de fornecedores → já existe em `/financeiro`
-- Edição da restrição alimentar → continua no perfil do participante (`/participantes/:id`)
-- Geração de cardápio por IA (iteração futura)
 
+- Notificações push/SMS de lembrete (iteração futura).
+- Janela configurável por território (fixa em 06:00 GMT-3 nesta entrega; constante exposta em `src/lib/constants.ts` para ajuste fácil).
+- Migração de recados antigos — `recados_familia` nasce vazia e o portal volta limpo na hora.
