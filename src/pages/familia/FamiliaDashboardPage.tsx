@@ -606,6 +606,32 @@ export default function FamiliaDashboardPage() {
           CAIA Medianeira — Sociedade Civil Nossa Senhora Aparecida
         </p>
       </div>
+
+      <Dialog open={!!naoVaiDialog} onOpenChange={(o) => { if (!o) { setNaoVaiDialog(null); setNaoVaiMotivo(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Por que hoje não vai?</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Sua resposta ajuda nossa equipe a apoiar a família — pode ser doença, viagem, compromisso etc.
+            </p>
+            <Label className="text-xs">Motivo (obrigatório)</Label>
+            <Textarea
+              value={naoVaiMotivo}
+              onChange={(e) => setNaoVaiMotivo(e.target.value)}
+              placeholder="Ex.: está com febre, vai ao médico, viagem em família..."
+              className="min-h-[80px]"
+            />
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => { setNaoVaiDialog(null); setNaoVaiMotivo(""); }}>
+                Voltar
+              </Button>
+              <Button className="flex-1" onClick={handleNaoVaiConfirm}>
+                Confirmar ausência
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
