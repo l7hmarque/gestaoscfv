@@ -1,73 +1,98 @@
 
 
-O usuário quer um **marco temporal** ("data de corte") para que dashboard, KPIs e relatórios oficiais ignorem dados anteriores — período em que o sistema não era usado e os dados são incompletos/sintéticos. Isso aumenta a integridade institucional.
+# Módulo de Coordenação
 
-Análise:
-- Março/2026: 156 relatórios, 100% sintéticos (consolidados de chamada física) — NÃO refletem uso real do sistema.
-- Abril/2026: 12 relatórios reais até agora — primeiro mês com adoção genuína.
-- Logo, **01/04/2026** é o ponto de corte natural ("Data de Início Operacional").
+Hub dedicado em `/coordenacao` que consolida atribuições do cargo de coordenador e oferece **KPIs do próprio trabalho de gestão**. Os indicadores reaproveitam e se somam aos dados já calculados pelo `get_dashboard_stats` e `get_pendencias_integridade` existentes — sem duplicar lógica, sem criar métricas paralelas.
 
-Onde aplicar o filtro:
-1. `get_dashboard_stats` — KPIs, médias ELO/adesão, top educadores, presença mensal, atividades recentes, delta de participantes.
-2. `get_pendencias_integridade` — não filtra (continua mostrando estado atual).
-3. Relatórios institucionais (REO, Mensal, Gestão, Prestação de Contas) — adicionar nota de rodapé e respeitar corte quando o período solicitado for retroativo.
-4. UI: badge "Dados a partir de 01/04/2026" no dashboard + selo nos PDFs/XLSX.
+## Princípio de integração de dados
 
-Implementação proposta — armazenar a data em `configuracoes_gerais` (chave `data_inicio_operacional`) para que a coordenação possa ajustar pela tela `/configuracoes` sem deploy.
+Os KPIs do coordenador são uma **camada complementar** sobre o que já existe:
 
----
+- **Reaproveita**: chama `get_dashboard_stats` e `get_pendencias_integridade` por dentro do novo RPC `get_coordenacao_stats` e mescla no JSON de retorno (chaves `dashboard` e `pendencias`).
+- **Respeita o marco operacional**: lê `configuracoes_gerais.data_inicio_operacional` (mesma constante usada no dashboard) para filtrar audit_log, transferências e tempos médios.
+- **Adiciona** apenas o que ainda não existe: tempos médios de resposta, decisões do coordenador no `audit_log`, fila priorizada de ações, cobertura de metas territoriais cruzada com `bairros.meta_*`.
+- **Frontend**: a tela de coordenação consome o RPC unificado e exibe lado a lado os KPIs operacionais herdados do dashboard + os KPIs de gestão novos, deixando claro de onde vem cada número.
 
-## Plano
+## O que será entregue
 
-### 1. Banco — guardar a data de corte
-- Inserir em `configuracoes_gerais`: `chave='data_inicio_operacional'`, `valor='2026-04-01'`.
-- Atualizar `get_dashboard_stats` para ler essa chave e:
-  - Excluir relatórios/presenças anteriores ao corte de TODAS as métricas agregadas (ELO mensal, adesão mensal, presença mensal, top educadores, médias, taxa de frequência, atividades recentes, alertas).
-  - Recalcular `deltaParticipantes` respeitando corte (não comparar com período pré-sistema).
-  - Retornar `dataInicioOperacional` no JSON para a UI exibir.
+### 1. Rota `/coordenacao` (acesso restrito ao role `coordenacao`)
+Item dedicado na sidebar, grupo **Gestão**, ícone Briefcase. Bloqueado para outros perfis com redirect + toast.
 
-### 2. UI — Dashboard
-- `useDashboardData.ts`: incluir `dataInicioOperacional` no tipo.
-- `DashboardPage.tsx`: badge discreto no header — "Indicadores a partir de 01/04/2026" (com tooltip explicativo).
-- `PendenciasIntegridadeBanner` permanece inalterado.
+### 2. Layout em 5 abas
 
-### 3. UI — Configurações
-- Em `/configuracoes`, novo card "Marco Operacional" permitindo coordenação editar a data (input + botão salvar). Auditado via `audit_log`.
+**Aba 1 — Painel do Coordenador (default)**
+- KPIs herdados (`dashboard.*`): participantes ativos, turmas ativas, taxa de frequência, média ELO, delta de participantes — exibidos como contexto operacional.
+- KPIs novos de gestão (último período): pendências de integridade abertas (de `pendencias.total`, com link para `/integridade`), aprovações de transferência pendentes, avisos ativos, recados técnicos sem resposta, encaminhamentos abertos > 30 dias, turmas sem educador / vazias (de `pendencias.*`), % de educadores que entregaram relatórios no mês, % de planejamentos com turma vinculada, cobertura de metas territoriais.
+- Cada card indica a fonte (Operacional / Gestão / Integridade) com badge sutil.
 
-### 4. Relatórios institucionais
-- Hooks/edge functions de relatório (`useRelatorioGestao`, `generate-relatorio-mensal`, `generate-reo`) — filtrar dados por `>= data_inicio_operacional` quando o intervalo solicitado começar antes, e adicionar nota de rodapé:
-  > "Os indicadores deste relatório consideram dados a partir de 01/04/2026 (início operacional do SysCFV). Registros anteriores referem-se a chamadas físicas consolidadas e não compõem as métricas analíticas."
+**Aba 2 — Ações Pendentes**
+Fila única e priorizada construída a partir das tabelas existentes:
+- Transferências aguardando aprovação (`participante_transferencias`)
+- Matrículas pendentes
+- Top categorias de `get_pendencias_integridade_detalhes`
+- Recados técnicos endereçados à coordenação
+- Avisos expirando em 7 dias (`avisos_sistema`)
 
-### 5. Memória do projeto
-- Salvar regra como `mem://constraints/data-inicio-operacional` e referenciar no `index.md`.
+Cada item tem ação rápida (aprovar/rejeitar/abrir tela específica) sem sair da página.
 
----
+**Aba 3 — Decisões e Auditoria**
+Log de `audit_log` filtrado pelo `user_id` do coordenador logado:
+- Tabela com data, ação, tabela afetada, justificativa
+- Filtros: período, tipo de ação (exclusão, aprovação, transferência, desligamento)
+- Contadores agregados (exclusões justificadas, aprovações, desligamentos validados)
+- Toggle "Equipe (todos coordenadores)" / "Individual"
+
+**Aba 4 — Indicadores de Qualidade da Gestão**
+Métricas derivadas dos dados já existentes:
+- Tempo médio de resposta a transferências (`participante_transferencias.created_at` → `data_transferencia`)
+- Tempo médio de resolução de pendências (via `audit_log`)
+- % de turmas ativas com educador (de `pendencias.turmas_sem_educador` vs total)
+- % de participantes ativos sem pendências
+- Reusa séries `presencaMensal` e `eloMensal` já entregues por `get_dashboard_stats` para gráficos de evolução
+- Cobertura territorial real (de `dashboard.participantesPorBairro` + `participantesPorPeriodo`) vs metas (`bairros.meta_*`)
+
+**Aba 5 — Relatório do Coordenador**
+PDF + XLSX do trabalho da coordenação no período selecionado, reaproveitando `addInstitutionalHeader`, `applyInstitutionalStyle`, `sysCfvFileName`, paleta grayscale. Conteúdo: capa, sumário executivo (mesmos KPIs do painel), decisões registradas, aprovações concedidas, desligamentos validados, pendências abertas vs resolvidas, gráficos. Nome: `SysCFV_RelatorioCoordenacao_{YYYY-MM-DD}_{HHmmss}.{ext}`.
 
 ## Detalhes técnicos
 
-**Migration** — atualizar `get_dashboard_stats`:
-```sql
--- Ler config no início:
-SELECT valor::date INTO v_data_corte
-FROM configuracoes_gerais WHERE chave = 'data_inicio_operacional';
-v_data_corte := COALESCE(v_data_corte, '2026-04-01'::date);
+**Backend (1 migration)** — RPC `get_coordenacao_stats(_user_id uuid, _periodo_dias int)`:
+- Lê data de corte de `configuracoes_gerais.data_inicio_operacional` (mesma fonte do dashboard).
+- Chama `public.get_dashboard_stats(NULL, NULL)` e `public.get_pendencias_integridade()` por dentro e mescla os resultados.
+- Adiciona blocos novos: `acoes_pendentes`, `qualidade_gestao` (tempos médios via `EXTRACT(EPOCH FROM ...)`), `decisoes_proprias` (count de `audit_log` filtrado), `cobertura_metas`.
+- Retorna `jsonb_build_object('dashboard', ..., 'pendencias', ..., 'gestao', ...)`.
+- `SECURITY DEFINER` + check `has_role(_user_id, 'coordenacao')`.
 
--- Aplicar em TODOS os WHERE de relatorios_atividade/relatorio_presenca/presenca:
-AND data >= v_data_corte
+**Frontend (3 arquivos novos + 2 edições)**:
+- `src/pages/coordenacao/CoordenacaoPage.tsx` — shell com Tabs (estado controlado, padrão do projeto)
+- `src/pages/coordenacao/PainelCoordenadorTab.tsx` — KPIs unificados (operacional + gestão) e fila de ações
+- `src/hooks/useCoordenacaoData.ts` — TanStack Query consumindo a RPC, expondo `dashboard`, `pendencias` e `gestao` para componentes
+- Edição `src/components/AppSidebar.tsx` — novo item "Coordenação" no grupo Gestão (visível só se role = coordenacao)
+- Edição `src/App.tsx` — rota lazy-loaded `/coordenacao` dentro de `<ProtectedRoute>`
+
+**Estilo**: cards com borda lateral 4px colorida (padrão `DashboardPage`), badge de origem do dado (Operacional/Gestão/Integridade), grayscale para documentos exportados.
+
+## Diagrama de fluxo de dados
+
+```text
+configuracoes_gerais.data_inicio_operacional
+            │
+            ▼
+get_coordenacao_stats(user_id, periodo_dias)
+   ├── chama get_dashboard_stats()        → bloco "dashboard"
+   ├── chama get_pendencias_integridade() → bloco "pendencias"
+   └── calcula novos KPIs de gestão       → bloco "gestao"
+            │
+            ▼
+useCoordenacaoData (TanStack Query, cache 5min)
+            │
+            ▼
+CoordenacaoPage → 5 abas (KPIs unificados sem duplicar lógica)
 ```
 
-**Insert** (data tool, não migration) — semear configuração:
-```sql
-INSERT INTO configuracoes_gerais (chave, valor)
-VALUES ('data_inicio_operacional', '2026-04-01')
-ON CONFLICT (chave) DO NOTHING;
-```
-
-**Frontend**: badge no header do `DashboardPage` ao lado de "Dashboard SysCFV".
-
----
-
-## Decisão necessária
-
-Antes de executar, preciso confirmar 1 ponto:
+## Fora do escopo (já existem em outras páginas)
+- Aprovação individual de transferências → `/participantes` (linkada daqui)
+- Pendências detalhadas → `/integridade` (linkada daqui)
+- Desligamento em lote → `/desligamento-admin` (linkado daqui)
+- Edição de roles → `/configuracoes`
 
