@@ -16,6 +16,31 @@ function stripAccents(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
+// HMAC-signed token: base64url(JSON payload).base64url(HMAC-SHA256)
+// Payload: { ids: string[], exp: number }
+function b64url(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+async function hmacSign(payload: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
+  return b64url(new Uint8Array(sig));
+}
+async function issueFamiliaToken(participanteIds: string[]): Promise<string> {
+  const secret = Deno.env.get("FAMILIA_TOKEN_SECRET")
+    ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!; // fallback so it always works
+  const payload = { ids: participanteIds, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 4 }; // 4h
+  const payloadStr = b64url(new TextEncoder().encode(JSON.stringify(payload)));
+  const sig = await hmacSign(payloadStr, secret);
+  return `${payloadStr}.${sig}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -62,12 +87,14 @@ Deno.serve(async (req) => {
           .single();
 
         if (fullPart) {
+          const token = await issueFamiliaToken([fullPart.id]);
           return respond({
             found: true,
             match_type: "fuzzy",
             similaridade: best.sim,
             participantes: [buildSafe(fullPart)],
             needs_confirmation: true,
+            token,
           });
         }
       }
@@ -77,11 +104,15 @@ Deno.serve(async (req) => {
     // 3. Find siblings by responsavel name
     const siblings = await findSiblings(supabaseAdmin, participante);
 
+    const allIds = [participante.id, ...siblings.map((s: any) => s.id)];
+    const token = await issueFamiliaToken(allIds);
+
     return respond({
       found: true,
       match_type: matchType,
       participantes: [buildSafe(participante), ...siblings.map(buildSafe)],
       needs_confirmation: false,
+      token,
     });
   } catch (err) {
     return respond({ error: err.message }, 500);

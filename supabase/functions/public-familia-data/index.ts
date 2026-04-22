@@ -12,15 +12,53 @@ function respond(body: object, status = 200) {
   });
 }
 
+function fromB64url(s: string): Uint8Array {
+  const pad = "=".repeat((4 - (s.length % 4)) % 4);
+  const b64 = (s + pad).replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+async function verifyFamiliaToken(token: string, participanteId: string): Promise<boolean> {
+  try {
+    const [payloadStr, sig] = token.split(".");
+    if (!payloadStr || !sig) return false;
+    const secret = Deno.env.get("FAMILIA_TOKEN_SECRET")
+      ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["verify"],
+    );
+    const ok = await crypto.subtle.verify(
+      "HMAC",
+      key,
+      fromB64url(sig),
+      new TextEncoder().encode(payloadStr),
+    );
+    if (!ok) return false;
+    const payload = JSON.parse(new TextDecoder().decode(fromB64url(payloadStr)));
+    if (typeof payload.exp !== "number" || payload.exp < Math.floor(Date.now() / 1000)) return false;
+    if (!Array.isArray(payload.ids) || !payload.ids.includes(participanteId)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const body = await req.json();
-    const { participante_id, tipo } = body;
+    const { participante_id, tipo, token } = body;
 
     if (!participante_id || !tipo) {
       return respond({ error: "participante_id e tipo são obrigatórios" }, 400);
+    }
+
+    if (!token || !(await verifyFamiliaToken(token, participante_id))) {
+      return respond({ error: "Token inválido ou expirado" }, 401);
     }
 
     const supabaseAdmin = createClient(
