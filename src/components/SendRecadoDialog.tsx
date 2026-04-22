@@ -13,10 +13,12 @@ import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 interface Props {
   toTecnicos?: boolean;
+  paraFamilia?: boolean;
   trigger?: React.ReactNode;
+  participanteIdFixo?: string;
 }
 
-export function SendRecadoDialog({ toTecnicos, trigger }: Props) {
+export function SendRecadoDialog({ toTecnicos, paraFamilia, trigger, participanteIdFixo }: Props) {
   const { user } = useAuth();
   const { log: auditLog } = useAuditLog();
   const isDemo = useIsDemo();
@@ -25,7 +27,7 @@ export function SendRecadoDialog({ toTecnicos, trigger }: Props) {
   const [participantes, setParticipantes] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
   const [myProfileId, setMyProfileId] = useState("");
-  const [form, setForm] = useState({ destinatario_id: "", participante_id: "", conteudo: "" });
+  const [form, setForm] = useState({ destinatario_id: "", participante_id: participanteIdFixo || "", conteudo: "" });
 
   useEffect(() => {
     if (!open) return;
@@ -58,8 +60,36 @@ export function SendRecadoDialog({ toTecnicos, trigger }: Props) {
 
   const handleSend = async () => {
     if (guardDemo(isDemo)) return;
-    if (!form.destinatario_id || !form.conteudo.trim()) { toast.error("Preencha destinatário e conteúdo"); return; }
+    if (paraFamilia) {
+      if (!form.participante_id || form.participante_id === "__none__" || !form.conteudo.trim()) {
+        toast.error("Selecione o participante e escreva o recado");
+        return;
+      }
+    } else if (!form.destinatario_id || !form.conteudo.trim()) {
+      toast.error("Preencha destinatário e conteúdo"); return;
+    }
     const partId = form.participante_id === "__none__" ? null : (form.participante_id || null);
+
+    if (paraFamilia) {
+      const { data, error } = await supabase.from("recados_familia").insert({
+        remetente_id: myProfileId,
+        participante_id: partId,
+        conteudo: form.conteudo,
+      } as any).select("*").single();
+      if (error) { toast.error("Erro: " + error.message); return; }
+      const partName = participantes.find(p => p.id === partId)?.nome_completo || "—";
+      await auditLog({
+        acao: "criação",
+        tabela: "recados_familia",
+        registro_id: data?.id,
+        detalhes: `Recado para a família de ${partName}`,
+      });
+      toast.success("Recado enviado à família!");
+      setOpen(false);
+      setForm({ destinatario_id: "", participante_id: participanteIdFixo || "", conteudo: "" });
+      return;
+    }
+
     const { data, error } = await supabase.from("recados").insert({
       remetente_id: myProfileId,
       destinatario_id: form.destinatario_id,
@@ -89,9 +119,11 @@ export function SendRecadoDialog({ toTecnicos, trigger }: Props) {
         {trigger || <Button variant="ghost" size="icon" title="Enviar recado"><Send className="h-4 w-4" /></Button>}
       </DialogTrigger>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>{toTecnicos ? "Recado para Equipe Técnica" : "Enviar Recado"}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>
+          {paraFamilia ? "Recado para a Família" : toTecnicos ? "Recado para Equipe Técnica" : "Enviar Recado"}
+        </DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div>
+          {!paraFamilia && <div>
             <Label className="text-xs">Destinatário</Label>
             <Select value={form.destinatario_id} onValueChange={v => setForm(f => ({ ...f, destinatario_id: v }))}>
               <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
@@ -99,17 +131,17 @@ export function SendRecadoDialog({ toTecnicos, trigger }: Props) {
                 {destinatarios.map(p => <SelectItem key={p.id} value={p.id}>{p.nome} {p.cargo ? `(${p.cargo})` : ""}</SelectItem>)}
               </SelectContent>
             </Select>
-          </div>
-          <div>
-            <Label className="text-xs">Sobre participante (opcional)</Label>
+          </div>}
+          {!participanteIdFixo && <div>
+            <Label className="text-xs">{paraFamilia ? "Participante (família destinatária)" : "Sobre participante (opcional)"}</Label>
             <Select value={form.participante_id} onValueChange={v => setForm(f => ({ ...f, participante_id: v }))}>
-              <SelectTrigger className="mt-1"><SelectValue placeholder="Nenhum" /></SelectTrigger>
+              <SelectTrigger className="mt-1"><SelectValue placeholder={paraFamilia ? "Selecione..." : "Nenhum"} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">Nenhum</SelectItem>
+                {!paraFamilia && <SelectItem value="__none__">Nenhum</SelectItem>}
                 {participantes.map(p => <SelectItem key={p.id} value={p.id}>{p.nome_completo}{p.status === "busca_ativa" ? " (BA)" : ""}</SelectItem>)}
               </SelectContent>
             </Select>
-          </div>
+          </div>}
           <div>
             <Label className="text-xs">Mensagem</Label>
             <Textarea value={form.conteudo} onChange={e => setForm(f => ({ ...f, conteudo: e.target.value }))} className="mt-1 min-h-[80px]" placeholder="Escreva seu recado..." />

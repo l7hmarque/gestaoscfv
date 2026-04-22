@@ -135,11 +135,22 @@ Deno.serve(async (req) => {
 
       case "recados": {
         const { data } = await supabaseAdmin
-          .from("recados")
+          .from("recados_familia")
           .select("id, conteudo, created_at, remetente_id, profiles:remetente_id(nome)")
           .eq("participante_id", participante_id)
           .order("created_at", { ascending: false })
           .limit(20);
+
+        // marca como lido (best-effort, não bloqueia resposta)
+        const ids = (data || []).map((r: any) => r.id);
+        if (ids.length) {
+          await supabaseAdmin
+            .from("recados_familia")
+            .update({ lido_em: new Date().toISOString() })
+            .in("id", ids)
+            .is("lido_em", null);
+        }
+
         return respond({
           recados: (data || []).map((r: any) => ({
             id: r.id,
@@ -187,6 +198,80 @@ Deno.serve(async (req) => {
 
         if (error) return respond({ error: error.message }, 500);
         return respond({ success: true });
+      }
+
+      case "checkins": {
+        // Últimos 14 dias para cálculo de streak + status do dia atual e próximos
+        const hoje = new Date();
+        const inicio = new Date(hoje);
+        inicio.setDate(inicio.getDate() - 14);
+        const inicioISO = inicio.toISOString().slice(0, 10);
+        const fimISO = new Date(hoje.getTime() + 8 * 86400000).toISOString().slice(0, 10);
+
+        const { data } = await supabaseAdmin
+          .from("participante_checkins")
+          .select("data, periodo, confirmado, confirmado_em, confirmado_por, observacao")
+          .eq("participante_id", participante_id)
+          .gte("data", inicioISO)
+          .lte("data", fimISO)
+          .order("data", { ascending: false });
+
+        return respond({ checkins: data || [] });
+      }
+
+      case "registrar_checkin": {
+        const { data: dataAlvo, periodo, confirmado, confirmado_por, observacao } = body;
+
+        if (!dataAlvo || !periodo) {
+          return respond({ error: "data e periodo são obrigatórios" }, 400);
+        }
+        if (!["manha", "tarde"].includes(periodo)) {
+          return respond({ error: "periodo inválido" }, 400);
+        }
+
+        // Validação de janela (autoridade) — America/Sao_Paulo
+        const TZ = "America/Sao_Paulo";
+        const nowSPStr = new Date().toLocaleString("en-US", { timeZone: TZ });
+        const agoraSP = new Date(nowSPStr);
+        const hojeSP = new Intl.DateTimeFormat("en-CA", {
+          timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+        }).format(new Date());
+
+        const [yh, mh, dh] = hojeSP.split("-").map(Number);
+        const [ya, ma, da] = String(dataAlvo).split("-").map(Number);
+        const hojeDt = new Date(yh, mh - 1, dh);
+        const alvoDt = new Date(ya, ma - 1, da);
+        const diffDias = Math.round((alvoDt.getTime() - hojeDt.getTime()) / 86400000);
+
+        if (diffDias < 0) {
+          return respond({ error: "Não é possível confirmar para datas passadas" }, 422);
+        }
+        if (diffDias > 7) {
+          return respond({ error: "Confirmação disponível apenas para os próximos 7 dias" }, 422);
+        }
+        if (diffDias === 0 && agoraSP.getHours() >= 6) {
+          return respond({
+            error: "Janela de confirmação encerrada às 06:00 — fale com a coordenação",
+          }, 422);
+        }
+
+        // Upsert idempotente
+        const { data, error } = await supabaseAdmin
+          .from("participante_checkins")
+          .upsert({
+            participante_id,
+            data: dataAlvo,
+            periodo,
+            confirmado: confirmado === false ? false : true,
+            confirmado_em: new Date().toISOString(),
+            confirmado_por: confirmado_por || null,
+            observacao: observacao || null,
+          }, { onConflict: "participante_id,data,periodo" })
+          .select()
+          .single();
+
+        if (error) return respond({ error: error.message }, 500);
+        return respond({ success: true, checkin: data });
       }
 
       default:

@@ -1,13 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { MapPin, Clock, BookOpen, CalendarCheck, MessageSquare, FileText, ArrowLeft, Users, Calendar, Percent, UserCheck } from "lucide-react";
+import { MapPin, Clock, BookOpen, CalendarCheck, MessageSquare, FileText, ArrowLeft, Users, Calendar, Percent, UserCheck, Lock, Bus, Flame, ChevronDown } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import confetti from "canvas-confetti";
+import {
+  isCheckinAberto, dataDefaultCheckin, proximosDiasUteis,
+  diaSemanaKey, formatarBR, hojeSP, parseDataISO, nowSP,
+} from "@/lib/checkinWindow";
 
 interface Participante {
   id: string;
@@ -41,6 +50,13 @@ export default function FamiliaDashboardPage() {
   const [recados, setRecados] = useState<any[]>([]);
   const [formularios, setFormularios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkins, setCheckins] = useState<any[]>([]);
+  const [dataAlvo, setDataAlvo] = useState<string>(dataDefaultCheckin());
+  const [savingCheckin, setSavingCheckin] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [naoVaiDialog, setNaoVaiDialog] = useState<{ periodo: string; data: string } | null>(null);
+  const [naoVaiMotivo, setNaoVaiMotivo] = useState("");
+  const [respNome, setRespNome] = useState("");
 
   useEffect(() => {
     const stored = sessionStorage.getItem("familia_participantes");
@@ -57,12 +73,13 @@ export default function FamiliaDashboardPage() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem("familia_token") || undefined;
-      const [turmasRes, atividadesRes, presencaRes, recadosRes, formularioRes] = await Promise.all([
+      const [turmasRes, atividadesRes, presencaRes, recadosRes, formularioRes, checkinsRes] = await Promise.all([
         supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "turmas", token } }),
         supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "atividades", token } }),
         supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "presenca", token } }),
         supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "recados", token } }),
         supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "formularios", token } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "checkins", token } }),
       ]);
 
       setTurmas(turmasRes.data?.turmas || []);
@@ -70,6 +87,7 @@ export default function FamiliaDashboardPage() {
       setPresenca(presencaRes.data?.presenca || null);
       setRecados(recadosRes.data?.recados || []);
       setFormularios(formularioRes.data?.formularios || []);
+      setCheckins(checkinsRes.data?.checkins || []);
     } catch {
       toast.error("Erro ao carregar dados");
     } finally {
@@ -83,6 +101,102 @@ export default function FamiliaDashboardPage() {
   };
 
   const p = participantes[selected];
+
+  // ===== Check-in helpers (declarado antes de retornos para hooks consistentes) =====
+  const periodosDoParticipante = useMemo(() => {
+    if (!p?.periodo) return [];
+    if (p.periodo === "integral") return ["manha", "tarde"];
+    return [p.periodo];
+  }, [p?.periodo]);
+
+  const diasFrequenta = useMemo(() => {
+    const set = new Set<string>();
+    turmas.forEach((t: any) => (t.dias_semana || []).forEach((d: string) => set.add(String(d).toLowerCase().slice(0, 3))));
+    return set;
+  }, [turmas]);
+
+  const temAtividadeNaData = (iso: string) => {
+    if (!diasFrequenta.size) return true;
+    return diasFrequenta.has(diaSemanaKey(iso));
+  };
+
+  const checkinDoDia = (iso: string, periodo: string) =>
+    checkins.find((c: any) => c.data === iso && c.periodo === periodo) || null;
+
+  const streak = useMemo(() => {
+    // dias seguidos com pelo menos 1 confirmação true (a partir de ontem)
+    const ordenados = [...checkins]
+      .filter((c: any) => c.confirmado === true)
+      .map((c: any) => c.data)
+      .sort()
+      .reverse();
+    const set = new Set(ordenados);
+    let count = 0;
+    let cursor = parseDataISO(hojeSP());
+    cursor.setDate(cursor.getDate() - 1);
+    while (set.has(cursor.toISOString().slice(0, 10))) {
+      count++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return count;
+  }, [checkins]);
+
+  const ultimaConfirmacao = useMemo(() => {
+    const ord = [...checkins].sort((a: any, b: any) => (b.confirmado_em || "").localeCompare(a.confirmado_em || ""));
+    return ord[0] || null;
+  }, [checkins]);
+
+  const enviarCheckin = async (iso: string, periodo: string, confirmado: boolean, motivo?: string) => {
+    if (!p) return;
+    const key = `${iso}-${periodo}-${confirmado}`;
+    setSavingCheckin(key);
+    try {
+      const token = sessionStorage.getItem("familia_token") || undefined;
+      const res = await supabase.functions.invoke("public-familia-data", {
+        body: {
+          participante_id: p.id,
+          tipo: "registrar_checkin",
+          token,
+          data: iso,
+          periodo,
+          confirmado,
+          confirmado_por: respNome || null,
+          observacao: motivo || null,
+        },
+      });
+      if ((res.data as any)?.error || res.error) {
+        toast.error((res.data as any)?.error || res.error?.message || "Erro ao salvar");
+        return;
+      }
+      // Atualização local
+      const novo = (res.data as any).checkin;
+      setCheckins(prev => {
+        const idx = prev.findIndex((c: any) => c.data === iso && c.periodo === periodo);
+        if (idx >= 0) { const cp = [...prev]; cp[idx] = novo; return cp; }
+        return [novo, ...prev];
+      });
+      if (confirmado) {
+        confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+        toast.success("Obrigado! O motorista já foi avisado 🚐");
+      } else {
+        toast.success("Registrado: hoje a criança não vai");
+      }
+    } finally {
+      setSavingCheckin(null);
+    }
+  };
+
+  const handleNaoVaiConfirm = async () => {
+    if (!naoVaiDialog) return;
+    if (!naoVaiMotivo.trim() || naoVaiMotivo.trim().length < 5) {
+      toast.error("Por favor, escreva o motivo (mínimo 5 caracteres) para que a equipe possa apoiar");
+      return;
+    }
+    await enviarCheckin(naoVaiDialog.data, naoVaiDialog.periodo, false, naoVaiMotivo.trim());
+    setNaoVaiDialog(null);
+    setNaoVaiMotivo("");
+  };
+
   if (!p) return null;
 
   const pctAtual = presenca?.mesAtual?.total
@@ -247,6 +361,159 @@ export default function FamiliaDashboardPage() {
             )}
 
             {/* ===== ATIVIDADES RECENTES ===== */}
+            {/* ===== CHECK-IN ===== */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                <Bus className="h-4 w-4" /> Confirmar presença
+                {streak > 0 && (
+                  <span className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-orange-600">
+                    <Flame className="h-3.5 w-3.5" /> {streak} dia{streak > 1 ? "s" : ""} confirmando
+                  </span>
+                )}
+              </h3>
+              {ultimaConfirmacao && (
+                <p className="text-xs text-muted-foreground">
+                  Última confirmação: {format(parseISO(ultimaConfirmacao.confirmado_em), "dd/MM HH:mm", { locale: ptBR })}
+                </p>
+              )}
+
+              {(() => {
+                const aberto = isCheckinAberto(dataAlvo);
+                const temAtiv = temAtividadeNaData(dataAlvo);
+                const titulo = (() => {
+                  if (dataAlvo === hojeSP()) return `Vai hoje? (${formatarBR(dataAlvo)})`;
+                  const amanhaISO = (() => { const d = parseDataISO(hojeSP()); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })();
+                  if (dataAlvo === amanhaISO) return `Vai amanhã? (${formatarBR(dataAlvo)})`;
+                  return `Vai em ${formatarBR(dataAlvo)}?`;
+                })();
+
+                if (!temAtiv) {
+                  return (
+                    <Card><CardContent className="py-6 text-center text-sm text-muted-foreground">
+                      🌿 Não há atividade em {formatarBR(dataAlvo)}
+                    </CardContent></Card>
+                  );
+                }
+
+                if (!aberto) {
+                  return (
+                    <Card className="bg-muted/40">
+                      <CardContent className="py-5 text-center space-y-2">
+                        <Lock className="h-6 w-6 mx-auto text-muted-foreground" />
+                        <p className="text-sm font-medium">Janela encerrada às 06:00</p>
+                        <p className="text-xs text-muted-foreground">Fale com a coordenação se a criança ainda for hoje</p>
+                        <Button variant="outline" size="sm" onClick={() => {
+                          const d = parseDataISO(hojeSP()); d.setDate(d.getDate() + 1);
+                          setDataAlvo(d.toISOString().slice(0, 10));
+                        }}>Confirmar para amanhã</Button>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+
+                const lembretePulsante = nowSP().getHours() >= 19 &&
+                  periodosDoParticipante.some(per => !checkinDoDia(dataAlvo, per));
+
+                return (
+                  <div className="space-y-3">
+                    <p className="text-base font-semibold text-foreground text-center">{titulo}</p>
+                    {!respNome && (
+                      <Input
+                        placeholder="Seu nome (opcional, ajuda o motorista)"
+                        value={respNome}
+                        onChange={e => setRespNome(e.target.value)}
+                        className="text-sm"
+                      />
+                    )}
+                    {periodosDoParticipante.map(per => {
+                      const c = checkinDoDia(dataAlvo, per);
+                      const periodoLabel = per === "manha" ? "Manhã" : "Tarde";
+                      const sk = `${dataAlvo}-${per}`;
+
+                      if (c?.confirmado === true) {
+                        return (
+                          <Card key={per} className="border-l-4 border-l-green-500 bg-green-50/60 dark:bg-green-950/20">
+                            <CardContent className="py-4 flex items-center justify-between gap-3">
+                              <div>
+                                <p className="font-semibold text-green-700 dark:text-green-400">✅ Confirmado — {periodoLabel}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {format(parseISO(c.confirmado_em), "dd/MM HH:mm", { locale: ptBR })}
+                                  {c.confirmado_por ? ` · por ${c.confirmado_por}` : ""}
+                                </p>
+                              </div>
+                              <Button size="sm" variant="ghost"
+                                onClick={() => enviarCheckin(dataAlvo, per, false)}
+                                disabled={savingCheckin === sk}>
+                                Cancelar
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        );
+                      }
+                      if (c?.confirmado === false) {
+                        return (
+                          <Card key={per} className="border-l-4 border-l-red-500 bg-red-50/60 dark:bg-red-950/20">
+                            <CardContent className="py-4">
+                              <p className="font-semibold text-red-700 dark:text-red-400">❌ Não vai — {periodoLabel}</p>
+                              {c.observacao && <p className="text-xs text-muted-foreground mt-1">Motivo: {c.observacao}</p>}
+                              <Button size="sm" variant="ghost" className="mt-2"
+                                onClick={() => enviarCheckin(dataAlvo, per, true)}
+                                disabled={savingCheckin === sk}>
+                                Mudei de ideia — vai sim
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        );
+                      }
+                      return (
+                        <Card key={per} className={lembretePulsante ? "border-l-4 border-l-amber-500 animate-pulse" : ""}>
+                          <CardContent className="py-4 space-y-3">
+                            <p className="text-sm font-medium text-center text-muted-foreground">{periodoLabel}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <Button
+                                size="lg"
+                                className="h-14 text-base bg-green-600 hover:bg-green-700 text-white"
+                                onClick={() => enviarCheckin(dataAlvo, per, true)}
+                                disabled={savingCheckin === sk}
+                              >
+                                ✅ SIM, vai
+                              </Button>
+                              <Button
+                                size="lg"
+                                variant="outline"
+                                className="h-14 text-base border-red-300 text-red-700 hover:bg-red-50"
+                                onClick={() => { setNaoVaiDialog({ data: dataAlvo, periodo: per }); setNaoVaiMotivo(""); }}
+                                disabled={savingCheckin === sk}
+                              >
+                                ❌ Não vai
+                              </Button>
+                            </div>
+                            {lembretePulsante && (
+                              <p className="text-xs text-amber-700 text-center">⏰ Confirme agora — janela fecha às 06:00</p>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+
+                    <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setPickerOpen(o => !o)}>
+                      <ChevronDown className="h-3 w-3 mr-1" /> Confirmar para outro dia
+                    </Button>
+                    {pickerOpen && (
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {proximosDiasUteis(7).map(d => (
+                          <Button key={d} size="sm" variant={d === dataAlvo ? "default" : "outline"}
+                            onClick={() => { setDataAlvo(d); setPickerOpen(false); }}>
+                            {formatarBR(d)}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
             {atividades.length > 0 && (
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
@@ -339,6 +606,32 @@ export default function FamiliaDashboardPage() {
           CAIA Medianeira — Sociedade Civil Nossa Senhora Aparecida
         </p>
       </div>
+
+      <Dialog open={!!naoVaiDialog} onOpenChange={(o) => { if (!o) { setNaoVaiDialog(null); setNaoVaiMotivo(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Por que hoje não vai?</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Sua resposta ajuda nossa equipe a apoiar a família — pode ser doença, viagem, compromisso etc.
+            </p>
+            <Label className="text-xs">Motivo (obrigatório)</Label>
+            <Textarea
+              value={naoVaiMotivo}
+              onChange={(e) => setNaoVaiMotivo(e.target.value)}
+              placeholder="Ex.: está com febre, vai ao médico, viagem em família..."
+              className="min-h-[80px]"
+            />
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => { setNaoVaiDialog(null); setNaoVaiMotivo(""); }}>
+                Voltar
+              </Button>
+              <Button className="flex-1" onClick={handleNaoVaiConfirm}>
+                Confirmar ausência
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

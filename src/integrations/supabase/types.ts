@@ -1465,6 +1465,76 @@ export type Database = {
         }
         Relationships: []
       }
+      participante_checkins: {
+        Row: {
+          confirmado: boolean
+          confirmado_em: string
+          confirmado_por: string | null
+          created_at: string
+          data: string
+          embarcou: boolean | null
+          embarcou_em: string | null
+          embarcou_por: string | null
+          id: string
+          observacao: string | null
+          participante_id: string
+          periodo: string
+          updated_at: string
+        }
+        Insert: {
+          confirmado?: boolean
+          confirmado_em?: string
+          confirmado_por?: string | null
+          created_at?: string
+          data: string
+          embarcou?: boolean | null
+          embarcou_em?: string | null
+          embarcou_por?: string | null
+          id?: string
+          observacao?: string | null
+          participante_id: string
+          periodo: string
+          updated_at?: string
+        }
+        Update: {
+          confirmado?: boolean
+          confirmado_em?: string
+          confirmado_por?: string | null
+          created_at?: string
+          data?: string
+          embarcou?: boolean | null
+          embarcou_em?: string | null
+          embarcou_por?: string | null
+          id?: string
+          observacao?: string | null
+          participante_id?: string
+          periodo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participante_checkins_embarcou_por_fkey"
+            columns: ["embarcou_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participante_checkins_embarcou_por_fkey"
+            columns: ["embarcou_por"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participante_checkins_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "participantes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       participante_documentos: {
         Row: {
           arquivo_url: string
@@ -2038,6 +2108,58 @@ export type Database = {
           },
           {
             foreignKeyName: "recados_remetente_id_fkey"
+            columns: ["remetente_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recados_familia: {
+        Row: {
+          conteudo: string
+          created_at: string
+          id: string
+          lido_em: string | null
+          participante_id: string
+          remetente_id: string
+          updated_at: string
+        }
+        Insert: {
+          conteudo: string
+          created_at?: string
+          id?: string
+          lido_em?: string | null
+          participante_id: string
+          remetente_id: string
+          updated_at?: string
+        }
+        Update: {
+          conteudo?: string
+          created_at?: string
+          id?: string
+          lido_em?: string | null
+          participante_id?: string
+          remetente_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recados_familia_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "participantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recados_familia_remetente_id_fkey"
+            columns: ["remetente_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recados_familia_remetente_id_fkey"
             columns: ["remetente_id"]
             isOneToOne: false
             referencedRelation: "profiles_public"
