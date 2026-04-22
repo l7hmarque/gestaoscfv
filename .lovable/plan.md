@@ -1,85 +1,97 @@
 
 
-# Endurecimento de segurança + Painel de Permissões + Atividades da Coordenação
+# Módulo Cozinha — Painel do Cozinheiro (com Mapa de Restrições Alimentares)
 
-Três entregas conectadas: blindar o RPC `get_coordenacao_stats` e tabelas críticas com checagem real de role; criar um painel visual de gestão de permissões dentro do módulo de Coordenação; e adicionar uma aba de Registro de Atividades Livres do coordenador.
+Hub dedicado em `/cozinha` para o cargo de Cozinheiro, com gestão de insumos, cardápios semanais, relatórios de consumo e **mapa visual de restrições alimentares** dos participantes ativos cruzado com os dias em que frequentam.
 
-## 1. Segurança (corrige avisos do linter)
+## O que será entregue
 
-### RPC `get_coordenacao_stats` — blindagem dupla
-- Hoje: depende do `_user_id` enviado pelo cliente. Vulnerável (qualquer autenticado pode passar o `user_id` de um coordenador).
-- Migration: refatorar para **ignorar** `_user_id` recebido e usar `auth.uid()` internamente; manter `SECURITY DEFINER` + `SET search_path = public`; retornar `forbidden` se `has_role(auth.uid(), 'coordenacao')` for falso. `_user_id` vira parâmetro opcional ignorado (mantém compatibilidade do hook).
+### 1. Rota `/cozinha` (acesso `cozinheiro` + `coordenacao`)
+Item na sidebar, grupo **Gestão**, ícone ChefHat. Bloqueado para outros perfis com redirect.
 
-### RLS — eliminar políticas `WITH CHECK (true)` (warns 2–7)
-Substituir por checagens de role concretas nas tabelas hoje permissivas:
-- `audit_log` INSERT: trocar `true` por `auth.uid() = user_id` (impede falsificação de autoria).
-- `chamadas_assinadas` INSERT: `uploaded_by = auth.uid() AND NOT has_role(auth.uid(), 'visitante')`.
-- `conquistas` INSERT: restringir a coordenação/sistema (`has_role(auth.uid(), 'coordenacao')`).
-- `feed_posts` / `feed_comentarios` / `feed_fotos` / `feed_reacoes` / `mural_posts` INSERT: amarrar `autor_id`/`user_id` ao perfil do `auth.uid()` via subquery em `profiles`.
-- `participante_documentos` INSERT/UPDATE: bloquear visitante + exigir role operacional (`coordenacao`, `tecnico`, `educador`).
-- `participantes`, `presenca`, `planejamentos`, `planejamento_turmas`, `participante_transferencias`: trocar `NOT visitante` puro por `(NOT visitante) AND (has_role coordenacao OR tecnico OR educador)` no INSERT/UPDATE/DELETE.
+### 2. Layout em 5 abas
 
-Cada role passa a operar **apenas** no que lhe compete:
-- `coordenacao`: tudo.
-- `tecnico`: prontuário, atendimentos, financeiro, formulários, encaminhamentos (já correto).
-- `educador`: cria/edita seus próprios relatórios, planejamentos, presença e participantes; sem deletar exceto próprios.
-- `motorista`: só leitura geral + INSERT/UPDATE em transporte (sem mutar participantes/relatórios).
-- `cozinheiro`: somente leitura.
-- `visitante`: somente SELECT.
+**Aba 1 — Painel (default)**
+KPIs operacionais:
+- Refeições previstas hoje (participantes ativos por período × cardápio do dia)
+- Itens em estoque baixo (qtd ≤ estoque_minimo) com alerta vermelho
+- Itens vencendo em 7 dias / vencidos
+- **Total de participantes ativos com restrição alimentar** + atalho para a aba Restrições
+- Lista rápida das próximas 3 refeições da semana
+- Atalho "Compartilhar cardápio no Feed"
 
-Avisos do linter fora do escopo (e já tratados via produto): Extension in Public, Public Bucket Listing, Leaked Password Protection — mantidos como estão (o usuário não pediu).
+**Aba 2 — Estoque (Insumos)**
+CRUD completo: nome, categoria (Hortifruti, Carnes, Grãos, Laticínios, Mercearia, Limpeza, Outros), unidade (kg, L, un, pct), qtd atual, estoque mínimo, validade, valor unitário, observação. Filtros por categoria/status, busca, badges coloridas (OK/baixo/vencendo/vencido). Ações **Entrada (+)** e **Saída (−)** com modal de qtd + motivo. Exportação XLSX/PDF `SysCFV_EstoqueCozinha_{data}_{hora}`.
 
-## 2. Nova aba **Permissões** dentro de `/coordenacao`
+**Aba 3 — Cardápio Semanal**
+Grade segunda→sexta × Café da Manhã / Almoço / Lanche da Tarde. Editor inline com seleção de insumos do estoque + qtd prevista. Badge de viabilidade (verde/vermelho). Botões "Replicar semana anterior" e "Compartilhar no Feed/Mural". Visível só a cozinheiro/coord (demais veem só o que for publicado).
 
-Painel intuitivo para alterar acessos sem ir ao `/dev`:
-- Tabela: linhas = profissionais ativos (de `profiles`); colunas = roles (`coordenacao`, `tecnico`, `educador`, `motorista`, `cozinheiro`, `visitante`).
-- Cada célula é um Switch. Marcar/desmarcar dispara `INSERT`/`DELETE` em `user_roles` com auditoria automática em `audit_log` (acao=`role_concedida`/`role_revogada`).
-- Filtro por nome, badge de quantas roles cada pessoa acumula, busca instantânea.
-- Painel-resumo no topo: matriz de capacidades (mesma de `DevPage`, em modo leitura) explicando o que cada role pode.
-- Acesso restrito a `coordenacao` (já protegido pela página).
-- Confirmação ao remover a última role de coordenação do sistema (anti lock-out).
+**Aba 4 — Restrições Alimentares (NOVO)**
+Mapa operacional para o cozinheiro planejar refeições seguras:
 
-## 3. Nova aba **Atividades** (registro livre da coordenação)
+- **Visão "Por Dia da Semana" (default)**: 5 colunas (seg–sex), cada uma listando os participantes ativos com `restricao_alimentar` preenchida que frequentam aquele dia, agrupados por período (Manhã/Tarde). Cada card mostra: nome, idade, período, **badge da restrição** (cor por categoria detectada: lactose, glúten, alergia, vegetariano, diabetes, outros) e **texto livre completo** da restrição em tooltip/expandível. Também exibe "remédio contínuo" e "outras condições" quando relevantes.
+- **Visão "Por Restrição"**: agrupa por tipo de restrição detectada e mostra todos os participantes afetados + dias que frequentam.
+- **Visão "Tabela completa"**: DataTable filtrável (nome, restrição, período, dias, turma, bairro) exportável em XLSX/PDF — `SysCFV_RestricoesAlimentares_{data}_{hora}` — para imprimir e fixar na cozinha.
+- Filtros: período, bairro, busca por nome, busca por palavra na restrição.
+- Banner de alerta quando houver restrição grave (alergia/anafilaxia detectada por palavras-chave) com destaque vermelho.
 
-Diário de atividades realizadas pela coordenação, separado de auditoria automática:
-- Tabela nova `coordenacao_atividades`: `id`, `coordenador_id` (profile), `data` (default hoje), `categoria` (enum textual: `reuniao`, `visita_tecnica`, `articulacao_rede`, `formacao_equipe`, `documento`, `outro`), `titulo`, `descricao`, `duracao_minutos` (opcional), `created_at`, `updated_at`.
-- RLS: SELECT/INSERT/UPDATE/DELETE somente para `coordenacao` (próprio ou equipe — visível a todos os coordenadores).
-- UI: formulário inline (categoria, título, descrição, data, duração) + lista cronológica reversa com filtros por categoria e mês. Cards minimalistas com badge de categoria e ações editar/excluir.
-- KPI agregado nos contadores do Painel: nº de atividades registradas no período + tempo total dedicado.
-- Cada criação grava também em `audit_log` para rastreabilidade.
+**Como os dias são determinados**: cruza `participantes` (status=ativo, com `restricao_alimentar` ou `remedio_continuo` não-nulos) com `turma_participantes` → `turmas.dias_semana` (array). Se o participante não tiver turma vinculada, assume todos os dias úteis do período dele e marca como "sem turma vinculada" (ícone âmbar).
+
+**Aba 5 — Movimentações & Relatórios**
+Histórico cronológico de entradas/saídas/ajustes, filtros por período/item/tipo, gráfico recharts de consumo dos 30 dias (top 10 itens), exportação XLSX do consumo do mês.
 
 ## Detalhes técnicos
 
-- **Migration única** com:
-  1. `CREATE OR REPLACE FUNCTION public.get_coordenacao_stats` ignorando `_user_id` e usando `auth.uid()`.
-  2. `DROP POLICY` + `CREATE POLICY` para todas as tabelas listadas acima (substitui `true` por checagem real).
-  3. `CREATE TABLE public.coordenacao_atividades` + `ENABLE ROW LEVEL SECURITY` + 4 policies role-restritas + trigger `update_updated_at_column`.
-- **Frontend**:
-  - `src/pages/coordenacao/PermissoesTab.tsx` — tabela + switches + auditoria.
-  - `src/pages/coordenacao/AtividadesTab.tsx` — formulário + lista + filtros.
-  - `src/pages/coordenacao/CoordenacaoPage.tsx` — adiciona 2 abas (`permissoes`, `atividades`); `TabsList grid-cols-7`.
-  - `src/hooks/useCoordenacaoData.ts` — não envia mais `_user_id` real (mantém parâmetro só para compat) e aceita o novo bloco `atividades_periodo` retornado pelo RPC.
-- **Validação pós-migration**: rodar `supabase--linter` e confirmar que warns 2–7 sumiram.
+**Backend (1 migration)** — 3 tabelas + RLS + 2 RPCs:
+
+1. `cozinha_insumos` — `id`, `nome`, `categoria`, `unidade`, `quantidade_atual` (numeric default 0), `estoque_minimo` (numeric default 0), `validade` (date null), `valor_unitario` (numeric null), `observacao`, `created_at`, `updated_at`.
+2. `cozinha_movimentacoes` — `id`, `insumo_id` (FK), `tipo` ('entrada'|'saida'|'ajuste'), `quantidade`, `motivo`, `responsavel_id` (FK profiles), `created_at`. **Trigger** atualiza `cozinha_insumos.quantidade_atual` automaticamente.
+3. `cozinha_cardapio` — `id`, `semana_inicio` (date — segunda), `dia_semana` (1–5), `refeicao` ('cafe'|'almoco'|'lanche'), `prato`, `insumos_previstos` (jsonb `[{insumo_id, quantidade}]`), `criado_por`, timestamps. Unique (semana_inicio, dia_semana, refeicao).
+
+**RLS** (alinhado ao endurecimento recente):
+- SELECT/INSERT/UPDATE/DELETE: somente `cozinheiro` OU `coordenacao`.
+- `responsavel_id` em movimentações deve casar com profile do `auth.uid()`.
+
+**RPCs `SECURITY DEFINER` + `SET search_path = public` + gate `has_role(auth.uid(),'cozinheiro') OR has_role(auth.uid(),'coordenacao')`**:
+
+- `get_cozinha_stats()` → KPIs do painel (estoque baixo, vencendo, refeições hoje, top consumo 30d, total restrições).
+- `get_restricoes_alimentares()` → retorna jsonb com array de participantes ativos que tenham `restricao_alimentar` OU `remedio_continuo` OU `outras_condicoes` preenchidos, incluindo: id, nome, idade, periodo, bairro, foto_url, restricao_alimentar (texto), remedio_continuo, outras_condicoes, turmas (array de `{id, nome, dias_semana[]}`) e `dias_frequenta` (união dos dias_semana das turmas, ou `['seg','ter','qua','qui','sex']` quando sem turma vinculada).
+
+**Frontend (6 arquivos novos + 2 edições)**:
+- `src/pages/cozinha/CozinhaPage.tsx` — shell com Tabs controladas (5 abas).
+- `src/pages/cozinha/PainelTab.tsx` — KPIs + alertas + atalho para Restrições.
+- `src/pages/cozinha/EstoqueTab.tsx` — DataTable + diálogos CRUD/entrada/saída.
+- `src/pages/cozinha/CardapioTab.tsx` — grade 5×3 + editor + viabilidade.
+- `src/pages/cozinha/RestricoesTab.tsx` — 3 visões (Por Dia / Por Restrição / Tabela), filtros, exportação, detector de palavras-chave para badge de gravidade.
+- `src/pages/cozinha/MovimentacoesTab.tsx` — histórico + gráfico + export.
+- `src/hooks/useCozinhaData.ts` — TanStack Query para `get_cozinha_stats` e `get_restricoes_alimentares`.
+- Edição `src/components/AppSidebar.tsx` — item "Cozinha" visível se role = `cozinheiro` OR `coordenacao`.
+- Edição `src/App.tsx` — rota lazy `/cozinha` em `<ProtectedRoute>`.
+
+**Detecção de categoria/gravidade da restrição** (no frontend, sem mudar dados):
+- Categoria por palavras-chave em `restricao_alimentar`: lactose/leite → laticínio; glúten/trigo → glúten; alergia/anafilaxia/amendoim/castanha → alergia (vermelho); vegetariano/vegano → vegetariano; diabetes/diabético → diabetes; senão "outros".
+- Gravidade alta = qualquer ocorrência de "anafil", "alergia grave", "epipen" → banner vermelho fixo no topo da aba.
+
+**Estilo**: cards com borda lateral 4px (verde/âmbar/vermelho conforme status/gravidade), grayscale para exportações, nomenclatura `SysCFV_{Categoria}_{data}_{hora}`.
 
 ## Diagrama
 
 ```text
-/coordenacao (role-gated)
-  ├── Painel (KPIs unificados — inalterado)
-  ├── Ações Pendentes
-  ├── Decisões (audit_log)
-  ├── Qualidade (KPIs gestão)
-  ├── Atividades (NOVO — registro livre + filtros)
-  ├── Permissões (NOVO — switches por role)
-  └── Relatório
+/cozinha (cozinheiro + coordenacao)
+  ├── Painel        → get_cozinha_stats() — alertas + refeições hoje + total restrições
+  ├── Estoque       → cozinha_insumos + entrada/saída
+  ├── Cardápio      → cozinha_cardapio (5×3) + viabilidade
+  ├── Restrições    → get_restricoes_alimentares() — visões Por Dia / Por Restrição / Tabela
+  └── Movimentações → cozinha_movimentacoes + gráfico 30d
 
-RPC get_coordenacao_stats
-  ├── auth.uid() ← server-side (não confia no cliente)
-  ├── has_role(auth.uid(),'coordenacao') ← gate
-  └── retorna {dashboard, pendencias, gestao, atividades_periodo}
+cruzamento de dados (Restrições)
+  participantes (restricao_alimentar IS NOT NULL)
+       └─► turma_participantes ─► turmas.dias_semana[]
+                                   └─► dias_frequenta (união)
 ```
 
 ## Fora do escopo
-- Avisos do linter sobre `extension in public`, `public bucket listing` e `leaked password protection` (configurações de produto/Auth, não pedidos).
-- Edição de roles fora da aba Permissões (continua existindo `/dev` e `/configuracoes`).
+- Compras/cotação de fornecedores → já existe em `/financeiro`
+- Edição da restrição alimentar → continua no perfil do participante (`/participantes/:id`)
+- Geração de cardápio por IA (iteração futura)
 
