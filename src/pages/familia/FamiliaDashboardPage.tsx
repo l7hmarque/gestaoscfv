@@ -361,6 +361,159 @@ export default function FamiliaDashboardPage() {
             )}
 
             {/* ===== ATIVIDADES RECENTES ===== */}
+            {/* ===== CHECK-IN ===== */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                <Bus className="h-4 w-4" /> Confirmar presença
+                {streak > 0 && (
+                  <span className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-orange-600">
+                    <Flame className="h-3.5 w-3.5" /> {streak} dia{streak > 1 ? "s" : ""} confirmando
+                  </span>
+                )}
+              </h3>
+              {ultimaConfirmacao && (
+                <p className="text-xs text-muted-foreground">
+                  Última confirmação: {format(parseISO(ultimaConfirmacao.confirmado_em), "dd/MM HH:mm", { locale: ptBR })}
+                </p>
+              )}
+
+              {(() => {
+                const aberto = isCheckinAberto(dataAlvo);
+                const temAtiv = temAtividadeNaData(dataAlvo);
+                const titulo = (() => {
+                  if (dataAlvo === hojeSP()) return `Vai hoje? (${formatarBR(dataAlvo)})`;
+                  const amanhaISO = (() => { const d = parseDataISO(hojeSP()); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })();
+                  if (dataAlvo === amanhaISO) return `Vai amanhã? (${formatarBR(dataAlvo)})`;
+                  return `Vai em ${formatarBR(dataAlvo)}?`;
+                })();
+
+                if (!temAtiv) {
+                  return (
+                    <Card><CardContent className="py-6 text-center text-sm text-muted-foreground">
+                      🌿 Não há atividade em {formatarBR(dataAlvo)}
+                    </CardContent></Card>
+                  );
+                }
+
+                if (!aberto) {
+                  return (
+                    <Card className="bg-muted/40">
+                      <CardContent className="py-5 text-center space-y-2">
+                        <Lock className="h-6 w-6 mx-auto text-muted-foreground" />
+                        <p className="text-sm font-medium">Janela encerrada às 06:00</p>
+                        <p className="text-xs text-muted-foreground">Fale com a coordenação se a criança ainda for hoje</p>
+                        <Button variant="outline" size="sm" onClick={() => {
+                          const d = parseDataISO(hojeSP()); d.setDate(d.getDate() + 1);
+                          setDataAlvo(d.toISOString().slice(0, 10));
+                        }}>Confirmar para amanhã</Button>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+
+                const lembretePulsante = nowSP().getHours() >= 19 &&
+                  periodosDoParticipante.some(per => !checkinDoDia(dataAlvo, per));
+
+                return (
+                  <div className="space-y-3">
+                    <p className="text-base font-semibold text-foreground text-center">{titulo}</p>
+                    {!respNome && (
+                      <Input
+                        placeholder="Seu nome (opcional, ajuda o motorista)"
+                        value={respNome}
+                        onChange={e => setRespNome(e.target.value)}
+                        className="text-sm"
+                      />
+                    )}
+                    {periodosDoParticipante.map(per => {
+                      const c = checkinDoDia(dataAlvo, per);
+                      const periodoLabel = per === "manha" ? "Manhã" : "Tarde";
+                      const sk = `${dataAlvo}-${per}`;
+
+                      if (c?.confirmado === true) {
+                        return (
+                          <Card key={per} className="border-l-4 border-l-green-500 bg-green-50/60 dark:bg-green-950/20">
+                            <CardContent className="py-4 flex items-center justify-between gap-3">
+                              <div>
+                                <p className="font-semibold text-green-700 dark:text-green-400">✅ Confirmado — {periodoLabel}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {format(parseISO(c.confirmado_em), "dd/MM HH:mm", { locale: ptBR })}
+                                  {c.confirmado_por ? ` · por ${c.confirmado_por}` : ""}
+                                </p>
+                              </div>
+                              <Button size="sm" variant="ghost"
+                                onClick={() => enviarCheckin(dataAlvo, per, false)}
+                                disabled={savingCheckin === sk}>
+                                Cancelar
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        );
+                      }
+                      if (c?.confirmado === false) {
+                        return (
+                          <Card key={per} className="border-l-4 border-l-red-500 bg-red-50/60 dark:bg-red-950/20">
+                            <CardContent className="py-4">
+                              <p className="font-semibold text-red-700 dark:text-red-400">❌ Não vai — {periodoLabel}</p>
+                              {c.observacao && <p className="text-xs text-muted-foreground mt-1">Motivo: {c.observacao}</p>}
+                              <Button size="sm" variant="ghost" className="mt-2"
+                                onClick={() => enviarCheckin(dataAlvo, per, true)}
+                                disabled={savingCheckin === sk}>
+                                Mudei de ideia — vai sim
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        );
+                      }
+                      return (
+                        <Card key={per} className={lembretePulsante ? "border-l-4 border-l-amber-500 animate-pulse" : ""}>
+                          <CardContent className="py-4 space-y-3">
+                            <p className="text-sm font-medium text-center text-muted-foreground">{periodoLabel}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <Button
+                                size="lg"
+                                className="h-14 text-base bg-green-600 hover:bg-green-700 text-white"
+                                onClick={() => enviarCheckin(dataAlvo, per, true)}
+                                disabled={savingCheckin === sk}
+                              >
+                                ✅ SIM, vai
+                              </Button>
+                              <Button
+                                size="lg"
+                                variant="outline"
+                                className="h-14 text-base border-red-300 text-red-700 hover:bg-red-50"
+                                onClick={() => { setNaoVaiDialog({ data: dataAlvo, periodo: per }); setNaoVaiMotivo(""); }}
+                                disabled={savingCheckin === sk}
+                              >
+                                ❌ Não vai
+                              </Button>
+                            </div>
+                            {lembretePulsante && (
+                              <p className="text-xs text-amber-700 text-center">⏰ Confirme agora — janela fecha às 06:00</p>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+
+                    <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setPickerOpen(o => !o)}>
+                      <ChevronDown className="h-3 w-3 mr-1" /> Confirmar para outro dia
+                    </Button>
+                    {pickerOpen && (
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {proximosDiasUteis(7).map(d => (
+                          <Button key={d} size="sm" variant={d === dataAlvo ? "default" : "outline"}
+                            onClick={() => { setDataAlvo(d); setPickerOpen(false); }}>
+                            {formatarBR(d)}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
             {atividades.length > 0 && (
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
