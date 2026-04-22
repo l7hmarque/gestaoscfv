@@ -1,13 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { MapPin, Clock, BookOpen, CalendarCheck, MessageSquare, FileText, ArrowLeft, Users, Calendar, Percent, UserCheck } from "lucide-react";
+import { MapPin, Clock, BookOpen, CalendarCheck, MessageSquare, FileText, ArrowLeft, Users, Calendar, Percent, UserCheck, Lock, Bus, Flame, ChevronDown } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import confetti from "canvas-confetti";
+import {
+  isCheckinAberto, dataDefaultCheckin, proximosDiasUteis,
+  diaSemanaKey, formatarBR, hojeSP, parseDataISO, nowSP,
+} from "@/lib/checkinWindow";
 
 interface Participante {
   id: string;
@@ -41,6 +50,13 @@ export default function FamiliaDashboardPage() {
   const [recados, setRecados] = useState<any[]>([]);
   const [formularios, setFormularios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkins, setCheckins] = useState<any[]>([]);
+  const [dataAlvo, setDataAlvo] = useState<string>(dataDefaultCheckin());
+  const [savingCheckin, setSavingCheckin] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [naoVaiDialog, setNaoVaiDialog] = useState<{ periodo: string; data: string } | null>(null);
+  const [naoVaiMotivo, setNaoVaiMotivo] = useState("");
+  const [respNome, setRespNome] = useState("");
 
   useEffect(() => {
     const stored = sessionStorage.getItem("familia_participantes");
@@ -57,12 +73,13 @@ export default function FamiliaDashboardPage() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem("familia_token") || undefined;
-      const [turmasRes, atividadesRes, presencaRes, recadosRes, formularioRes] = await Promise.all([
+      const [turmasRes, atividadesRes, presencaRes, recadosRes, formularioRes, checkinsRes] = await Promise.all([
         supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "turmas", token } }),
         supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "atividades", token } }),
         supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "presenca", token } }),
         supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "recados", token } }),
         supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "formularios", token } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "checkins", token } }),
       ]);
 
       setTurmas(turmasRes.data?.turmas || []);
@@ -70,6 +87,7 @@ export default function FamiliaDashboardPage() {
       setPresenca(presencaRes.data?.presenca || null);
       setRecados(recadosRes.data?.recados || []);
       setFormularios(formularioRes.data?.formularios || []);
+      setCheckins(checkinsRes.data?.checkins || []);
     } catch {
       toast.error("Erro ao carregar dados");
     } finally {
