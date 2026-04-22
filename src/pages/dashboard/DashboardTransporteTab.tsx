@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, MapPin, Clock, Power, PowerOff, Pencil, Trash2, Check, X } from "lucide-react";
+import { Plus, MapPin, Clock, Power, PowerOff, Pencil, Trash2, Check, X, Bus, CheckCircle2, XCircle, CircleDashed, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { isBairroSCFV } from "@/lib/constants";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Ponto {
   id: string;
@@ -25,6 +26,8 @@ interface Ponto {
 interface Bairro { id: string; nome: string; }
 
 export default function DashboardTransporteTab() {
+  const { user } = useAuth();
+  const [isMotoristaOuCoord, setIsMotoristaOuCoord] = useState(false);
   const [pontos, setPontos] = useState<Ponto[]>([]);
   const [bairros, setBairros] = useState<Bairro[]>([]);
   const [participantesPorPonto, setParticipantesPorPonto] = useState<Record<string, { nome: string; periodo: string }[]>>({});
@@ -42,7 +45,88 @@ export default function DashboardTransporteTab() {
   const [bulkDialog, setBulkDialog] = useState<"horario" | "bairro" | null>(null);
   const [bulkValues, setBulkValues] = useState({ horario_manha: "", horario_tarde: "", bairro_id: "" });
 
+  // Check-ins de hoje (visão motorista/coordenação)
+  const [checkinsHoje, setCheckinsHoje] = useState<Record<string, any>>({});
+  const [participantesPorPontoFull, setParticipantesPorPontoFull] = useState<Record<string, { id: string; nome: string; periodo: string }[]>>({});
+  const [refreshingCheckins, setRefreshingCheckins] = useState(false);
+
+  const hojeStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const horaSP = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo", hour: "numeric", hour12: false }), 10);
+  const periodoAtual: "manha" | "tarde" = horaSP < 12 ? "manha" : "tarde";
+
   useEffect(() => { loadAll(); }, []);
+
+  // Detect role
+  useEffect(() => {
+    (async () => {
+      if (!user) return;
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+      const roles = (data || []).map((r: any) => r.role);
+      setIsMotoristaOuCoord(roles.includes("motorista") || roles.includes("coordenacao"));
+    })();
+  }, [user]);
+
+  // Load today's checkins + auto-refresh 60s + realtime
+  useEffect(() => {
+    if (!isMotoristaOuCoord) return;
+    loadCheckinsHoje();
+    const interval = setInterval(loadCheckinsHoje, 60000);
+    const channel = supabase
+      .channel("checkins-hoje")
+      .on("postgres_changes", { event: "*", schema: "public", table: "participante_checkins" }, () => loadCheckinsHoje())
+      .subscribe();
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [isMotoristaOuCoord, hojeStr]);
+
+  const loadCheckinsHoje = async () => {
+    setRefreshingCheckins(true);
+    const [{ data: checkins }, { data: parts }] = await Promise.all([
+      supabase.from("participante_checkins").select("*").eq("data", hojeStr),
+      supabase.from("participantes").select("id, nome_completo, periodo, ponto_transporte_id").in("status", ["ativo", "busca_ativa"] as any),
+    ]);
+    const ckMap: Record<string, any> = {};
+    (checkins || []).forEach((c: any) => {
+      ckMap[`${c.participante_id}_${c.periodo}`] = c;
+    });
+    setCheckinsHoje(ckMap);
+    const pMap: Record<string, { id: string; nome: string; periodo: string }[]> = {};
+    (parts || []).forEach((p: any) => {
+      if (p.ponto_transporte_id) {
+        if (!pMap[p.ponto_transporte_id]) pMap[p.ponto_transporte_id] = [];
+        pMap[p.ponto_transporte_id].push({ id: p.id, nome: p.nome_completo, periodo: p.periodo || "manha" });
+      }
+    });
+    setParticipantesPorPontoFull(pMap);
+    setRefreshingCheckins(false);
+  };
+
+  const marcarEmbarque = async (participanteId: string, embarcou: boolean) => {
+    const key = `${participanteId}_${periodoAtual}`;
+    const existing = checkinsHoje[key];
+    if (existing) {
+      await supabase.from("participante_checkins").update({
+        embarcou,
+        embarcou_em: new Date().toISOString(),
+        embarcou_por: null, // será preenchido por trigger ou manualmente; mantém nulo p/ simplicidade
+      } as any).eq("id", existing.id);
+    } else {
+      await supabase.from("participante_checkins").insert({
+        participante_id: participanteId,
+        data: hojeStr,
+        periodo: periodoAtual,
+        confirmado: embarcou,
+        embarcou,
+        embarcou_em: new Date().toISOString(),
+      } as any);
+    }
+    toast.success(embarcou ? "Embarque registrado" : "Marcado como não embarcou");
+    loadCheckinsHoje();
+  };
+
+  const horaBR = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
 
   const loadAll = async () => {
     const [bRes, pRes, partRes] = await Promise.all([
@@ -179,6 +263,100 @@ export default function DashboardTransporteTab() {
           <Button size="sm" onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" /> Novo Ponto</Button>
         </div>
       </div>
+
+      {/* Embarques de hoje (motorista + coordenação) */}
+      {isMotoristaOuCoord && (
+        <Card className="border-l-4 border-l-blue-600">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Bus className="h-4 w-4" /> Embarques de hoje
+              <Badge variant="outline" className="text-[10px] ml-1">
+                {periodoAtual === "manha" ? "🌅 Manhã" : "🌇 Tarde"} · {new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+              </Badge>
+            </CardTitle>
+            <Button size="sm" variant="ghost" onClick={loadCheckinsHoje} disabled={refreshingCheckins} className="h-7 gap-1 text-xs">
+              <RefreshCw className={`h-3 w-3 ${refreshingCheckins ? "animate-spin" : ""}`} /> Atualizar
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pontos.filter(pt => pt.ativo !== false).map(pt => {
+              const todos = (participantesPorPontoFull[pt.id] || [])
+                .filter(p => p.periodo === periodoAtual || p.periodo === "integral")
+                .sort((a, b) => a.nome.localeCompare(b.nome));
+              if (todos.length === 0) return null;
+              const confirmados = todos.filter(p => checkinsHoje[`${p.id}_${periodoAtual}`]?.confirmado === true).length;
+              const naoVai = todos.filter(p => checkinsHoje[`${p.id}_${periodoAtual}`]?.confirmado === false).length;
+              const pendentes = todos.length - confirmados - naoVai;
+
+              return (
+                <div key={pt.id} className="border rounded-lg p-3 space-y-2 bg-muted/20">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="font-semibold text-sm flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" /> {pt.nome}
+                      <span className="text-[10px] text-muted-foreground">({bairroNome(pt.bairro_id)})</span>
+                    </span>
+                    <div className="flex gap-2 text-[11px]">
+                      <span className="text-emerald-600 font-medium">🟢 {confirmados}</span>
+                      <span className="text-red-600 font-medium">🔴 {naoVai}</span>
+                      <span className="text-muted-foreground font-medium">⚪ {pendentes}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    {todos.map(p => {
+                      const ck = checkinsHoje[`${p.id}_${periodoAtual}`];
+                      const confirmado = ck?.confirmado === true;
+                      const recusado = ck?.confirmado === false;
+                      const embarcou = ck?.embarcou === true;
+                      const naoEmbarcou = ck?.embarcou === false;
+
+                      return (
+                        <div key={p.id} className={`flex items-center justify-between gap-2 p-2 rounded border-l-4 text-xs ${
+                          embarcou ? "bg-emerald-50 dark:bg-emerald-950/20 border-l-emerald-600" :
+                          naoEmbarcou ? "bg-red-50 dark:bg-red-950/20 border-l-red-600 opacity-70" :
+                          confirmado ? "bg-emerald-50/50 dark:bg-emerald-950/10 border-l-emerald-500" :
+                          recusado ? "bg-red-50/50 dark:bg-red-950/10 border-l-red-500" :
+                          "bg-background border-l-muted"
+                        }`}>
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-medium truncate ${recusado || naoEmbarcou ? "line-through" : ""}`}>{p.nome}</p>
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                              {embarcou ? <><CheckCircle2 className="h-3 w-3 text-emerald-600" /> Embarcou às {horaBR(ck.embarcou_em)}</> :
+                               naoEmbarcou ? <><XCircle className="h-3 w-3 text-red-600" /> Não embarcou — {horaBR(ck.embarcou_em)}</> :
+                               confirmado ? <><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Família confirmou {horaBR(ck.confirmado_em)}{ck.confirmado_por ? ` · ${ck.confirmado_por}` : ""}</> :
+                               recusado ? <><XCircle className="h-3 w-3 text-red-500" /> Família avisou que não vai{ck.observacao ? ` · "${ck.observacao}"` : ""}</> :
+                               <><CircleDashed className="h-3 w-3" /> Sem confirmação até as 06:00</>}
+                            </p>
+                          </div>
+                          {!embarcou && !naoEmbarcou && (
+                            <div className="flex gap-1 shrink-0">
+                              <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1 border-emerald-600 text-emerald-700 hover:bg-emerald-50" onClick={() => marcarEmbarque(p.id, true)}>
+                                <CheckCircle2 className="h-3 w-3" /> Embarcou
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1 border-red-600 text-red-700 hover:bg-red-50" onClick={() => marcarEmbarque(p.id, false)}>
+                                <XCircle className="h-3 w-3" /> Não embarcou
+                              </Button>
+                            </div>
+                          )}
+                          {(embarcou || naoEmbarcou) && (
+                            <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={async () => {
+                              await supabase.from("participante_checkins").update({ embarcou: null, embarcou_em: null } as any).eq("id", ck.id);
+                              toast.info("Marcação removida");
+                              loadCheckinsHoje();
+                            }}>Desfazer</Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {pontos.filter(pt => pt.ativo !== false && (participantesPorPontoFull[pt.id] || []).some(p => p.periodo === periodoAtual || p.periodo === "integral")).length === 0 && (
+              <p className="text-xs text-muted-foreground italic">Nenhum participante atribuído aos pontos para o período da {periodoAtual === "manha" ? "manhã" : "tarde"}.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Bulk action bar */}
       {bulkMode && selected.size > 0 && (
