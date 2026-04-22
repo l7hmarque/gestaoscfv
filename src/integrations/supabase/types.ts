@@ -2389,6 +2389,10 @@ export type Database = {
           status2: string
         }[]
       }
+      get_coordenacao_stats: {
+        Args: { _periodo_dias?: number; _user_id: string }
+        Returns: Json
+      }
       get_dashboard_stats: {
         Args: { _ano?: number; _mes?: number }
         Returns: Json
