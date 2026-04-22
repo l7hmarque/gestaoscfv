@@ -52,6 +52,7 @@ export default function FormularioRespostaPage() {
 
     setLoading(true);
     try {
+      const token = sessionStorage.getItem("familia_token") || undefined;
       const { error } = await supabase.functions.invoke("public-familia-data", {
         body: {
           participante_id: participanteId,
@@ -59,6 +60,7 @@ export default function FormularioRespostaPage() {
           formulario_id: id,
           responsavel_nome: responsavelNome,
           respostas,
+          token,
         },
       });
       // Even if edge function doesn't handle this yet, we insert directly
