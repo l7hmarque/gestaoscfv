@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Save, Pencil, Printer, FileText, FileSpreadsheet, Lock, Camera, Upload, X, Plus, Check, Eye, Trash2, CheckCircle, ClipboardList } from "lucide-react";
+import { ArrowLeft, Save, Pencil, Printer, FileText, FileSpreadsheet, Lock, Camera, Upload, X, Plus, Check, Eye, Trash2, CheckCircle, ClipboardList, MessageCircle } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { useDocumentScanner, CATEGORIES, compressFileForUpload } from "@/hooks/u
 import type { Tables } from "@/integrations/supabase/types";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { maskCPF, maskPhone, unmaskDigits, displayCPF, displayPhone } from "@/lib/utils";
+import { SendRecadoDialog } from "@/components/SendRecadoDialog";
 
 const MOTIVOS_DESLIGAMENTO = [
   "Mudança de município",

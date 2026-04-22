@@ -190,18 +190,47 @@ const RelatorioNovoPage = () => {
           .filter(p => ALLOWED_STATUS.has(p.status || "ativo"))
           .sort((a, b) => a.nome.localeCompare(b.nome));
         setParticipantesTurma(list);
+
+        // Pre-fill from family check-ins ("Não vai" → falta + justificativa)
+        const dataAtividade = form.data ? format(form.data, "yyyy-MM-dd") : null;
+        let checkinsMap: Record<string, { confirmado: boolean; observacao: string | null }> = {};
+        if (dataAtividade && list.length > 0) {
+          const { data: checkins } = await supabase
+            .from("participante_checkins")
+            .select("participante_id, confirmado, observacao, periodo")
+            .in("participante_id", list.map(p => p.id))
+            .eq("data", dataAtividade);
+          (checkins || []).forEach((c: any) => {
+            // last write wins per participante (any periodo)
+            checkinsMap[c.participante_id] = { confirmado: !!c.confirmado, observacao: c.observacao };
+          });
+        }
+
         setForm(f => {
           const activeIds = new Set(list.map(p => p.id));
           const pres: Record<string, boolean> = {};
-          const justs: Record<string, string> = {};
-          list.forEach(p => { pres[p.id] = p.id in f.presenca ? f.presenca[p.id] : true; });
-          Object.entries(f.justificativas).forEach(([id, v]) => { if (activeIds.has(id)) justs[id] = v; });
-          return { ...f, presenca: pres, justificativas: justs };
+          const justs: Record<string, string> = { ...f.justificativas };
+          list.forEach(p => {
+            if (p.id in f.presenca) {
+              pres[p.id] = f.presenca[p.id];
+            } else if (checkinsMap[p.id] && checkinsMap[p.id].confirmado === false) {
+              pres[p.id] = false;
+              if (!justs[p.id] && checkinsMap[p.id].observacao) {
+                justs[p.id] = `[Família informou] ${checkinsMap[p.id].observacao}`;
+              }
+            } else {
+              pres[p.id] = true;
+            }
+          });
+          // keep only justificativas of active participantes
+          const filteredJusts: Record<string, string> = {};
+          Object.entries(justs).forEach(([id, v]) => { if (activeIds.has(id)) filteredJusts[id] = v; });
+          return { ...f, presenca: pres, justificativas: filteredJusts };
         });
       }
     };
     fetchParts();
-  }, [form.turma_ids]);
+  }, [form.turma_ids, form.data]);
 
   const toggleTurma = (id: string) => setForm(f => ({ ...f, turma_ids: f.turma_ids.includes(id) ? f.turma_ids.filter(x => x !== id) : [...f.turma_ids, id] }));
   const toggleEng = (v: string) => setForm(f => ({ ...f, engajamento: f.engajamento.includes(v) ? f.engajamento.filter(x => x !== v) : [...f.engajamento, v] }));
