@@ -26,6 +26,8 @@ interface Ponto {
 interface Bairro { id: string; nome: string; }
 
 export default function DashboardTransporteTab() {
+  const { user } = useAuth();
+  const [isMotoristaOuCoord, setIsMotoristaOuCoord] = useState(false);
   const [pontos, setPontos] = useState<Ponto[]>([]);
   const [bairros, setBairros] = useState<Bairro[]>([]);
   const [participantesPorPonto, setParticipantesPorPonto] = useState<Record<string, { nome: string; periodo: string }[]>>({});
@@ -43,7 +45,88 @@ export default function DashboardTransporteTab() {
   const [bulkDialog, setBulkDialog] = useState<"horario" | "bairro" | null>(null);
   const [bulkValues, setBulkValues] = useState({ horario_manha: "", horario_tarde: "", bairro_id: "" });
 
+  // Check-ins de hoje (visão motorista/coordenação)
+  const [checkinsHoje, setCheckinsHoje] = useState<Record<string, any>>({});
+  const [participantesPorPontoFull, setParticipantesPorPontoFull] = useState<Record<string, { id: string; nome: string; periodo: string }[]>>({});
+  const [refreshingCheckins, setRefreshingCheckins] = useState(false);
+
+  const hojeStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const horaSP = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo", hour: "numeric", hour12: false }), 10);
+  const periodoAtual: "manha" | "tarde" = horaSP < 12 ? "manha" : "tarde";
+
   useEffect(() => { loadAll(); }, []);
+
+  // Detect role
+  useEffect(() => {
+    (async () => {
+      if (!user) return;
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+      const roles = (data || []).map((r: any) => r.role);
+      setIsMotoristaOuCoord(roles.includes("motorista") || roles.includes("coordenacao"));
+    })();
+  }, [user]);
+
+  // Load today's checkins + auto-refresh 60s + realtime
+  useEffect(() => {
+    if (!isMotoristaOuCoord) return;
+    loadCheckinsHoje();
+    const interval = setInterval(loadCheckinsHoje, 60000);
+    const channel = supabase
+      .channel("checkins-hoje")
+      .on("postgres_changes", { event: "*", schema: "public", table: "participante_checkins" }, () => loadCheckinsHoje())
+      .subscribe();
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [isMotoristaOuCoord, hojeStr]);
+
+  const loadCheckinsHoje = async () => {
+    setRefreshingCheckins(true);
+    const [{ data: checkins }, { data: parts }] = await Promise.all([
+      supabase.from("participante_checkins").select("*").eq("data", hojeStr),
+      supabase.from("participantes").select("id, nome_completo, periodo, ponto_transporte_id").in("status", ["ativo", "busca_ativa"] as any),
+    ]);
+    const ckMap: Record<string, any> = {};
+    (checkins || []).forEach((c: any) => {
+      ckMap[`${c.participante_id}_${c.periodo}`] = c;
+    });
+    setCheckinsHoje(ckMap);
+    const pMap: Record<string, { id: string; nome: string; periodo: string }[]> = {};
+    (parts || []).forEach((p: any) => {
+      if (p.ponto_transporte_id) {
+        if (!pMap[p.ponto_transporte_id]) pMap[p.ponto_transporte_id] = [];
+        pMap[p.ponto_transporte_id].push({ id: p.id, nome: p.nome_completo, periodo: p.periodo || "manha" });
+      }
+    });
+    setParticipantesPorPontoFull(pMap);
+    setRefreshingCheckins(false);
+  };
+
+  const marcarEmbarque = async (participanteId: string, embarcou: boolean) => {
+    const key = `${participanteId}_${periodoAtual}`;
+    const existing = checkinsHoje[key];
+    if (existing) {
+      await supabase.from("participante_checkins").update({
+        embarcou,
+        embarcou_em: new Date().toISOString(),
+        embarcou_por: null, // será preenchido por trigger ou manualmente; mantém nulo p/ simplicidade
+      } as any).eq("id", existing.id);
+    } else {
+      await supabase.from("participante_checkins").insert({
+        participante_id: participanteId,
+        data: hojeStr,
+        periodo: periodoAtual,
+        confirmado: embarcou,
+        embarcou,
+        embarcou_em: new Date().toISOString(),
+      } as any);
+    }
+    toast.success(embarcou ? "Embarque registrado" : "Marcado como não embarcou");
+    loadCheckinsHoje();
+  };
+
+  const horaBR = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
 
   const loadAll = async () => {
     const [bRes, pRes, partRes] = await Promise.all([
