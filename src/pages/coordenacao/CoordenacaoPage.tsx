@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useCoordenacaoData } from "@/hooks/useCoordenacaoData";
 import { PainelCoordenadorTab } from "./PainelCoordenadorTab";
+import { AtividadesTab } from "./AtividadesTab";
+import { PermissoesTab } from "./PermissoesTab";
 
 export default function CoordenacaoPage() {
   const { user } = useAuth();
@@ -65,11 +67,13 @@ export default function CoordenacaoPage() {
       </header>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-5 w-full max-w-3xl">
+        <TabsList className="grid grid-cols-7 w-full max-w-5xl">
           <TabsTrigger value="painel">Painel</TabsTrigger>
           <TabsTrigger value="acoes">Ações Pendentes</TabsTrigger>
           <TabsTrigger value="decisoes">Decisões</TabsTrigger>
           <TabsTrigger value="qualidade">Qualidade</TabsTrigger>
+          <TabsTrigger value="atividades">Atividades</TabsTrigger>
+          <TabsTrigger value="permissoes">Permissões</TabsTrigger>
           <TabsTrigger value="relatorio">Relatório</TabsTrigger>
         </TabsList>
 
@@ -109,6 +113,8 @@ export default function CoordenacaoPage() {
                 <StatCard label="% Turmas com educador" value={`${data.gestao.qualidade.pct_turmas_com_educador}%`} />
                 <StatCard label="% Planejamentos com turma" value={`${data.gestao.qualidade.pct_planej_com_turma}%`} />
                 <StatCard label="Tempo médio transferência" value={`${data.gestao.qualidade.tempo_medio_transferencia_dias}d`} />
+                <StatCard label="Atividades registradas (período)" value={data.gestao.atividades_periodo?.count ?? 0} />
+                <StatCard label="Tempo dedicado (min)" value={data.gestao.atividades_periodo?.minutos_totais ?? 0} />
               </div>
               <Card>
                 <CardHeader><CardTitle className="text-base">Cobertura Territorial vs Metas</CardTitle></CardHeader>
@@ -132,6 +138,9 @@ export default function CoordenacaoPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            <TabsContent value="atividades" className="mt-6"><AtividadesTab /></TabsContent>
+            <TabsContent value="permissoes" className="mt-6"><PermissoesTab /></TabsContent>
 
             <TabsContent value="relatorio" className="mt-6">
               <Card>

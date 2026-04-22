@@ -39,6 +39,7 @@ export interface CoordenacaoStats {
       real_tarde: number;
       real_total: number;
     }>;
+    atividades_periodo?: { count: number; minutos_totais: number };
     data_inicio_operacional: string;
     periodo_dias: number;
   };
@@ -52,7 +53,6 @@ export function useCoordenacaoData(periodoDias = 30) {
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<CoordenacaoStats> => {
       const { data, error } = await (supabase.rpc as any)("get_coordenacao_stats", {
-        _user_id: user!.id,
         _periodo_dias: periodoDias,
       });
       if (error) throw error;

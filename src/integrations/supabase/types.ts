@@ -338,6 +338,42 @@ export type Database = {
           },
         ]
       }
+      coordenacao_atividades: {
+        Row: {
+          categoria: string
+          coordenador_id: string
+          created_at: string
+          data: string
+          descricao: string | null
+          duracao_minutos: number | null
+          id: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          categoria?: string
+          coordenador_id: string
+          created_at?: string
+          data?: string
+          descricao?: string | null
+          duracao_minutos?: number | null
+          id?: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          categoria?: string
+          coordenador_id?: string
+          created_at?: string
+          data?: string
+          descricao?: string | null
+          duracao_minutos?: number | null
+          id?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cronograma_cenarios: {
         Row: {
           ativo: boolean
@@ -2390,7 +2426,7 @@ export type Database = {
         }[]
       }
       get_coordenacao_stats: {
-        Args: { _periodo_dias?: number; _user_id: string }
+        Args: { _periodo_dias?: number; _user_id?: string }
         Returns: Json
       }
       get_dashboard_stats: {
