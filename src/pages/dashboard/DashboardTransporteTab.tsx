@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, MapPin, Clock, Power, PowerOff, Pencil, Trash2, Check, X } from "lucide-react";
+import { Plus, MapPin, Clock, Power, PowerOff, Pencil, Trash2, Check, X, Bus, CheckCircle2, XCircle, CircleDashed, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { isBairroSCFV } from "@/lib/constants";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Ponto {
   id: string;
