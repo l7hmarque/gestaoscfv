@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SysCFVLogo } from "@/components/SysCFVLogo";
 import {
-  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings, User, UserX, CalendarDays, Briefcase,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings, User, UserX, CalendarDays, Briefcase, ChefHat,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -57,6 +57,7 @@ export function AppSidebar() {
   const { user, signOut } = useAuth();
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
   const [isCoord, setIsCoord] = useState(false);
+  const [isCozinheiro, setIsCozinheiro] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -65,14 +66,19 @@ export function AppSidebar() {
     });
     supabase.from("user_roles").select("role").eq("user_id", user.id).then(({ data }) => {
       setIsCoord((data ?? []).some((r: any) => r.role === "coordenacao"));
+      setIsCozinheiro((data ?? []).some((r: any) => r.role === "cozinheiro"));
     });
   }, [user]);
 
   const visibleGroups = menuGroups.map((g) => {
     if (g.label !== "Gestão") return g;
-    const items = isCoord
-      ? [{ title: "Coordenação", url: "/coordenacao", icon: Briefcase }, ...g.items]
-      : g.items;
+    let items = g.items;
+    if (isCoord || isCozinheiro) {
+      items = [{ title: "Cozinha", url: "/cozinha", icon: ChefHat }, ...items];
+    }
+    if (isCoord) {
+      items = [{ title: "Coordenação", url: "/coordenacao", icon: Briefcase }, ...items];
+    }
     return { ...g, items };
   });
 

@@ -402,6 +402,151 @@ export type Database = {
         }
         Relationships: []
       }
+      cozinha_cardapio: {
+        Row: {
+          created_at: string
+          criado_por: string | null
+          dia_semana: number
+          id: string
+          insumos_previstos: Json
+          prato: string
+          refeicao: string
+          semana_inicio: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por?: string | null
+          dia_semana: number
+          id?: string
+          insumos_previstos?: Json
+          prato?: string
+          refeicao: string
+          semana_inicio: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string | null
+          dia_semana?: number
+          id?: string
+          insumos_previstos?: Json
+          prato?: string
+          refeicao?: string
+          semana_inicio?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cozinha_cardapio_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cozinha_cardapio_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cozinha_insumos: {
+        Row: {
+          categoria: string
+          created_at: string
+          estoque_minimo: number
+          id: string
+          nome: string
+          observacao: string | null
+          quantidade_atual: number
+          unidade: string
+          updated_at: string
+          validade: string | null
+          valor_unitario: number | null
+        }
+        Insert: {
+          categoria?: string
+          created_at?: string
+          estoque_minimo?: number
+          id?: string
+          nome: string
+          observacao?: string | null
+          quantidade_atual?: number
+          unidade?: string
+          updated_at?: string
+          validade?: string | null
+          valor_unitario?: number | null
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          estoque_minimo?: number
+          id?: string
+          nome?: string
+          observacao?: string | null
+          quantidade_atual?: number
+          unidade?: string
+          updated_at?: string
+          validade?: string | null
+          valor_unitario?: number | null
+        }
+        Relationships: []
+      }
+      cozinha_movimentacoes: {
+        Row: {
+          created_at: string
+          id: string
+          insumo_id: string
+          motivo: string | null
+          quantidade: number
+          responsavel_id: string | null
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          insumo_id: string
+          motivo?: string | null
+          quantidade: number
+          responsavel_id?: string | null
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          insumo_id?: string
+          motivo?: string | null
+          quantidade?: number
+          responsavel_id?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cozinha_movimentacoes_insumo_id_fkey"
+            columns: ["insumo_id"]
+            isOneToOne: false
+            referencedRelation: "cozinha_insumos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cozinha_movimentacoes_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cozinha_movimentacoes_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cronograma_cenarios: {
         Row: {
           ativo: boolean
@@ -2612,6 +2757,7 @@ export type Database = {
         Args: { _periodo_dias?: number; _user_id?: string }
         Returns: Json
       }
+      get_cozinha_stats: { Args: never; Returns: Json }
       get_dashboard_stats: {
         Args: { _ano?: number; _mes?: number }
         Returns: Json
@@ -2635,6 +2781,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_restricoes_alimentares: { Args: never; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
