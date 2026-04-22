@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SysCFVLogo } from "@/components/SysCFVLogo";
 import {
-  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings, User, UserX, CalendarDays,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings, User, UserX, CalendarDays, Briefcase,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -56,13 +56,25 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
+  const [isCoord, setIsCoord] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     supabase.from("profiles").select("id").eq("user_id", user.id).single().then(({ data }) => {
       if (data) setMyProfileId(data.id);
     });
+    supabase.from("user_roles").select("role").eq("user_id", user.id).then(({ data }) => {
+      setIsCoord((data ?? []).some((r: any) => r.role === "coordenacao"));
+    });
   }, [user]);
+
+  const visibleGroups = menuGroups.map((g) => {
+    if (g.label !== "Gestão") return g;
+    const items = isCoord
+      ? [{ title: "Coordenação", url: "/coordenacao", icon: Briefcase }, ...g.items]
+      : g.items;
+    return { ...g, items };
+  });
 
   return (
     <Sidebar collapsible="icon">
@@ -71,7 +83,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {menuGroups.map((group) => (
+        {visibleGroups.map((group) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel className="uppercase tracking-[0.1em] text-[10px] font-semibold text-muted-foreground">{group.label}</SidebarGroupLabel>
             <SidebarGroupContent>
