@@ -101,6 +101,102 @@ export default function FamiliaDashboardPage() {
   };
 
   const p = participantes[selected];
+
+  // ===== Check-in helpers (declarado antes de retornos para hooks consistentes) =====
+  const periodosDoParticipante = useMemo(() => {
+    if (!p?.periodo) return [];
+    if (p.periodo === "integral") return ["manha", "tarde"];
+    return [p.periodo];
+  }, [p?.periodo]);
+
+  const diasFrequenta = useMemo(() => {
+    const set = new Set<string>();
+    turmas.forEach((t: any) => (t.dias_semana || []).forEach((d: string) => set.add(String(d).toLowerCase().slice(0, 3))));
+    return set;
+  }, [turmas]);
+
+  const temAtividadeNaData = (iso: string) => {
+    if (!diasFrequenta.size) return true;
+    return diasFrequenta.has(diaSemanaKey(iso));
+  };
+
+  const checkinDoDia = (iso: string, periodo: string) =>
+    checkins.find((c: any) => c.data === iso && c.periodo === periodo) || null;
+
+  const streak = useMemo(() => {
+    // dias seguidos com pelo menos 1 confirmação true (a partir de ontem)
+    const ordenados = [...checkins]
+      .filter((c: any) => c.confirmado === true)
+      .map((c: any) => c.data)
+      .sort()
+      .reverse();
+    const set = new Set(ordenados);
+    let count = 0;
+    let cursor = parseDataISO(hojeSP());
+    cursor.setDate(cursor.getDate() - 1);
+    while (set.has(cursor.toISOString().slice(0, 10))) {
+      count++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return count;
+  }, [checkins]);
+
+  const ultimaConfirmacao = useMemo(() => {
+    const ord = [...checkins].sort((a: any, b: any) => (b.confirmado_em || "").localeCompare(a.confirmado_em || ""));
+    return ord[0] || null;
+  }, [checkins]);
+
+  const enviarCheckin = async (iso: string, periodo: string, confirmado: boolean, motivo?: string) => {
+    if (!p) return;
+    const key = `${iso}-${periodo}-${confirmado}`;
+    setSavingCheckin(key);
+    try {
+      const token = sessionStorage.getItem("familia_token") || undefined;
+      const res = await supabase.functions.invoke("public-familia-data", {
+        body: {
+          participante_id: p.id,
+          tipo: "registrar_checkin",
+          token,
+          data: iso,
+          periodo,
+          confirmado,
+          confirmado_por: respNome || null,
+          observacao: motivo || null,
+        },
+      });
+      if ((res.data as any)?.error || res.error) {
+        toast.error((res.data as any)?.error || res.error?.message || "Erro ao salvar");
+        return;
+      }
+      // Atualização local
+      const novo = (res.data as any).checkin;
+      setCheckins(prev => {
+        const idx = prev.findIndex((c: any) => c.data === iso && c.periodo === periodo);
+        if (idx >= 0) { const cp = [...prev]; cp[idx] = novo; return cp; }
+        return [novo, ...prev];
+      });
+      if (confirmado) {
+        confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+        toast.success("Obrigado! O motorista já foi avisado 🚐");
+      } else {
+        toast.success("Registrado: hoje a criança não vai");
+      }
+    } finally {
+      setSavingCheckin(null);
+    }
+  };
+
+  const handleNaoVaiConfirm = async () => {
+    if (!naoVaiDialog) return;
+    if (!naoVaiMotivo.trim() || naoVaiMotivo.trim().length < 5) {
+      toast.error("Por favor, escreva o motivo (mínimo 5 caracteres) para que a equipe possa apoiar");
+      return;
+    }
+    await enviarCheckin(naoVaiDialog.data, naoVaiDialog.periodo, false, naoVaiMotivo.trim());
+    setNaoVaiDialog(null);
+    setNaoVaiMotivo("");
+  };
+
   if (!p) return null;
 
   const pctAtual = presenca?.mesAtual?.total
