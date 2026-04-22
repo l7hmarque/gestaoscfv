@@ -56,12 +56,13 @@ export default function FamiliaDashboardPage() {
   const loadData = async (participanteId: string) => {
     setLoading(true);
     try {
+      const token = sessionStorage.getItem("familia_token") || undefined;
       const [turmasRes, atividadesRes, presencaRes, recadosRes, formularioRes] = await Promise.all([
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "turmas" } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "atividades" } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "presenca" } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "recados" } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "formularios" } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "turmas", token } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "atividades", token } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "presenca", token } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "recados", token } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "formularios", token } }),
       ]);
 
       setTurmas(turmasRes.data?.turmas || []);
