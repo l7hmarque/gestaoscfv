@@ -57,7 +57,7 @@ export default function RestricoesTab() {
     }));
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
-    autoFitColumns(ws, rows);
+    autoFitColumns(ws);
     XLSX.utils.book_append_sheet(wb, ws, "Restrições");
     const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
     const now = new Date();
