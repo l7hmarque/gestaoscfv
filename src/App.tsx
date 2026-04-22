@@ -53,6 +53,7 @@ const MuralPage = lazy(() => import("./pages/mural/MuralPage"));
 const CronogramaPage = lazy(() => import("./pages/cronograma/CronogramaPage"));
 const DesignPreviewPage = lazy(() => import("./pages/preview/DesignPreviewPage"));
 const IntegridadePage = lazy(() => import("./pages/integridade/IntegridadePage"));
+const CoordenacaoPage = lazy(() => import("./pages/coordenacao/CoordenacaoPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -122,6 +123,7 @@ const App = () => (
                   <Route path="/cronograma" element={<CronogramaPage />} />
                   <Route path="/preview-design" element={<DesignPreviewPage />} />
                   <Route path="/integridade" element={<IntegridadePage />} />
+                  <Route path="/coordenacao" element={<CoordenacaoPage />} />
                   <Route path="/dev" element={<DevPage />} />
                 </Route>
                 <Route path="/matricula" element={<MatriculaPublicaPage />} />
