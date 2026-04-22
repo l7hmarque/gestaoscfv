@@ -341,6 +341,15 @@ const ParticipantePerfilPage = () => {
             )}
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Pencil className="h-3.5 w-3.5 mr-1" />Editar</Button>
             <Button variant="outline" size="sm" className="gap-1" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" />Imprimir</Button>
+            <SendRecadoDialog
+              paraFamilia
+              participanteIdFixo={participante.id}
+              trigger={
+                <Button variant="outline" size="sm" className="gap-1">
+                  <MessageCircle className="h-3.5 w-3.5" />Recado p/ Família
+                </Button>
+              }
+            />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1"><FileText className="h-3.5 w-3.5" />Ficha</Button>
