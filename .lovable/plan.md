@@ -1,98 +1,85 @@
 
 
-# Módulo de Coordenação
+# Endurecimento de segurança + Painel de Permissões + Atividades da Coordenação
 
-Hub dedicado em `/coordenacao` que consolida atribuições do cargo de coordenador e oferece **KPIs do próprio trabalho de gestão**. Os indicadores reaproveitam e se somam aos dados já calculados pelo `get_dashboard_stats` e `get_pendencias_integridade` existentes — sem duplicar lógica, sem criar métricas paralelas.
+Três entregas conectadas: blindar o RPC `get_coordenacao_stats` e tabelas críticas com checagem real de role; criar um painel visual de gestão de permissões dentro do módulo de Coordenação; e adicionar uma aba de Registro de Atividades Livres do coordenador.
 
-## Princípio de integração de dados
+## 1. Segurança (corrige avisos do linter)
 
-Os KPIs do coordenador são uma **camada complementar** sobre o que já existe:
+### RPC `get_coordenacao_stats` — blindagem dupla
+- Hoje: depende do `_user_id` enviado pelo cliente. Vulnerável (qualquer autenticado pode passar o `user_id` de um coordenador).
+- Migration: refatorar para **ignorar** `_user_id` recebido e usar `auth.uid()` internamente; manter `SECURITY DEFINER` + `SET search_path = public`; retornar `forbidden` se `has_role(auth.uid(), 'coordenacao')` for falso. `_user_id` vira parâmetro opcional ignorado (mantém compatibilidade do hook).
 
-- **Reaproveita**: chama `get_dashboard_stats` e `get_pendencias_integridade` por dentro do novo RPC `get_coordenacao_stats` e mescla no JSON de retorno (chaves `dashboard` e `pendencias`).
-- **Respeita o marco operacional**: lê `configuracoes_gerais.data_inicio_operacional` (mesma constante usada no dashboard) para filtrar audit_log, transferências e tempos médios.
-- **Adiciona** apenas o que ainda não existe: tempos médios de resposta, decisões do coordenador no `audit_log`, fila priorizada de ações, cobertura de metas territoriais cruzada com `bairros.meta_*`.
-- **Frontend**: a tela de coordenação consome o RPC unificado e exibe lado a lado os KPIs operacionais herdados do dashboard + os KPIs de gestão novos, deixando claro de onde vem cada número.
+### RLS — eliminar políticas `WITH CHECK (true)` (warns 2–7)
+Substituir por checagens de role concretas nas tabelas hoje permissivas:
+- `audit_log` INSERT: trocar `true` por `auth.uid() = user_id` (impede falsificação de autoria).
+- `chamadas_assinadas` INSERT: `uploaded_by = auth.uid() AND NOT has_role(auth.uid(), 'visitante')`.
+- `conquistas` INSERT: restringir a coordenação/sistema (`has_role(auth.uid(), 'coordenacao')`).
+- `feed_posts` / `feed_comentarios` / `feed_fotos` / `feed_reacoes` / `mural_posts` INSERT: amarrar `autor_id`/`user_id` ao perfil do `auth.uid()` via subquery em `profiles`.
+- `participante_documentos` INSERT/UPDATE: bloquear visitante + exigir role operacional (`coordenacao`, `tecnico`, `educador`).
+- `participantes`, `presenca`, `planejamentos`, `planejamento_turmas`, `participante_transferencias`: trocar `NOT visitante` puro por `(NOT visitante) AND (has_role coordenacao OR tecnico OR educador)` no INSERT/UPDATE/DELETE.
 
-## O que será entregue
+Cada role passa a operar **apenas** no que lhe compete:
+- `coordenacao`: tudo.
+- `tecnico`: prontuário, atendimentos, financeiro, formulários, encaminhamentos (já correto).
+- `educador`: cria/edita seus próprios relatórios, planejamentos, presença e participantes; sem deletar exceto próprios.
+- `motorista`: só leitura geral + INSERT/UPDATE em transporte (sem mutar participantes/relatórios).
+- `cozinheiro`: somente leitura.
+- `visitante`: somente SELECT.
 
-### 1. Rota `/coordenacao` (acesso restrito ao role `coordenacao`)
-Item dedicado na sidebar, grupo **Gestão**, ícone Briefcase. Bloqueado para outros perfis com redirect + toast.
+Avisos do linter fora do escopo (e já tratados via produto): Extension in Public, Public Bucket Listing, Leaked Password Protection — mantidos como estão (o usuário não pediu).
 
-### 2. Layout em 5 abas
+## 2. Nova aba **Permissões** dentro de `/coordenacao`
 
-**Aba 1 — Painel do Coordenador (default)**
-- KPIs herdados (`dashboard.*`): participantes ativos, turmas ativas, taxa de frequência, média ELO, delta de participantes — exibidos como contexto operacional.
-- KPIs novos de gestão (último período): pendências de integridade abertas (de `pendencias.total`, com link para `/integridade`), aprovações de transferência pendentes, avisos ativos, recados técnicos sem resposta, encaminhamentos abertos > 30 dias, turmas sem educador / vazias (de `pendencias.*`), % de educadores que entregaram relatórios no mês, % de planejamentos com turma vinculada, cobertura de metas territoriais.
-- Cada card indica a fonte (Operacional / Gestão / Integridade) com badge sutil.
+Painel intuitivo para alterar acessos sem ir ao `/dev`:
+- Tabela: linhas = profissionais ativos (de `profiles`); colunas = roles (`coordenacao`, `tecnico`, `educador`, `motorista`, `cozinheiro`, `visitante`).
+- Cada célula é um Switch. Marcar/desmarcar dispara `INSERT`/`DELETE` em `user_roles` com auditoria automática em `audit_log` (acao=`role_concedida`/`role_revogada`).
+- Filtro por nome, badge de quantas roles cada pessoa acumula, busca instantânea.
+- Painel-resumo no topo: matriz de capacidades (mesma de `DevPage`, em modo leitura) explicando o que cada role pode.
+- Acesso restrito a `coordenacao` (já protegido pela página).
+- Confirmação ao remover a última role de coordenação do sistema (anti lock-out).
 
-**Aba 2 — Ações Pendentes**
-Fila única e priorizada construída a partir das tabelas existentes:
-- Transferências aguardando aprovação (`participante_transferencias`)
-- Matrículas pendentes
-- Top categorias de `get_pendencias_integridade_detalhes`
-- Recados técnicos endereçados à coordenação
-- Avisos expirando em 7 dias (`avisos_sistema`)
+## 3. Nova aba **Atividades** (registro livre da coordenação)
 
-Cada item tem ação rápida (aprovar/rejeitar/abrir tela específica) sem sair da página.
-
-**Aba 3 — Decisões e Auditoria**
-Log de `audit_log` filtrado pelo `user_id` do coordenador logado:
-- Tabela com data, ação, tabela afetada, justificativa
-- Filtros: período, tipo de ação (exclusão, aprovação, transferência, desligamento)
-- Contadores agregados (exclusões justificadas, aprovações, desligamentos validados)
-- Toggle "Equipe (todos coordenadores)" / "Individual"
-
-**Aba 4 — Indicadores de Qualidade da Gestão**
-Métricas derivadas dos dados já existentes:
-- Tempo médio de resposta a transferências (`participante_transferencias.created_at` → `data_transferencia`)
-- Tempo médio de resolução de pendências (via `audit_log`)
-- % de turmas ativas com educador (de `pendencias.turmas_sem_educador` vs total)
-- % de participantes ativos sem pendências
-- Reusa séries `presencaMensal` e `eloMensal` já entregues por `get_dashboard_stats` para gráficos de evolução
-- Cobertura territorial real (de `dashboard.participantesPorBairro` + `participantesPorPeriodo`) vs metas (`bairros.meta_*`)
-
-**Aba 5 — Relatório do Coordenador**
-PDF + XLSX do trabalho da coordenação no período selecionado, reaproveitando `addInstitutionalHeader`, `applyInstitutionalStyle`, `sysCfvFileName`, paleta grayscale. Conteúdo: capa, sumário executivo (mesmos KPIs do painel), decisões registradas, aprovações concedidas, desligamentos validados, pendências abertas vs resolvidas, gráficos. Nome: `SysCFV_RelatorioCoordenacao_{YYYY-MM-DD}_{HHmmss}.{ext}`.
+Diário de atividades realizadas pela coordenação, separado de auditoria automática:
+- Tabela nova `coordenacao_atividades`: `id`, `coordenador_id` (profile), `data` (default hoje), `categoria` (enum textual: `reuniao`, `visita_tecnica`, `articulacao_rede`, `formacao_equipe`, `documento`, `outro`), `titulo`, `descricao`, `duracao_minutos` (opcional), `created_at`, `updated_at`.
+- RLS: SELECT/INSERT/UPDATE/DELETE somente para `coordenacao` (próprio ou equipe — visível a todos os coordenadores).
+- UI: formulário inline (categoria, título, descrição, data, duração) + lista cronológica reversa com filtros por categoria e mês. Cards minimalistas com badge de categoria e ações editar/excluir.
+- KPI agregado nos contadores do Painel: nº de atividades registradas no período + tempo total dedicado.
+- Cada criação grava também em `audit_log` para rastreabilidade.
 
 ## Detalhes técnicos
 
-**Backend (1 migration)** — RPC `get_coordenacao_stats(_user_id uuid, _periodo_dias int)`:
-- Lê data de corte de `configuracoes_gerais.data_inicio_operacional` (mesma fonte do dashboard).
-- Chama `public.get_dashboard_stats(NULL, NULL)` e `public.get_pendencias_integridade()` por dentro e mescla os resultados.
-- Adiciona blocos novos: `acoes_pendentes`, `qualidade_gestao` (tempos médios via `EXTRACT(EPOCH FROM ...)`), `decisoes_proprias` (count de `audit_log` filtrado), `cobertura_metas`.
-- Retorna `jsonb_build_object('dashboard', ..., 'pendencias', ..., 'gestao', ...)`.
-- `SECURITY DEFINER` + check `has_role(_user_id, 'coordenacao')`.
+- **Migration única** com:
+  1. `CREATE OR REPLACE FUNCTION public.get_coordenacao_stats` ignorando `_user_id` e usando `auth.uid()`.
+  2. `DROP POLICY` + `CREATE POLICY` para todas as tabelas listadas acima (substitui `true` por checagem real).
+  3. `CREATE TABLE public.coordenacao_atividades` + `ENABLE ROW LEVEL SECURITY` + 4 policies role-restritas + trigger `update_updated_at_column`.
+- **Frontend**:
+  - `src/pages/coordenacao/PermissoesTab.tsx` — tabela + switches + auditoria.
+  - `src/pages/coordenacao/AtividadesTab.tsx` — formulário + lista + filtros.
+  - `src/pages/coordenacao/CoordenacaoPage.tsx` — adiciona 2 abas (`permissoes`, `atividades`); `TabsList grid-cols-7`.
+  - `src/hooks/useCoordenacaoData.ts` — não envia mais `_user_id` real (mantém parâmetro só para compat) e aceita o novo bloco `atividades_periodo` retornado pelo RPC.
+- **Validação pós-migration**: rodar `supabase--linter` e confirmar que warns 2–7 sumiram.
 
-**Frontend (3 arquivos novos + 2 edições)**:
-- `src/pages/coordenacao/CoordenacaoPage.tsx` — shell com Tabs (estado controlado, padrão do projeto)
-- `src/pages/coordenacao/PainelCoordenadorTab.tsx` — KPIs unificados (operacional + gestão) e fila de ações
-- `src/hooks/useCoordenacaoData.ts` — TanStack Query consumindo a RPC, expondo `dashboard`, `pendencias` e `gestao` para componentes
-- Edição `src/components/AppSidebar.tsx` — novo item "Coordenação" no grupo Gestão (visível só se role = coordenacao)
-- Edição `src/App.tsx` — rota lazy-loaded `/coordenacao` dentro de `<ProtectedRoute>`
-
-**Estilo**: cards com borda lateral 4px colorida (padrão `DashboardPage`), badge de origem do dado (Operacional/Gestão/Integridade), grayscale para documentos exportados.
-
-## Diagrama de fluxo de dados
+## Diagrama
 
 ```text
-configuracoes_gerais.data_inicio_operacional
-            │
-            ▼
-get_coordenacao_stats(user_id, periodo_dias)
-   ├── chama get_dashboard_stats()        → bloco "dashboard"
-   ├── chama get_pendencias_integridade() → bloco "pendencias"
-   └── calcula novos KPIs de gestão       → bloco "gestao"
-            │
-            ▼
-useCoordenacaoData (TanStack Query, cache 5min)
-            │
-            ▼
-CoordenacaoPage → 5 abas (KPIs unificados sem duplicar lógica)
+/coordenacao (role-gated)
+  ├── Painel (KPIs unificados — inalterado)
+  ├── Ações Pendentes
+  ├── Decisões (audit_log)
+  ├── Qualidade (KPIs gestão)
+  ├── Atividades (NOVO — registro livre + filtros)
+  ├── Permissões (NOVO — switches por role)
+  └── Relatório
+
+RPC get_coordenacao_stats
+  ├── auth.uid() ← server-side (não confia no cliente)
+  ├── has_role(auth.uid(),'coordenacao') ← gate
+  └── retorna {dashboard, pendencias, gestao, atividades_periodo}
 ```
 
-## Fora do escopo (já existem em outras páginas)
-- Aprovação individual de transferências → `/participantes` (linkada daqui)
-- Pendências detalhadas → `/integridade` (linkada daqui)
-- Desligamento em lote → `/desligamento-admin` (linkado daqui)
-- Edição de roles → `/configuracoes`
+## Fora do escopo
+- Avisos do linter sobre `extension in public`, `public bucket listing` e `leaked password protection` (configurações de produto/Auth, não pedidos).
+- Edição de roles fora da aba Permissões (continua existindo `/dev` e `/configuracoes`).
 
