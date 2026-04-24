@@ -1499,6 +1499,10 @@ export default function FinanceiroPage() {
         <TabsContent value="documentos">
           <DocumentosPrestacaoTab />
         </TabsContent>
+        {/* =================== LOTES IMPORTADOS =================== */}
+        <TabsContent value="lotes">
+          <LotesImportadosTab />
+        </TabsContent>
       </Tabs>
 
       {/* Delete confirmation with justificativa */}
