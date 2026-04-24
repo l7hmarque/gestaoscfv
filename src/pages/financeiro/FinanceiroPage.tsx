@@ -119,6 +119,8 @@ export default function FinanceiroPage() {
   // Document import
   const [docFiles, setDocFiles] = useState<DetectedDoc[]>([]);
   const [docProcessing, setDocProcessing] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [savingDocs, setSavingDocs] = useState(false);
 
   // Audit
   const [auditFindings, setAuditFindings] = useState<AuditFinding[] | null>(null);
