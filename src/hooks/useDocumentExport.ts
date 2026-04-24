@@ -380,6 +380,14 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
 }
 
 export async function exportRelatorioDocx(item: any, turmaNames: string[], presenca: any[], fotos: any[]) {
+  // Normalizar entradas para evitar crashes em propriedades ausentes
+  item = item || {};
+  turmaNames = Array.isArray(turmaNames) ? turmaNames : [];
+  presenca = Array.isArray(presenca) ? presenca : [];
+  fotos = Array.isArray(fotos) ? fotos : [];
+  if (!Array.isArray(item.engajamento)) item.engajamento = item.engajamento ? [item.engajamento] : [];
+  if (!Array.isArray(item.situacoes_relevantes)) item.situacoes_relevantes = item.situacoes_relevantes ? [item.situacoes_relevantes] : [];
+
   const template = await loadTemplate("relatorio.docx");
   
   if (template) {
@@ -678,6 +686,10 @@ function buildPlanejamentoTemplateData(item: any, turmaNames: string[]) {
 }
 
 export async function exportPlanejamentoDocx(item: any, turmaNames: string[]) {
+  item = item || {};
+  turmaNames = Array.isArray(turmaNames) ? turmaNames : [];
+  if (!Array.isArray(item.forma_avaliacao)) item.forma_avaliacao = item.forma_avaliacao ? [item.forma_avaliacao] : [];
+
   const template = await loadTemplate("planejamento.docx");
 
   if (template) {

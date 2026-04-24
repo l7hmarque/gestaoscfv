@@ -117,11 +117,17 @@ const PlanejamentoDetalhePage = () => {
               </Button>
               <Button variant="outline" size="sm" className="gap-1" onClick={async () => {
                 toast.info("Gerando DOCX + PDF...");
-                await Promise.all([
-                  exportPlanejamentoDocx(item, turmaNames),
-                  exportPlanejamentoPdf(item, turmaNames).catch(() => {}),
-                ]);
-                toast.success("Downloads concluídos!");
+                try {
+                  await Promise.all([
+                    exportPlanejamentoDocx(item, turmaNames),
+                    exportPlanejamentoPdf(item, turmaNames).catch((err) => console.error("PDF falhou:", err)),
+                  ]);
+                  toast.success("Downloads concluídos!");
+                } catch (e) {
+                  console.error("Erro ao gerar planejamento:", e);
+                  const msg = e instanceof Error ? e.message : String(e);
+                  toast.error(`Erro ao gerar DOCX: ${msg.slice(0, 200)}`);
+                }
               }}>
                 <Download className="h-3.5 w-3.5" />Exportar Tudo
               </Button>

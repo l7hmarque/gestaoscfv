@@ -618,7 +618,8 @@ const RelatorioDetalhePage = () => {
               toast.success("DOCX gerado!");
             } catch (e) {
               console.error("Erro ao gerar DOCX:", e);
-              toast.error("Erro ao gerar DOCX. Tente novamente.");
+              const msg = e instanceof Error ? e.message : String(e);
+              toast.error(`Erro ao gerar DOCX: ${msg.slice(0, 200)}`);
             }
           }}>
             <Download className="h-3.5 w-3.5" />Exportar DOCX
