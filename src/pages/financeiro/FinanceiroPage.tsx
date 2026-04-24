@@ -906,9 +906,6 @@ export default function FinanceiroPage() {
                 </TableRow></TableHeader>
                 <TableBody>
                   {filteredDespesas.map(d => {
-                  ((null as any));
-                }
-                  )}
                     const st = despStatus(d);
                     return (
                     <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditDesp({ ...d })}>
@@ -931,6 +928,15 @@ export default function FinanceiroPage() {
                           {d.nota_url && <Badge variant="outline" className="text-[9px] px-1 py-0">NF</Badge>}
                           {d.boleto_url && <Badge variant="outline" className="text-[9px] px-1 py-0">Bol</Badge>}
                           {d.comprovante_url && <Badge variant="outline" className="text-[9px] px-1 py-0">Comp</Badge>}
+                          {!(d as any).sit_completo && (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] px-1 py-0 cursor-pointer bg-blue-500/10 text-blue-700 border-blue-500/30 hover:bg-blue-500/20"
+                              onClick={(e) => { e.stopPropagation(); setRegularizarTarget(d); }}
+                            >
+                              SIT
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); setDeleteTarget({ table: "despesas", id: d.id, label: `Despesa: ${d.descricao} - ${fmt(Number(d.valor))}` }); }}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
