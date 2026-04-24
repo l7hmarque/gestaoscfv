@@ -15,17 +15,16 @@ import { supabase } from "@/integrations/supabase/client";
 import * as FileSaverModule from "file-saver";
 
 async function captureBlob(fn: () => Promise<void>): Promise<Blob> {
-  const original = FileSaverModule.saveAs;
+  const mod = FileSaverModule as any;
+  const original = mod.saveAs;
   let captured: Blob | null = null;
-  // @ts-expect-error monkey patch durante a chamada
-  FileSaverModule.saveAs = (blob: Blob) => {
+  mod.saveAs = (blob: Blob) => {
     captured = blob;
   };
   try {
     await fn();
   } finally {
-    // @ts-expect-error restore
-    FileSaverModule.saveAs = original;
+    mod.saveAs = original;
   }
   if (!captured) throw new Error("Falha ao capturar DOCX gerado");
   return captured;
