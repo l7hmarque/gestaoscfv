@@ -769,10 +769,34 @@ export type Database = {
           fornecedor: string | null
           id: string
           lote_id: string | null
+          lote_origem_pdf: string | null
           mes_referencia: string
           nota_url: string | null
           numero_documento: string | null
           orcamento_id: string | null
+          pendente_comprovante: boolean
+          sit_ano_transferencia: number | null
+          sit_codigo_tipo_despesa: number | null
+          sit_completo: boolean
+          sit_data_debito: string | null
+          sit_data_doc_despesa: string | null
+          sit_data_emissao_pagamento: string | null
+          sit_data_empenho: string | null
+          sit_data_processo: string | null
+          sit_descricao_item: string | null
+          sit_modalidade_compra: number | null
+          sit_nome_favorecido: string | null
+          sit_numero_doc_despesa: string | null
+          sit_numero_doc_pagamento: string | null
+          sit_numero_empenho: string | null
+          sit_numero_instrumento: string | null
+          sit_numero_processo: string | null
+          sit_placa_veiculo: string | null
+          sit_quilometragem: number | null
+          sit_tipo_doc_despesa: number | null
+          sit_tipo_doc_favorecido: string | null
+          sit_tipo_doc_pagamento: number | null
+          sit_tipo_transferencia: number | null
           status_sit: string | null
           tipo_documento: string | null
           valor: number
@@ -789,10 +813,34 @@ export type Database = {
           fornecedor?: string | null
           id?: string
           lote_id?: string | null
+          lote_origem_pdf?: string | null
           mes_referencia: string
           nota_url?: string | null
           numero_documento?: string | null
           orcamento_id?: string | null
+          pendente_comprovante?: boolean
+          sit_ano_transferencia?: number | null
+          sit_codigo_tipo_despesa?: number | null
+          sit_completo?: boolean
+          sit_data_debito?: string | null
+          sit_data_doc_despesa?: string | null
+          sit_data_emissao_pagamento?: string | null
+          sit_data_empenho?: string | null
+          sit_data_processo?: string | null
+          sit_descricao_item?: string | null
+          sit_modalidade_compra?: number | null
+          sit_nome_favorecido?: string | null
+          sit_numero_doc_despesa?: string | null
+          sit_numero_doc_pagamento?: string | null
+          sit_numero_empenho?: string | null
+          sit_numero_instrumento?: string | null
+          sit_numero_processo?: string | null
+          sit_placa_veiculo?: string | null
+          sit_quilometragem?: number | null
+          sit_tipo_doc_despesa?: number | null
+          sit_tipo_doc_favorecido?: string | null
+          sit_tipo_doc_pagamento?: number | null
+          sit_tipo_transferencia?: number | null
           status_sit?: string | null
           tipo_documento?: string | null
           valor: number
@@ -809,10 +857,34 @@ export type Database = {
           fornecedor?: string | null
           id?: string
           lote_id?: string | null
+          lote_origem_pdf?: string | null
           mes_referencia?: string
           nota_url?: string | null
           numero_documento?: string | null
           orcamento_id?: string | null
+          pendente_comprovante?: boolean
+          sit_ano_transferencia?: number | null
+          sit_codigo_tipo_despesa?: number | null
+          sit_completo?: boolean
+          sit_data_debito?: string | null
+          sit_data_doc_despesa?: string | null
+          sit_data_emissao_pagamento?: string | null
+          sit_data_empenho?: string | null
+          sit_data_processo?: string | null
+          sit_descricao_item?: string | null
+          sit_modalidade_compra?: number | null
+          sit_nome_favorecido?: string | null
+          sit_numero_doc_despesa?: string | null
+          sit_numero_doc_pagamento?: string | null
+          sit_numero_empenho?: string | null
+          sit_numero_instrumento?: string | null
+          sit_numero_processo?: string | null
+          sit_placa_veiculo?: string | null
+          sit_quilometragem?: number | null
+          sit_tipo_doc_despesa?: number | null
+          sit_tipo_doc_favorecido?: string | null
+          sit_tipo_doc_pagamento?: number | null
+          sit_tipo_transferencia?: number | null
           status_sit?: string | null
           tipo_documento?: string | null
           valor?: number
@@ -2484,6 +2556,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sit_codigos: {
+        Row: {
+          ativo: boolean
+          categoria: string
+          codigo: string
+          created_at: string
+          descricao: string
+          id: string
+        }
+        Insert: {
+          ativo?: boolean
+          categoria: string
+          codigo: string
+          created_at?: string
+          descricao: string
+          id?: string
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string
+          codigo?: string
+          created_at?: string
+          descricao?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      sit_configuracao: {
+        Row: {
+          ano_transferencia_padrao: number
+          cnpj_concedente: string
+          created_at: string
+          id: string
+          modalidade_compra_padrao: number
+          numero_instrumento_padrao: string
+          observacoes: string | null
+          tipo_doc_pagamento_padrao: number
+          tipo_transferencia_padrao: number
+          updated_at: string
+        }
+        Insert: {
+          ano_transferencia_padrao?: number
+          cnpj_concedente: string
+          created_at?: string
+          id?: string
+          modalidade_compra_padrao?: number
+          numero_instrumento_padrao: string
+          observacoes?: string | null
+          tipo_doc_pagamento_padrao?: number
+          tipo_transferencia_padrao?: number
+          updated_at?: string
+        }
+        Update: {
+          ano_transferencia_padrao?: number
+          cnpj_concedente?: string
+          created_at?: string
+          id?: string
+          modalidade_compra_padrao?: number
+          numero_instrumento_padrao?: string
+          observacoes?: string | null
+          tipo_doc_pagamento_padrao?: number
+          tipo_transferencia_padrao?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       site_conteudos: {
         Row: {
