@@ -19,11 +19,15 @@ async function loadTemplate(templateName: string): Promise<ArrayBuffer | null> {
   if (templateCache[templateName]) return templateCache[templateName];
   try {
     const { data, error } = await supabase.storage.from("templates").download(templateName);
-    if (error || !data) return null;
+    if (error || !data) {
+      console.info(`[docx] template '${templateName}' indisponível, usando fallback gerado.`, error?.message);
+      return null;
+    }
     const buffer = await data.arrayBuffer();
     templateCache[templateName] = buffer;
     return buffer;
-  } catch {
+  } catch (e) {
+    console.info(`[docx] erro ao baixar template '${templateName}', usando fallback.`, e);
     return null;
   }
 }
@@ -134,6 +138,7 @@ function fillTemplate(templateBuffer: ArrayBuffer, data: Record<string, any>): B
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
+    nullGetter: () => "",
   });
 
   try {
@@ -375,6 +380,14 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
 }
 
 export async function exportRelatorioDocx(item: any, turmaNames: string[], presenca: any[], fotos: any[]) {
+  // Normalizar entradas para evitar crashes em propriedades ausentes
+  item = item || {};
+  turmaNames = Array.isArray(turmaNames) ? turmaNames : [];
+  presenca = Array.isArray(presenca) ? presenca : [];
+  fotos = Array.isArray(fotos) ? fotos : [];
+  if (!Array.isArray(item.engajamento)) item.engajamento = item.engajamento ? [item.engajamento] : [];
+  if (!Array.isArray(item.situacoes_relevantes)) item.situacoes_relevantes = item.situacoes_relevantes ? [item.situacoes_relevantes] : [];
+
   const template = await loadTemplate("relatorio.docx");
   
   if (template) {
@@ -673,6 +686,10 @@ function buildPlanejamentoTemplateData(item: any, turmaNames: string[]) {
 }
 
 export async function exportPlanejamentoDocx(item: any, turmaNames: string[]) {
+  item = item || {};
+  turmaNames = Array.isArray(turmaNames) ? turmaNames : [];
+  if (!Array.isArray(item.forma_avaliacao)) item.forma_avaliacao = item.forma_avaliacao ? [item.forma_avaliacao] : [];
+
   const template = await loadTemplate("planejamento.docx");
 
   if (template) {

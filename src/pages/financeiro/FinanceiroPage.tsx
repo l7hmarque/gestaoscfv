@@ -54,7 +54,8 @@ interface LoteLine {
 interface DetectedDoc {
   file: File;
   uploading: boolean;
-  extracted: any | null;
+  extracted: any | null;            // legado (1ª despesa) - mantido p/ compat
+  extractedList: any[];             // NOVO: todas as despesas detectadas no PDF
   confirmed: boolean;
   storageUrl?: string;
 }
@@ -387,7 +388,7 @@ export default function FinanceiroPage() {
     const files = e.target.files;
     if (!files) return;
     const newDocs: DetectedDoc[] = Array.from(files).map(f => ({
-      file: f, uploading: false, extracted: null, confirmed: false,
+      file: f, uploading: false, extracted: null, extractedList: [], confirmed: false,
     }));
     setDocFiles(prev => [...prev, ...newDocs]);
 
@@ -417,9 +418,20 @@ export default function FinanceiroPage() {
           body: { file_base64: base64, mime_type: doc.file.type },
         });
 
-        setDocFiles(prev => prev.map((d, idx) =>
+        const list: any[] = Array.isArray(data?.despesas) && data.despesas.length > 0
+          ? data.despesas
+          : (data?.extracted ? [data.extracted] : []);
+        if (!error && list.length > 1) toast.success(`${list.length} despesas detectadas em ${doc.file.name}`);
+
+        setDocFiles(prev => prev.map((d) =>
           d.file === doc.file
-            ? { ...d, extracted: error ? null : data?.extracted, uploading: false, storageUrl: urlData?.publicUrl }
+            ? {
+                ...d,
+                extracted: error ? null : (list[0] ?? null),
+                extractedList: error ? [] : list,
+                uploading: false,
+                storageUrl: urlData?.publicUrl,
+              }
             : d
         ));
       } catch (err) {
@@ -431,32 +443,69 @@ export default function FinanceiroPage() {
     e.target.value = "";
   };
 
-  const updateDocExtracted = (idx: number, field: string, value: any) => {
-    setDocFiles(prev => prev.map((d, i) =>
-      i === idx ? { ...d, extracted: { ...d.extracted, [field]: value } } : d
-    ));
+  const updateDocExtracted = (docIdx: number, despIdx: number, field: string, value: any) => {
+    setDocFiles(prev => prev.map((d, i) => {
+      if (i !== docIdx) return d;
+      const newList = d.extractedList.map((item, j) => j === despIdx ? { ...item, [field]: value } : item);
+      return { ...d, extractedList: newList, extracted: newList[0] ?? d.extracted };
+    }));
+  };
+
+  const removeDespesa = (docIdx: number, despIdx: number) => {
+    setDocFiles(prev => prev.map((d, i) => {
+      if (i !== docIdx) return d;
+      const newList = d.extractedList.filter((_, j) => j !== despIdx);
+      return { ...d, extractedList: newList, extracted: newList[0] ?? null };
+    }));
   };
 
   const saveImportedDocs = async () => {
-    const toSave = docFiles.filter(d => d.extracted);
-    if (toSave.length === 0) return;
+    // Achata: cada despesa de cada arquivo vira 1 row
+    const flat: { row: any; storageUrl?: string }[] = [];
+    for (const d of docFiles) {
+      for (const e of d.extractedList) {
+        flat.push({ row: e, storageUrl: d.storageUrl });
+      }
+    }
+    if (flat.length === 0) return;
     const lote_id = crypto.randomUUID();
-    const rows = toSave.map(d => ({
-      descricao: d.extracted.descricao || "Sem descrição",
-      valor: Number(d.extracted.valor) || 0,
-      data_lancamento: d.extracted.data_lancamento || new Date().toISOString().split("T")[0],
-      categoria_id: null,
-      mes_referencia: mesRef,
-      fornecedor: d.extracted.fornecedor || null,
-      cnpj_cpf: d.extracted.cnpj_cpf || null,
-      numero_documento: d.extracted.numero_documento || null,
-      tipo_documento: d.extracted.tipo_documento || "nota_fiscal",
-      nota_url: d.storageUrl || null,
-      lote_id,
-    }));
+    const rows = flat.map(({ row: e, storageUrl }) => {
+      const cnpjcpf = (e.cnpj_cpf || "").replace(/\D/g, "");
+      const tipoFav = e.sit_tipo_doc_favorecido || (cnpjcpf.length === 14 ? "CNPJ" : cnpjcpf.length === 11 ? "CPF" : null);
+      const obrigatoriosOk = !!(e.valor && e.data_lancamento && e.fornecedor && e.sit_tipo_doc_despesa && e.sit_tipo_doc_pagamento);
+      return {
+        descricao: e.descricao || "Sem descrição",
+        valor: Number(e.valor) || 0,
+        data_lancamento: e.data_lancamento || new Date().toISOString().split("T")[0],
+        categoria_id: null,
+        mes_referencia: mesRef,
+        fornecedor: e.fornecedor || e.sit_nome_favorecido || null,
+        cnpj_cpf: e.cnpj_cpf || null,
+        numero_documento: e.numero_documento || e.sit_numero_doc_despesa || null,
+        tipo_documento: e.tipo_documento || "nota_fiscal",
+        nota_url: storageUrl || null,
+        lote_id,
+        // Campos SIT
+        sit_tipo_doc_favorecido: tipoFav,
+        sit_nome_favorecido: e.sit_nome_favorecido || e.fornecedor || null,
+        sit_tipo_doc_despesa: e.sit_tipo_doc_despesa ?? null,
+        sit_numero_doc_despesa: e.sit_numero_doc_despesa || e.numero_documento || null,
+        sit_data_doc_despesa: e.sit_data_doc_despesa || e.data_lancamento || null,
+        sit_tipo_doc_pagamento: e.sit_tipo_doc_pagamento ?? null,
+        sit_numero_doc_pagamento: e.sit_numero_doc_pagamento || null,
+        sit_data_emissao_pagamento: e.sit_data_emissao_pagamento || null,
+        sit_data_debito: e.sit_data_debito || null,
+        sit_numero_instrumento: e.sit_numero_instrumento || null,
+        sit_ano_transferencia: e.sit_ano_transferencia ?? null,
+        sit_descricao_item: e.sit_descricao_item || e.descricao || null,
+        sit_completo: obrigatoriosOk,
+        pendente_comprovante: !storageUrl,
+        lote_origem_pdf: storageUrl || null,
+      };
+    });
     const { error } = await supabase.from("despesas").insert(rows);
     if (error) { toast.error("Erro ao lançar"); return; }
-    toast.success(`${toSave.length} despesas importadas`);
+    toast.success(`${rows.length} despesa(s) importada(s)`);
     setDocFiles([]);
     setDialogOpen(null);
     load();
@@ -1083,26 +1132,59 @@ export default function FinanceiroPage() {
                             <Trash2 className="h-3 w-3 text-destructive" />
                           </Button>
                         </div>
-                        {doc.extracted ? (
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            <div><Label className="text-[10px]">Descrição</Label>
-                              <Input className="h-7 text-xs" value={doc.extracted.descricao || ""} onChange={e => updateDocExtracted(idx, "descricao", e.target.value)} /></div>
-                            <div><Label className="text-[10px]">Valor</Label>
-                              <Input className="h-7 text-xs" type="number" value={doc.extracted.valor || ""} onChange={e => updateDocExtracted(idx, "valor", e.target.value)} /></div>
-                            <div><Label className="text-[10px]">Data</Label>
-                              <Input className="h-7 text-xs" type="date" value={doc.extracted.data_lancamento || ""} onChange={e => updateDocExtracted(idx, "data_lancamento", e.target.value)} /></div>
-                            <div><Label className="text-[10px]">Fornecedor</Label>
-                              <Input className="h-7 text-xs" value={doc.extracted.fornecedor || ""} onChange={e => updateDocExtracted(idx, "fornecedor", e.target.value)} /></div>
-                            <div><Label className="text-[10px]">CNPJ/CPF</Label>
-                              <Input className="h-7 text-xs" value={doc.extracted.cnpj_cpf || ""} onChange={e => updateDocExtracted(idx, "cnpj_cpf", e.target.value)} /></div>
-                            <div><Label className="text-[10px]">Nº Documento</Label>
-                              <Input className="h-7 text-xs" value={doc.extracted.numero_documento || ""} onChange={e => updateDocExtracted(idx, "numero_documento", e.target.value)} /></div>
-                            <div><Label className="text-[10px]">Tipo</Label>
-                              <Select value={doc.extracted.tipo_documento || "nota_fiscal"} onValueChange={v => updateDocExtracted(idx, "tipo_documento", v)}>
-                                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                                <SelectContent>{TIPOS_DOCUMENTO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-                              </Select>
+                        {doc.extractedList && doc.extractedList.length > 0 ? (
+                          <div className="space-y-2">
+                            <div className="text-[11px] font-medium text-muted-foreground">
+                              {doc.extractedList.length} despesa(s) detectada(s){doc.extractedList.length > 1 && " — uma por funcionário/comprovante"}
                             </div>
+                            {doc.extractedList.map((extr, dIdx) => (
+                              <div key={dIdx} className="border rounded p-2 bg-muted/20">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-[10px] font-semibold">Despesa #{dIdx + 1}</span>
+                                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeDespesa(idx, dIdx)}>
+                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                  <div><Label className="text-[10px]">Descrição</Label>
+                                    <Input className="h-7 text-xs" value={extr.descricao || ""} onChange={e => updateDocExtracted(idx, dIdx, "descricao", e.target.value)} /></div>
+                                  <div><Label className="text-[10px]">Valor (R$)</Label>
+                                    <Input className="h-7 text-xs" type="number" step="0.01" value={extr.valor || ""} onChange={e => updateDocExtracted(idx, dIdx, "valor", e.target.value)} /></div>
+                                  <div><Label className="text-[10px]">Data</Label>
+                                    <Input className="h-7 text-xs" type="date" value={extr.data_lancamento || ""} onChange={e => updateDocExtracted(idx, dIdx, "data_lancamento", e.target.value)} /></div>
+                                  <div><Label className="text-[10px]">Favorecido</Label>
+                                    <Input className="h-7 text-xs" value={extr.fornecedor || extr.sit_nome_favorecido || ""} onChange={e => updateDocExtracted(idx, dIdx, "fornecedor", e.target.value)} /></div>
+                                  <div><Label className="text-[10px]">CPF/CNPJ</Label>
+                                    <Input className="h-7 text-xs" value={extr.cnpj_cpf || ""} onChange={e => updateDocExtracted(idx, dIdx, "cnpj_cpf", e.target.value)} /></div>
+                                  <div><Label className="text-[10px]">Nº Doc Despesa</Label>
+                                    <Input className="h-7 text-xs" value={extr.sit_numero_doc_despesa || extr.numero_documento || ""} onChange={e => updateDocExtracted(idx, dIdx, "sit_numero_doc_despesa", e.target.value)} /></div>
+                                  <div><Label className="text-[10px]">Tipo Doc Despesa (SIT)</Label>
+                                    <Select value={String(extr.sit_tipo_doc_despesa ?? "")} onValueChange={v => updateDocExtracted(idx, dIdx, "sit_tipo_doc_despesa", Number(v))}>
+                                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="1">1 — Nota Fiscal</SelectItem>
+                                        <SelectItem value="4">4 — Recibo</SelectItem>
+                                        <SelectItem value="5">5 — Boleto</SelectItem>
+                                        <SelectItem value="6">6 — Folha de Pagamento</SelectItem>
+                                        <SelectItem value="7">7 — RPA</SelectItem>
+                                        <SelectItem value="8">8 — DARF</SelectItem>
+                                        <SelectItem value="9">9 — GPS</SelectItem>
+                                        <SelectItem value="20">20 — Outros</SelectItem>
+                                      </SelectContent>
+                                    </Select></div>
+                                  <div><Label className="text-[10px]">Tipo Pagamento (SIT)</Label>
+                                    <Select value={String(extr.sit_tipo_doc_pagamento ?? "")} onValueChange={v => updateDocExtracted(idx, dIdx, "sit_tipo_doc_pagamento", Number(v))}>
+                                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="1">1 — Cheque</SelectItem>
+                                        <SelectItem value="3">3 — TED/DOC/PIX</SelectItem>
+                                        <SelectItem value="4">4 — Débito Automático</SelectItem>
+                                        <SelectItem value="5">5 — Boleto</SelectItem>
+                                      </SelectContent>
+                                    </Select></div>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -1112,8 +1194,8 @@ export default function FinanceiroPage() {
                       </CardContent>
                     </Card>
                   ))}
-                  <Button onClick={saveImportedDocs} disabled={docFiles.filter(d => d.extracted).length === 0}>
-                    Lançar {docFiles.filter(d => d.extracted).length} Despesas
+                  <Button onClick={saveImportedDocs} disabled={docFiles.reduce((s, d) => s + d.extractedList.length, 0) === 0}>
+                    Lançar {docFiles.reduce((s, d) => s + d.extractedList.length, 0)} Despesa(s)
                   </Button>
                 </div>
               )}
