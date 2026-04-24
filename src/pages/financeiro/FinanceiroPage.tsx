@@ -28,6 +28,7 @@ import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
+import { validateDespesa, missingFieldLabel, type DespesaWarning } from "@/lib/despesaImportValidation";
 
 type Categoria = { id: string; codigo: string; descricao: string; valor_previsto: number; created_at: string };
 type Parcela = { id: string; numero_parcela: number; valor: number; data_recebimento: string; created_at: string };
@@ -118,6 +119,8 @@ export default function FinanceiroPage() {
   // Document import
   const [docFiles, setDocFiles] = useState<DetectedDoc[]>([]);
   const [docProcessing, setDocProcessing] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [savingDocs, setSavingDocs] = useState(false);
 
   // Audit
   const [auditFindings, setAuditFindings] = useState<AuditFinding[] | null>(null);
@@ -466,73 +469,50 @@ export default function FinanceiroPage() {
     }));
   };
 
-  const saveImportedDocs = async () => {
-    // Achata: cada despesa de cada arquivo vira 1 row
-    const flat: { row: any; storageUrl?: string }[] = [];
-    for (const d of docFiles) {
-      for (const e of d.extractedList) {
-        flat.push({ row: e, storageUrl: d.storageUrl });
-      }
-    }
-    if (flat.length === 0) return;
+  // Pré-validação de todas as despesas extraídas (memoizada por render)
+  const validatedDocs = docFiles.map((d, docIdx) => ({
+    docIdx,
+    fileName: d.file.name,
+    storageUrl: d.storageUrl,
+    items: d.extractedList.map((e, despIdx) => ({
+      despIdx,
+      original: e,
+      ...validateDespesa(e, { mesRef, storageUrl: d.storageUrl }),
+    })),
+  }));
+
+  const totalImportDespesas = validatedDocs.reduce((s, d) => s + d.items.length, 0);
+  const totalWithMissing = validatedDocs.reduce(
+    (s, d) => s + d.items.filter((it) => it.missing.length > 0).length,
+    0
+  );
+  const totalWithWarnings = validatedDocs.reduce(
+    (s, d) =>
+      s + d.items.filter((it) => it.warnings.length > 0 && it.missing.length === 0).length,
+    0
+  );
+
+  const openReview = () => {
+    if (totalImportDespesas === 0) return;
+    setReviewOpen(true);
+  };
+
+  const confirmAndSaveImportedDocs = async () => {
+    if (totalImportDespesas === 0) return;
+    setSavingDocs(true);
     const lote_id = crypto.randomUUID();
-    const rows = flat.map(({ row: e, storageUrl }) => {
-      const cnpjcpf = (e.cnpj_cpf || "").replace(/\D/g, "");
-      const tipoFav = e.sit_tipo_doc_favorecido || (cnpjcpf.length === 14 ? "CNPJ" : cnpjcpf.length === 11 ? "CPF" : null);
-      const obrigatoriosOk = !!(e.valor && e.data_lancamento && e.fornecedor && e.sit_tipo_doc_despesa && e.sit_tipo_doc_pagamento);
-      // Helpers de truncamento para respeitar limites do schema (varchar)
-      const trunc = (v: any, n: number) => {
-        if (v === null || v === undefined) return null;
-        const s = String(v).trim();
-        return s ? s.slice(0, n) : null;
-      };
-      const toSmallInt = (v: any) => {
-        if (v === null || v === undefined || v === "") return null;
-        const n = parseInt(String(v).replace(/\D/g, ""), 10);
-        return Number.isFinite(n) ? n : null;
-      };
-      const tipoFavTrunc = trunc(tipoFav, 4);
-      const numDocDespesa = trunc(e.sit_numero_doc_despesa || e.numero_documento, 10);
-      const numDocPagamento = trunc(e.sit_numero_doc_pagamento, 15);
-      const numInstrumento = trunc(e.sit_numero_instrumento, 20);
-      const nomeFav = trunc(e.sit_nome_favorecido || e.fornecedor, 250);
-      return {
-        descricao: e.descricao || "Sem descrição",
-        valor: Number(e.valor) || 0,
-        data_lancamento: e.data_lancamento || new Date().toISOString().split("T")[0],
-        categoria_id: null,
-        mes_referencia: mesRef,
-        fornecedor: e.fornecedor || e.sit_nome_favorecido || null,
-        cnpj_cpf: e.cnpj_cpf || null,
-        numero_documento: e.numero_documento || e.sit_numero_doc_despesa || null,
-        tipo_documento: e.tipo_documento || "nota_fiscal",
-        nota_url: storageUrl || null,
-        lote_id,
-        // Campos SIT
-        sit_tipo_doc_favorecido: tipoFavTrunc,
-        sit_nome_favorecido: nomeFav,
-        sit_tipo_doc_despesa: toSmallInt(e.sit_tipo_doc_despesa),
-        sit_numero_doc_despesa: numDocDespesa,
-        sit_data_doc_despesa: e.sit_data_doc_despesa || e.data_lancamento || null,
-        sit_tipo_doc_pagamento: toSmallInt(e.sit_tipo_doc_pagamento),
-        sit_numero_doc_pagamento: numDocPagamento,
-        sit_data_emissao_pagamento: e.sit_data_emissao_pagamento || null,
-        sit_data_debito: e.sit_data_debito || null,
-        sit_numero_instrumento: numInstrumento,
-        sit_ano_transferencia: e.sit_ano_transferencia ?? null,
-        sit_descricao_item: e.sit_descricao_item || e.descricao || null,
-        sit_completo: obrigatoriosOk,
-        pendente_comprovante: !storageUrl,
-        lote_origem_pdf: storageUrl || null,
-      };
-    });
-    const { error } = await supabase.from("despesas").insert(rows);
+    const rows = validatedDocs.flatMap((d) =>
+      d.items.map((it) => ({ ...it.row, lote_id }))
+    );
+    const { error } = await supabase.from("despesas").insert(rows as any);
+    setSavingDocs(false);
     if (error) {
       console.error("Erro ao lançar despesa:", error);
       toast.error(`Erro ao lançar: ${error.message}`);
       return;
     }
     toast.success(`${rows.length} despesa(s) importada(s)`);
+    setReviewOpen(false);
     setDocFiles([]);
     setDialogOpen(null);
     load();
@@ -824,6 +804,122 @@ export default function FinanceiroPage() {
           despesa={regularizarTarget}
           onSaved={load}
         />
+
+        {/* =================== REVISÃO PRÉ-LANÇAMENTO =================== */}
+        <Dialog open={reviewOpen} onOpenChange={(v) => !savingDocs && setReviewOpen(v)}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle>Revisar despesas antes de lançar</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 text-xs">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">Total: {totalImportDespesas}</Badge>
+                {totalWithMissing > 0 && (
+                  <Badge variant="destructive" className="gap-1">
+                    <AlertTriangle className="h-3 w-3" /> {totalWithMissing} com campo obrigatório faltando
+                  </Badge>
+                )}
+                {totalWithWarnings > 0 && (
+                  <Badge variant="outline" className="gap-1 border-amber-400 text-amber-700">
+                    <Info className="h-3 w-3" /> {totalWithWarnings} com ajuste(s) automático(s)
+                  </Badge>
+                )}
+                {totalWithMissing === 0 && totalWithWarnings === 0 && (
+                  <Badge variant="outline" className="gap-1 border-emerald-400 text-emerald-700">
+                    <CheckCircle2 className="h-3 w-3" /> Tudo pronto, sem alterações
+                  </Badge>
+                )}
+              </div>
+
+              {totalWithMissing > 0 && (
+                <div className="rounded border border-destructive/40 bg-destructive/5 p-2">
+                  <strong className="text-destructive">Atenção:</strong> despesas com campos obrigatórios ausentes serão lançadas como <em>incompletas</em> (não exportáveis ao SIT). Você pode prosseguir e completá-las depois pelo botão <em>Regularizar</em>, ou cancelar e ajustar agora.
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {validatedDocs.map((d) => (
+                  <div key={d.docIdx} className="border rounded">
+                    <div className="px-2 py-1 bg-muted/40 text-[11px] font-medium flex items-center gap-2">
+                      <FileText className="h-3 w-3" />
+                      <span className="truncate">{d.fileName}</span>
+                      <span className="text-muted-foreground">— {d.items.length} despesa(s)</span>
+                    </div>
+                    <ul className="divide-y">
+                      {d.items.map((it) => {
+                        const desc = it.row.descricao || "—";
+                        const valor = Number(it.row.valor || 0);
+                        return (
+                          <li key={it.despIdx} className="px-2 py-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium truncate">
+                                  #{it.despIdx + 1} — {desc}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  R$ {valor.toFixed(2)} • {it.row.fornecedor || "sem fornecedor"} • {it.row.data_lancamento || "sem data"}
+                                </div>
+                              </div>
+                              {it.missing.length > 0 ? (
+                                <Badge variant="destructive" className="text-[9px] h-4 px-1">
+                                  {it.missing.length} faltando
+                                </Badge>
+                              ) : it.warnings.length > 0 ? (
+                                <Badge variant="outline" className="text-[9px] h-4 px-1 border-amber-400 text-amber-700">
+                                  {it.warnings.length} ajuste(s)
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[9px] h-4 px-1 border-emerald-400 text-emerald-700">
+                                  OK
+                                </Badge>
+                              )}
+                            </div>
+                            {(it.missing.length > 0 || it.warnings.length > 0) && (
+                              <ul className="mt-1 ml-3 space-y-0.5 text-[10px]">
+                                {it.missing.map((m) => (
+                                  <li key={`m-${m}`} className="text-destructive">
+                                    • <strong>{missingFieldLabel(m)}</strong> — campo obrigatório ausente
+                                  </li>
+                                ))}
+                                {it.warnings.map((w, wi) => (
+                                  <li
+                                    key={`w-${wi}`}
+                                    className={
+                                      w.severity === "error"
+                                        ? "text-destructive"
+                                        : w.severity === "warn"
+                                        ? "text-amber-700"
+                                        : "text-muted-foreground"
+                                    }
+                                  >
+                                    • <strong>{w.label}:</strong> {w.message}
+                                    {w.original && w.applied && (
+                                      <span className="text-muted-foreground"> ({w.original.length > 30 ? w.original.slice(0, 30) + "…" : w.original} → {w.applied.length > 30 ? w.applied.slice(0, 30) + "…" : w.applied})</span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button variant="outline" onClick={() => setReviewOpen(false)} disabled={savingDocs}>
+                  Voltar e ajustar
+                </Button>
+                <Button onClick={confirmAndSaveImportedDocs} disabled={savingDocs || totalImportDespesas === 0}>
+                  {savingDocs ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                  Confirmar e lançar {totalImportDespesas}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* =================== DESPESAS =================== */}
         <TabsContent value="despesas">
@@ -1195,11 +1291,66 @@ export default function FinanceiroPage() {
                             {doc.extractedList.map((extr, dIdx) => (
                               <div key={dIdx} className="border rounded p-2 bg-muted/20">
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="text-[10px] font-semibold">Despesa #{dIdx + 1}</span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-[10px] font-semibold">Despesa #{dIdx + 1}</span>
+                                    {(() => {
+                                      const v = validatedDocs[idx]?.items[dIdx];
+                                      if (!v) return null;
+                                      if (v.missing.length > 0) {
+                                        return (
+                                          <Badge variant="destructive" className="text-[9px] h-4 px-1 gap-0.5">
+                                            <AlertTriangle className="h-2.5 w-2.5" />
+                                            {v.missing.length} campo(s) obrigatório(s)
+                                          </Badge>
+                                        );
+                                      }
+                                      if (v.warnings.length > 0) {
+                                        return (
+                                          <Badge variant="outline" className="text-[9px] h-4 px-1 gap-0.5 border-amber-400 text-amber-700">
+                                            <Info className="h-2.5 w-2.5" />
+                                            {v.warnings.length} ajuste(s)
+                                          </Badge>
+                                        );
+                                      }
+                                      return (
+                                        <Badge variant="outline" className="text-[9px] h-4 px-1 gap-0.5 border-emerald-400 text-emerald-700">
+                                          <CheckCircle2 className="h-2.5 w-2.5" />
+                                          OK
+                                        </Badge>
+                                      );
+                                    })()}
+                                  </div>
                                   <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeDespesa(idx, dIdx)}>
                                     <Trash2 className="h-3 w-3 text-destructive" />
                                   </Button>
                                 </div>
+                                {(() => {
+                                  const v = validatedDocs[idx]?.items[dIdx];
+                                  if (!v || (v.missing.length === 0 && v.warnings.length === 0)) return null;
+                                  return (
+                                    <ul className="mb-2 text-[10px] space-y-0.5">
+                                      {v.missing.map((m) => (
+                                        <li key={`m-${m}`} className="text-destructive">
+                                          • <strong>{missingFieldLabel(m)}</strong> — campo obrigatório ausente
+                                        </li>
+                                      ))}
+                                      {v.warnings.map((w, wi) => (
+                                        <li
+                                          key={`w-${wi}`}
+                                          className={
+                                            w.severity === "error"
+                                              ? "text-destructive"
+                                              : w.severity === "warn"
+                                              ? "text-amber-700"
+                                              : "text-muted-foreground"
+                                          }
+                                        >
+                                          • <strong>{w.label}:</strong> {w.message}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  );
+                                })()}
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                   <div><Label className="text-[10px]">Descrição</Label>
                                     <Input className="h-7 text-xs" value={extr.descricao || ""} onChange={e => updateDocExtracted(idx, dIdx, "descricao", e.target.value)} /></div>
@@ -1249,9 +1400,26 @@ export default function FinanceiroPage() {
                       </CardContent>
                     </Card>
                   ))}
-                  <Button onClick={saveImportedDocs} disabled={docFiles.reduce((s, d) => s + d.extractedList.length, 0) === 0}>
-                    Lançar {docFiles.reduce((s, d) => s + d.extractedList.length, 0)} Despesa(s)
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between rounded-md border bg-muted/30 p-2">
+                    <div className="text-[11px] flex flex-wrap gap-2 items-center">
+                      <Badge variant="outline" className="text-[10px]">
+                        Total: {totalImportDespesas}
+                      </Badge>
+                      {totalWithMissing > 0 && (
+                        <Badge variant="destructive" className="text-[10px] gap-1">
+                          <AlertTriangle className="h-3 w-3" /> {totalWithMissing} bloqueada(s)
+                        </Badge>
+                      )}
+                      {totalWithWarnings > 0 && (
+                        <Badge variant="outline" className="text-[10px] gap-1 border-amber-400 text-amber-700">
+                          <Info className="h-3 w-3" /> {totalWithWarnings} com ajuste(s)
+                        </Badge>
+                      )}
+                    </div>
+                    <Button onClick={openReview} disabled={totalImportDespesas === 0}>
+                      Revisar e lançar {totalImportDespesas} despesa(s)
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
