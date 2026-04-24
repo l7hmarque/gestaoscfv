@@ -69,22 +69,23 @@ function buildResolver<K extends string | number>(
   table: Record<K, { label: string; aliases: string[] }> | Record<string, string[]>,
   isCodeMap: boolean
 ) {
-  const idx = new Map<string, K>();
+  // Indexa: chave normalizada -> { code, alias original que matchou }
+  const idx = new Map<string, { code: K; alias: string }>();
   if (isCodeMap) {
     const t = table as Record<K, { label: string; aliases: string[] }>;
     for (const k of Object.keys(t) as K[]) {
-      idx.set(clean(k as any), k);
-      idx.set(clean(t[k].label), k);
-      for (const a of t[k].aliases) idx.set(clean(a), k);
+      idx.set(clean(k as any), { code: k, alias: String(k) });
+      idx.set(clean(t[k].label), { code: k, alias: t[k].label });
+      for (const a of t[k].aliases) idx.set(clean(a), { code: k, alias: a });
     }
   } else {
     const t = table as Record<string, string[]>;
     for (const k of Object.keys(t)) {
-      idx.set(clean(k), k as K);
-      for (const a of t[k]) idx.set(clean(a), k as K);
+      idx.set(clean(k), { code: k as K, alias: k });
+      for (const a of t[k]) idx.set(clean(a), { code: k as K, alias: a });
     }
   }
-  return (raw: any): K | null => {
+  return (raw: any): { code: K; alias: string } | null => {
     if (raw === null || raw === undefined || raw === "") return null;
     const c = clean(raw);
     if (!c) return null;
@@ -106,49 +107,80 @@ export interface SitMappingResult<T> {
   code: T | null;
   applied: boolean; // true se houve conversão de label -> código
   original: string | null;
+  /** Identificador estável da regra que produziu o resultado. */
+  rule: string;
+  /** Quando applied=true, alias do dicionário que casou com o input. */
+  matchedAlias?: string;
 }
 
 function numericResolve(
   raw: any,
-  resolver: (v: any) => number | null
+  resolver: (v: any) => { code: number; alias: string } | null,
+  ruleNs: string
 ): SitMappingResult<number> {
-  if (raw === null || raw === undefined || raw === "") return { code: null, applied: false, original: null };
-  // Se já é número válido, retorna direto
-  if (typeof raw === "number" && Number.isFinite(raw)) return { code: raw, applied: false, original: String(raw) };
+  if (raw === null || raw === undefined || raw === "") {
+    return { code: null, applied: false, original: null, rule: `${ruleNs}.empty` };
+  }
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return { code: raw, applied: false, original: String(raw), rule: `${ruleNs}.passthrough_number` };
+  }
   const s = String(raw).trim();
-  // Apenas dígitos -> usa direto
   if (/^\d+$/.test(s)) {
     const n = parseInt(s, 10);
-    return { code: Number.isFinite(n) ? n : null, applied: false, original: s };
+    return {
+      code: Number.isFinite(n) ? n : null,
+      applied: false,
+      original: s,
+      rule: `${ruleNs}.digits_only`,
+    };
   }
-  // Tenta extrair código numérico no formato "1 — Nota Fiscal"
+  // Formato "1 — Nota Fiscal"
   const m = s.match(/^\s*(\d+)\s*[—\-–:]/);
   if (m) {
     const n = parseInt(m[1], 10);
-    return { code: n, applied: false, original: s };
+    return { code: n, applied: false, original: s, rule: `${ruleNs}.numeric_prefix` };
   }
-  const code = resolver(s);
-  return { code, applied: code !== null, original: s };
+  const hit = resolver(s);
+  if (!hit) return { code: null, applied: false, original: s, rule: `${ruleNs}.no_match` };
+  return {
+    code: hit.code,
+    applied: true,
+    original: s,
+    rule: `${ruleNs}.alias`,
+    matchedAlias: hit.alias,
+  };
 }
 
 export function normalizeSitTipoDocDespesa(raw: any) {
-  return numericResolve(raw, resolveTipoDocDespesa);
+  return numericResolve(raw, resolveTipoDocDespesa, "map.tipo_doc_despesa");
 }
 export function normalizeSitTipoDocPagamento(raw: any) {
-  return numericResolve(raw, resolveTipoDocPagamento);
+  return numericResolve(raw, resolveTipoDocPagamento, "map.tipo_doc_pagamento");
 }
 export function normalizeSitTipoTransferencia(raw: any) {
-  return numericResolve(raw, resolveTipoTransferencia);
+  return numericResolve(raw, resolveTipoTransferencia, "map.tipo_transferencia");
 }
 export function normalizeSitModalidadeCompra(raw: any) {
-  return numericResolve(raw, resolveModalidadeCompra);
+  return numericResolve(raw, resolveModalidadeCompra, "map.modalidade_compra");
 }
 
 export function normalizeSitTipoDocFavorecido(raw: any): SitMappingResult<string> {
-  if (raw === null || raw === undefined || raw === "") return { code: null, applied: false, original: null };
+  if (raw === null || raw === undefined || raw === "") {
+    return { code: null, applied: false, original: null, rule: "map.tipo_doc_favorecido.empty" };
+  }
   const s = String(raw).trim();
-  const c = resolveTipoDocFavorecido(s);
-  return { code: c, applied: c !== null && c !== s.toUpperCase(), original: s };
+  const hit = resolveTipoDocFavorecido(s);
+  if (!hit) {
+    return { code: null, applied: false, original: s, rule: "map.tipo_doc_favorecido.no_match" };
+  }
+  const applied = hit.code !== s.toUpperCase();
+  return {
+    code: hit.code,
+    applied,
+    original: s,
+    rule: applied ? "map.tipo_doc_favorecido.alias" : "map.tipo_doc_favorecido.passthrough",
+    matchedAlias: applied ? hit.alias : undefined,
+  };
 }
 
 export function describeSitTipoDocDespesa(code: number | null | undefined): string {
