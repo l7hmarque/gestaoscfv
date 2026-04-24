@@ -805,6 +805,122 @@ export default function FinanceiroPage() {
           onSaved={load}
         />
 
+        {/* =================== REVISÃO PRÉ-LANÇAMENTO =================== */}
+        <Dialog open={reviewOpen} onOpenChange={(v) => !savingDocs && setReviewOpen(v)}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle>Revisar despesas antes de lançar</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 text-xs">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">Total: {totalImportDespesas}</Badge>
+                {totalWithMissing > 0 && (
+                  <Badge variant="destructive" className="gap-1">
+                    <AlertTriangle className="h-3 w-3" /> {totalWithMissing} com campo obrigatório faltando
+                  </Badge>
+                )}
+                {totalWithWarnings > 0 && (
+                  <Badge variant="outline" className="gap-1 border-amber-400 text-amber-700">
+                    <Info className="h-3 w-3" /> {totalWithWarnings} com ajuste(s) automático(s)
+                  </Badge>
+                )}
+                {totalWithMissing === 0 && totalWithWarnings === 0 && (
+                  <Badge variant="outline" className="gap-1 border-emerald-400 text-emerald-700">
+                    <CheckCircle2 className="h-3 w-3" /> Tudo pronto, sem alterações
+                  </Badge>
+                )}
+              </div>
+
+              {totalWithMissing > 0 && (
+                <div className="rounded border border-destructive/40 bg-destructive/5 p-2">
+                  <strong className="text-destructive">Atenção:</strong> despesas com campos obrigatórios ausentes serão lançadas como <em>incompletas</em> (não exportáveis ao SIT). Você pode prosseguir e completá-las depois pelo botão <em>Regularizar</em>, ou cancelar e ajustar agora.
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {validatedDocs.map((d) => (
+                  <div key={d.docIdx} className="border rounded">
+                    <div className="px-2 py-1 bg-muted/40 text-[11px] font-medium flex items-center gap-2">
+                      <FileText className="h-3 w-3" />
+                      <span className="truncate">{d.fileName}</span>
+                      <span className="text-muted-foreground">— {d.items.length} despesa(s)</span>
+                    </div>
+                    <ul className="divide-y">
+                      {d.items.map((it) => {
+                        const desc = it.row.descricao || "—";
+                        const valor = Number(it.row.valor || 0);
+                        return (
+                          <li key={it.despIdx} className="px-2 py-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium truncate">
+                                  #{it.despIdx + 1} — {desc}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  R$ {valor.toFixed(2)} • {it.row.fornecedor || "sem fornecedor"} • {it.row.data_lancamento || "sem data"}
+                                </div>
+                              </div>
+                              {it.missing.length > 0 ? (
+                                <Badge variant="destructive" className="text-[9px] h-4 px-1">
+                                  {it.missing.length} faltando
+                                </Badge>
+                              ) : it.warnings.length > 0 ? (
+                                <Badge variant="outline" className="text-[9px] h-4 px-1 border-amber-400 text-amber-700">
+                                  {it.warnings.length} ajuste(s)
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[9px] h-4 px-1 border-emerald-400 text-emerald-700">
+                                  OK
+                                </Badge>
+                              )}
+                            </div>
+                            {(it.missing.length > 0 || it.warnings.length > 0) && (
+                              <ul className="mt-1 ml-3 space-y-0.5 text-[10px]">
+                                {it.missing.map((m) => (
+                                  <li key={`m-${m}`} className="text-destructive">
+                                    • <strong>{missingFieldLabel(m)}</strong> — campo obrigatório ausente
+                                  </li>
+                                ))}
+                                {it.warnings.map((w, wi) => (
+                                  <li
+                                    key={`w-${wi}`}
+                                    className={
+                                      w.severity === "error"
+                                        ? "text-destructive"
+                                        : w.severity === "warn"
+                                        ? "text-amber-700"
+                                        : "text-muted-foreground"
+                                    }
+                                  >
+                                    • <strong>{w.label}:</strong> {w.message}
+                                    {w.original && w.applied && (
+                                      <span className="text-muted-foreground"> ({w.original.length > 30 ? w.original.slice(0, 30) + "…" : w.original} → {w.applied.length > 30 ? w.applied.slice(0, 30) + "…" : w.applied})</span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button variant="outline" onClick={() => setReviewOpen(false)} disabled={savingDocs}>
+                  Voltar e ajustar
+                </Button>
+                <Button onClick={confirmAndSaveImportedDocs} disabled={savingDocs || totalImportDespesas === 0}>
+                  {savingDocs ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                  Confirmar e lançar {totalImportDespesas}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* =================== DESPESAS =================== */}
         <TabsContent value="despesas">
           <Card>
