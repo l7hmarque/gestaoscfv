@@ -481,7 +481,7 @@ export default function FinanceiroPage() {
     })),
   }));
 
-  const totalDespesas = validatedDocs.reduce((s, d) => s + d.items.length, 0);
+  const totalImportDespesas = validatedDocs.reduce((s, d) => s + d.items.length, 0);
   const totalWithMissing = validatedDocs.reduce(
     (s, d) => s + d.items.filter((it) => it.missing.length > 0).length,
     0
@@ -493,18 +493,18 @@ export default function FinanceiroPage() {
   );
 
   const openReview = () => {
-    if (totalDespesas === 0) return;
+    if (totalImportDespesas === 0) return;
     setReviewOpen(true);
   };
 
   const confirmAndSaveImportedDocs = async () => {
-    if (totalDespesas === 0) return;
+    if (totalImportDespesas === 0) return;
     setSavingDocs(true);
     const lote_id = crypto.randomUUID();
     const rows = validatedDocs.flatMap((d) =>
       d.items.map((it) => ({ ...it.row, lote_id }))
     );
-    const { error } = await supabase.from("despesas").insert(rows);
+    const { error } = await supabase.from("despesas").insert(rows as any);
     setSavingDocs(false);
     if (error) {
       console.error("Erro ao lançar despesa:", error);
