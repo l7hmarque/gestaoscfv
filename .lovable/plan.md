@@ -1,109 +1,126 @@
-# Privacidade dos recados + Check-in com janela de antecedência
 
-Duas entregas conectadas: **isolar o canal de mensagens da família** (hoje vazando recados internos/técnicos) e adicionar um **check-in diário** que precisa ser feito **no dia anterior ou até 1h antes do início (07:00 GMT-3)**, visível ao motorista no painel de pontos.
+# Correção do export DOCX + Módulo Financeiro no padrão SIT
 
-## 1. Privacidade — recados dedicados à família
+Duas frentes independentes:
+1. **Bug**: exportar DOCX em relatório/planejamento individual está falhando.
+2. **Financeiro SIT**: detecção precisa identificar **múltiplas despesas em um único PDF** (folha de pagamento, lote de comprovantes etc.), gravar todos os campos exigidos pelo SIT e gerar o `Despesa.txt` em lote no layout oficial.
 
-Edge function `public-familia-data` hoje seleciona qualquer linha de `recados` ligada ao `participante_id`, expondo correspondência interna sigilosa.
+---
 
-- Nova tabela `recados_familia`: `id`, `participante_id` (FK), `remetente_id` (profile, FK), `conteudo`, `lido_em` (timestamp null), `created_at`.
-- RLS: SELECT/INSERT/UPDATE/DELETE só para `coordenacao` OR `tecnico` OR `educador` (família acessa via edge function com token, nunca por RLS).
-- `public-familia-data` case `recados` reescrito para ler **apenas** `recados_familia` (e marcar `lido_em = now()`).
-- `SendRecadoDialog` ganha prop `paraFamilia` que roteia o insert para `recados_familia`. Botão "Enviar recado à família" no perfil do participante e na listagem.
-- Aba Recados do portal da família continua igual visualmente, alimentada pelo novo canal.
+## 1. Bug — Exportar DOCX (relatório e planejamento individual)
 
-## 2. Check-in da família com janela de antecedência
+A causa provável é o `loadTemplate("relatorio.docx" / "planejamento.docx")` falhar silenciosamente (bucket `templates` ausente ou template inexistente) e o **fallback** quebrar em alguma propriedade ausente do `item` (ex.: `item.profiles?.nome`, `engajamento` quando vem `null`, fotos sem `foto_url`).
 
-**Regra de negócio (timezone America/Sao_Paulo, GMT-3):**
+**O que será feito**
+- Envolver `exportRelatorioDocx` e `exportPlanejamentoDocx` num try/catch externo que loga `e.message`, `e.stack` e (quando docxtemplater) `e.properties.errors[]` no console **e** mostra um toast com a causa real (em vez de “Erro ao gerar DOCX”).
+- Tornar todos os acessos defensivos: arrays `engajamento / situacoes_relevantes / fotos / presenca` sempre tratados como `[] ` quando `null/undefined`; `tipo_atividade` aceita string, array ou null.
+- Garantir que o **fallback** (gera DOCX do zero, sem template) execute sempre que `loadTemplate` retornar `null` **ou** lançar erro — hoje há caminhos em que o catch só dispara o toast e não chama o fallback.
+- Sanitizar caracteres inválidos antes de passar ao docx-js (substituir `\u0000-\u0008\u000B\u000C\u000E-\u001F` por “”).
+- Após o fix, deploy + teste manual abrindo um relatório/planejamento existente.
 
-- Check-in para o dia D pode ser feito a partir de **D-7 até as 06:00 de D** (1h antes das 07:00, horário-padrão de início do turno da manhã).
-- Após 06:00 de D, o card fica **bloqueado** com mensagem clara: "Janela de confirmação encerrada — fale com a coordenação".
-- Default exibido para a família: **dia seguinte** (após 18:00) ou **dia atual** (entre 00:00 e 06:00). Permitido também escolher os próximos 7 dias úteis.
-- Validação dupla: client-side (UX) + server-side na edge function (autoridade), usando `Intl.DateTimeFormat` com `timeZone: 'America/Sao_Paulo'` para evitar bug de fuso do navegador da família.
+---
 
-**Tabela nova `participante_checkins**`:
+## 2. Financeiro — Padrão SIT (Sistema Integrado de Transferências)
 
-- `id`, `participante_id` (FK), `data` (date), `periodo` (`manha`|`tarde`), `confirmado` (boolean), `confirmado_em` (timestamptz), `confirmado_por` (text — nome do responsável, opcional), `observacao` (text null), `created_at`, `updated_at`.
-- Unique `(participante_id, data, periodo)`.
+### 2.1 Por que só 1 despesa foi detectada
 
-**RLS**:
+`detect-despesa-from-doc` envia o PDF para o Gemini com a função `extract_despesa` que retorna **um único objeto** (1 despesa). Folhas de pagamento, lotes de comprovantes e PDFs com várias páginas geram N despesas — o modelo precisa devolver um **array**.
 
-- SELECT: `coordenacao` OR `motorista` OR `tecnico` OR `educador` OR `cozinheiro`.
-- INSERT/UPDATE: equipe operacional (não-visitante). Família escreve apenas via edge function.
-- DELETE: `coordenacao`.
+### 2.2 Refatoração da edge function
 
-**Edge function `public-familia-data` — 2 novos cases**:
+Renomear o tool para `extract_despesas` e mudar o schema:
 
-- `checkins` → retorna últimos 14 dias do participante + status do dia atual e do próximo dia útil.
-- `registrar_checkin` → upsert idempotente por `(participante_id, data, periodo)`. **Bloqueia** se `now()` (em America/Sao_Paulo) já passou de `data 06:00`. Bloqueia também se `data` está mais de 7 dias no futuro. Aceita `confirmado=true` ou `false` (cancelar). Retorna erro 422 amigável se fora da janela.
+```text
+extract_despesas → { despesas: [ { ...campos SIT... } ] }
+```
 
-**UI no portal da família** (`FamiliaDashboardPage`) — seção **"Confirmar presença"** acima de Atividades:
+Cada item conterá os 24 campos do layout SIT (ver tabela na seção 2.4). Prompt orientará a IA a:
+- iterar por todas as páginas do PDF,
+- agrupar por “transferência/comprovante” (ex.: cada bloco “COMPROVANTE DE TRANSFERENCIA … TRANSFERIDO PARA …” = 1 despesa),
+- inferir `tpDocumentoDespesa` (folha de pagamento → 6, NF → 1, recibo → 4 etc.) e `tpDocumentoPagamento` (transferência bancária → 3),
+- normalizar valores (`1.019,23` → `1019.23`) e datas (`02/03/2026` → `2026-03-02`).
 
-- Card grande com foto, nome curto e título dinâmico:
-  - Antes das 06:00 do dia D: **"Vai hoje? (DD/MM)"**
-  - Após 06:00 e antes das 18:00: **"Confirmar amanhã (DD/MM)"** + nota "Hoje já está fechado" - caso o participante tenha atividades no dia seguinte.
-  - Após 18:00: **"Vai amanhã? (DD/MM)"**
-- Dois botões enormes: **"✅ SIM, vai"** (verde dominante) e **"❌ Hoje não vai"** (vermelho secundário). Períodos manhã/tarde mostrados conforme turma; ambos empilhados se Integral. Se clicar em nao vai, campo de justificativa obrigatorio persuadindo de forma inteligente ao usuario escrever o motivo que nao vai .
-- Se check in for Nao Vai, nome da criança ao lancar presenca no relatorio de atividades fica pre selecionado como falta e com a justificativa colocada pelo responsavel. 
-- Quando o dia escolhido **não é dia de atividade da criança** (cruzando `turmas.dias_semana`): "Não há atividade neste dia 🌿".
-- **Estado bloqueado** (após 06:00 do dia consultado): card cinza, ícone cadeado, texto "Janela encerrada às 06:00 — fale com a coordenação". Botão sutil "Confirmar para amanhã" desloca para D+1.
-- Picker discreto "Confirmar para outro dia" abre os próximos 7 dias úteis.
-- **Reforço imediato (criação de hábito)**:
-  - Confete `canvas-confetti` + toast "Obrigado! O motorista já foi avisado 🚐".
-  - Card vira verde com "✅ Confirmado às HH:mm" e botão "Cancelar (até 06:00 de DD/MM)".
-  - **Streak** "🔥 X dias confirmando" calculado dos últimos 14 dias.
-  - Badge no topo "Última confirmação: DD/MM HH:mm".
-  - Lembrete passivo: se houver atividade amanhã e ainda não confirmou após 19:00 do dia anterior, borda âmbar pulsante e texto "⏰ Confirme agora — janela fecha às 06:00".
+Modelo trocado para **`google/gemini-2.5-pro`** (multi-página + raciocínio mais robusto). `gemini-2.5-flash` fica como fallback se 429.
 
-**Visibilidade para o motorista** (`DashboardTransporteTab`):
+### 2.3 Novas tabelas / colunas
 
-- Nova seção **"Embarques de hoje"** no topo (só `motorista` e `coordenacao`).
-- Por ponto, lista os participantes do período corrente com 3 estados:
-  - 🟢 **Confirmado** — verde, hora e nome de quem confirmou.
-  - 🔴 **Não vai** — vermelho riscado.
-  - ⚪ **Sem resposta** — cinza, "Sem confirmação até 06:00".
-- Cabeçalho de cada ponto: `🟢 X · 🔴 Y · ⚪ Z`.
-- Botão "Marcar como embarcou" para confirmação manual. E botao "Nao embarcou". Com registro de horário GMT -3 para as marcações. 
-- Auto-refresh 60s + realtime opcional via `postgres_changes` em `participante_checkins`.
+**Migração** adicionando à tabela `despesas` os campos exigidos pelo SIT que ainda não existem:
+
+```text
+sit_tipo_transferencia       smallint   -- código SIT (Apêndice A)
+sit_numero_instrumento       text(20)
+sit_ano_transferencia        smallint
+sit_codigo_tipo_despesa      integer    -- ex 33903001
+sit_tipo_doc_favorecido      text(4)    -- CPF | CNPJ | EXT
+sit_nome_favorecido          text(250)
+sit_tipo_doc_despesa         smallint   -- código SIT
+sit_numero_doc_despesa       text(10)
+sit_data_doc_despesa         date
+sit_placa_veiculo            text(7)
+sit_quilometragem            integer
+sit_numero_empenho           text(15)
+sit_data_empenho             date
+sit_modalidade_compra        smallint
+sit_numero_processo          text(10)
+sit_data_processo            date
+sit_tipo_doc_pagamento       smallint   -- ex 3 = transferência
+sit_numero_doc_pagamento     text(15)
+sit_data_emissao_pagamento   date
+sit_data_debito              date
+sit_descricao_item           text(2000)
+sit_completo                 boolean default false  -- todos os obrigatórios preenchidos
+```
+
+Nova tabela `sit_configuracao` (1 linha por OSC) com `cnpj_concedente`, `tipo_transferencia_padrao`, `numero_instrumento_padrao`, `ano_transferencia_padrao`, `tipo_doc_pagamento_padrao` — aplicados como defaults em todo lançamento.
+
+Nova tabela `sit_codigos` (apêndice A): `categoria` (`tipo_despesa | tipo_doc_despesa | tipo_doc_pagamento | modalidade_compra | tipo_transferencia`), `codigo`, `descricao`. Carregada pela coordenação na primeira vez via tela de Configurações → SIT.
+
+RLS: leitura para qualquer autenticado, escrita só para `coordenacao`.
+
+### 2.4 UI Financeiro
+
+**Aba “Lançamento Inteligente” (refatorada)**
+- Drop de **N PDFs/imagens** → cada arquivo retorna **lista** de despesas detectadas; cada uma vira um card revisável.
+- Para cada card: campos SIT pré-preenchidos + “Status SIT”: ✅ completo / ⚠ faltando X campos.
+- Botão “Salvar todas” persiste em `despesas` + sobe o PDF original (uma vez) e amarra a `comprovante_url` em todas as despesas extraídas dele (mais o `comprovante_pagina` quando aplicável).
+
+**Aba “Lançamento Manual”**
+- Mantida, mas com checkbox **“Pendente de comprovante”** (default ligado se nenhum arquivo anexado). Despesas pendentes ficam visíveis na lista com badge ⚠ “Anexar documento”.
+- Quando o usuário voltar e anexar PDF/foto, o sistema baixa, sobe ao bucket `prestacao-contas/{ano}/{mes}/{id}.pdf` e marca `sit_completo = true` (se demais campos OK).
+
+**Aba “Exportar SIT”**
+- Filtro mês/ano + termo de fomento.
+- Botão **“Gerar Despesa.txt”** que monta o arquivo conforme regras (pipe `|`, decimal com ponto, datas `DD-MM-AAAA`, sem cabeçalho, ordem fixa dos 24 campos, vazios `||`, valores obrigatórios sem dado → `0.00`).
+- Validação prévia: se houver `sit_completo = false`, abrir diálogo listando despesas incompletas e impedir export até resolver (ou marcar para excluir do lote).
+- Botão paralelo **“Baixar pacote ZIP”** com `Despesa.txt` + todos os comprovantes nomeados como `{nrDocumentoDespesa}_{nmFavorecido}.pdf` para anexar à prestação de contas.
+
+### 2.5 Diagrama
+
+```text
+PDF lote ──▶ detect-despesa-from-doc (Gemini Pro, retorna ARRAY)
+                  │
+                  ▼
+       Cards revisáveis (UI Financeiro)
+                  │  (coordenação valida/edita)
+                  ▼
+            despesas (+ campos SIT)
+            comprovante_url ────────────► storage: prestacao-contas/...
+                  │
+                  ├─▶ Exportar SIT ─▶ Despesa.txt (pipe-delimited, layout oficial)
+                  └─▶ Pacote ZIP   ─▶ Despesa.txt + comprovantes/
+```
+
+---
 
 ## Detalhes técnicos
 
-**Migration única**:
-
-1. `recados_familia` + RLS (4 policies) + trigger `updated_at`.
-2. `participante_checkins` + unique `(participante_id, data, periodo)` + RLS (4 policies) + trigger `updated_at` + index `(participante_id, data)` para o painel do motorista.
-
-**Edge function `public-familia-data/index.ts**`:
-
-- Case `recados` → `recados_familia`.
-- Cases `checkins` (leitura 14d) e `registrar_checkin` (upsert com **gate de janela** usando `new Date().toLocaleString('en-US', {timeZone:'America/Sao_Paulo'})`).
-- Mantém validação HMAC já existente.
-
-**Frontend**:
-
-- `src/pages/familia/FamiliaDashboardPage.tsx` — seção check-in com botões grandes, picker D±7, estados bloqueado/confirmado/pendente, streak, confete (`canvas-confetti`).
-- `src/components/SendRecadoDialog.tsx` — prop `paraFamilia` roteando para `recados_familia`. Botão de gatilho em `ParticipantePerfilPage.tsx` e `ParticipantesPage.tsx`.
-- `src/pages/dashboard/DashboardTransporteTab.tsx` — seção "Embarques de hoje" com cards por ponto, contadores, badges, auto-refresh, botão "Marcar embarque".
-- Helper compartilhado `src/lib/checkinWindow.ts` com `isCheckinAberto(dataAlvo: Date)` e `proximaJanelaTexto()` baseados em America/Sao_Paulo (mesma lógica do server, no client só para UX).
-
-## Diagrama
-
-```text
-JANELA DE CHECK-IN (America/Sao_Paulo)
-  D-7 ──────────────────────────► D 06:00 ✖ fechado
-                                  ▲
-                                  │ 1h antes do início (07:00)
-PORTAL DA FAMÍLIA
-  ├── Card "Vai amanhã?" / "Vai hoje?"  ──[POST registrar_checkin]──► gate servidor
-  │     └── ✅ confete + 🔥 streak + "Confirmado HH:mm"
-  └── Recados (canal limpo)  ◄──[GET recados]── recados_familia
-
-PAINEL TRANSPORTE (motorista + coord)
-  └── Embarques de hoje ── 🟢 confirmado · 🔴 não vai · ⚪ pendente   (refresh 60s)
-```
+- **Edge function** `detect-despesa-from-doc`: novo schema `{ despesas: array }`, prompt em PT-BR com few-shot do PDF de exemplo (folha de pagamento + comprovante BB), modelo `google/gemini-2.5-pro`. Mantém compatibilidade retornando também `extracted` (= `despesas[0]`) para callers antigos.
+- **Storage bucket** `prestacao-contas` (privado, só `coordenacao` escreve, leitura via signed URL).
+- **Gerador `.txt`**: novo módulo `src/lib/sitExport.ts` com função `buildDespesaTxtLine(d)` que aplica regras: trim/uppercase quando exigido, `0.00` em obrigatórios vazios, datas `DD-MM-AAAA`, sem cabeçalho, `\r\n` como quebra de linha (compat Windows/SIT), encoding `windows-1252` (ou UTF-8 se SIT aceitar — confirmar no PDF: o documento não exige; assumir UTF-8 sem BOM).
+- **Códigos SIT (Apêndice A)**: como o apêndice não veio anexado, criar tela `/configuracoes` → aba “SIT” com importação CSV/JSON do apêndice + edição manual; pré-popular com valores comuns (`1=NF`, `4=Recibo`, `6=Folha de Pagamento`, `3=Transferência Bancária`, `33903001=Combustíveis`, `33903004=Gás`, `33903030=Material de Consumo`, `33903036=Serviços Técnicos PF`, `33903039=Outros Serviços PJ`, `33903046=Auxílio Alimentação`).
+- **Compatibilidade**: despesas antigas (sem campos SIT) entram no `.txt` somente se a coordenação completar os campos obrigatórios; aparecem com badge “Migrar p/ SIT” na listagem.
 
 ## Fora do escopo
-
-- Notificações push/SMS de lembrete (iteração futura).
-- Janela configurável por território (fixa em 06:00 GMT-3 nesta entrega; constante exposta em `src/lib/constants.ts` para ajuste fácil).
-- Migração de recados antigos — `recados_familia` nasce vazia e o portal volta limpo na hora.
+- Importação automática do Apêndice A completo (será carregado pela coordenação via CSV — fornecemos template).
+- Lançamento direto no portal SIT (apenas geração do arquivo `.txt` para upload manual).
+- OCR de PDFs escaneados de baixa qualidade (Gemini já faz OCR básico; PDFs ilegíveis cairão para lançamento manual com badge “pendente”).
