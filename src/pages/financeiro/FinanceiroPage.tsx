@@ -937,13 +937,23 @@ export default function FinanceiroPage() {
                           {d.nota_url && <Badge variant="outline" className="text-[9px] px-1 py-0">NF</Badge>}
                           {d.boleto_url && <Badge variant="outline" className="text-[9px] px-1 py-0">Bol</Badge>}
                           {d.comprovante_url && <Badge variant="outline" className="text-[9px] px-1 py-0">Comp</Badge>}
-                          {!(d as any).sit_completo && (
+                          {(d as any).sit_completo ? (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] px-1 py-0 cursor-pointer bg-emerald-500/10 text-emerald-700 border-emerald-500/30 hover:bg-emerald-500/20"
+                              onClick={(e) => { e.stopPropagation(); setRegularizarTarget(d); }}
+                              title="Pronta para exportação SIT — clique para revisar"
+                            >
+                              ✓ SIT
+                            </Badge>
+                          ) : (
                             <Badge
                               variant="outline"
                               className="text-[9px] px-1 py-0 cursor-pointer bg-blue-500/10 text-blue-700 border-blue-500/30 hover:bg-blue-500/20"
                               onClick={(e) => { e.stopPropagation(); setRegularizarTarget(d); }}
+                              title="Regularizar para exportação SIT"
                             >
-                              SIT
+                              Regularizar SIT
                             </Badge>
                           )}
                         </div>
