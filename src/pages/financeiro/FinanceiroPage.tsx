@@ -469,73 +469,50 @@ export default function FinanceiroPage() {
     }));
   };
 
-  const saveImportedDocs = async () => {
-    // Achata: cada despesa de cada arquivo vira 1 row
-    const flat: { row: any; storageUrl?: string }[] = [];
-    for (const d of docFiles) {
-      for (const e of d.extractedList) {
-        flat.push({ row: e, storageUrl: d.storageUrl });
-      }
-    }
-    if (flat.length === 0) return;
+  // Pré-validação de todas as despesas extraídas (memoizada por render)
+  const validatedDocs = docFiles.map((d, docIdx) => ({
+    docIdx,
+    fileName: d.file.name,
+    storageUrl: d.storageUrl,
+    items: d.extractedList.map((e, despIdx) => ({
+      despIdx,
+      original: e,
+      ...validateDespesa(e, { mesRef, storageUrl: d.storageUrl }),
+    })),
+  }));
+
+  const totalDespesas = validatedDocs.reduce((s, d) => s + d.items.length, 0);
+  const totalWithMissing = validatedDocs.reduce(
+    (s, d) => s + d.items.filter((it) => it.missing.length > 0).length,
+    0
+  );
+  const totalWithWarnings = validatedDocs.reduce(
+    (s, d) =>
+      s + d.items.filter((it) => it.warnings.length > 0 && it.missing.length === 0).length,
+    0
+  );
+
+  const openReview = () => {
+    if (totalDespesas === 0) return;
+    setReviewOpen(true);
+  };
+
+  const confirmAndSaveImportedDocs = async () => {
+    if (totalDespesas === 0) return;
+    setSavingDocs(true);
     const lote_id = crypto.randomUUID();
-    const rows = flat.map(({ row: e, storageUrl }) => {
-      const cnpjcpf = (e.cnpj_cpf || "").replace(/\D/g, "");
-      const tipoFav = e.sit_tipo_doc_favorecido || (cnpjcpf.length === 14 ? "CNPJ" : cnpjcpf.length === 11 ? "CPF" : null);
-      const obrigatoriosOk = !!(e.valor && e.data_lancamento && e.fornecedor && e.sit_tipo_doc_despesa && e.sit_tipo_doc_pagamento);
-      // Helpers de truncamento para respeitar limites do schema (varchar)
-      const trunc = (v: any, n: number) => {
-        if (v === null || v === undefined) return null;
-        const s = String(v).trim();
-        return s ? s.slice(0, n) : null;
-      };
-      const toSmallInt = (v: any) => {
-        if (v === null || v === undefined || v === "") return null;
-        const n = parseInt(String(v).replace(/\D/g, ""), 10);
-        return Number.isFinite(n) ? n : null;
-      };
-      const tipoFavTrunc = trunc(tipoFav, 4);
-      const numDocDespesa = trunc(e.sit_numero_doc_despesa || e.numero_documento, 10);
-      const numDocPagamento = trunc(e.sit_numero_doc_pagamento, 15);
-      const numInstrumento = trunc(e.sit_numero_instrumento, 20);
-      const nomeFav = trunc(e.sit_nome_favorecido || e.fornecedor, 250);
-      return {
-        descricao: e.descricao || "Sem descrição",
-        valor: Number(e.valor) || 0,
-        data_lancamento: e.data_lancamento || new Date().toISOString().split("T")[0],
-        categoria_id: null,
-        mes_referencia: mesRef,
-        fornecedor: e.fornecedor || e.sit_nome_favorecido || null,
-        cnpj_cpf: e.cnpj_cpf || null,
-        numero_documento: e.numero_documento || e.sit_numero_doc_despesa || null,
-        tipo_documento: e.tipo_documento || "nota_fiscal",
-        nota_url: storageUrl || null,
-        lote_id,
-        // Campos SIT
-        sit_tipo_doc_favorecido: tipoFavTrunc,
-        sit_nome_favorecido: nomeFav,
-        sit_tipo_doc_despesa: toSmallInt(e.sit_tipo_doc_despesa),
-        sit_numero_doc_despesa: numDocDespesa,
-        sit_data_doc_despesa: e.sit_data_doc_despesa || e.data_lancamento || null,
-        sit_tipo_doc_pagamento: toSmallInt(e.sit_tipo_doc_pagamento),
-        sit_numero_doc_pagamento: numDocPagamento,
-        sit_data_emissao_pagamento: e.sit_data_emissao_pagamento || null,
-        sit_data_debito: e.sit_data_debito || null,
-        sit_numero_instrumento: numInstrumento,
-        sit_ano_transferencia: e.sit_ano_transferencia ?? null,
-        sit_descricao_item: e.sit_descricao_item || e.descricao || null,
-        sit_completo: obrigatoriosOk,
-        pendente_comprovante: !storageUrl,
-        lote_origem_pdf: storageUrl || null,
-      };
-    });
+    const rows = validatedDocs.flatMap((d) =>
+      d.items.map((it) => ({ ...it.row, lote_id }))
+    );
     const { error } = await supabase.from("despesas").insert(rows);
+    setSavingDocs(false);
     if (error) {
       console.error("Erro ao lançar despesa:", error);
       toast.error(`Erro ao lançar: ${error.message}`);
       return;
     }
     toast.success(`${rows.length} despesa(s) importada(s)`);
+    setReviewOpen(false);
     setDocFiles([]);
     setDialogOpen(null);
     load();
