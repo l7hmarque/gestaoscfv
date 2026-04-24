@@ -605,6 +605,11 @@ export default function ConfiguracoesPage() {
           </Card>
         </TabsContent>
 
+        {/* SIT */}
+        <TabsContent value="sit">
+          <ConfiguracoesSitTab />
+        </TabsContent>
+
         {/* AUDITORIA */}
         <TabsContent value="auditoria">
           <Card>
