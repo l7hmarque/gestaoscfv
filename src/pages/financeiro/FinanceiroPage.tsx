@@ -54,7 +54,8 @@ interface LoteLine {
 interface DetectedDoc {
   file: File;
   uploading: boolean;
-  extracted: any | null;
+  extracted: any | null;            // legado (1ª despesa) - mantido p/ compat
+  extractedList: any[];             // NOVO: todas as despesas detectadas no PDF
   confirmed: boolean;
   storageUrl?: string;
 }
@@ -387,7 +388,7 @@ export default function FinanceiroPage() {
     const files = e.target.files;
     if (!files) return;
     const newDocs: DetectedDoc[] = Array.from(files).map(f => ({
-      file: f, uploading: false, extracted: null, confirmed: false,
+      file: f, uploading: false, extracted: null, extractedList: [], confirmed: false,
     }));
     setDocFiles(prev => [...prev, ...newDocs]);
 
@@ -417,9 +418,20 @@ export default function FinanceiroPage() {
           body: { file_base64: base64, mime_type: doc.file.type },
         });
 
-        setDocFiles(prev => prev.map((d, idx) =>
+        const list: any[] = Array.isArray(data?.despesas) && data.despesas.length > 0
+          ? data.despesas
+          : (data?.extracted ? [data.extracted] : []);
+        if (!error && list.length > 1) toast.success(`${list.length} despesas detectadas em ${doc.file.name}`);
+
+        setDocFiles(prev => prev.map((d) =>
           d.file === doc.file
-            ? { ...d, extracted: error ? null : data?.extracted, uploading: false, storageUrl: urlData?.publicUrl }
+            ? {
+                ...d,
+                extracted: error ? null : (list[0] ?? null),
+                extractedList: error ? [] : list,
+                uploading: false,
+                storageUrl: urlData?.publicUrl,
+              }
             : d
         ));
       } catch (err) {
@@ -431,32 +443,69 @@ export default function FinanceiroPage() {
     e.target.value = "";
   };
 
-  const updateDocExtracted = (idx: number, field: string, value: any) => {
-    setDocFiles(prev => prev.map((d, i) =>
-      i === idx ? { ...d, extracted: { ...d.extracted, [field]: value } } : d
-    ));
+  const updateDocExtracted = (docIdx: number, despIdx: number, field: string, value: any) => {
+    setDocFiles(prev => prev.map((d, i) => {
+      if (i !== docIdx) return d;
+      const newList = d.extractedList.map((item, j) => j === despIdx ? { ...item, [field]: value } : item);
+      return { ...d, extractedList: newList, extracted: newList[0] ?? d.extracted };
+    }));
+  };
+
+  const removeDespesa = (docIdx: number, despIdx: number) => {
+    setDocFiles(prev => prev.map((d, i) => {
+      if (i !== docIdx) return d;
+      const newList = d.extractedList.filter((_, j) => j !== despIdx);
+      return { ...d, extractedList: newList, extracted: newList[0] ?? null };
+    }));
   };
 
   const saveImportedDocs = async () => {
-    const toSave = docFiles.filter(d => d.extracted);
-    if (toSave.length === 0) return;
+    // Achata: cada despesa de cada arquivo vira 1 row
+    const flat: { row: any; storageUrl?: string }[] = [];
+    for (const d of docFiles) {
+      for (const e of d.extractedList) {
+        flat.push({ row: e, storageUrl: d.storageUrl });
+      }
+    }
+    if (flat.length === 0) return;
     const lote_id = crypto.randomUUID();
-    const rows = toSave.map(d => ({
-      descricao: d.extracted.descricao || "Sem descrição",
-      valor: Number(d.extracted.valor) || 0,
-      data_lancamento: d.extracted.data_lancamento || new Date().toISOString().split("T")[0],
-      categoria_id: null,
-      mes_referencia: mesRef,
-      fornecedor: d.extracted.fornecedor || null,
-      cnpj_cpf: d.extracted.cnpj_cpf || null,
-      numero_documento: d.extracted.numero_documento || null,
-      tipo_documento: d.extracted.tipo_documento || "nota_fiscal",
-      nota_url: d.storageUrl || null,
-      lote_id,
-    }));
+    const rows = flat.map(({ row: e, storageUrl }) => {
+      const cnpjcpf = (e.cnpj_cpf || "").replace(/\D/g, "");
+      const tipoFav = e.sit_tipo_doc_favorecido || (cnpjcpf.length === 14 ? "CNPJ" : cnpjcpf.length === 11 ? "CPF" : null);
+      const obrigatoriosOk = !!(e.valor && e.data_lancamento && e.fornecedor && e.sit_tipo_doc_despesa && e.sit_tipo_doc_pagamento);
+      return {
+        descricao: e.descricao || "Sem descrição",
+        valor: Number(e.valor) || 0,
+        data_lancamento: e.data_lancamento || new Date().toISOString().split("T")[0],
+        categoria_id: null,
+        mes_referencia: mesRef,
+        fornecedor: e.fornecedor || e.sit_nome_favorecido || null,
+        cnpj_cpf: e.cnpj_cpf || null,
+        numero_documento: e.numero_documento || e.sit_numero_doc_despesa || null,
+        tipo_documento: e.tipo_documento || "nota_fiscal",
+        nota_url: storageUrl || null,
+        lote_id,
+        // Campos SIT
+        sit_tipo_doc_favorecido: tipoFav,
+        sit_nome_favorecido: e.sit_nome_favorecido || e.fornecedor || null,
+        sit_tipo_doc_despesa: e.sit_tipo_doc_despesa ?? null,
+        sit_numero_doc_despesa: e.sit_numero_doc_despesa || e.numero_documento || null,
+        sit_data_doc_despesa: e.sit_data_doc_despesa || e.data_lancamento || null,
+        sit_tipo_doc_pagamento: e.sit_tipo_doc_pagamento ?? null,
+        sit_numero_doc_pagamento: e.sit_numero_doc_pagamento || null,
+        sit_data_emissao_pagamento: e.sit_data_emissao_pagamento || null,
+        sit_data_debito: e.sit_data_debito || null,
+        sit_numero_instrumento: e.sit_numero_instrumento || null,
+        sit_ano_transferencia: e.sit_ano_transferencia ?? null,
+        sit_descricao_item: e.sit_descricao_item || e.descricao || null,
+        sit_completo: obrigatoriosOk,
+        pendente_comprovante: !storageUrl,
+        lote_origem_pdf: storageUrl || null,
+      };
+    });
     const { error } = await supabase.from("despesas").insert(rows);
     if (error) { toast.error("Erro ao lançar"); return; }
-    toast.success(`${toSave.length} despesas importadas`);
+    toast.success(`${rows.length} despesa(s) importada(s)`);
     setDocFiles([]);
     setDialogOpen(null);
     load();
