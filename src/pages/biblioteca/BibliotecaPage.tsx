@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,14 +33,22 @@ type Doc = {
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export default function BibliotecaPage() {
-  const { profile, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [tab, setTab] = useState<"relatorio" | "planejamento">("relatorio");
   const [busca, setBusca] = useState("");
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [baixando, setBaixando] = useState<string | null>(null);
   const [baixandoLote, setBaixandoLote] = useState(false);
+  const [roles, setRoles] = useState<string[]>([]);
 
-  const isGestao = profile?.roles?.includes("coordenacao") || profile?.roles?.includes("tecnico");
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("user_roles").select("role").eq("user_id", user.id).then(({ data }) => {
+      setRoles((data || []).map((r: any) => r.role));
+    });
+  }, [user]);
+
+  const isGestao = roles.includes("coordenacao") || roles.includes("tecnico");
 
   const { data: docs, isLoading, refetch } = useQuery({
     queryKey: ["biblioteca", tab],
