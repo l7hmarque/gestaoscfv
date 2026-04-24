@@ -60,12 +60,82 @@ export function buildDespesaTxt(despesas: any[], cfg: SitConfig): string {
 }
 
 export function validarDespesaSit(d: any, cfg: SitConfig): string[] {
-  const erros: string[] = [];
-  if (!cfg.cnpj_concedente) erros.push("CNPJ do concedente não configurado");
-  if (!d.sit_codigo_tipo_despesa) erros.push("Código do tipo de despesa (SIT) não preenchido");
-  if (!d.sit_tipo_doc_despesa) erros.push("Tipo de documento da despesa (SIT) não preenchido");
-  if (!d.sit_nome_favorecido && !d.fornecedor) erros.push("Nome do favorecido não preenchido");
-  if (!d.valor || Number(d.valor) <= 0) erros.push("Valor inválido");
-  if (!d.data_lancamento && !d.sit_data_doc_despesa) erros.push("Data do documento não preenchida");
-  return erros;
+  return validarDespesaSitDetalhado(d, cfg).map(e => e.mensagem);
+}
+
+export interface ErroSit {
+  campo: string;
+  rotulo: string;
+  mensagem: string;
+}
+
+const isDate = (s: any) => !!s && !isNaN(new Date(s + "T12:00:00").getTime());
+
+export function validarDespesaSitDetalhado(d: any, cfg: SitConfig | null): ErroSit[] {
+  const e: ErroSit[] = [];
+  // Configuração global
+  if (!cfg || !cfg.cnpj_concedente || onlyDigits(cfg.cnpj_concedente).length !== 14) {
+    e.push({ campo: "cnpj_concedente", rotulo: "CNPJ do Concedente", mensagem: "CNPJ do concedente não configurado (14 dígitos) — vá em /configuracoes → SIT" });
+  }
+  if (!cfg?.numero_instrumento_padrao && !d.sit_numero_instrumento) {
+    e.push({ campo: "sit_numero_instrumento", rotulo: "Nº do Instrumento", mensagem: "Número do instrumento (convênio/termo) não definido" });
+  }
+  if (!cfg?.ano_transferencia_padrao && !d.sit_ano_transferencia) {
+    e.push({ campo: "sit_ano_transferencia", rotulo: "Ano da Transferência", mensagem: "Ano da transferência não definido" });
+  }
+
+  // Código do tipo de despesa SIT
+  if (!d.sit_codigo_tipo_despesa) {
+    e.push({ campo: "sit_codigo_tipo_despesa", rotulo: "Tipo de Despesa (SIT)", mensagem: "Selecione o código do tipo de despesa SIT" });
+  }
+
+  // Favorecido
+  if (!d.sit_nome_favorecido && !d.fornecedor) {
+    e.push({ campo: "sit_nome_favorecido", rotulo: "Nome do Favorecido", mensagem: "Nome do favorecido obrigatório" });
+  }
+  const cnpjFav = onlyDigits(d.cnpj_cpf);
+  const tipoFav = d.sit_tipo_doc_favorecido || (cnpjFav.length === 14 ? "CNPJ" : cnpjFav.length === 11 ? "CPF" : null);
+  if (!tipoFav) {
+    e.push({ campo: "sit_tipo_doc_favorecido", rotulo: "Tipo Doc. Favorecido", mensagem: "Defina CNPJ, CPF ou EXT do favorecido" });
+  } else if (tipoFav !== "EXT") {
+    if (tipoFav === "CNPJ" && cnpjFav.length !== 14) {
+      e.push({ campo: "cnpj_cpf", rotulo: "CNPJ do Favorecido", mensagem: "CNPJ do favorecido inválido (precisa ter 14 dígitos)" });
+    }
+    if (tipoFav === "CPF" && cnpjFav.length !== 11) {
+      e.push({ campo: "cnpj_cpf", rotulo: "CPF do Favorecido", mensagem: "CPF do favorecido inválido (precisa ter 11 dígitos)" });
+    }
+  }
+
+  // Documento da despesa
+  if (!d.sit_tipo_doc_despesa) {
+    e.push({ campo: "sit_tipo_doc_despesa", rotulo: "Tipo Doc. Despesa", mensagem: "Tipo do documento da despesa (NF, recibo, etc.)" });
+  }
+  if (!(d.sit_numero_doc_despesa || d.numero_documento)) {
+    e.push({ campo: "sit_numero_doc_despesa", rotulo: "Nº do Documento", mensagem: "Número do documento da despesa obrigatório" });
+  }
+  const dataDoc = d.sit_data_doc_despesa || d.data_lancamento;
+  if (!isDate(dataDoc)) {
+    e.push({ campo: "sit_data_doc_despesa", rotulo: "Data do Documento", mensagem: "Data do documento inválida ou ausente" });
+  }
+
+  // Valor
+  if (!d.valor || Number(d.valor) <= 0) {
+    e.push({ campo: "valor", rotulo: "Valor", mensagem: "Valor da despesa deve ser maior que zero" });
+  }
+
+  // Pagamento
+  const dataPag = d.sit_data_emissao_pagamento || d.data_lancamento;
+  if (!isDate(dataPag)) {
+    e.push({ campo: "sit_data_emissao_pagamento", rotulo: "Data de Emissão do Pagamento", mensagem: "Data de emissão do pagamento ausente" });
+  }
+  if (!isDate(d.sit_data_debito)) {
+    e.push({ campo: "sit_data_debito", rotulo: "Data do Débito", mensagem: "Data do débito (efetivo pagamento) obrigatória" });
+  }
+
+  // Comprovante anexado
+  if (!d.comprovante_url && !d.nota_url && !d.boleto_url) {
+    e.push({ campo: "comprovante_url", rotulo: "Comprovante", mensagem: "Anexe o comprovante (NF, recibo, boleto, etc.)" });
+  }
+
+  return e;
 }
