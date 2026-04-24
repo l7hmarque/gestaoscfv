@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import OrcamentosTab from "./OrcamentosTab";
 import DocumentosPrestacaoTab from "./DocumentosPrestacaoTab";
+import ExportacaoSitCard from "@/components/financeiro/ExportacaoSitCard";
+import RegularizarSitDialog from "@/components/financeiro/RegularizarSitDialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { sysCfvFileName } from "@/lib/fileNaming";
