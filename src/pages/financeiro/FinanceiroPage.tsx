@@ -1132,26 +1132,59 @@ export default function FinanceiroPage() {
                             <Trash2 className="h-3 w-3 text-destructive" />
                           </Button>
                         </div>
-                        {doc.extracted ? (
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            <div><Label className="text-[10px]">Descrição</Label>
-                              <Input className="h-7 text-xs" value={doc.extracted.descricao || ""} onChange={e => updateDocExtracted(idx, "descricao", e.target.value)} /></div>
-                            <div><Label className="text-[10px]">Valor</Label>
-                              <Input className="h-7 text-xs" type="number" value={doc.extracted.valor || ""} onChange={e => updateDocExtracted(idx, "valor", e.target.value)} /></div>
-                            <div><Label className="text-[10px]">Data</Label>
-                              <Input className="h-7 text-xs" type="date" value={doc.extracted.data_lancamento || ""} onChange={e => updateDocExtracted(idx, "data_lancamento", e.target.value)} /></div>
-                            <div><Label className="text-[10px]">Fornecedor</Label>
-                              <Input className="h-7 text-xs" value={doc.extracted.fornecedor || ""} onChange={e => updateDocExtracted(idx, "fornecedor", e.target.value)} /></div>
-                            <div><Label className="text-[10px]">CNPJ/CPF</Label>
-                              <Input className="h-7 text-xs" value={doc.extracted.cnpj_cpf || ""} onChange={e => updateDocExtracted(idx, "cnpj_cpf", e.target.value)} /></div>
-                            <div><Label className="text-[10px]">Nº Documento</Label>
-                              <Input className="h-7 text-xs" value={doc.extracted.numero_documento || ""} onChange={e => updateDocExtracted(idx, "numero_documento", e.target.value)} /></div>
-                            <div><Label className="text-[10px]">Tipo</Label>
-                              <Select value={doc.extracted.tipo_documento || "nota_fiscal"} onValueChange={v => updateDocExtracted(idx, "tipo_documento", v)}>
-                                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                                <SelectContent>{TIPOS_DOCUMENTO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-                              </Select>
+                        {doc.extractedList && doc.extractedList.length > 0 ? (
+                          <div className="space-y-2">
+                            <div className="text-[11px] font-medium text-muted-foreground">
+                              {doc.extractedList.length} despesa(s) detectada(s){doc.extractedList.length > 1 && " — uma por funcionário/comprovante"}
                             </div>
+                            {doc.extractedList.map((extr, dIdx) => (
+                              <div key={dIdx} className="border rounded p-2 bg-muted/20">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-[10px] font-semibold">Despesa #{dIdx + 1}</span>
+                                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeDespesa(idx, dIdx)}>
+                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                  <div><Label className="text-[10px]">Descrição</Label>
+                                    <Input className="h-7 text-xs" value={extr.descricao || ""} onChange={e => updateDocExtracted(idx, dIdx, "descricao", e.target.value)} /></div>
+                                  <div><Label className="text-[10px]">Valor (R$)</Label>
+                                    <Input className="h-7 text-xs" type="number" step="0.01" value={extr.valor || ""} onChange={e => updateDocExtracted(idx, dIdx, "valor", e.target.value)} /></div>
+                                  <div><Label className="text-[10px]">Data</Label>
+                                    <Input className="h-7 text-xs" type="date" value={extr.data_lancamento || ""} onChange={e => updateDocExtracted(idx, dIdx, "data_lancamento", e.target.value)} /></div>
+                                  <div><Label className="text-[10px]">Favorecido</Label>
+                                    <Input className="h-7 text-xs" value={extr.fornecedor || extr.sit_nome_favorecido || ""} onChange={e => updateDocExtracted(idx, dIdx, "fornecedor", e.target.value)} /></div>
+                                  <div><Label className="text-[10px]">CPF/CNPJ</Label>
+                                    <Input className="h-7 text-xs" value={extr.cnpj_cpf || ""} onChange={e => updateDocExtracted(idx, dIdx, "cnpj_cpf", e.target.value)} /></div>
+                                  <div><Label className="text-[10px]">Nº Doc Despesa</Label>
+                                    <Input className="h-7 text-xs" value={extr.sit_numero_doc_despesa || extr.numero_documento || ""} onChange={e => updateDocExtracted(idx, dIdx, "sit_numero_doc_despesa", e.target.value)} /></div>
+                                  <div><Label className="text-[10px]">Tipo Doc Despesa (SIT)</Label>
+                                    <Select value={String(extr.sit_tipo_doc_despesa ?? "")} onValueChange={v => updateDocExtracted(idx, dIdx, "sit_tipo_doc_despesa", Number(v))}>
+                                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="1">1 — Nota Fiscal</SelectItem>
+                                        <SelectItem value="4">4 — Recibo</SelectItem>
+                                        <SelectItem value="5">5 — Boleto</SelectItem>
+                                        <SelectItem value="6">6 — Folha de Pagamento</SelectItem>
+                                        <SelectItem value="7">7 — RPA</SelectItem>
+                                        <SelectItem value="8">8 — DARF</SelectItem>
+                                        <SelectItem value="9">9 — GPS</SelectItem>
+                                        <SelectItem value="20">20 — Outros</SelectItem>
+                                      </SelectContent>
+                                    </Select></div>
+                                  <div><Label className="text-[10px]">Tipo Pagamento (SIT)</Label>
+                                    <Select value={String(extr.sit_tipo_doc_pagamento ?? "")} onValueChange={v => updateDocExtracted(idx, dIdx, "sit_tipo_doc_pagamento", Number(v))}>
+                                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="1">1 — Cheque</SelectItem>
+                                        <SelectItem value="3">3 — TED/DOC/PIX</SelectItem>
+                                        <SelectItem value="4">4 — Débito Automático</SelectItem>
+                                        <SelectItem value="5">5 — Boleto</SelectItem>
+                                      </SelectContent>
+                                    </Select></div>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -1161,8 +1194,8 @@ export default function FinanceiroPage() {
                       </CardContent>
                     </Card>
                   ))}
-                  <Button onClick={saveImportedDocs} disabled={docFiles.filter(d => d.extracted).length === 0}>
-                    Lançar {docFiles.filter(d => d.extracted).length} Despesas
+                  <Button onClick={saveImportedDocs} disabled={docFiles.reduce((s, d) => s + d.extractedList.length, 0) === 0}>
+                    Lançar {docFiles.reduce((s, d) => s + d.extractedList.length, 0)} Despesa(s)
                   </Button>
                 </div>
               )}
