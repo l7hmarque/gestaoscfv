@@ -1,0 +1,18 @@
+ALTER TABLE public.sit_configuracao
+  ADD COLUMN IF NOT EXISTS razao_social_concedente text,
+  ADD COLUMN IF NOT EXISTS razao_social_osc text,
+  ADD COLUMN IF NOT EXISTS cnpj_osc varchar(14),
+  ADD COLUMN IF NOT EXISTS exercicio smallint,
+  ADD COLUMN IF NOT EXISTS data_inicio_vigencia date,
+  ADD COLUMN IF NOT EXISTS data_fim_vigencia date,
+  ADD COLUMN IF NOT EXISTS valor_total_repasse numeric(14,2),
+  ADD COLUMN IF NOT EXISTS objeto_termo text,
+  ADD COLUMN IF NOT EXISTS banco_codigo varchar(10),
+  ADD COLUMN IF NOT EXISTS banco_nome text,
+  ADD COLUMN IF NOT EXISTS banco_agencia varchar(15),
+  ADD COLUMN IF NOT EXISTS banco_conta varchar(20),
+  ADD COLUMN IF NOT EXISTS banco_tipo_conta text,
+  ADD COLUMN IF NOT EXISTS gestor_nome text,
+  ADD COLUMN IF NOT EXISTS gestor_cpf varchar(11),
+  ADD COLUMN IF NOT EXISTS gestor_cargo text,
+  ADD COLUMN IF NOT EXISTS gestor_email text;

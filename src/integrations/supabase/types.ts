@@ -2647,39 +2647,90 @@ export type Database = {
       sit_configuracao: {
         Row: {
           ano_transferencia_padrao: number
+          banco_agencia: string | null
+          banco_codigo: string | null
+          banco_conta: string | null
+          banco_nome: string | null
+          banco_tipo_conta: string | null
           cnpj_concedente: string
+          cnpj_osc: string | null
           created_at: string
+          data_fim_vigencia: string | null
+          data_inicio_vigencia: string | null
+          exercicio: number | null
+          gestor_cargo: string | null
+          gestor_cpf: string | null
+          gestor_email: string | null
+          gestor_nome: string | null
           id: string
           modalidade_compra_padrao: number
           numero_instrumento_padrao: string
+          objeto_termo: string | null
           observacoes: string | null
+          razao_social_concedente: string | null
+          razao_social_osc: string | null
           tipo_doc_pagamento_padrao: number
           tipo_transferencia_padrao: number
           updated_at: string
+          valor_total_repasse: number | null
         }
         Insert: {
           ano_transferencia_padrao?: number
+          banco_agencia?: string | null
+          banco_codigo?: string | null
+          banco_conta?: string | null
+          banco_nome?: string | null
+          banco_tipo_conta?: string | null
           cnpj_concedente: string
+          cnpj_osc?: string | null
           created_at?: string
+          data_fim_vigencia?: string | null
+          data_inicio_vigencia?: string | null
+          exercicio?: number | null
+          gestor_cargo?: string | null
+          gestor_cpf?: string | null
+          gestor_email?: string | null
+          gestor_nome?: string | null
           id?: string
           modalidade_compra_padrao?: number
           numero_instrumento_padrao: string
+          objeto_termo?: string | null
           observacoes?: string | null
+          razao_social_concedente?: string | null
+          razao_social_osc?: string | null
           tipo_doc_pagamento_padrao?: number
           tipo_transferencia_padrao?: number
           updated_at?: string
+          valor_total_repasse?: number | null
         }
         Update: {
           ano_transferencia_padrao?: number
+          banco_agencia?: string | null
+          banco_codigo?: string | null
+          banco_conta?: string | null
+          banco_nome?: string | null
+          banco_tipo_conta?: string | null
           cnpj_concedente?: string
+          cnpj_osc?: string | null
           created_at?: string
+          data_fim_vigencia?: string | null
+          data_inicio_vigencia?: string | null
+          exercicio?: number | null
+          gestor_cargo?: string | null
+          gestor_cpf?: string | null
+          gestor_email?: string | null
+          gestor_nome?: string | null
           id?: string
           modalidade_compra_padrao?: number
           numero_instrumento_padrao?: string
+          objeto_termo?: string | null
           observacoes?: string | null
+          razao_social_concedente?: string | null
+          razao_social_osc?: string | null
           tipo_doc_pagamento_padrao?: number
           tipo_transferencia_padrao?: number
           updated_at?: string
+          valor_total_repasse?: number | null
         }
         Relationships: []
       }
