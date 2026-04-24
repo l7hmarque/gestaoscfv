@@ -480,6 +480,22 @@ export default function FinanceiroPage() {
       const cnpjcpf = (e.cnpj_cpf || "").replace(/\D/g, "");
       const tipoFav = e.sit_tipo_doc_favorecido || (cnpjcpf.length === 14 ? "CNPJ" : cnpjcpf.length === 11 ? "CPF" : null);
       const obrigatoriosOk = !!(e.valor && e.data_lancamento && e.fornecedor && e.sit_tipo_doc_despesa && e.sit_tipo_doc_pagamento);
+      // Helpers de truncamento para respeitar limites do schema (varchar)
+      const trunc = (v: any, n: number) => {
+        if (v === null || v === undefined) return null;
+        const s = String(v).trim();
+        return s ? s.slice(0, n) : null;
+      };
+      const toSmallInt = (v: any) => {
+        if (v === null || v === undefined || v === "") return null;
+        const n = parseInt(String(v).replace(/\D/g, ""), 10);
+        return Number.isFinite(n) ? n : null;
+      };
+      const tipoFavTrunc = trunc(tipoFav, 4);
+      const numDocDespesa = trunc(e.sit_numero_doc_despesa || e.numero_documento, 10);
+      const numDocPagamento = trunc(e.sit_numero_doc_pagamento, 15);
+      const numInstrumento = trunc(e.sit_numero_instrumento, 20);
+      const nomeFav = trunc(e.sit_nome_favorecido || e.fornecedor, 250);
       return {
         descricao: e.descricao || "Sem descrição",
         valor: Number(e.valor) || 0,
@@ -493,16 +509,16 @@ export default function FinanceiroPage() {
         nota_url: storageUrl || null,
         lote_id,
         // Campos SIT
-        sit_tipo_doc_favorecido: tipoFav,
-        sit_nome_favorecido: e.sit_nome_favorecido || e.fornecedor || null,
-        sit_tipo_doc_despesa: e.sit_tipo_doc_despesa ?? null,
-        sit_numero_doc_despesa: e.sit_numero_doc_despesa || e.numero_documento || null,
+        sit_tipo_doc_favorecido: tipoFavTrunc,
+        sit_nome_favorecido: nomeFav,
+        sit_tipo_doc_despesa: toSmallInt(e.sit_tipo_doc_despesa),
+        sit_numero_doc_despesa: numDocDespesa,
         sit_data_doc_despesa: e.sit_data_doc_despesa || e.data_lancamento || null,
-        sit_tipo_doc_pagamento: e.sit_tipo_doc_pagamento ?? null,
-        sit_numero_doc_pagamento: e.sit_numero_doc_pagamento || null,
+        sit_tipo_doc_pagamento: toSmallInt(e.sit_tipo_doc_pagamento),
+        sit_numero_doc_pagamento: numDocPagamento,
         sit_data_emissao_pagamento: e.sit_data_emissao_pagamento || null,
         sit_data_debito: e.sit_data_debito || null,
-        sit_numero_instrumento: e.sit_numero_instrumento || null,
+        sit_numero_instrumento: numInstrumento,
         sit_ano_transferencia: e.sit_ano_transferencia ?? null,
         sit_descricao_item: e.sit_descricao_item || e.descricao || null,
         sit_completo: obrigatoriosOk,
@@ -511,7 +527,11 @@ export default function FinanceiroPage() {
       };
     });
     const { error } = await supabase.from("despesas").insert(rows);
-    if (error) { toast.error("Erro ao lançar"); return; }
+    if (error) {
+      console.error("Erro ao lançar despesa:", error);
+      toast.error(`Erro ao lançar: ${error.message}`);
+      return;
+    }
     toast.success(`${rows.length} despesa(s) importada(s)`);
     setDocFiles([]);
     setDialogOpen(null);
