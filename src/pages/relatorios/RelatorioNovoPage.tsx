@@ -309,6 +309,9 @@ const RelatorioNovoPage = () => {
       if (error) throw error;
       const relId = rel.id;
 
+      // Enfileira geração automática do .docx na Biblioteca (best-effort)
+      import("@/lib/bibliotecaDocx").then(m => m.enfileirarDocBiblioteca("relatorio", relId)).catch(() => {});
+
       // turmas
       if (form.turma_ids.length > 0) {
         await supabase.from("relatorio_turmas").insert(form.turma_ids.map(turma_id => ({ relatorio_id: relId, turma_id })));

@@ -99,6 +99,10 @@ const PlanejamentoNovoPage = () => {
         await supabase.from("planejamento_turmas").insert(rows);
       }
 
+      if (data) {
+        import("@/lib/bibliotecaDocx").then(m => m.enfileirarDocBiblioteca("planejamento", data.id)).catch(() => {});
+      }
+
       toast.success("Planejamento salvo!");
       navigate("/planejamentos");
     } catch (e: any) {
