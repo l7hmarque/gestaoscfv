@@ -73,20 +73,37 @@ serve(async (req) => {
     const userContent: any[] = [
       {
         type: "text",
-        text: "Analise TODAS as páginas deste documento e extraia TODAS as despesas. Use a função extract_despesas. Lembre-se: folhas de pagamento têm UMA despesa POR FUNCIONÁRIO; comprovantes bancários pareados com holerites também são UMA despesa por par.",
+        text: "Analise TODAS as páginas (sem exceção) deste PDF — pode haver dezenas de lançamentos, NFs, holerites e comprovantes ao longo de várias páginas. Percorra página por página, do início ao fim, e extraia CADA lançamento fiscal individualmente, sem omitir nenhum. Não pare na primeira página. Use a função extract_despesas. Folhas de pagamento têm UMA despesa POR FUNCIONÁRIO; comprovantes bancários pareados com holerites também são UMA despesa por par. Se houver tabelas de lançamentos contábeis/financeiros, gere UMA despesa POR LINHA da tabela.",
       },
     ];
 
+    const isPdf = (mime_type || "").toLowerCase().includes("pdf");
     if (file_base64 && mime_type) {
-      userContent.push({
-        type: "image_url",
-        image_url: { url: `data:${mime_type};base64,${file_base64}` },
-      });
+      if (isPdf) {
+        // OpenAI-compatible PDF input (multi-page) — Lovable AI Gateway maps to Gemini inline_data
+        userContent.push({
+          type: "file",
+          file: {
+            filename: "documento.pdf",
+            file_data: `data:${mime_type};base64,${file_base64}`,
+          },
+        });
+      } else {
+        userContent.push({
+          type: "image_url",
+          image_url: { url: `data:${mime_type};base64,${file_base64}` },
+        });
+      }
     } else if (file_url) {
-      userContent.push({
-        type: "image_url",
-        image_url: { url: file_url },
-      });
+      const looksPdf = file_url.toLowerCase().endsWith(".pdf");
+      if (looksPdf) {
+        userContent.push({
+          type: "file",
+          file: { filename: "documento.pdf", file_url: file_url },
+        });
+      } else {
+        userContent.push({ type: "image_url", image_url: { url: file_url } });
+      }
     }
 
     const callModel = async (model: string) => fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
