@@ -172,6 +172,9 @@ export default function FinanceiroPage() {
   const despAguardando = despesas.filter(d => despStatus(d) === "aguardando").length;
   const despPendentes = despesas.filter(d => despStatus(d) === "pendente").length;
   const filteredDespesas = despFilter === "all" ? despesas : despesas.filter(d => despStatus(d) === despFilter);
+  const filteredDespesasFinal = filtroSit
+    ? filteredDespesas.filter((d: any) => !d.sit_completo || !d.comprovante_url)
+    : filteredDespesas;
 
   const addCategoria = async () => {
     if (!catForm.codigo || !catForm.descricao) return;
