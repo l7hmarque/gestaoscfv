@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
-import { buildDespesaTxt, validarDespesaSit, type SitConfig } from "./sitExport";
+import { buildDespesaTxt, validarDespesaSitDetalhado, type SitConfig, type ErroSit } from "./sitExport";
 import { supabase } from "@/integrations/supabase/client";
 
 const onlyDigits = (s: string | null | undefined) => (s || "").replace(/\D/g, "");
@@ -100,11 +100,11 @@ export async function gerarPacoteSit(
   return { txtCount: despesas.length, comprovantesIncluidos: incluidos, comprovantesFaltantes: faltantes };
 }
 
-export function validarLote(despesas: any[], cfg: SitConfig): { ok: any[]; bloqueadas: { d: any; erros: string[] }[] } {
+export function validarLote(despesas: any[], cfg: SitConfig | null): { ok: any[]; bloqueadas: { d: any; erros: ErroSit[] }[] } {
   const ok: any[] = [];
-  const bloqueadas: { d: any; erros: string[] }[] = [];
+  const bloqueadas: { d: any; erros: ErroSit[] }[] = [];
   for (const d of despesas) {
-    const erros = validarDespesaSit(d, cfg);
+    const erros = validarDespesaSitDetalhado(d, cfg);
     if (erros.length) bloqueadas.push({ d, erros });
     else ok.push(d);
   }
