@@ -73,7 +73,7 @@ serve(async (req) => {
     const userContent: any[] = [
       {
         type: "text",
-        text: "Analise TODAS as páginas deste documento e extraia TODAS as despesas. Use a função extract_despesas. Lembre-se: folhas de pagamento têm UMA despesa POR FUNCIONÁRIO; comprovantes bancários pareados com holerites também são UMA despesa por par.",
+        text: "Analise TODAS as páginas (sem exceção) deste PDF — pode haver dezenas de lançamentos, NFs, holerites e comprovantes ao longo de várias páginas. Percorra página por página, do início ao fim, e extraia CADA lançamento fiscal individualmente, sem omitir nenhum. Não pare na primeira página. Use a função extract_despesas. Folhas de pagamento têm UMA despesa POR FUNCIONÁRIO; comprovantes bancários pareados com holerites também são UMA despesa por par. Se houver tabelas de lançamentos contábeis/financeiros, gere UMA despesa POR LINHA da tabela.",
       },
     ];
 
