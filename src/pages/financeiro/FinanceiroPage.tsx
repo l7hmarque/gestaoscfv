@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import OrcamentosTab from "./OrcamentosTab";
 import DocumentosPrestacaoTab from "./DocumentosPrestacaoTab";
+import ExportacaoSitCard from "@/components/financeiro/ExportacaoSitCard";
+import RegularizarSitDialog from "@/components/financeiro/RegularizarSitDialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { sysCfvFileName } from "@/lib/fileNaming";
@@ -129,6 +131,8 @@ export default function FinanceiroPage() {
 
   // Pipeline filter
   const [despFilter, setDespFilter] = useState<"all" | "pendente" | "aguardando" | "completa">("all");
+  const [filtroSit, setFiltroSit] = useState(false);
+  const [regularizarTarget, setRegularizarTarget] = useState<any | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -168,6 +172,9 @@ export default function FinanceiroPage() {
   const despAguardando = despesas.filter(d => despStatus(d) === "aguardando").length;
   const despPendentes = despesas.filter(d => despStatus(d) === "pendente").length;
   const filteredDespesas = despFilter === "all" ? despesas : despesas.filter(d => despStatus(d) === despFilter);
+  const filteredDespesasFinal = filtroSit
+    ? filteredDespesas.filter((d: any) => !d.sit_completo || !d.comprovante_url)
+    : filteredDespesas;
 
   const addCategoria = async () => {
     if (!catForm.codigo || !catForm.descricao) return;
@@ -777,6 +784,8 @@ export default function FinanceiroPage() {
         </CardContent></Card>
       </div>
 
+      <ExportacaoSitCard />
+
       <Tabs defaultValue="despesas">
         <TabsList className="grid grid-cols-8 w-full">
           <TabsTrigger value="despesas" className="text-xs gap-1"><Receipt className="h-3 w-3 hidden sm:block" />Despesas</TabsTrigger>
@@ -788,6 +797,13 @@ export default function FinanceiroPage() {
           <TabsTrigger value="importar" className="text-xs gap-1"><Upload className="h-3 w-3 hidden sm:block" />Importar</TabsTrigger>
           <TabsTrigger value="auditoria" className="text-xs gap-1"><ShieldCheck className="h-3 w-3 hidden sm:block" />Auditoria</TabsTrigger>
         </TabsList>
+
+        <RegularizarSitDialog
+          open={!!regularizarTarget}
+          onOpenChange={(v) => { if (!v) setRegularizarTarget(null); }}
+          despesa={regularizarTarget}
+          onSaved={load}
+        />
 
         {/* =================== DESPESAS =================== */}
         <TabsContent value="despesas">
@@ -921,6 +937,15 @@ export default function FinanceiroPage() {
                           {d.nota_url && <Badge variant="outline" className="text-[9px] px-1 py-0">NF</Badge>}
                           {d.boleto_url && <Badge variant="outline" className="text-[9px] px-1 py-0">Bol</Badge>}
                           {d.comprovante_url && <Badge variant="outline" className="text-[9px] px-1 py-0">Comp</Badge>}
+                          {!(d as any).sit_completo && (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] px-1 py-0 cursor-pointer bg-blue-500/10 text-blue-700 border-blue-500/30 hover:bg-blue-500/20"
+                              onClick={(e) => { e.stopPropagation(); setRegularizarTarget(d); }}
+                            >
+                              SIT
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell><Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); setDeleteTarget({ table: "despesas", id: d.id, label: `Despesa: ${d.descricao} - ${fmt(Number(d.valor))}` }); }}><Trash2 className="h-3 w-3 text-destructive" /></Button></TableCell>
