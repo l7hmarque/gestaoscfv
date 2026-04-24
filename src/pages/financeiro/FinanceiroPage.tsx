@@ -784,6 +784,8 @@ export default function FinanceiroPage() {
         </CardContent></Card>
       </div>
 
+      <ExportacaoSitCard />
+
       <Tabs defaultValue="despesas">
         <TabsList className="grid grid-cols-8 w-full">
           <TabsTrigger value="despesas" className="text-xs gap-1"><Receipt className="h-3 w-3 hidden sm:block" />Despesas</TabsTrigger>
@@ -795,6 +797,13 @@ export default function FinanceiroPage() {
           <TabsTrigger value="importar" className="text-xs gap-1"><Upload className="h-3 w-3 hidden sm:block" />Importar</TabsTrigger>
           <TabsTrigger value="auditoria" className="text-xs gap-1"><ShieldCheck className="h-3 w-3 hidden sm:block" />Auditoria</TabsTrigger>
         </TabsList>
+
+        <RegularizarSitDialog
+          open={!!regularizarTarget}
+          onOpenChange={(v) => { if (!v) setRegularizarTarget(null); }}
+          despesa={regularizarTarget}
+          onSaved={load}
+        />
 
         {/* =================== DESPESAS =================== */}
         <TabsContent value="despesas">
