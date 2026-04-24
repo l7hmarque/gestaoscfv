@@ -20,6 +20,8 @@ import OrcamentosTab from "./OrcamentosTab";
 import DocumentosPrestacaoTab from "./DocumentosPrestacaoTab";
 import ExportacaoSitCard from "@/components/financeiro/ExportacaoSitCard";
 import RegularizarSitDialog from "@/components/financeiro/RegularizarSitDialog";
+import ImportReviewDialog from "@/components/financeiro/ImportReviewDialog";
+import LotesImportadosTab from "@/components/financeiro/LotesImportadosTab";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { sysCfvFileName } from "@/lib/fileNaming";
@@ -29,6 +31,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
 import { validateDespesa, missingFieldLabel, type DespesaWarning } from "@/lib/despesaImportValidation";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Categoria = { id: string; codigo: string; descricao: string; valor_previsto: number; created_at: string };
 type Parcela = { id: string; numero_parcela: number; valor: number; data_recebimento: string; created_at: string };
@@ -136,6 +139,20 @@ export default function FinanceiroPage() {
   const [despFilter, setDespFilter] = useState<"all" | "pendente" | "aguardando" | "completa">("all");
   const [filtroSit, setFiltroSit] = useState(false);
   const [regularizarTarget, setRegularizarTarget] = useState<any | null>(null);
+
+  // Roles para liberar "lançar pendentes" só para coordenação
+  const { user } = useAuth();
+  const [isCoordenacao, setIsCoordenacao] = useState(false);
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+      setIsCoordenacao((data || []).some((r: any) => r.role === "coordenacao"));
+    })();
+  }, [user?.id]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -497,20 +514,107 @@ export default function FinanceiroPage() {
     setReviewOpen(true);
   };
 
-  const confirmAndSaveImportedDocs = async () => {
+  const confirmAndSaveImportedDocs = async (opts: { allowPendentes: boolean }) => {
     if (totalImportDespesas === 0) return;
+    // Bloqueio: pendências só passam com flag de coordenação
+    if (totalWithMissing > 0 && !(opts.allowPendentes && isCoordenacao)) {
+      toast.error(
+        `${totalWithMissing} despesa(s) com campos obrigatórios ausentes. Edite-as antes de lançar.`
+      );
+      return;
+    }
+
     setSavingDocs(true);
     const lote_id = crypto.randomUUID();
+
+    // Telemetria por regra (usada também no diagnóstico do lote)
+    const ruleCounts: Record<string, number> = {};
+    let totalOk = 0;
+    let totalAjustes = 0;
+    let totalBloqueadas = 0;
+    for (const d of validatedDocs) {
+      for (const it of d.items) {
+        for (const w of it.warnings as DespesaWarning[]) {
+          ruleCounts[w.rule] = (ruleCounts[w.rule] || 0) + 1;
+        }
+        if (it.missing.length > 0) totalBloqueadas++;
+        else if (it.warnings.length > 0) totalAjustes++;
+        else totalOk++;
+      }
+    }
+
+    /* eslint-disable no-console */
+    console.groupCollapsed(`[ImportDespesas] lote ${lote_id}`);
+    console.log("Mês:", mesRef);
+    console.log("Arquivos:", validatedDocs.map((d) => ({ file: d.fileName, qtd: d.items.length })));
+    console.log("Totais:", { ok: totalOk, ajustes: totalAjustes, bloqueadas: totalBloqueadas });
+    console.log("Regras aplicadas:", ruleCounts);
+    console.log(
+      "Detalhes por despesa:",
+      validatedDocs.flatMap((d) =>
+        d.items.map((it) => ({
+          file: d.fileName,
+          idx: it.despIdx + 1,
+          missing: it.missing,
+          warnings: it.warnings.map((w) => ({
+            rule: w.rule,
+            field: w.field,
+            severity: w.severity,
+            source: w.source,
+            matchedAlias: w.matchedAlias,
+            original: w.original,
+            applied: w.applied,
+          })),
+        }))
+      )
+    );
+    console.groupEnd();
+    /* eslint-enable no-console */
+
     const rows = validatedDocs.flatMap((d) =>
       d.items.map((it) => ({ ...it.row, lote_id }))
     );
     const { error } = await supabase.from("despesas").insert(rows as any);
-    setSavingDocs(false);
     if (error) {
+      setSavingDocs(false);
       console.error("Erro ao lançar despesa:", error);
       toast.error(`Erro ao lançar: ${error.message}`);
       return;
     }
+
+    // Grava histórico do lote (best-effort — não bloqueia o usuário se falhar)
+    try {
+      // Nome do responsável
+      let nome: string | null = null;
+      if (user?.id) {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("nome")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        nome = (prof as any)?.nome ?? null;
+      }
+      await (supabase as any).from("despesa_lotes_importacao").insert({
+        lote_id,
+        confirmado_por: user?.id,
+        confirmado_por_nome: nome,
+        mes_referencia: mesRef,
+        total_despesas: rows.length,
+        total_ok: totalOk,
+        total_ajustes: totalAjustes,
+        total_bloqueadas: totalBloqueadas,
+        arquivos: validatedDocs.map((d) => ({
+          fileName: d.fileName,
+          storageUrl: d.storageUrl ?? null,
+          qtdDespesas: d.items.length,
+        })),
+        resumo_warnings: ruleCounts,
+      });
+    } catch (e) {
+      console.error("Falha ao registrar histórico do lote:", e);
+    }
+
+    setSavingDocs(false);
     toast.success(`${rows.length} despesa(s) importada(s)`);
     setReviewOpen(false);
     setDocFiles([]);
@@ -787,7 +891,7 @@ export default function FinanceiroPage() {
       <ExportacaoSitCard />
 
       <Tabs defaultValue="despesas">
-        <TabsList className="grid grid-cols-8 w-full">
+        <TabsList className="grid grid-cols-9 w-full">
           <TabsTrigger value="despesas" className="text-xs gap-1"><Receipt className="h-3 w-3 hidden sm:block" />Despesas</TabsTrigger>
           <TabsTrigger value="parcelas" className="text-xs gap-1"><DollarSign className="h-3 w-3 hidden sm:block" />Parcelas</TabsTrigger>
           <TabsTrigger value="categorias" className="text-xs gap-1"><Layers className="h-3 w-3 hidden sm:block" />Categorias</TabsTrigger>
@@ -795,6 +899,7 @@ export default function FinanceiroPage() {
           <TabsTrigger value="orcamentos" className="text-xs gap-1"><ClipboardList className="h-3 w-3 hidden sm:block" />Orçamentos</TabsTrigger>
           <TabsTrigger value="documentos" className="text-xs gap-1"><FolderOpen className="h-3 w-3 hidden sm:block" />Documentos</TabsTrigger>
           <TabsTrigger value="importar" className="text-xs gap-1"><Upload className="h-3 w-3 hidden sm:block" />Importar</TabsTrigger>
+          <TabsTrigger value="lotes" className="text-xs gap-1"><FileSpreadsheet className="h-3 w-3 hidden sm:block" />Lotes</TabsTrigger>
           <TabsTrigger value="auditoria" className="text-xs gap-1"><ShieldCheck className="h-3 w-3 hidden sm:block" />Auditoria</TabsTrigger>
         </TabsList>
 
@@ -806,120 +911,21 @@ export default function FinanceiroPage() {
         />
 
         {/* =================== REVISÃO PRÉ-LANÇAMENTO =================== */}
-        <Dialog open={reviewOpen} onOpenChange={(v) => !savingDocs && setReviewOpen(v)}>
-          <DialogContent className="max-w-3xl max-h-[85vh] overflow-auto">
-            <DialogHeader>
-              <DialogTitle>Revisar despesas antes de lançar</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3 text-xs">
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">Total: {totalImportDespesas}</Badge>
-                {totalWithMissing > 0 && (
-                  <Badge variant="destructive" className="gap-1">
-                    <AlertTriangle className="h-3 w-3" /> {totalWithMissing} com campo obrigatório faltando
-                  </Badge>
-                )}
-                {totalWithWarnings > 0 && (
-                  <Badge variant="outline" className="gap-1 border-amber-400 text-amber-700">
-                    <Info className="h-3 w-3" /> {totalWithWarnings} com ajuste(s) automático(s)
-                  </Badge>
-                )}
-                {totalWithMissing === 0 && totalWithWarnings === 0 && (
-                  <Badge variant="outline" className="gap-1 border-emerald-400 text-emerald-700">
-                    <CheckCircle2 className="h-3 w-3" /> Tudo pronto, sem alterações
-                  </Badge>
-                )}
-              </div>
-
-              {totalWithMissing > 0 && (
-                <div className="rounded border border-destructive/40 bg-destructive/5 p-2">
-                  <strong className="text-destructive">Atenção:</strong> despesas com campos obrigatórios ausentes serão lançadas como <em>incompletas</em> (não exportáveis ao SIT). Você pode prosseguir e completá-las depois pelo botão <em>Regularizar</em>, ou cancelar e ajustar agora.
-                </div>
-              )}
-
-              <div className="space-y-3">
-                {validatedDocs.map((d) => (
-                  <div key={d.docIdx} className="border rounded">
-                    <div className="px-2 py-1 bg-muted/40 text-[11px] font-medium flex items-center gap-2">
-                      <FileText className="h-3 w-3" />
-                      <span className="truncate">{d.fileName}</span>
-                      <span className="text-muted-foreground">— {d.items.length} despesa(s)</span>
-                    </div>
-                    <ul className="divide-y">
-                      {d.items.map((it) => {
-                        const desc = it.row.descricao || "—";
-                        const valor = Number(it.row.valor || 0);
-                        return (
-                          <li key={it.despIdx} className="px-2 py-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="min-w-0 flex-1">
-                                <div className="font-medium truncate">
-                                  #{it.despIdx + 1} — {desc}
-                                </div>
-                                <div className="text-[10px] text-muted-foreground">
-                                  R$ {valor.toFixed(2)} • {it.row.fornecedor || "sem fornecedor"} • {it.row.data_lancamento || "sem data"}
-                                </div>
-                              </div>
-                              {it.missing.length > 0 ? (
-                                <Badge variant="destructive" className="text-[9px] h-4 px-1">
-                                  {it.missing.length} faltando
-                                </Badge>
-                              ) : it.warnings.length > 0 ? (
-                                <Badge variant="outline" className="text-[9px] h-4 px-1 border-amber-400 text-amber-700">
-                                  {it.warnings.length} ajuste(s)
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-[9px] h-4 px-1 border-emerald-400 text-emerald-700">
-                                  OK
-                                </Badge>
-                              )}
-                            </div>
-                            {(it.missing.length > 0 || it.warnings.length > 0) && (
-                              <ul className="mt-1 ml-3 space-y-0.5 text-[10px]">
-                                {it.missing.map((m) => (
-                                  <li key={`m-${m}`} className="text-destructive">
-                                    • <strong>{missingFieldLabel(m)}</strong> — campo obrigatório ausente
-                                  </li>
-                                ))}
-                                {it.warnings.map((w, wi) => (
-                                  <li
-                                    key={`w-${wi}`}
-                                    className={
-                                      w.severity === "error"
-                                        ? "text-destructive"
-                                        : w.severity === "warn"
-                                        ? "text-amber-700"
-                                        : "text-muted-foreground"
-                                    }
-                                  >
-                                    • <strong>{w.label}:</strong> {w.message}
-                                    {w.original && w.applied && (
-                                      <span className="text-muted-foreground"> ({w.original.length > 30 ? w.original.slice(0, 30) + "…" : w.original} → {w.applied.length > 30 ? w.applied.slice(0, 30) + "…" : w.applied})</span>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t">
-                <Button variant="outline" onClick={() => setReviewOpen(false)} disabled={savingDocs}>
-                  Voltar e ajustar
-                </Button>
-                <Button onClick={confirmAndSaveImportedDocs} disabled={savingDocs || totalImportDespesas === 0}>
-                  {savingDocs ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                  Confirmar e lançar {totalImportDespesas}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <ImportReviewDialog
+          open={reviewOpen}
+          onOpenChange={(v) => !savingDocs && setReviewOpen(v)}
+          docs={docFiles.map((d) => ({
+            fileName: d.file.name,
+            storageUrl: d.storageUrl,
+            extractedList: d.extractedList,
+          }))}
+          mesRef={mesRef}
+          saving={savingDocs}
+          isCoordenacao={isCoordenacao}
+          onUpdateField={updateDocExtracted}
+          onRemoveDespesa={removeDespesa}
+          onConfirm={confirmAndSaveImportedDocs}
+        />
 
         {/* =================== DESPESAS =================== */}
         <TabsContent value="despesas">
@@ -1492,6 +1498,10 @@ export default function FinanceiroPage() {
         {/* =================== DOCUMENTOS INSTITUCIONAIS =================== */}
         <TabsContent value="documentos">
           <DocumentosPrestacaoTab />
+        </TabsContent>
+        {/* =================== LOTES IMPORTADOS =================== */}
+        <TabsContent value="lotes">
+          <LotesImportadosTab />
         </TabsContent>
       </Tabs>
 

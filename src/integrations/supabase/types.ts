@@ -816,6 +816,51 @@ export type Database = {
         }
         Relationships: []
       }
+      despesa_lotes_importacao: {
+        Row: {
+          arquivos: Json
+          confirmado_em: string
+          confirmado_por: string
+          confirmado_por_nome: string | null
+          id: string
+          lote_id: string
+          mes_referencia: string
+          resumo_warnings: Json
+          total_ajustes: number
+          total_bloqueadas: number
+          total_despesas: number
+          total_ok: number
+        }
+        Insert: {
+          arquivos?: Json
+          confirmado_em?: string
+          confirmado_por: string
+          confirmado_por_nome?: string | null
+          id?: string
+          lote_id: string
+          mes_referencia: string
+          resumo_warnings?: Json
+          total_ajustes?: number
+          total_bloqueadas?: number
+          total_despesas?: number
+          total_ok?: number
+        }
+        Update: {
+          arquivos?: Json
+          confirmado_em?: string
+          confirmado_por?: string
+          confirmado_por_nome?: string | null
+          id?: string
+          lote_id?: string
+          mes_referencia?: string
+          resumo_warnings?: Json
+          total_ajustes?: number
+          total_bloqueadas?: number
+          total_despesas?: number
+          total_ok?: number
+        }
+        Relationships: []
+      }
       despesas: {
         Row: {
           boleto_url: string | null
