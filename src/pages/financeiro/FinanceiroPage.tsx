@@ -131,6 +131,8 @@ export default function FinanceiroPage() {
 
   // Pipeline filter
   const [despFilter, setDespFilter] = useState<"all" | "pendente" | "aguardando" | "completa">("all");
+  const [filtroSit, setFiltroSit] = useState(false);
+  const [regularizarTarget, setRegularizarTarget] = useState<any | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
