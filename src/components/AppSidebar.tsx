@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SysCFVLogo } from "@/components/SysCFVLogo";
 import {
-  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings, User, UserX, CalendarDays, Briefcase, ChefHat,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings, User, UserX, CalendarDays, Briefcase, ChefHat, FolderOpen, Receipt,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -27,6 +27,7 @@ const menuGroups = [
       { title: "Planejamento", url: "/planejamentos", icon: BookOpen },
       { title: "Relatórios", url: "/relatorios", icon: FileText },
       { title: "Exportar Relatórios", url: "/relatorios/exportar", icon: FileDown },
+      { title: "Biblioteca .docx", url: "/biblioteca", icon: FolderOpen },
     ],
   },
   {
@@ -41,6 +42,7 @@ const menuGroups = [
       { title: "Equipe Técnica", url: "/equipe-tecnica", icon: HeartHandshake },
       { title: "Cronograma", url: "/cronograma", icon: CalendarDays },
       { title: "Financeiro", url: "/financeiro", icon: DollarSign },
+      { title: "Arquivos Financeiros", url: "/financeiro/arquivos", icon: Receipt },
       { title: "Site Público", url: "/site-admin", icon: Globe },
       { title: "Banco de Dados", url: "/banco-de-dados", icon: Database },
       { title: "Desligamento", url: "/desligamento-admin", icon: UserX },
