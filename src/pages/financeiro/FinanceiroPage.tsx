@@ -1175,11 +1175,66 @@ export default function FinanceiroPage() {
                             {doc.extractedList.map((extr, dIdx) => (
                               <div key={dIdx} className="border rounded p-2 bg-muted/20">
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="text-[10px] font-semibold">Despesa #{dIdx + 1}</span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-[10px] font-semibold">Despesa #{dIdx + 1}</span>
+                                    {(() => {
+                                      const v = validatedDocs[idx]?.items[dIdx];
+                                      if (!v) return null;
+                                      if (v.missing.length > 0) {
+                                        return (
+                                          <Badge variant="destructive" className="text-[9px] h-4 px-1 gap-0.5">
+                                            <AlertTriangle className="h-2.5 w-2.5" />
+                                            {v.missing.length} campo(s) obrigatório(s)
+                                          </Badge>
+                                        );
+                                      }
+                                      if (v.warnings.length > 0) {
+                                        return (
+                                          <Badge variant="outline" className="text-[9px] h-4 px-1 gap-0.5 border-amber-400 text-amber-700">
+                                            <Info className="h-2.5 w-2.5" />
+                                            {v.warnings.length} ajuste(s)
+                                          </Badge>
+                                        );
+                                      }
+                                      return (
+                                        <Badge variant="outline" className="text-[9px] h-4 px-1 gap-0.5 border-emerald-400 text-emerald-700">
+                                          <CheckCircle2 className="h-2.5 w-2.5" />
+                                          OK
+                                        </Badge>
+                                      );
+                                    })()}
+                                  </div>
                                   <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeDespesa(idx, dIdx)}>
                                     <Trash2 className="h-3 w-3 text-destructive" />
                                   </Button>
                                 </div>
+                                {(() => {
+                                  const v = validatedDocs[idx]?.items[dIdx];
+                                  if (!v || (v.missing.length === 0 && v.warnings.length === 0)) return null;
+                                  return (
+                                    <ul className="mb-2 text-[10px] space-y-0.5">
+                                      {v.missing.map((m) => (
+                                        <li key={`m-${m}`} className="text-destructive">
+                                          • <strong>{missingFieldLabel(m)}</strong> — campo obrigatório ausente
+                                        </li>
+                                      ))}
+                                      {v.warnings.map((w, wi) => (
+                                        <li
+                                          key={`w-${wi}`}
+                                          className={
+                                            w.severity === "error"
+                                              ? "text-destructive"
+                                              : w.severity === "warn"
+                                              ? "text-amber-700"
+                                              : "text-muted-foreground"
+                                          }
+                                        >
+                                          • <strong>{w.label}:</strong> {w.message}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  );
+                                })()}
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                   <div><Label className="text-[10px]">Descrição</Label>
                                     <Input className="h-7 text-xs" value={extr.descricao || ""} onChange={e => updateDocExtracted(idx, dIdx, "descricao", e.target.value)} /></div>
@@ -1229,9 +1284,26 @@ export default function FinanceiroPage() {
                       </CardContent>
                     </Card>
                   ))}
-                  <Button onClick={saveImportedDocs} disabled={docFiles.reduce((s, d) => s + d.extractedList.length, 0) === 0}>
-                    Lançar {docFiles.reduce((s, d) => s + d.extractedList.length, 0)} Despesa(s)
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between rounded-md border bg-muted/30 p-2">
+                    <div className="text-[11px] flex flex-wrap gap-2 items-center">
+                      <Badge variant="outline" className="text-[10px]">
+                        Total: {totalImportDespesas}
+                      </Badge>
+                      {totalWithMissing > 0 && (
+                        <Badge variant="destructive" className="text-[10px] gap-1">
+                          <AlertTriangle className="h-3 w-3" /> {totalWithMissing} bloqueada(s)
+                        </Badge>
+                      )}
+                      {totalWithWarnings > 0 && (
+                        <Badge variant="outline" className="text-[10px] gap-1 border-amber-400 text-amber-700">
+                          <Info className="h-3 w-3" /> {totalWithWarnings} com ajuste(s)
+                        </Badge>
+                      )}
+                    </div>
+                    <Button onClick={openReview} disabled={totalImportDespesas === 0}>
+                      Revisar e lançar {totalImportDespesas} despesa(s)
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
