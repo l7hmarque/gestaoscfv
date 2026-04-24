@@ -77,16 +77,33 @@ serve(async (req) => {
       },
     ];
 
+    const isPdf = (mime_type || "").toLowerCase().includes("pdf");
     if (file_base64 && mime_type) {
-      userContent.push({
-        type: "image_url",
-        image_url: { url: `data:${mime_type};base64,${file_base64}` },
-      });
+      if (isPdf) {
+        // OpenAI-compatible PDF input (multi-page) — Lovable AI Gateway maps to Gemini inline_data
+        userContent.push({
+          type: "file",
+          file: {
+            filename: "documento.pdf",
+            file_data: `data:${mime_type};base64,${file_base64}`,
+          },
+        });
+      } else {
+        userContent.push({
+          type: "image_url",
+          image_url: { url: `data:${mime_type};base64,${file_base64}` },
+        });
+      }
     } else if (file_url) {
-      userContent.push({
-        type: "image_url",
-        image_url: { url: file_url },
-      });
+      const looksPdf = file_url.toLowerCase().endsWith(".pdf");
+      if (looksPdf) {
+        userContent.push({
+          type: "file",
+          file: { filename: "documento.pdf", file_url: file_url },
+        });
+      } else {
+        userContent.push({ type: "image_url", image_url: { url: file_url } });
+      }
     }
 
     const callModel = async (model: string) => fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
