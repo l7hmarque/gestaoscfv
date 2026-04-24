@@ -7,11 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { saveAs } from "file-saver";
-import { Download, Package, FileCode2, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Download, Package, FileCode2, Loader2, AlertTriangle, CheckCircle2, Wrench, Ban } from "lucide-react";
 import { toast } from "sonner";
-import { buildDespesaTxt, validarDespesaSit, type SitConfig } from "@/lib/sitExport";
+import { buildDespesaTxt, validarDespesaSitDetalhado, type SitConfig } from "@/lib/sitExport";
 import { gerarPacoteSit, validarLote } from "@/lib/sitZipPackage";
 import { Link as RouterLink } from "react-router-dom";
+import RegularizarSitDialog from "@/components/financeiro/RegularizarSitDialog";
 
 function mesAtualStr() {
   const d = new Date();
@@ -24,6 +25,7 @@ export default function ExportacaoSitCard() {
   const [despesas, setDespesas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [gerandoZip, setGerandoZip] = useState(false);
+  const [regularizar, setRegularizar] = useState<any | null>(null);
 
   useEffect(() => { load(); }, [mesRef]);
 
@@ -38,13 +40,23 @@ export default function ExportacaoSitCard() {
     setLoading(false);
   }
 
-  const cfgOk = cfg && cfg.cnpj_concedente && cfg.numero_instrumento_padrao;
+  const cfgOk = !!(cfg && cfg.cnpj_concedente && cfg.numero_instrumento_padrao);
   const validacao = cfg ? validarLote(despesas, cfg as SitConfig) : { ok: [], bloqueadas: [] };
   const semComprovante = despesas.filter(d => !d.comprovante_url && !d.nota_url && !d.boleto_url);
+  const podeExportar = cfgOk && validacao.ok.length > 0 && validacao.bloqueadas.length === 0;
+  const motivoBloqueio = !cfgOk
+    ? "Configure os dados do SIT antes de exportar"
+    : validacao.bloqueadas.length > 0
+      ? `${validacao.bloqueadas.length} despesa(s) com pendências — regularize todas antes de gerar o arquivo`
+      : validacao.ok.length === 0
+        ? "Nenhuma despesa válida no período"
+        : "";
 
   async function gerarTxt() {
-    if (!cfgOk) { toast.error("Configure SIT em /configuracoes → aba SIT primeiro"); return; }
-    if (validacao.ok.length === 0) { toast.error("Nenhuma despesa válida no período"); return; }
+    if (!podeExportar) {
+      toast.error(motivoBloqueio || "Não é possível exportar");
+      return;
+    }
     const txt = buildDespesaTxt(validacao.ok, cfg as SitConfig);
     saveAs(new Blob([txt], { type: "text/plain;charset=utf-8" }), `Despesa_${mesRef}.txt`);
     await supabase.from("audit_log").insert({
@@ -57,8 +69,10 @@ export default function ExportacaoSitCard() {
   }
 
   async function gerarZip() {
-    if (!cfgOk) { toast.error("Configure SIT em /configuracoes → aba SIT primeiro"); return; }
-    if (validacao.ok.length === 0) { toast.error("Nenhuma despesa válida no período"); return; }
+    if (!podeExportar) {
+      toast.error(motivoBloqueio || "Não é possível exportar");
+      return;
+    }
     setGerandoZip(true);
     try {
       const [ano, mes] = mesRef.split("-");
@@ -136,30 +150,70 @@ export default function ExportacaoSitCard() {
             </div>
 
             {validacao.bloqueadas.length > 0 && (
-              <details className="text-xs bg-amber-500/5 border border-amber-500/20 rounded p-2">
-                <summary className="cursor-pointer font-medium text-amber-700">
-                  Ver despesas bloqueadas ({validacao.bloqueadas.length})
-                </summary>
-                <ul className="mt-2 space-y-1 max-h-40 overflow-auto">
-                  {validacao.bloqueadas.slice(0, 20).map(({ d, erros }) => (
-                    <li key={d.id} className="text-[11px]">
-                      <span className="font-medium">{d.descricao || "(sem descrição)"}</span>{" "}
-                      <span className="text-muted-foreground">— {erros.join(", ")}</span>
-                    </li>
-                  ))}
-                  {validacao.bloqueadas.length > 20 && (
-                    <li className="text-[11px] text-muted-foreground italic">... e mais {validacao.bloqueadas.length - 20}</li>
-                  )}
-                </ul>
-              </details>
+              <Alert className="border-rose-500/40 bg-rose-500/5">
+                <Ban className="h-4 w-4 text-rose-600" />
+                <AlertDescription className="text-xs">
+                  <div className="font-semibold text-rose-700 mb-1">
+                    Exportação bloqueada — {validacao.bloqueadas.length} despesa(s) com campos faltando
+                  </div>
+                  <details open={validacao.bloqueadas.length <= 5}>
+                    <summary className="cursor-pointer text-rose-700 underline text-[11px]">
+                      Ver detalhes por despesa
+                    </summary>
+                    <ul className="mt-2 space-y-2 max-h-72 overflow-auto pr-1">
+                      {validacao.bloqueadas.slice(0, 50).map(({ d, erros }) => (
+                        <li key={d.id} className="bg-background border rounded p-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="font-medium text-[11px] truncate">
+                                {d.codigo_lancamento ? `[${d.codigo_lancamento}] ` : ""}
+                                {d.descricao || "(sem descrição)"}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                R$ {Number(d.valor || 0).toFixed(2)} · {d.fornecedor || "—"} · {d.data_lancamento || "sem data"}
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-[10px] gap-1 shrink-0"
+                              onClick={() => setRegularizar(d)}
+                            >
+                              <Wrench className="h-3 w-3" /> Regularizar
+                            </Button>
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {erros.map((er, i) => (
+                              <Badge
+                                key={i}
+                                variant="outline"
+                                className="text-[9px] px-1 py-0 bg-rose-500/10 text-rose-700 border-rose-500/30"
+                                title={er.mensagem}
+                              >
+                                {er.rotulo}
+                              </Badge>
+                            ))}
+                          </div>
+                        </li>
+                      ))}
+                      {validacao.bloqueadas.length > 50 && (
+                        <li className="text-[11px] text-muted-foreground italic text-center">
+                          ... e mais {validacao.bloqueadas.length - 50} despesa(s)
+                        </li>
+                      )}
+                    </ul>
+                  </details>
+                </AlertDescription>
+              </Alert>
             )}
 
             <div className="flex gap-2 flex-wrap">
               <Button
                 size="sm"
                 onClick={gerarTxt}
-                disabled={!cfgOk || validacao.ok.length === 0}
+                disabled={!podeExportar}
                 className="gap-1"
+                title={motivoBloqueio || "Gerar arquivo Despesa.txt"}
               >
                 <Download className="h-3 w-3" /> Despesa.txt
               </Button>
@@ -167,21 +221,33 @@ export default function ExportacaoSitCard() {
                 size="sm"
                 variant="default"
                 onClick={gerarZip}
-                disabled={!cfgOk || validacao.ok.length === 0 || gerandoZip}
+                disabled={!podeExportar || gerandoZip}
                 className="gap-1 bg-blue-600 hover:bg-blue-700"
+                title={motivoBloqueio || "Gerar pacote ZIP completo"}
               >
                 {gerandoZip ? <Loader2 className="h-3 w-3 animate-spin" /> : <Package className="h-3 w-3" />}
                 Pacote ZIP completo
               </Button>
-              {cfgOk && validacao.ok.length === despesas.length && despesas.length > 0 && (
+              {podeExportar && validacao.ok.length === despesas.length && (
                 <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 border-emerald-500/30 gap-1">
                   <CheckCircle2 className="h-3 w-3" /> Mês completo
                 </Badge>
+              )}
+              {!podeExportar && motivoBloqueio && (
+                <span className="text-[11px] text-rose-700 self-center">
+                  ⛔ {motivoBloqueio}
+                </span>
               )}
             </div>
           </>
         )}
       </CardContent>
+      <RegularizarSitDialog
+        open={!!regularizar}
+        onOpenChange={(v) => { if (!v) setRegularizar(null); }}
+        despesa={regularizar}
+        onSaved={() => { setRegularizar(null); load(); }}
+      />
     </Card>
   );
 }
