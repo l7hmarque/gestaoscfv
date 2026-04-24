@@ -1,6 +1,15 @@
 // Normalização + validação de despesas extraídas (IA / lote) antes do INSERT
 // Centraliza limites do schema SIT e gera avisos de truncamento/conversão
 // para que o usuário possa revisar antes de salvar.
+import {
+  normalizeSitTipoDocDespesa,
+  normalizeSitTipoDocPagamento,
+  normalizeSitTipoDocFavorecido,
+  normalizeSitTipoTransferencia,
+  normalizeSitModalidadeCompra,
+  describeSitTipoDocDespesa,
+  describeSitTipoDocPagamento,
+} from "./sitCodeMappings";
 
 export interface DespesaWarning {
   field: string;
@@ -101,6 +110,43 @@ function toSmallIntWithWarn(
   return n;
 }
 
+/**
+ * Resolve um campo SIT que pode vir como código numérico OU como label
+ * textual (ex: "NFS-e", "PIX", "Boleto"). Aplica o mapeamento centralizado
+ * em `sitCodeMappings.ts` e registra um warning explicando a conversão.
+ */
+function resolveSitCodeWithWarn(
+  v: any,
+  field: string,
+  resolver: (raw: any) => { code: number | null; applied: boolean; original: string | null },
+  describe: (c: number | null) => string,
+  warnings: DespesaWarning[]
+): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const { code, applied, original } = resolver(v);
+  if (code === null) {
+    warnings.push({
+      field,
+      label: FIELD_LABELS[field] ?? field,
+      severity: "error",
+      message: `Não foi possível mapear "${original}" para um código SIT — campo ficará vazio.`,
+      original: original ?? undefined,
+    });
+    return null;
+  }
+  if (applied) {
+    warnings.push({
+      field,
+      label: FIELD_LABELS[field] ?? field,
+      severity: "info",
+      message: `Label "${original}" convertido para código ${code} (${describe(code)}).`,
+      original: original ?? undefined,
+      applied: String(code),
+    });
+  }
+  return code;
+}
+
 export function validateDespesa(
   e: any,
   ctx: { mesRef: string; storageUrl?: string }
@@ -109,11 +155,29 @@ export function validateDespesa(
   const missing: string[] = [];
 
   const cnpjcpf = (e.cnpj_cpf || "").replace(/\D/g, "");
-  const tipoFavRaw =
+  const tipoFavRawInput =
     e.sit_tipo_doc_favorecido ||
     (cnpjcpf.length === 14 ? "CNPJ" : cnpjcpf.length === 11 ? "CPF" : null);
-
-  const tipoFav = truncWithWarn(tipoFavRaw, "sit_tipo_doc_favorecido", warnings);
+  const tipoFavMap = normalizeSitTipoDocFavorecido(tipoFavRawInput);
+  if (tipoFavRawInput && !tipoFavMap.code) {
+    warnings.push({
+      field: "sit_tipo_doc_favorecido",
+      label: FIELD_LABELS.sit_tipo_doc_favorecido,
+      severity: "error",
+      message: `Tipo de favorecido "${tipoFavRawInput}" não reconhecido (use CNPJ, CPF ou EXT).`,
+      original: String(tipoFavRawInput),
+    });
+  } else if (tipoFavMap.applied) {
+    warnings.push({
+      field: "sit_tipo_doc_favorecido",
+      label: FIELD_LABELS.sit_tipo_doc_favorecido,
+      severity: "info",
+      message: `"${tipoFavMap.original}" convertido para "${tipoFavMap.code}".`,
+      original: tipoFavMap.original ?? undefined,
+      applied: tipoFavMap.code ?? undefined,
+    });
+  }
+  const tipoFav = truncWithWarn(tipoFavMap.code ?? tipoFavRawInput, "sit_tipo_doc_favorecido", warnings);
   const nomeFav = truncWithWarn(
     e.sit_nome_favorecido || e.fornecedor,
     "sit_nome_favorecido",
@@ -135,14 +199,32 @@ export function validateDespesa(
     warnings
   );
 
-  const tipoDocDespesa = toSmallIntWithWarn(
-    e.sit_tipo_doc_despesa,
+  const tipoDocDespesa = resolveSitCodeWithWarn(
+    e.sit_tipo_doc_despesa ?? e.tipo_documento,
     "sit_tipo_doc_despesa",
+    normalizeSitTipoDocDespesa,
+    describeSitTipoDocDespesa,
     warnings
   );
-  const tipoDocPagamento = toSmallIntWithWarn(
-    e.sit_tipo_doc_pagamento,
+  const tipoDocPagamento = resolveSitCodeWithWarn(
+    e.sit_tipo_doc_pagamento ?? e.forma_pagamento,
     "sit_tipo_doc_pagamento",
+    normalizeSitTipoDocPagamento,
+    describeSitTipoDocPagamento,
+    warnings
+  );
+  const tipoTransferencia = resolveSitCodeWithWarn(
+    e.sit_tipo_transferencia,
+    "sit_tipo_doc_despesa", // reaproveita label genérico se faltar; ok pois é só pra warning
+    normalizeSitTipoTransferencia,
+    (c) => `tipo transferência ${c}`,
+    warnings
+  );
+  const modalidadeCompra = resolveSitCodeWithWarn(
+    e.sit_modalidade_compra,
+    "sit_tipo_doc_despesa",
+    normalizeSitModalidadeCompra,
+    (c) => `modalidade ${c}`,
     warnings
   );
 
@@ -203,6 +285,8 @@ export function validateDespesa(
     sit_data_debito: e.sit_data_debito || null,
     sit_numero_instrumento: numInstrumento,
     sit_ano_transferencia: e.sit_ano_transferencia ?? null,
+    sit_tipo_transferencia: tipoTransferencia ?? e.sit_tipo_transferencia ?? null,
+    sit_modalidade_compra: modalidadeCompra ?? e.sit_modalidade_compra ?? null,
     sit_descricao_item: e.sit_descricao_item || e.descricao || null,
     sit_completo: obrigatoriosOk,
     pendente_comprovante: !ctx.storageUrl,
