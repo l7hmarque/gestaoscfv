@@ -906,6 +906,9 @@ export default function FinanceiroPage() {
                 </TableRow></TableHeader>
                 <TableBody>
                   {filteredDespesas.map(d => {
+                  ((null as any));
+                }
+                  )}
                     const st = despStatus(d);
                     return (
                     <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditDesp({ ...d })}>
