@@ -9,6 +9,50 @@ export const STATUS_LABELS: Record<string, string> = { ativo: "Ativo", desligado
 export const STATUS_COLORS: Record<string, string> = { ativo: "bg-green-100 text-green-800", desligado: "bg-red-100 text-red-800", incompleto: "bg-yellow-100 text-yellow-800", pendente: "bg-blue-100 text-blue-800", busca_ativa: "bg-orange-100 text-orange-800" };
 export const FAIXA_LABELS: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
 
+/** Tipos de Registro da Coordenação (diário operacional) */
+export const TIPOS_REGISTRO_COORD = [
+  { value: "reuniao", label: "Reunião" },
+  { value: "comunicado", label: "Comunicado" },
+  { value: "tarefa", label: "Tarefa" },
+  { value: "acao_decisao", label: "Ação / Decisão" },
+  { value: "visita_tecnica", label: "Visita técnica" },
+  { value: "articulacao_rede", label: "Articulação de rede" },
+  { value: "formacao_equipe", label: "Formação de equipe" },
+  { value: "documento", label: "Documento / Ofício" },
+  { value: "evento", label: "Evento" },
+  { value: "outro", label: "Outro" },
+] as const;
+
+export const STATUS_REGISTRO: Record<string, string> = {
+  aberto: "Aberto",
+  em_andamento: "Em andamento",
+  concluido: "Concluído",
+  cancelado: "Cancelado",
+};
+
+export const STATUS_REGISTRO_COLORS: Record<string, string> = {
+  aberto: "bg-blue-100 text-blue-800",
+  em_andamento: "bg-yellow-100 text-yellow-800",
+  concluido: "bg-green-100 text-green-800",
+  cancelado: "bg-gray-200 text-gray-700",
+};
+
+export const PRIORIDADE_REGISTRO: Record<string, string> = {
+  baixa: "Baixa",
+  media: "Média",
+  alta: "Alta",
+};
+
+export const PRIORIDADE_REGISTRO_COLORS: Record<string, string> = {
+  baixa: "bg-gray-100 text-gray-700",
+  media: "bg-blue-100 text-blue-800",
+  alta: "bg-red-100 text-red-800",
+};
+
+export function tipoRegistroLabel(v: string): string {
+  return TIPOS_REGISTRO_COORD.find((t) => t.value === v)?.label ?? v;
+}
+
 /** Calcula idade a partir de data de nascimento (reutilizável) */
 export function calcAge(dob: string | null): number {
   if (!dob) return 0;

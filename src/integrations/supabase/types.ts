@@ -435,6 +435,11 @@ export type Database = {
           descricao: string | null
           duracao_minutos: number | null
           id: string
+          prazo: string | null
+          prioridade: string
+          responsaveis: string[] | null
+          status: string
+          tags: string[] | null
           titulo: string
           updated_at: string
         }
@@ -446,6 +451,11 @@ export type Database = {
           descricao?: string | null
           duracao_minutos?: number | null
           id?: string
+          prazo?: string | null
+          prioridade?: string
+          responsaveis?: string[] | null
+          status?: string
+          tags?: string[] | null
           titulo: string
           updated_at?: string
         }
@@ -457,6 +467,11 @@ export type Database = {
           descricao?: string | null
           duracao_minutos?: number | null
           id?: string
+          prazo?: string | null
+          prioridade?: string
+          responsaveis?: string[] | null
+          status?: string
+          tags?: string[] | null
           titulo?: string
           updated_at?: string
         }
