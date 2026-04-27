@@ -286,6 +286,49 @@ const PDF_AUSENTE = "A";
 const PDF_DESLIGADO = "D";
 const PDF_LEGENDA = "Legenda: P Presente · A Ausente · D Sem aula/desligado · (BA) Em busca ativa.";
 
+/**
+ * Garante que o anexo de Lista de Frequência tenha nomes mesmo quando o
+ * educador não marcou a chamada (relatorio_presenca vazio). Faz fallback
+ * para a interseção dos participantes vinculados às turmas do relatório.
+ * Retorna o array de presença pronto para os builders DOCX/PDF.
+ */
+export async function ensurePresencaForExport(
+  relatorioId: string,
+  presencaAtual: any[],
+): Promise<any[]> {
+  if (presencaAtual && presencaAtual.length > 0) return presencaAtual;
+  try {
+    const { data: rt } = await supabase
+      .from("relatorio_turmas")
+      .select("turma_id")
+      .eq("relatorio_id", relatorioId);
+    const turmaIds = (rt || []).map((r: any) => r.turma_id).filter(Boolean);
+    if (turmaIds.length === 0) return [];
+    const { data: tp } = await supabase
+      .from("turma_participantes")
+      .select("participante_id, participantes(id, nome_completo, status)")
+      .in("turma_id", turmaIds);
+    const seen = new Map<string, any>();
+    (tp || []).forEach((row: any) => {
+      const p = row.participantes;
+      if (!p?.id || seen.has(p.id)) return;
+      seen.set(p.id, {
+        participante_id: p.id,
+        presente: false,
+        justificativa: "",
+        nome_avulso: null,
+        participantes: { nome_completo: p.nome_completo, status: p.status },
+      });
+    });
+    return Array.from(seen.values()).sort((a: any, b: any) =>
+      (a.participantes?.nome_completo || "").localeCompare(b.participantes?.nome_completo || ""),
+    );
+  } catch (e) {
+    console.warn("[ensurePresencaForExport] falha no fallback:", e);
+    return presencaAtual || [];
+  }
+}
+
 function infoRow(label: string, value: string | null | undefined): TableRow {
   return new TableRow({
     children: [
