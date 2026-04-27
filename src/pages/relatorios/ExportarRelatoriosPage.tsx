@@ -481,6 +481,7 @@ export default function ExportarRelatoriosPage() {
 
   // ===================== Prestação de Contas =====================
   const exportarPrestacaoContas = async () => {
+    if (!pcFormats.length) { toast.error("Selecione ao menos um formato"); return; }
     setLoadingPC(true);
     try {
       const fmtVal = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -543,10 +544,13 @@ export default function ExportarRelatoriosPage() {
       });
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(catRows), "Categorias");
 
-      const bufXlsx = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-      saveAs(new Blob([bufXlsx], { type: "application/octet-stream" }), sysCfvFileName("PrestacaoContas", "xlsx", mesRef));
+      if (pcFormats.includes("xlsx")) {
+        const bufXlsx = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+        saveAs(new Blob([bufXlsx], { type: "application/octet-stream" }), sysCfvFileName("PrestacaoContas", "xlsx", mesRef));
+      }
 
       // PDF
+      if (pcFormats.includes("pdf")) {
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
       doc.setFontSize(16);
       doc.text("PRESTAÇÃO DE CONTAS — " + mesLabel, 14, 15);
@@ -580,8 +584,9 @@ export default function ExportarRelatoriosPage() {
         headStyles: { fillColor: [50, 50, 50], fontSize: 7 },
       });
       doc.save(sysCfvFileName("PrestacaoContas", "pdf", mesRef));
+      }
 
-      toast.success("Prestação de Contas gerada (XLSX + PDF)!");
+      toast.success(`Prestação de Contas gerada (${pcFormats.map(f => f.toUpperCase()).join(" + ")})!`);
     } catch (err: any) {
       toast.error("Erro ao gerar prestação de contas: " + (err.message || ""));
     } finally {
