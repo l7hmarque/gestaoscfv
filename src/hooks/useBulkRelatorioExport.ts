@@ -1,89 +1,42 @@
-import {
-  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-  AlignmentType, BorderStyle, WidthType, ShadingType, PageBreak, ImageRun,
-} from "docx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import JSZip from "jszip";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { sysCfvFileName } from "@/lib/fileNaming";
 import { toast } from "sonner";
-
-const HEADER_COLOR = "323232";
-const ACCENT_COLOR = "000000";
-const LIGHT_BG = "F5F5F5";
-const cellBorder = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" };
-const borders = { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder };
-const cellMargins = { top: 60, bottom: 60, left: 80, right: 80 };
-
-const LIKERT_LABELS: Record<number, string> = {
-  1: "Muito Baixo", 2: "Baixo", 3: "Moderado", 4: "Alto", 5: "Excepcional",
-};
+import { buildRelatorioDocxBlob } from "@/hooks/useDocumentExport";
+import type { ExportFormat } from "@/components/FormatPicker";
 
 function safe(v: any, fallback = ""): string {
   if (v == null || v === "undefined" || v === "Undefined" || v === "") return fallback;
   return String(v);
 }
 
-function headerParagraphs(): Paragraph[] {
-  return [
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "PREFEITURA MUNICIPAL DE MEDIANEIRA", bold: true, size: 20, font: "Arial" })] }),
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "SECRETARIA DE ASSISTÊNCIA SOCIAL", size: 18, font: "Arial" })] }),
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "CAIA — Centro de Atendimento Integrado ao Adolescente", size: 18, font: "Arial" })] }),
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Serviço de Convivência e Fortalecimento de Vínculos — SCFV", size: 16, font: "Arial", italics: true })] }),
-    new Paragraph({ spacing: { after: 200 }, children: [] }),
-  ];
-}
-
-function infoRow(label: string, value: string): TableRow {
-  return new TableRow({
-    children: [
-      new TableCell({ width: { size: 2800, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: LIGHT_BG, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 18, font: "Arial" })] })] }),
-      new TableCell({ width: { size: 6560, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: value || "—", size: 18, font: "Arial" })] })] }),
-    ],
-  });
-}
-
 interface BulkExportParams {
   dateFrom: string;
   dateTo: string;
   educadorId: string; // "todos" or a profile id
+  /** Formatos a gerar. Default: todos os 3 (compatibilidade com chamadas antigas). */
+  formatos?: ExportFormat[];
 }
 
-interface PhotoBuffer {
-  buffer: ArrayBuffer;
-  width: number;
-  height: number;
-  type: "jpg" | "png";
+function slug(s: string): string {
+  return (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w\-]/g, "_").slice(0, 40);
 }
 
-async function fetchPhotosAsBuffers(fotos: any[]): Promise<PhotoBuffer[]> {
-  const results: PhotoBuffer[] = [];
-  for (const foto of fotos) {
-    try {
-      const url = foto.foto_url;
-      if (!url) continue;
-      const resp = await fetch(url);
-      if (!resp.ok) continue;
-      const blob = await resp.blob();
-      const buffer = await blob.arrayBuffer();
-      const type = blob.type.includes("png") ? "png" as const : "jpg" as const;
-      let width = 800, height = 600;
-      try {
-        const bitmap = await createImageBitmap(blob);
-        width = bitmap.width; height = bitmap.height;
-        bitmap.close();
-      } catch { /* defaults */ }
-      results.push({ buffer, width, height, type });
-    } catch { /* skip */ }
+export async function exportBulkRelatorios({
+  dateFrom,
+  dateTo,
+  educadorId,
+  formatos = ["docx", "pdf", "xlsx"],
+}: BulkExportParams) {
+  if (formatos.length === 0) {
+    toast.error("Selecione ao menos um formato");
+    return;
   }
-  return results;
-}
-
-export async function exportBulkRelatorios({ dateFrom, dateTo, educadorId }: BulkExportParams) {
   toast.info("Carregando dados para exportação...");
 
   // Fetch all needed data
@@ -134,138 +87,74 @@ export async function exportBulkRelatorios({ dateFrom, dateTo, educadorId }: Bul
     fotosByRel.set(rf.relatorio_id, arr);
   });
 
-  // Generate all formats in parallel — use allSettled so one failure doesn't block others
-  const results = await Promise.allSettled([
-    generateBulkDocx(filtered, presencaByRel, turmasByRel, fotosByRel, dateFrom, dateTo),
-    generateBulkPdf(filtered, presencaByRel, turmasByRel, dateFrom, dateTo),
-    generateBulkXlsx(filtered, presencaByRel, turmasByRel, dateFrom, dateTo),
-  ]);
+  // Gera apenas os formatos solicitados — usa Promise.allSettled para tolerar falha parcial.
+  const formatJobs: { name: ExportFormat; run: () => Promise<void> }[] = [];
+  if (formatos.includes("docx")) {
+    formatJobs.push({
+      name: "docx",
+      run: () => generateBulkDocxZip(filtered, presencaByRel, turmasByRel, fotosByRel, dateFrom, dateTo),
+    });
+  }
+  if (formatos.includes("pdf")) {
+    formatJobs.push({
+      name: "pdf",
+      run: () => generateBulkPdf(filtered, presencaByRel, turmasByRel, dateFrom, dateTo),
+    });
+  }
+  if (formatos.includes("xlsx")) {
+    formatJobs.push({
+      name: "xlsx",
+      run: () => generateBulkXlsx(filtered, presencaByRel, turmasByRel, dateFrom, dateTo),
+    });
+  }
 
-  const formatNames = ["DOCX", "PDF", "XLSX"];
+  const results = await Promise.allSettled(formatJobs.map((j) => j.run()));
   const failed = results
-    .map((r, i) => r.status === "rejected" ? formatNames[i] : null)
-    .filter(Boolean);
-  
+    .map((r, i) => (r.status === "rejected" ? formatJobs[i].name.toUpperCase() : null))
+    .filter(Boolean) as string[];
+
   if (failed.length > 0) {
-    console.error("Export failures:", results.filter(r => r.status === "rejected"));
+    console.error("Export failures:", results.filter((r) => r.status === "rejected"));
     toast.error(`Falha ao gerar: ${failed.join(", ")}`);
   }
-  
-  const succeeded = formatNames.length - failed.length;
-  if (succeeded > 0) {
-    toast.success(`${filtered.length} relatório(s) exportados em ${formatNames.filter(f => !failed.includes(f)).join(", ")}!`);
+  const succeededNames = formatJobs.map((j) => j.name.toUpperCase()).filter((n) => !failed.includes(n));
+  if (succeededNames.length > 0) {
+    toast.success(`${filtered.length} relatório(s) exportados em ${succeededNames.join(", ")}!`);
   }
 }
 
-async function generateBulkDocx(
-  relatorios: any[], presencaByRel: Map<string, any[]>, turmasByRel: Map<string, any[]>,
-  fotosByRel: Map<string, any[]>, dateFrom: string, dateTo: string
+/**
+ * Gera N arquivos DOCX (um por relatório) usando o builder único
+ * `buildRelatorioDocxBlob` (a fonte canônica) e empacota num ZIP.
+ * Elimina ~110 linhas de duplicação de cabeçalho/lista de presença.
+ */
+async function generateBulkDocxZip(
+  relatorios: any[],
+  presencaByRel: Map<string, any[]>,
+  turmasByRel: Map<string, any[]>,
+  fotosByRel: Map<string, any[]>,
+  dateFrom: string,
+  dateTo: string
 ) {
-  const sections: any[] = [];
-
-  for (let idx = 0; idx < relatorios.length; idx++) {
-    const item = relatorios[idx];
-    const turmaNames = (turmasByRel.get(item.id) || []).map((rt: any) => rt.turmas?.nome || "").filter(Boolean);
+  const zip = new JSZip();
+  for (const item of relatorios) {
+    const turmaNames = (turmasByRel.get(item.id) || [])
+      .map((rt: any) => rt.turmas?.nome || "")
+      .filter(Boolean);
     const presenca = presencaByRel.get(item.id) || [];
     const fotos = fotosByRel.get(item.id) || [];
-
-    const children: any[] = [
-      ...headerParagraphs(),
-      new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [
-        new TextRun({ text: "RELATÓRIO DE ATIVIDADE", bold: true, size: 24, font: "Arial", color: ACCENT_COLOR }),
-      ]}),
-    ];
-
-    const rows = [
-      infoRow("Data", item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : ""),
-      infoRow("Dia da Semana", safe(item.dia_semana)),
-      infoRow("Educador", safe(item.profiles?.nome)),
-      infoRow("Turma(s)", turmaNames.join(", ")),
-      infoRow("Tipo de Atividade", Array.isArray(item.tipo_atividade) ? item.tipo_atividade.join(", ") : safe(item.tipo_atividade)),
-      infoRow("Nome da Atividade", safe(item.nome_atividade)),
-      infoRow("Score ELO", item.score_elo?.toFixed(2) || ""),
-      infoRow("Presentes/Matriculados", `${item.num_participantes ?? 0}/${item.num_matriculados ?? 0}`),
-      infoRow("% Adesão", item.pct_adesao != null ? `${Number(item.pct_adesao).toFixed(0)}%` : ""),
-    ];
-    if (item.objetivo_alcancado) {
-      const objLabels: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
-      rows.push(infoRow("Objetivo", objLabels[item.objetivo_alcancado] || item.objetivo_alcancado));
+    try {
+      const blob = await buildRelatorioDocxBlob(item, turmaNames, presenca, fotos);
+      const dateStr = item.data ? format(new Date(item.data + "T12:00:00"), "yyyy-MM-dd") : "sem-data";
+      const titulo = slug(item.nome_atividade || "Relatorio");
+      const fname = `${dateStr}_${titulo}.docx`;
+      zip.file(fname, blob);
+    } catch (e) {
+      console.warn("[bulk-docx] falha em relatório", item.id, e);
     }
-    if (item.intervencoes) rows.push(infoRow("Intervenções", item.intervencoes));
-    if (item.observacoes) rows.push(infoRow("Observações", item.observacoes));
-    if (item.analise_ia) rows.push(infoRow("Análise IA", item.analise_ia));
-
-    children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [2800, 6560], rows }));
-
-    // Attendance table
-    if (presenca.length > 0) {
-      children.push(new Paragraph({ children: [new PageBreak()] }));
-      children.push(...headerParagraphs());
-      children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 100 }, children: [
-        new TextRun({ text: "LISTA DE PRESENÇA", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR }),
-      ]}));
-      children.push(new Paragraph({ spacing: { after: 50 }, children: [
-        new TextRun({ text: `Atividade: ${safe(item.nome_atividade)}  |  Data: ${item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : ""}  |  Turma(s): ${turmaNames.join(", ")}`, size: 16, font: "Arial" }),
-      ]}));
-      children.push(new Paragraph({ spacing: { after: 100 }, children: [
-        new TextRun({ text: `Educador(a): ${safe(item.profiles?.nome)}`, size: 16, font: "Arial" }),
-      ]}));
-
-      const presRows = [
-        new TableRow({ children: [
-          new TableCell({ width: { size: 600, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Nº", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
-          new TableCell({ width: { size: 6260, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nome do Participante", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
-          new TableCell({ width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Presença", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
-          new TableCell({ width: { size: 1300, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Assinatura", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
-        ]}),
-        ...presenca.map((p, i) => new TableRow({ children: [
-          new TableCell({ width: { size: 600, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 14, font: "Arial" })] })] }),
-          new TableCell({ width: { size: 6260, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: safe(p.participantes?.nome_completo), size: 14, font: "Arial" })] })] }),
-          new TableCell({
-            width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins,
-            shading: { fill: p.presente ? "E0E0E0" : "FFFFFF", type: ShadingType.CLEAR },
-            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: p.presente ? "✓" : "", size: 18, font: "Arial", bold: true })] })],
-          }),
-          new TableCell({ width: { size: 1300, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [] })] }),
-        ]})),
-      ];
-      children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [600, 6260, 1200, 1300], rows: presRows }));
-      children.push(new Paragraph({ spacing: { before: 300 }, children: [] }));
-      children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "________________________________", size: 18, font: "Arial" })] }));
-      children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Assinatura do(a) Educador(a)", size: 16, font: "Arial", italics: true })] }));
-    }
-
-    // Photos
-    if (fotos.length > 0) {
-      const photoBuffers = await fetchPhotosAsBuffers(fotos);
-      if (photoBuffers.length > 0) {
-        children.push(new Paragraph({ children: [new PageBreak()] }));
-        children.push(new Paragraph({ spacing: { after: 200 }, alignment: AlignmentType.CENTER, children: [
-          new TextRun({ text: "REGISTRO FOTOGRÁFICO", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR }),
-        ]}));
-        children.push(new Paragraph({ spacing: { after: 100 }, alignment: AlignmentType.CENTER, children: [
-          new TextRun({ text: `${safe(item.nome_atividade)} — ${item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : ""}`, size: 16, font: "Arial", italics: true }),
-        ]}));
-        for (const photo of photoBuffers) {
-          const maxW = 450;
-          const scale = maxW / photo.width;
-          const scaledH = Math.round(photo.height * scale);
-          children.push(new Paragraph({
-            alignment: AlignmentType.CENTER, spacing: { after: 120 },
-            children: [new ImageRun({ type: photo.type, data: photo.buffer, transformation: { width: maxW, height: scaledH } })],
-          }));
-        }
-      }
-    }
-
-    sections.push({ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children });
   }
-
-  const doc = new Document({
-    styles: { default: { document: { run: { font: "Arial", size: 20 } } } },
-    sections,
-  });
-  saveAs(await Packer.toBlob(doc), sysCfvFileName("Relatorios_Lote", "docx", `${dateFrom}_a_${dateTo}`));
+  const content = await zip.generateAsync({ type: "blob" });
+  saveAs(content, sysCfvFileName("Relatorios_Lote", "zip", `${dateFrom}_a_${dateTo}`));
 }
 
 async function generateBulkPdf(
@@ -324,23 +213,43 @@ async function generateBulkPdf(
       py += 4;
       doc.text(`Educador(a): ${safe(item.profiles?.nome)}`, 14, py);
 
+      // Paleta SCNSA + ■ presente · vazio ausente · (BA) busca ativa.
+      // Coluna de assinatura do participante removida (decisão institucional —
+      // o sistema é a fonte de verdade da frequência preenchida).
       autoTable(doc, {
         startY: py,
-        head: [["Nº", "Nome do Participante", "Presença", "Assinatura"]],
-        body: presenca.map((p, i) => [i + 1, safe(p.participantes?.nome_completo), p.presente ? "✓" : "", ""]),
-        headStyles: { fillColor: [50, 50, 50], fontSize: 7, textColor: [255, 255, 255] },
+        head: [["Nº", "Nome do Participante", "Presença"]],
+        body: presenca.map((p, i) => {
+          const baTag = p.participantes?.status === "busca_ativa" ? " (BA)" : "";
+          return [i + 1, safe(p.participantes?.nome_completo) + baTag, p.presente ? "■" : ""];
+        }),
+        headStyles: { fillColor: [31, 56, 100], fontSize: 7, textColor: [255, 255, 255] },
         styles: { fontSize: 7, cellPadding: 2 },
-        columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 18, halign: "center" }, 3: { cellWidth: 35 } },
+        columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 18, halign: "center" } },
         alternateRowStyles: { fillColor: [245, 245, 245] },
         didParseCell: (data: any) => {
           if (data.section === "body" && data.column.index === 2) {
-            const isPresente = data.cell.raw === "✓";
-            data.cell.styles.fillColor = isPresente ? [235, 235, 235] : [255, 255, 255];
-            data.cell.styles.textColor = [0, 0, 0];
+            data.cell.styles.halign = "center";
             data.cell.styles.fontStyle = "bold";
+          }
+          if (data.section === "body" && data.column.index === 1) {
+            const txt = String(data.cell.raw || "");
+            if (txt.includes("(BA)")) data.cell.styles.textColor = [158, 27, 50];
           }
         },
       });
+      const finalY = (doc as any).lastAutoTable?.finalY || py;
+      doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(90, 103, 112);
+      doc.text(
+        "Legenda: ■ Presente · vazio Ausente · (BA) Em busca ativa.",
+        14,
+        finalY + 4
+      );
+      doc.setTextColor(0); doc.setFont("helvetica", "normal");
+      // Assinatura única do educador no rodapé
+      doc.setFontSize(8);
+      doc.text("________________________________", 105, finalY + 18, { align: "center" });
+      doc.text("Assinatura do(a) Educador(a)", 105, finalY + 22, { align: "center" });
     }
   }
 
