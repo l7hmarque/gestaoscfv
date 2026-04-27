@@ -412,7 +412,7 @@ export default function ExportarRelatoriosPage() {
             const isDesligado = p.status === "desligado" && p.data_desligamento && d > p.data_desligamento;
             if (isDesligado) {
               ws[addr].v = "D";
-              ws[addr].s = { fill: { fgColor: { rgb: "CCCCCC" } }, font: { color: { rgb: "666666" } }, border: borderObj };
+              ws[addr].s = { fill: { fgColor: { rgb: "FFFFFF" } }, font: { color: { rgb: "000000" } }, border: borderObj };
             } else {
               const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
               const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
@@ -538,7 +538,7 @@ export default function ExportarRelatoriosPage() {
           ["Saldo Acumulado", fmtVal(saldoPC)],
         ],
         styles: { fontSize: 8 },
-        headStyles: { fillColor: [50, 50, 50] },
+        headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255] },
       });
       const lastY = (doc as any).lastAutoTable?.finalY || 60;
       doc.setFontSize(11);
@@ -553,7 +553,7 @@ export default function ExportarRelatoriosPage() {
           d.comprovante_url ? "Pago ✓" : "Aguardando ⏳",
         ]),
         styles: { fontSize: 7 },
-        headStyles: { fillColor: [50, 50, 50], fontSize: 7 },
+        headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 7 },
       });
       doc.save(sysCfvFileName("PrestacaoContas", "pdf", mesRef));
       }
@@ -699,8 +699,7 @@ export default function ExportarRelatoriosPage() {
           a.encaminhamento || "—",
         ]),
         styles: { fontSize: 7, cellPadding: 1.5 },
-        headStyles: { fillColor: [50, 50, 50], fontSize: 7 },
-        alternateRowStyles: { fillColor: [240, 240, 240] },
+        headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 7 },
         columnStyles: { 4: { cellWidth: 60 }, 5: { cellWidth: 40 } },
       });
       const lastY = (doc as any).lastAutoTable?.finalY || 100;
@@ -711,7 +710,7 @@ export default function ExportarRelatoriosPage() {
         head: [["Tipo", "Quantidade"]],
         body: [...Object.entries(tipoMap).map(([t, q]) => [t, String(q)]), ["TOTAL", String(atds.length)]],
         styles: { fontSize: 8 },
-        headStyles: { fillColor: [50, 50, 50] },
+        headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255] },
       });
       doc.save(sysCfvFileName("RelEquipeTecnica", "pdf"));
       }
