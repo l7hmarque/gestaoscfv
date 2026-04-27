@@ -651,6 +651,10 @@ export default function ExportarRelatoriosPage() {
       const tipoLabel = (v: string) => TIPO_ATENDIMENTO_LABELS[v] || v;
       const periodoLabel = `${format(new Date(atendDateFrom + "T12:00:00"), "dd/MM/yyyy")} a ${format(new Date(atendDateTo + "T12:00:00"), "dd/MM/yyyy")}`;
 
+      // Resumo por tipo (compartilhado entre XLSX e PDF)
+      const tipoMap: Record<string, number> = {};
+      atds.forEach((a: any) => { tipoMap[tipoLabel(a.tipo)] = (tipoMap[tipoLabel(a.tipo)] || 0) + 1; });
+
       // XLSX
       if (atendFormats.includes("xlsx")) {
       const border = { style: "thin" as const, color: { rgb: "000000" } };
@@ -692,9 +696,6 @@ export default function ExportarRelatoriosPage() {
       }
       XLSX.utils.book_append_sheet(wb, ws, "Atendimentos");
 
-      // Resumo por tipo
-      const tipoMap: Record<string, number> = {};
-      atds.forEach((a: any) => { tipoMap[tipoLabel(a.tipo)] = (tipoMap[tipoLabel(a.tipo)] || 0) + 1; });
       const resumoRows: any[][] = [["Tipo", "Quantidade"]];
       Object.entries(tipoMap).forEach(([tipo, qt]) => resumoRows.push([tipo, qt]));
       resumoRows.push(["TOTAL", atds.length]);
