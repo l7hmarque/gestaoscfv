@@ -99,6 +99,7 @@ const PresencaExportarPage = () => {
           .filter((tp: any) => !tp.participantes?.created_at || tp.participantes.created_at < endDate)
           .map((tp: any) => {
             const isDesligado = tp.participantes?.status === "desligado";
+            const isBuscaAtiva = tp.participantes?.status === "busca_ativa";
             const dataDeslig = tp.participantes?.data_desligamento || null;
             const presencas: Record<string, boolean | string> = {};
             (presData || []).filter(p => p.participante_id === tp.participante_id).forEach(p => {
@@ -117,7 +118,9 @@ const PresencaExportarPage = () => {
                 }
               });
             }
-            const suffix = isDesligado && dataDeslig ? ` (Desligado em ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})` : "";
+            const suffix = isDesligado && dataDeslig
+              ? ` (Desligado em ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})`
+              : isBuscaAtiva ? " (BA)" : "";
             return { nome: (tp.participantes?.nome_completo || "") + suffix, presencas };
           })
           .sort((a, b) => a.nome.localeCompare(b.nome));
@@ -150,7 +153,7 @@ const PresencaExportarPage = () => {
       for (const turma of turmasComDias) {
         const { data: tpData } = await supabase
           .from("turma_participantes")
-          .select("participante_id, participantes(nome_completo, created_at)")
+          .select("participante_id, participantes(nome_completo, status, data_desligamento, created_at)")
           .eq("turma_id", turma.id);
         const endDateLista = Number(mesSel) === 12 ? `${Number(anoSel)+1}-01-01` : `${anoSel}-${String(Number(mesSel)+1).padStart(2,"0")}-01`;
 
@@ -158,8 +161,11 @@ const PresencaExportarPage = () => {
           .filter((tp: any) => !tp.participantes?.created_at || tp.participantes.created_at < endDateLista)
           .map((tp: any) => {
             const isDesligado = tp.participantes?.status === "desligado";
+            const isBuscaAtiva = tp.participantes?.status === "busca_ativa";
             const dataDeslig = tp.participantes?.data_desligamento || null;
-            const suffix = isDesligado && dataDeslig ? ` (Desligado em ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})` : "";
+            const suffix = isDesligado && dataDeslig
+              ? ` (Desligado em ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})`
+              : isBuscaAtiva ? " (BA)" : "";
             return { nome: (tp.participantes?.nome_completo || "") + suffix };
           })
           .sort((a, b) => a.nome.localeCompare(b.nome));
