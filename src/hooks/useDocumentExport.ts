@@ -11,6 +11,7 @@ import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { tipoAtividadeLabels } from "@/lib/constants";
 
 // ===== TEMPLATE CACHE =====
 const templateCache: Record<string, ArrayBuffer> = {};
@@ -227,9 +228,14 @@ function buildPhotoSection(photos: PhotoBuffer[], caption: string): Paragraph[] 
 }
 
 // ===== SHARED CONSTANTS (fallback) =====
-const HEADER_COLOR = "323232";
-const ACCENT_COLOR = "000000";
-const LIGHT_BG = "F5F5F5";
+// Paleta SCNSA — aplicada apenas em listas/relatórios institucionais
+const SCNSA_BLUE = "1F3864";    // Azul institucional (cabeçalhos, faixas)
+const SCNSA_RED = "9E1B32";     // Vermelho de destaque (títulos, score, BA)
+const SCNSA_GRAY = "5A6770";    // Cinza auxiliar (legendas, footer)
+const SCNSA_INFO_BG = "E8EEF5"; // Fundo claro informativo
+const HEADER_COLOR = SCNSA_BLUE;
+const ACCENT_COLOR = SCNSA_RED;
+const LIGHT_BG = SCNSA_INFO_BG;
 const cellBorder = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" };
 const borders = { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder };
 const cellMargins = { top: 60, bottom: 60, left: 80, right: 80 };
@@ -275,7 +281,7 @@ function infoRow(label: string, value: string | null | undefined): TableRow {
 
 function checkbox(checked: boolean, label: string): TextRun[] {
   return [
-    new TextRun({ text: checked ? "☑ " : "☐ ", size: 18, font: "Segoe UI Symbol" }),
+    new TextRun({ text: checked ? "■ " : "☐ ", size: 18, font: "Segoe UI Symbol", bold: checked }),
     new TextRun({ text: label + "   ", size: 18, font: "Arial" }),
   ];
 }
