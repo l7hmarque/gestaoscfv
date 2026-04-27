@@ -8,27 +8,27 @@ const INST_LINES = [
 
 const border = { style: "thin" as const, color: { rgb: "000000" } };
 const borders = { top: border, bottom: border, left: border, right: border };
-const borderLight = { style: "thin" as const, color: { rgb: "808080" } };
-const bordersLight = { top: borderLight, bottom: borderLight, left: borderLight, right: borderLight };
+// Sem cinza: bordas neutras reaproveitam o preto puro
+const bordersLight = borders;
 
 const instStyles = [
   {
     font: { bold: true, sz: 12, color: { rgb: "000000" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     border: borders,
-    fill: { fgColor: { rgb: "F2F2F2" } },
+    fill: { fgColor: { rgb: "FFFFFF" } },
   },
   {
-    font: { bold: true, sz: 10, color: { rgb: "222222" } },
+    font: { bold: true, sz: 10, color: { rgb: "000000" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     border: borders,
-    fill: { fgColor: { rgb: "F2F2F2" } },
+    fill: { fgColor: { rgb: "FFFFFF" } },
   },
   {
-    font: { bold: true, sz: 9, color: { rgb: "333333" } },
+    font: { bold: true, sz: 9, color: { rgb: "000000" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     border: borders,
-    fill: { fgColor: { rgb: "F2F2F2" } },
+    fill: { fgColor: { rgb: "FFFFFF" } },
   },
 ];
 
@@ -43,14 +43,14 @@ const turmaInfoStyle = {
   font: { bold: true, sz: 11, color: { rgb: "000000" } },
   alignment: { horizontal: "center" as const, vertical: "center" as const },
   border: borders,
-  fill: { fgColor: { rgb: "D9D9D9" } },
+  fill: { fgColor: { rgb: "FFFFFF" } },
 };
 
 const subInfoStyle = {
-  font: { sz: 9, color: { rgb: "333333" } },
+  font: { sz: 9, color: { rgb: "000000" } },
   alignment: { horizontal: "center" as const, vertical: "center" as const },
   border: borders,
-  fill: { fgColor: { rgb: "F7F7F7" } },
+  fill: { fgColor: { rgb: "FFFFFF" } },
 };
 
 /**
@@ -144,7 +144,7 @@ export function applyTableHeaderStyle(ws: XLSX.WorkSheet, row: number, colCount:
     if (!ws[addr]) ws[addr] = { v: "", t: "s" };
     ws[addr].s = {
       font: { bold: true, color: { rgb: "FFFFFF" }, sz: 9 },
-      fill: { fgColor: { rgb: "333333" } },
+      fill: { fgColor: { rgb: "000000" } },
       border: borders,
       alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     };

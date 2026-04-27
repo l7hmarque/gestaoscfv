@@ -194,7 +194,7 @@ async function generateBulkPdf(
     autoTable(doc, {
       startY: y, body: info, theme: "grid",
       styles: { fontSize: 8, cellPadding: 2 },
-      columnStyles: { 0: { fontStyle: "bold", cellWidth: 35, fillColor: [245, 245, 245] } },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 35, fillColor: [255, 255, 255] } },
     });
     y = (doc as any).lastAutoTable.finalY + 4;
 
@@ -223,19 +223,15 @@ async function generateBulkPdf(
           const baTag = p.participantes?.status === "busca_ativa" ? " (BA)" : "";
           return [i + 1, safe(p.participantes?.nome_completo) + baTag, p.presente ? "■" : ""];
         }),
-        headStyles: { fillColor: [31, 56, 100], fontSize: 7, textColor: [255, 255, 255] },
+        headStyles: { fillColor: [0, 0, 0], fontSize: 7, textColor: [255, 255, 255] },
         styles: { fontSize: 7, cellPadding: 2 },
         columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 18, halign: "center" } },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
         didParseCell: (data: any) => {
           if (data.section === "body" && data.column.index === 2) {
             data.cell.styles.halign = "center";
             data.cell.styles.fontStyle = "bold";
           }
-          if (data.section === "body" && data.column.index === 1) {
-            const txt = String(data.cell.raw || "");
-            if (txt.includes("(BA)")) data.cell.styles.textColor = [158, 27, 50];
-          }
+          // PDF preto/branco: sem destaque colorido
         },
       });
       const finalY = (doc as any).lastAutoTable?.finalY || py;
@@ -300,7 +296,7 @@ async function generateBulkXlsx(
   // Style table header
   for (let c = 0; c < 9; c++) {
     const addr = XLSX.utils.encode_cell({ r: 4, c });
-    if (wsSummary[addr]) wsSummary[addr].s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1A5276" } }, border: borderObj };
+    if (wsSummary[addr]) wsSummary[addr].s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "000000" } }, border: borderObj };
   }
   // Borders on data
   const range = XLSX.utils.decode_range(wsSummary["!ref"] || "A1");
@@ -364,7 +360,7 @@ async function generateBulkXlsx(
     }
     for (let c = 0; c < 3; c++) {
       const addr = XLSX.utils.encode_cell({ r: 5, c });
-      if (ws[addr]) ws[addr].s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1A5276" } }, border: borderObj, alignment: { horizontal: "center" } };
+      if (ws[addr]) ws[addr].s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "000000" } }, border: borderObj, alignment: { horizontal: "center" } };
     }
     const range2 = XLSX.utils.decode_range(ws["!ref"] || "A1");
     for (let r2 = 5; r2 <= range2.e.r; r2++) {

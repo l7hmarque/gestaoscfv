@@ -129,7 +129,6 @@ export default function ExportarRelatoriosPage() {
   const [mes, setMes] = useState(String(now.getMonth() + 1).padStart(2, "0"));
   const [anoAnual, setAnoAnual] = useState(String(now.getFullYear()));
 
-  const [loadingReo, setLoadingReo] = useState(false);
   const [loadingRelMensal, setLoadingRelMensal] = useState(false);
   const [loadingPC, setLoadingPC] = useState(false);
   const [loadingAnual, setLoadingAnual] = useState(false);
@@ -152,10 +151,10 @@ export default function ExportarRelatoriosPage() {
   const [atendDateTo, setAtendDateTo] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
 
   // Format selectors
-  const [reoFormats, setReoFormats] = useState<ExportFormat[]>(["docx", "xlsx"]);
   const [pcFormats, setPcFormats] = useState<ExportFormat[]>(["xlsx", "pdf"]);
   const [atendFormats, setAtendFormats] = useState<ExportFormat[]>(["xlsx", "pdf"]);
   const [gestaoFormats, setGestaoFormats] = useState<ExportFormat[]>(["pdf", "xlsx"]);
+  const [ativFormats, setAtivFormats] = useState<ExportFormat[]>(["docx", "pdf", "xlsx"]);
 
   const mesRef = `${ano}-${mes}`;
   const mesNum = parseInt(mes);
@@ -179,34 +178,7 @@ export default function ExportarRelatoriosPage() {
     }
   };
 
-  const exportarREO = async () => {
-    if (!reoFormats.length) { toast.error("Selecione ao menos um formato"); return; }
-    setLoadingReo(true);
-    try {
-      const reoFormatos = reoFormats.filter(f => f === "docx" || f === "xlsx") as Array<"docx" | "xlsx">;
-      const calls = reoFormatos.map(formato =>
-        supabase.functions.invoke("generate-reo", { body: { mes, ano, formato } })
-      );
-      const results = await Promise.allSettled(calls);
-      const downloads: Promise<void>[] = [];
-      results.forEach((r, i) => {
-        if (r.status === "fulfilled" && r.value.data?.url) {
-          downloads.push(downloadFromUrl(r.value.data.url, r.value.data.fileName || `REO_${ano}-${mes}.${reoFormatos[i]}`));
-        }
-      });
-      if (downloads.length > 0) {
-        await Promise.all(downloads);
-        toast.success(`REO gerado! (${downloads.length} arquivo(s))`);
-      } else {
-        throw new Error("Nenhum formato retornou arquivo");
-      }
-    } catch (err: any) {
-      console.error("Erro REO:", err);
-      toast.error("Erro ao gerar REO: " + (err.message || "Erro desconhecido"));
-    } finally {
-      setLoadingReo(false);
-    }
-  };
+  // REO removido desta tela. Ver módulo de Relatório de Execução do Objeto.
 
   // ===================== Relatório Mensal (XLSX + PDF) =====================
   const exportarRelatorioMensal = async () => {
@@ -440,7 +412,7 @@ export default function ExportarRelatoriosPage() {
             const isDesligado = p.status === "desligado" && p.data_desligamento && d > p.data_desligamento;
             if (isDesligado) {
               ws[addr].v = "D";
-              ws[addr].s = { fill: { fgColor: { rgb: "CCCCCC" } }, font: { color: { rgb: "666666" } }, border: borderObj };
+              ws[addr].s = { fill: { fgColor: { rgb: "FFFFFF" } }, font: { color: { rgb: "000000" } }, border: borderObj };
             } else {
               const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
               const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
@@ -566,7 +538,7 @@ export default function ExportarRelatoriosPage() {
           ["Saldo Acumulado", fmtVal(saldoPC)],
         ],
         styles: { fontSize: 8 },
-        headStyles: { fillColor: [50, 50, 50] },
+        headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255] },
       });
       const lastY = (doc as any).lastAutoTable?.finalY || 60;
       doc.setFontSize(11);
@@ -581,7 +553,7 @@ export default function ExportarRelatoriosPage() {
           d.comprovante_url ? "Pago ✓" : "Aguardando ⏳",
         ]),
         styles: { fontSize: 7 },
-        headStyles: { fillColor: [50, 50, 50], fontSize: 7 },
+        headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 7 },
       });
       doc.save(sysCfvFileName("PrestacaoContas", "pdf", mesRef));
       }
@@ -617,14 +589,15 @@ export default function ExportarRelatoriosPage() {
 
   // ===================== Atividades em Lote =====================
   const exportarAtividadesLote = async () => {
+    if (!ativFormats.length) { toast.error("Selecione ao menos um formato"); return; }
     setLoadingAtividades(true);
     try {
       await exportBulkRelatorios({
         dateFrom: ativDateFrom,
         dateTo: ativDateTo,
-        educadorId: ativEducadorId === "__all__" ? undefined : ativEducadorId,
+        educadorId: ativEducadorId === "__all__" ? "todos" : ativEducadorId,
+        formatos: ativFormats,
       });
-      toast.success("Relatórios de atividades exportados!");
     } catch (err: any) {
       toast.error("Erro: " + (err.message || "Erro desconhecido"));
     } finally {
@@ -726,8 +699,7 @@ export default function ExportarRelatoriosPage() {
           a.encaminhamento || "—",
         ]),
         styles: { fontSize: 7, cellPadding: 1.5 },
-        headStyles: { fillColor: [50, 50, 50], fontSize: 7 },
-        alternateRowStyles: { fillColor: [240, 240, 240] },
+        headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 7 },
         columnStyles: { 4: { cellWidth: 60 }, 5: { cellWidth: 40 } },
       });
       const lastY = (doc as any).lastAutoTable?.finalY || 100;
@@ -738,7 +710,7 @@ export default function ExportarRelatoriosPage() {
         head: [["Tipo", "Quantidade"]],
         body: [...Object.entries(tipoMap).map(([t, q]) => [t, String(q)]), ["TOTAL", String(atds.length)]],
         styles: { fontSize: 8 },
-        headStyles: { fillColor: [50, 50, 50] },
+        headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255] },
       });
       doc.save(sysCfvFileName("RelEquipeTecnica", "pdf"));
       }
@@ -773,7 +745,7 @@ export default function ExportarRelatoriosPage() {
     }
   };
 
-  const anyLoading = loadingReo || loadingRelMensal || loadingPC || loadingAnual || loadingAtividades || loadingAtendimentos || loadingGestao;
+  const anyLoading = loadingRelMensal || loadingPC || loadingAnual || loadingAtividades || loadingAtendimentos || loadingGestao;
 
   return (
     <div className="space-y-6">
@@ -805,9 +777,8 @@ export default function ExportarRelatoriosPage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="reo" className="space-y-4">
-        <TabsList className="grid grid-cols-7 w-full">
-          <TabsTrigger value="reo">REO</TabsTrigger>
+      <Tabs defaultValue="mensal" className="space-y-4">
+        <TabsList className="grid grid-cols-6 w-full">
           <TabsTrigger value="mensal">Rel. Mensal</TabsTrigger>
           <TabsTrigger value="pc">Prest. Contas</TabsTrigger>
           <TabsTrigger value="atividades">Atividades</TabsTrigger>
@@ -815,33 +786,6 @@ export default function ExportarRelatoriosPage() {
           <TabsTrigger value="anual">Anual</TabsTrigger>
           <TabsTrigger value="gestao">Gestão</TabsTrigger>
         </TabsList>
-
-        {/* REO */}
-        <TabsContent value="reo">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-5 w-5" /> Relatório de Execução do Objeto (REO)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Documento institucional com atividades propostas × desenvolvidas, equipe técnica,
-                metas, recursos humanos, monitoramento, execução financeira e anexos fotográficos.
-                Gera <strong>DOCX + XLSX</strong> simultaneamente no servidor.
-              </p>
-              <FormatPicker
-                available={["docx", "xlsx"]}
-                value={reoFormats}
-                onChange={setReoFormats}
-              />
-              <Button onClick={exportarREO} disabled={anyLoading || !reoFormats.length} className="gap-2">
-                {loadingReo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Exportar REO
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Relatório Mensal */}
         <TabsContent value="mensal">

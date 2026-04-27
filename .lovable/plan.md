@@ -1,87 +1,86 @@
 
-## Parte 1 — O que são as "Decisões" hoje
+## Objetivo
 
-A aba **Decisões** do painel `/coordenacao` **não é um cadastro manual**. Ela é uma leitura automática da tabela de auditoria (`audit_log`), filtrada pelo período selecionado:
-
-| Card | Como é calculado |
-|---|---|
-| Decisões registradas (você) | Total de ações suas no `audit_log` no período |
-| Decisões da equipe | Total de ações de qualquer perfil de Coordenação no período |
-| Aprovações concedidas | Ações suas contendo `aprov` ou `transfer` (ex.: aprovar transferência) |
-| Exclusões justificadas | Ações suas contendo `delete` ou `exclu` (com justificativa registrada) |
-| Desligamentos validados | Ações suas contendo `deslig` |
-
-Resumo: hoje "Decisões" é apenas um **espelho de auditoria**, não um registro próprio. Útil como rastro, mas não substitui um caderno de registros da coordenação — que é justamente o que você quer.
+Implementar a nova **paleta cromática institucional por formato** em todos os documentos exportados, eliminar a aba REO da página `Exportar Relatórios`, adicionar seletor de formatos e corrigir o bug que impede o download em "Relatórios de Atividades + Listas de Presença".
 
 ---
 
-## Parte 2 — Funcionalidade pedida: Registros da Coordenação
+## Nova paleta por formato (regra global)
 
-Já existe uma aba **Atividades** (`coordenacao_atividades`) que é o embrião disso, mas é limitada: poucas categorias, sem status, sem prioridade, sem responsáveis, sem prazo. Em vez de criar uma tabela paralela, vamos **expandir essa aba** para virar o "diário operacional" da coordenação que você descreveu.
+| Formato | Paleta | Aplicação |
+|---|---|---|
+| **DOCX** | Branco + Vermelho SCNSA + Azul SCNSA | Títulos coloridos, cabeçalhos de tabela em vermelho/azul, badges e destaques em azul |
+| **PDF**  | Apenas preto e branco (sem cinza) | Cabeçalhos de tabela 100% preto com texto branco, sem zebra/alternateRow, sem `setTextColor(150)` |
+| **XLSX** | Apenas preto e branco (sem cinza) | Cabeçalho preto / texto branco, células brancas com bordas pretas, sem fills cinza |
 
-### Renomear a aba e ampliar o escopo
-- A aba `Atividades` passa a se chamar **Registros**.
-- Suporta: comunicados, reuniões, tarefas, ações, articulações, decisões manuais, etc.
-
-### Tipos (categorias estruturadas)
-Lista controlada via `src/lib/constants.ts` para ficar consistente em filtros e relatórios:
-- Reunião
-- Comunicado
-- Tarefa
-- Ação / Decisão
-- Visita técnica
-- Articulação de rede
-- Formação de equipe
-- Documento / Ofício
-- Evento
-- Outro
-
-### Campos do registro
-Obrigatórios: **data**, **tipo**, **título**.
-Opcionais: descrição, duração (min), **prioridade** (baixa / média / alta), **status** (aberto / em andamento / concluído / cancelado), **prazo** (data), **responsáveis** (multi-seleção de profissionais), **tags** livres.
-
-### Tela
-Card de criação enxuto no topo (título + tipo + data, resto colapsável em "Mais detalhes") + listagem agrupada por mês com:
-- Filtros por tipo, status, prioridade e mês.
-- Badges coloridos por status e prioridade.
-- Edição inline rápida do status (ex.: marcar tarefa como concluída em 1 clique).
-- Contadores no topo: total, abertos, concluídos, atrasados (prazo vencido sem conclusão).
-
-### Auditoria
-Toda criação, edição de status e exclusão grava em `audit_log` (mantém o ciclo já existente — isso vai naturalmente alimentar os contadores da aba "Decisões").
+Cores SCNSA já usadas no projeto:
+- `SCNSA_RED` → `#9E1B32`
+- `SCNSA_BLUE` → `#1F3864` (já presente como `ACCENT_COLOR`)
 
 ---
 
-## Detalhes técnicos
+## Mudanças por arquivo
 
-**Migração `coordenacao_atividades`** (ALTER TABLE, dados existentes preservados):
-- Renomear colunas conceitualmente via novos campos:
-  - `status text not null default 'aberto'` (aberto | em_andamento | concluido | cancelado)
-  - `prioridade text not null default 'media'` (baixa | media | alta)
-  - `prazo date null`
-  - `responsaveis uuid[] null` (FK lógica para `profiles.id`)
-  - `tags text[] null`
-- Ampliar `categoria` aceitando os novos valores via trigger de validação (CHECK não, conforme regra do projeto).
-- Índices: `(data desc)`, `(status)`, `(prazo)`.
+### 1. Arquivos centrais (afetam tudo)
 
-**RLS** (manter o padrão atual): leitura/escrita restrita a `coordenacao`. `coordenador_id` continua sendo `auth.uid()` via `profiles`.
+**`src/lib/xlsxInstHeader.ts`**
+- Substituir todos os `fgColor: { rgb: "F2F2F2" | "D9D9D9" | "F7F7F7" | "333333" }` por **preto puro `000000`** (cabeçalhos) ou **branco `FFFFFF`** (corpo).
+- `applyTableHeaderStyle`: fundo `000000`, texto `FFFFFF`.
+- Remover tons cinza dos `instStyles`/`subInfoStyle`/`turmaInfoStyle`.
 
-**Frontend**:
-- Renomear `src/pages/coordenacao/AtividadesTab.tsx` → `RegistrosTab.tsx` e atualizar `CoordenacaoPage.tsx` (aba `atividades` → `registros`, label "Registros").
-- Adicionar `TIPOS_REGISTRO_COORD`, `STATUS_REGISTRO`, `PRIORIDADE_REGISTRO` em `src/lib/constants.ts` para reuso.
-- Componente de filtro reaproveitando `Select` + `Input type="month"` já em uso.
-- Toggle rápido de status via `DropdownMenu` no card.
-- Métrica "atrasados" calculada client-side (`prazo < hoje && status != 'concluido'`).
+**`src/hooks/useDocumentExport.ts`** (DOCX colorido SCNSA)
+- Manter `ACCENT_COLOR` (azul SCNSA) e `SCNSA_RED`.
+- Substituir todas as ocorrências de `LIGHT_BG`/`HEADER_COLOR` cinza por azul SCNSA (cabeçalhos) ou branco (corpo); destaques de status (BA, busca ativa) em vermelho SCNSA.
+- Trocar fundos cinza `"555555"`, `"CCCCCC"` em separadores/legendas por azul/vermelho ou preto fino.
 
-**Compatibilidade com o painel**: o card "Atividades registradas (período)" da aba **Qualidade** continua funcionando (mesma tabela). Opcionalmente renomeio o label para "Registros da coordenação".
+### 2. PDFs — remover cinza
 
-**Sem mudanças** em: `get_coordenacao_stats`, RPCs, edge functions, ou demais módulos.
+**`src/hooks/useRelatorioGestao.ts`** (`exportRelatorioGestaoPDF`)
+- `gray50 = [50,50,50]` → `[0,0,0]`.
+- `altRow = [245,245,245]` → remover (sem `alternateRowStyles`).
+- `setTextColor(150)` no rodapé → `setTextColor(0)`.
+- `headStyles.fillColor: [31,56,100]`, `[180,30,30]`, `[50,50,50]` → `[0,0,0]` com `textColor: [255,255,255]`.
+- `setTextColor(158,27,50)` / `(90,103,112)` / `(180,30,30)` → `setTextColor(0,0,0)`.
+- `fillColor: [245,245,245]` em column styles → remover.
+
+**`src/hooks/useBulkRelatorioExport.ts`** (`generateBulkPdf`)
+- `headStyles.fillColor: [31,56,100]` → `[0,0,0]`; remover `alternateRowStyles`; remover `setTextColor(90,103,112)` e `[158,27,50]`.
+
+**`src/pages/relatorios/ExportarRelatoriosPage.tsx`** (PDF de Atendimentos e Prestação de Contas)
+- Auditar `headStyles.fillColor` / `alternateRowStyles` / `setTextColor(...)` em todas as funções e zerar para preto/branco.
+
+### 3. XLSX — remover cinza
+
+**`src/hooks/useRelatorioGestao.ts`** (`exportRelatorioGestaoXLSX`)
+- `headerStyle.fill.fgColor: "D9D9D9"` → `"000000"` + `font.color: "FFFFFF"`.
+
+**`src/hooks/useBulkRelatorioExport.ts`** (`generateBulkXlsx`)
+- Trocar `fgColor: "1A5276"` → `"000000"`.
+
+**`src/pages/relatorios/ExportarRelatoriosPage.tsx`**
+- `hdr` do XLSX de atendimentos: `fgColor: "323232"` → `"000000"`.
+- Auditar Resumo/Atividades/Metas: nenhum `fgColor` cinza.
+
+**`src/lib/exportListaPresenca.ts`** — auditar e converter qualquer cinza.
+
+### 4. Página `Exportar Relatórios` — ajustes funcionais
+
+**`src/pages/relatorios/ExportarRelatoriosPage.tsx`**
+- **Eliminar a aba REO** (TabsTrigger, TabsContent e função `exportarREO`, `loadingReo`, `reoFormats`). Atualizar grid para `grid-cols-6`.
+- **Bug "Relatórios de Atividades + Listas" não baixa**: a chamada passa `educadorId: undefined`, mas o hook compara contra `"todos"`. Corrigir para passar `educadorId: ativEducadorId === "__all__" ? "todos" : ativEducadorId` e validar que `formatos` é repassado.
+- Adicionar `FormatPicker` (DOCX/PDF/XLSX) ao card "Atividades + Listas" e remover toast de sucesso "cego" — só exibir após a Promise do hook resolver com sucesso real (deixar o hook ser a fonte do toast; remover o `toast.success` redundante de `exportarAtividadesLote`).
 
 ---
 
-## Entregáveis
-1. Migração SQL adicionando colunas + índices em `coordenacao_atividades`.
-2. Constantes centralizadas em `src/lib/constants.ts`.
-3. Refatoração da aba `Atividades` → `Registros` com novos campos, filtros e ações rápidas.
-4. Atualização do label da aba em `CoordenacaoPage.tsx`.
-5. Memória atualizada documentando o módulo e a clarificação sobre "Decisões".
+## Critério de aceite
+
+1. Aba REO removida; página tem 6 abas.
+2. "Atividades + Listas" baixa o ZIP/PDF/XLSX corretamente quando "Todos" está selecionado.
+3. Nenhum DOCX/PDF/XLSX gerado contém cinza (`setTextColor(150)`, `fillColor:[245,245,245]`, `fgColor:"D9D9D9"` etc.) — buscas `rg` por esses padrões devem retornar vazio nos arquivos de export.
+4. DOCX exibe títulos em vermelho/azul SCNSA; PDFs e XLSX em preto puro com texto branco em cabeçalhos.
+
+---
+
+## Memória a atualizar
+
+- `mem://estilo/documentos-institucionais-padrao` — substituir "grayscale" pela nova regra cromática por formato.
