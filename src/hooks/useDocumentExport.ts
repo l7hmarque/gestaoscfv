@@ -696,6 +696,14 @@ function buildPlanejamentoTemplateData(item: any, turmaNames: string[]) {
 }
 
 export async function exportPlanejamentoDocx(item: any, turmaNames: string[]) {
+  const blob = await buildPlanejamentoDocxBlob(item, turmaNames);
+  saveAs(blob, `SysCFV_Planejamento_${fileTimestamp()}.docx`);
+}
+
+/**
+ * Versão "blob-only" usada pela Biblioteca de Documentos.
+ */
+export async function buildPlanejamentoDocxBlob(item: any, turmaNames: string[]): Promise<Blob> {
   item = item || {};
   turmaNames = Array.isArray(turmaNames) ? turmaNames : [];
   if (!Array.isArray(item.forma_avaliacao)) item.forma_avaliacao = item.forma_avaliacao ? [item.forma_avaliacao] : [];
@@ -708,8 +716,7 @@ export async function exportPlanejamentoDocx(item: any, turmaNames: string[]) {
       const tagMappings = await loadTagMappings("planejamento.docx");
       const data = remapDataWithMappings(baseData, tagMappings, baseData);
       const blob = fillTemplate(template, data);
-      saveAs(blob, `SysCFV_Planejamento_${fileTimestamp()}.docx`);
-      return;
+      return blob;
     } catch (e) {
       console.error("Template fill failed, generating fallback DOCX:", e);
       toast.error("Modelo institucional com erro. Exportando versão padrão.");
@@ -737,7 +744,9 @@ export async function exportPlanejamentoDocx(item: any, turmaNames: string[]) {
 
   const doc = new Document({ styles: { default: { document: { run: { font: "Arial", size: 20 } } } }, sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }] });
   const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([new Uint8Array(buffer)]), `SysCFV_Planejamento_${fileTimestamp()}.docx`);
+  return new Blob([new Uint8Array(buffer)], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
 }
 
 export async function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
