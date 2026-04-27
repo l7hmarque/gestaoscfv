@@ -830,9 +830,14 @@ export default function ExportarRelatoriosPage() {
                 metas, recursos humanos, monitoramento, execução financeira e anexos fotográficos.
                 Gera <strong>DOCX + XLSX</strong> simultaneamente no servidor.
               </p>
-              <Button onClick={exportarREO} disabled={anyLoading} className="gap-2">
+              <FormatPicker
+                available={["docx", "xlsx"]}
+                value={reoFormats}
+                onChange={setReoFormats}
+              />
+              <Button onClick={exportarREO} disabled={anyLoading || !reoFormats.length} className="gap-2">
                 {loadingReo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Exportar REO (DOCX + XLSX)
+                Exportar REO
               </Button>
             </CardContent>
           </Card>
@@ -873,9 +878,14 @@ export default function ExportarRelatoriosPage() {
                 Resumo financeiro, despesas detalhadas com status de comprovação e saldos por categoria.
                 Gera <strong>XLSX + PDF</strong> simultaneamente.
               </p>
-              <Button onClick={exportarPrestacaoContas} disabled={anyLoading} className="gap-2">
+              <FormatPicker
+                available={["pdf", "xlsx"]}
+                value={pcFormats}
+                onChange={setPcFormats}
+              />
+              <Button onClick={exportarPrestacaoContas} disabled={anyLoading || !pcFormats.length} className="gap-2">
                 {loadingPC ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Exportar Prestação de Contas (PDF + XLSX)
+                Exportar Prestação de Contas
               </Button>
             </CardContent>
           </Card>
@@ -945,9 +955,14 @@ export default function ExportarRelatoriosPage() {
                   <Input type="date" value={atendDateTo} onChange={e => setAtendDateTo(e.target.value)} className="h-9 text-sm mt-1 w-44" />
                 </div>
               </div>
-              <Button onClick={exportarAtendimentosTecnicos} disabled={anyLoading} className="gap-2">
+              <FormatPicker
+                available={["pdf", "xlsx"]}
+                value={atendFormats}
+                onChange={setAtendFormats}
+              />
+              <Button onClick={exportarAtendimentosTecnicos} disabled={anyLoading || !atendFormats.length} className="gap-2">
                 {loadingAtendimentos ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Exportar Atendimentos (XLSX + PDF)
+                Exportar Atendimentos
               </Button>
             </CardContent>
           </Card>
@@ -1012,20 +1027,24 @@ export default function ExportarRelatoriosPage() {
                   <Input className="w-[90px] mt-1" value={gestaoAnoFim} onChange={e => setGestaoAnoFim(e.target.value)} />
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button onClick={() => exportarGestao("ambos")} disabled={anyLoading} className="gap-2">
-                  {loadingGestao ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  Exportar PDF + XLSX
-                </Button>
-                <Button onClick={() => exportarGestao("pdf")} disabled={anyLoading} variant="outline" className="gap-2">
-                  {loadingGestao ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                  Só PDF
-                </Button>
-                <Button onClick={() => exportarGestao("xlsx")} disabled={anyLoading} variant="outline" className="gap-2">
-                  {loadingGestao ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-                  Só XLSX
-                </Button>
-              </div>
+              <FormatPicker
+                available={["pdf", "xlsx"]}
+                value={gestaoFormats}
+                onChange={setGestaoFormats}
+              />
+              <Button
+                onClick={() => {
+                  const fmt = gestaoFormats.includes("pdf") && gestaoFormats.includes("xlsx")
+                    ? "ambos"
+                    : gestaoFormats[0] as "pdf" | "xlsx";
+                  exportarGestao(fmt);
+                }}
+                disabled={anyLoading || !gestaoFormats.length}
+                className="gap-2"
+              >
+                {loadingGestao ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Exportar Relatório de Gestão
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
