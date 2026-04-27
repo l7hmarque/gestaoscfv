@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useCoordenacaoData } from "@/hooks/useCoordenacaoData";
 import { PainelCoordenadorTab } from "./PainelCoordenadorTab";
-import { AtividadesTab } from "./AtividadesTab";
+import { RegistrosTab } from "./RegistrosTab";
 import { PermissoesTab } from "./PermissoesTab";
 
 export default function CoordenacaoPage() {
@@ -72,7 +72,7 @@ export default function CoordenacaoPage() {
           <TabsTrigger value="acoes">Ações Pendentes</TabsTrigger>
           <TabsTrigger value="decisoes">Decisões</TabsTrigger>
           <TabsTrigger value="qualidade">Qualidade</TabsTrigger>
-          <TabsTrigger value="atividades">Atividades</TabsTrigger>
+          <TabsTrigger value="registros">Registros</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
           <TabsTrigger value="relatorio">Relatório</TabsTrigger>
         </TabsList>
@@ -97,6 +97,11 @@ export default function CoordenacaoPage() {
             </TabsContent>
 
             <TabsContent value="decisoes" className="mt-6">
+              <Card className="mb-3 border-l-4 border-l-primary/60">
+                <CardContent className="p-4 text-xs text-muted-foreground">
+                  <p><strong className="text-foreground">O que são as Decisões?</strong> Indicadores automáticos derivados do log de auditoria — contam ações da Coordenação registradas no sistema (aprovações, exclusões justificadas, desligamentos validados). Para registrar reuniões, comunicados, tarefas e ações manuais, use a aba <strong className="text-foreground">Registros</strong>.</p>
+                </CardContent>
+              </Card>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <StatCard label="Decisões registradas (você)" value={data.gestao.decisoes.proprias_periodo} />
                 <StatCard label="Decisões da equipe" value={data.gestao.decisoes.equipe_periodo} />
@@ -139,7 +144,7 @@ export default function CoordenacaoPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="atividades" className="mt-6"><AtividadesTab /></TabsContent>
+            <TabsContent value="registros" className="mt-6"><RegistrosTab /></TabsContent>
             <TabsContent value="permissoes" className="mt-6"><PermissoesTab /></TabsContent>
 
             <TabsContent value="relatorio" className="mt-6">
