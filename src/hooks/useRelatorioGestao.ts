@@ -554,7 +554,7 @@ export async function exportRelatorioGestaoXLSX(mesInicio: number, anoInicio: nu
 
   const wb = XLSX.utils.book_new();
   const border = { style: "thin" as const, color: { rgb: "000000" } };
-  const headerStyle = { font: { bold: true }, fill: { fgColor: { rgb: "D9D9D9" } }, border: { top: border, bottom: border, left: border, right: border } };
+  const headerStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "000000" } }, border: { top: border, bottom: border, left: border, right: border } };
 
   function makeSheet(title: string, headers: string[], rows: any[][]) {
     const instRows = [
