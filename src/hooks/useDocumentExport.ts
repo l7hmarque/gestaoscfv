@@ -232,7 +232,7 @@ function buildPhotoSection(photos: PhotoBuffer[], caption: string): Paragraph[] 
     paragraphs.push(new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { after: 200 },
-      children: [new TextRun({ text: caption, size: 16, font: "Arial", italics: true, color: "555555" })],
+      children: [new TextRun({ text: caption, size: 16, font: "Arial", italics: true, color: SCNSA_BLUE })],
     }));
   }
   return paragraphs;
@@ -242,17 +242,19 @@ function buildPhotoSection(photos: PhotoBuffer[], caption: string): Paragraph[] 
 // Paleta SCNSA — aplicada apenas em listas/relatórios institucionais
 const SCNSA_BLUE = "1F3864";    // Azul institucional (cabeçalhos, faixas)
 const SCNSA_RED = "9E1B32";     // Vermelho de destaque (títulos, score, BA)
-const SCNSA_GRAY = "5A6770";    // Cinza auxiliar (legendas, footer)
-const SCNSA_INFO_BG = "E8EEF5"; // Fundo claro informativo
+// DOCX usa apenas branco + vermelho + azul SCNSA (sem cinza)
+const SCNSA_GRAY = SCNSA_BLUE;  // Alias mantido por compat — agora aponta para azul
+const SCNSA_INFO_BG = "FFFFFF"; // Fundo institucional sempre branco
 const HEADER_COLOR = SCNSA_BLUE;
 const ACCENT_COLOR = SCNSA_RED;
 const LIGHT_BG = SCNSA_INFO_BG;
-const cellBorder = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" };
+const cellBorder = { style: BorderStyle.SINGLE, size: 4, color: SCNSA_BLUE };
 const borders = { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder };
 const cellMargins = { top: 60, bottom: 60, left: 80, right: 80 };
 
 const LIKERT_COLORS: Record<number, string> = {
-  1: "E0E0E0", 2: "C0C0C0", 3: "A0A0A0", 4: "707070", 5: "404040",
+  // Escala de intensidade em azul SCNSA (claro → escuro)
+  1: "DCE3F0", 2: "B6C2DC", 3: "8094BE", 4: "4A65A0", 5: SCNSA_BLUE,
 };
 const LIKERT_LABELS: Record<number, string> = {
   1: "Muito Baixo", 2: "Baixo", 3: "Moderado", 4: "Alto", 5: "Excepcional",
