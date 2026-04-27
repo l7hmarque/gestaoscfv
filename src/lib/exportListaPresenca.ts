@@ -162,6 +162,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
     merges.push({ s: { r, c: 0 }, e: { r, c: totalCols - 1 } });
   }
   merges.push({ s: { r: signRow, c: 1 }, e: { r: signRow, c: totalCols - 1 } });
+  merges.push({ s: { r: legendRow, c: 1 }, e: { r: legendRow, c: totalCols - 1 } });
   ws["!merges"] = merges;
 
   // Apply styles
