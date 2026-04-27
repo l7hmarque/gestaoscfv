@@ -975,6 +975,32 @@ const EquipeTecnicaPage = () => {
     }
   };
 
+  // Hot-swap status na aba Busca Ativa (não permite mudar de/para "desligado" diretamente — usa fluxo de desligamento via Participantes)
+  const handleBAStatusChange = async (p: any, newStatus: string) => {
+    if (guardDemo(isDemo)) return;
+    if (newStatus === p.status) return;
+    if (newStatus === "desligado") {
+      toast.info("Para desligar, use o botão de desligamento na página de Participantes (requer motivo e justificativa).");
+      return;
+    }
+    const updates: any = { status: newStatus };
+    if (p.status === "desligado" && newStatus !== "desligado") {
+      updates.data_desligamento = null;
+      updates.motivo_desligamento = null;
+      updates.justificativa_desligamento = null;
+    }
+    const { error } = await supabase.from("participantes").update(updates).eq("id", p.id);
+    if (error) { toast.error(error.message); return; }
+    await auditLog({
+      acao: "alteração de status",
+      tabela: "participantes",
+      registro_id: p.id,
+      detalhes: `Status: ${p.status} → ${newStatus} (via Busca Ativa)`,
+    });
+    toast.success(`Status alterado para ${newStatus === "ativo" ? "Ativo" : newStatus === "busca_ativa" ? "Busca Ativa" : newStatus}`);
+    await loadAll();
+  };
+
   const exportRelatorioBuscaAtiva = () => {
     if (filteredBA.length === 0) { toast.error("Nenhum participante para exportar"); return; }
 
@@ -1492,13 +1518,30 @@ const EquipeTecnicaPage = () => {
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{p.nome_completo}</p>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <Badge
-                              variant={p.status === "desligado" ? "destructive" : "secondary"}
-                              className={`text-[10px] ${p.status === "busca_ativa" ? "bg-orange-100 text-orange-800 border-orange-300" : ""}`}
+                          <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                            <Select
+                              value={p.status || "ativo"}
+                              onValueChange={(v) => handleBAStatusChange(p, v)}
                             >
-                              {p.status === "busca_ativa" ? "Busca Ativa" : p.status === "desligado" ? "Desligado" : p.status === "ativo" ? "Ativo" : p.status}
-                            </Badge>
+                              <SelectTrigger
+                                className={`h-6 text-[10px] w-[110px] border px-1.5 ${
+                                  p.status === "busca_ativa"
+                                    ? "bg-orange-100 text-orange-800 border-orange-300"
+                                    : p.status === "desligado"
+                                    ? "bg-red-100 text-red-800 border-red-300"
+                                    : p.status === "ativo"
+                                    ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                    : ""
+                                }`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="ativo">Ativo</SelectItem>
+                                <SelectItem value="busca_ativa">Busca Ativa</SelectItem>
+                                <SelectItem value="desligado">Desligado</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
                       </div>
