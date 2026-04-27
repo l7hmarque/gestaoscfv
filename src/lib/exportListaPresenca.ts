@@ -22,6 +22,7 @@ interface MemberInfo {
   data_desligamento?: string | null;
   transferido?: boolean;
   data_transferencia?: string | null;
+  busca_ativa?: boolean;
 }
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
