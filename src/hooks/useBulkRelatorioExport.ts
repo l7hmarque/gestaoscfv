@@ -221,7 +221,7 @@ async function generateBulkPdf(
         head: [["Nº", "Nome do Participante", "Presença"]],
         body: presenca.map((p, i) => {
           const baTag = p.participantes?.status === "busca_ativa" ? " (BA)" : "";
-          return [i + 1, safe(p.participantes?.nome_completo) + baTag, p.presente ? "■" : ""];
+          return [i + 1, safe(p.participantes?.nome_completo) + baTag, p.presente ? "P" : "A"];
         }),
         headStyles: { fillColor: [0, 0, 0], fontSize: 7, textColor: [255, 255, 255] },
         styles: { fontSize: 7, cellPadding: 2 },
@@ -235,9 +235,9 @@ async function generateBulkPdf(
         },
       });
       const finalY = (doc as any).lastAutoTable?.finalY || py;
-      doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(90, 103, 112);
+      doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(0, 0, 0);
       doc.text(
-        "Legenda: ■ Presente · vazio Ausente · (BA) Em busca ativa.",
+        "Legenda: P Presente · A Ausente · (BA) Em busca ativa.",
         14,
         finalY + 4
       );
