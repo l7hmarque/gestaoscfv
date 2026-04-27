@@ -178,34 +178,7 @@ export default function ExportarRelatoriosPage() {
     }
   };
 
-  const exportarREO = async () => {
-    if (!reoFormats.length) { toast.error("Selecione ao menos um formato"); return; }
-    setLoadingReo(true);
-    try {
-      const reoFormatos = reoFormats.filter(f => f === "docx" || f === "xlsx") as Array<"docx" | "xlsx">;
-      const calls = reoFormatos.map(formato =>
-        supabase.functions.invoke("generate-reo", { body: { mes, ano, formato } })
-      );
-      const results = await Promise.allSettled(calls);
-      const downloads: Promise<void>[] = [];
-      results.forEach((r, i) => {
-        if (r.status === "fulfilled" && r.value.data?.url) {
-          downloads.push(downloadFromUrl(r.value.data.url, r.value.data.fileName || `REO_${ano}-${mes}.${reoFormatos[i]}`));
-        }
-      });
-      if (downloads.length > 0) {
-        await Promise.all(downloads);
-        toast.success(`REO gerado! (${downloads.length} arquivo(s))`);
-      } else {
-        throw new Error("Nenhum formato retornou arquivo");
-      }
-    } catch (err: any) {
-      console.error("Erro REO:", err);
-      toast.error("Erro ao gerar REO: " + (err.message || "Erro desconhecido"));
-    } finally {
-      setLoadingReo(false);
-    }
-  };
+  // REO removido desta tela. Ver módulo de Relatório de Execução do Objeto.
 
   // ===================== Relatório Mensal (XLSX + PDF) =====================
   const exportarRelatorioMensal = async () => {
