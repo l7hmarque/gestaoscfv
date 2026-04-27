@@ -1078,21 +1078,21 @@ export async function exportMatrizFrequenciaPdf(
   autoTable(doc, {
     startY: y,
     head: [["Nº", "Nome", ...dateHeaders]],
-    body: participantes.map((p, i) => [i + 1, p.nome, ...datas.map(d => preenchida ? (p.presencas[d] === "D" ? "—" : p.presencas[d] ? "■" : "") : "")]),
+    body: participantes.map((p, i) => [i + 1, p.nome, ...datas.map(d => preenchida ? (p.presencas[d] === "D" ? PDF_DESLIGADO : p.presencas[d] ? PDF_PRESENTE : "") : "")]),
     headStyles: { fillColor: [0, 0, 0], fontSize: 6, cellPadding: 1.5, textColor: [255,255,255] },
     styles: { fontSize: 6, cellPadding: 1.5 },
     columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 40 } },
     didParseCell: (data: any) => {
       if (data.section === "body" && data.column.index >= 2) {
         data.cell.styles.halign = "center";
-        if (String(data.cell.raw) === "■") data.cell.styles.fontStyle = "bold";
+        if (String(data.cell.raw) === PDF_PRESENTE) data.cell.styles.fontStyle = "bold";
       }
       // PDF preto/branco: sem destaque colorido para (BA)
     },
   });
   const finalY = (doc as any).lastAutoTable?.finalY || y;
   doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(0, 0, 0);
-  doc.text("Legenda: ■ Presente · vazio Ausente · — Sem aula/desligado · (BA) Em busca ativa", 14, finalY + 4);
+  doc.text(PDF_LEGENDA, 14, finalY + 4);
   doc.setTextColor(0,0,0); doc.setFont("helvetica", "normal");
 
   const slug = (turma.nome || "Turma").replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
