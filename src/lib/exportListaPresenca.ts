@@ -107,7 +107,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   // Row 3: blank separator
   rows.push([""]);
   // Row 4: Title
-  rows.push([`LISTA DE PRESENÇA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`]);
+  rows.push([`LISTA DE FREQUÊNCIA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`]);
   // Row 5: Turma name (large and bold)
   rows.push([`${turma.nome}`]);
   // Row 6: Info line
