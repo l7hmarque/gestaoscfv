@@ -177,11 +177,14 @@ const TurmasPage = () => {
       if (!ativas.length) { toast.error("Nenhuma turma ativa"); return; }
 
       const { data: allTp } = await supabase.from("turma_participantes").select("turma_id, participante_id, participantes(nome_completo, status)");
-      const membersByTurma: Record<string, { nome: string }[]> = {};
+      const membersByTurma: Record<string, { nome: string; busca_ativa?: boolean }[]> = {};
       (allTp || []).forEach((tp: any) => {
         if (tp.participantes?.status === "desligado") return;
         if (!membersByTurma[tp.turma_id]) membersByTurma[tp.turma_id] = [];
-        membersByTurma[tp.turma_id].push({ nome: tp.participantes?.nome_completo || "" });
+        membersByTurma[tp.turma_id].push({
+          nome: tp.participantes?.nome_completo || "",
+          busca_ativa: tp.participantes?.status === "busca_ativa",
+        });
       });
 
       const turmasWithProfiles = ativas.map(t => ({
