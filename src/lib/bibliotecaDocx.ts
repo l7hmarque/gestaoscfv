@@ -3,32 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * Geração de DOCX em formato padrão para a Biblioteca de Documentos.
  *
- * Estratégia: reusa as funções `exportRelatorioDocx` / `exportPlanejamentoDocx`
- * já implementadas em `useDocumentExport.ts` (que usam template institucional do
- * bucket `templates` quando disponível e caem em fallback gerado quando não).
- *
- * Para evitar duplicar centenas de linhas de geração de DOCX, este módulo
- * intercepta o `saveAs` durante a execução, captura o Blob e o retorna
- * em vez de disparar download.
+ * Estratégia: reusa os builders `buildRelatorioDocxBlob` /
+ * `buildPlanejamentoDocxBlob` em `useDocumentExport.ts`, que retornam um
+ * Blob diretamente (sem disparar download). Isso evita o monkey-patch de
+ * `file-saver`, que falha em build ESM (exports são read-only).
  */
-
-import * as FileSaverModule from "file-saver";
-
-async function captureBlob(fn: () => Promise<void>): Promise<Blob> {
-  const mod = FileSaverModule as any;
-  const original = mod.saveAs;
-  let captured: Blob | null = null;
-  mod.saveAs = (blob: Blob) => {
-    captured = blob;
-  };
-  try {
-    await fn();
-  } finally {
-    mod.saveAs = original;
-  }
-  if (!captured) throw new Error("Falha ao capturar DOCX gerado");
-  return captured;
-}
 
 async function carregarRelatorioCompleto(id: string) {
   const { data: rel, error } = await supabase
@@ -75,15 +54,15 @@ async function carregarPlanejamentoCompleto(id: string) {
 }
 
 export async function gerarDocxRelatorioBlob(id: string): Promise<Blob> {
-  const { exportRelatorioDocx } = await import("@/hooks/useDocumentExport");
+  const { buildRelatorioDocxBlob } = await import("@/hooks/useDocumentExport");
   const { rel, turmaNames, presenca, fotos } = await carregarRelatorioCompleto(id);
-  return captureBlob(() => exportRelatorioDocx(rel, turmaNames, presenca, fotos));
+  return buildRelatorioDocxBlob(rel, turmaNames, presenca, fotos);
 }
 
 export async function gerarDocxPlanejamentoBlob(id: string): Promise<Blob> {
-  const { exportPlanejamentoDocx } = await import("@/hooks/useDocumentExport");
+  const { buildPlanejamentoDocxBlob } = await import("@/hooks/useDocumentExport");
   const { pl, turmaNames } = await carregarPlanejamentoCompleto(id);
-  return captureBlob(() => exportPlanejamentoDocx(pl, turmaNames));
+  return buildPlanejamentoDocxBlob(pl, turmaNames);
 }
 
 /**
