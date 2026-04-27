@@ -576,8 +576,11 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     ["Data", item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : "—"],
     ["Dia da Semana", safeStr(item.dia_semana)],
     ["Educador", safeStr(item.profiles?.nome)],
-    ["Turma(s)", turmaNames.join(", ") || "—"],
-    ["Tipo de Atividade", safeStr(Array.isArray(item.tipo_atividade) ? item.tipo_atividade.join(", ") : item.tipo_atividade)],
+    ["Turma(s)", turmaNames.length > 0 ? turmaNames.map(n => `• ${n}`).join("\n") : "—"],
+    ["Tipo de Atividade", (() => {
+      const arr = Array.isArray(item.tipo_atividade) ? item.tipo_atividade : (item.tipo_atividade ? [item.tipo_atividade] : []);
+      return arr.length > 0 ? tipoAtividadeLabels(arr, item.tipo_atividade_detalhe) : "—";
+    })()],
     ["Nome da Atividade", safeStr(item.nome_atividade)],
   ];
   autoTable(doc, {
@@ -650,7 +653,7 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
   }
 
   if (item.intervencoes) {
-    doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.text("Intervenções:", 14, y); y += 4;
+    doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.text("Atividades Realizadas:", 14, y); y += 4;
     doc.setFont("helvetica", "normal"); doc.text(item.intervencoes, 14, y, { maxWidth: 180 });
     y += Math.ceil(item.intervencoes.length / 90) * 4 + 3;
   }
@@ -665,7 +668,7 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     doc.addPage();
     let py = pdfHeader(doc, 10);
     doc.setFontSize(11); doc.setFont("helvetica", "bold");
-    doc.text("Lista de Presença", 105, py, { align: "center" }); py += 5;
+    doc.text("Lista de Frequência", 105, py, { align: "center" }); py += 5;
     doc.setFontSize(8); doc.setFont("helvetica", "normal");
     doc.text(`Referente à atividade: ${safeStr(item.nome_atividade, "")}  —  Data: ${item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : ""}  —  Turma(s): ${turmaNames.join(", ")}  —  Educador(a): ${safeStr(item.profiles?.nome, "")}`, 14, py, { maxWidth: 180 });
     py += 6;
@@ -675,28 +678,31 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
       body: presenca.map((p, i) => [
         i + 1,
         (p.participantes?.nome_completo || "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""),
-        p.presente ? "Presente" : "Ausente",
+        p.presente ? "■" : "☐",
         p.justificativa || "",
       ]),
-      headStyles: { fillColor: [50, 50, 50], fontSize: 7, textColor: [255, 255, 255] },
+      headStyles: { fillColor: [31, 56, 100], fontSize: 7, textColor: [255, 255, 255] },
       styles: { fontSize: 7, cellPadding: 2 },
-      columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 20, halign: "center" } },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
+      columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 18, halign: "center", fontStyle: "bold" } },
+      alternateRowStyles: { fillColor: [232, 238, 245] },
       didParseCell: (data: any) => {
-        if (data.section === "body" && data.column.index === 2) {
-          const isPresente = data.cell.raw === "Presente";
-          data.cell.styles.fillColor = isPresente ? [235, 235, 235] : [255, 255, 255];
-          data.cell.styles.textColor = [0, 0, 0];
-          data.cell.styles.fontStyle = "bold";
+        // Highlight (BA) tag in red on the name column
+        if (data.section === "body" && data.column.index === 1) {
+          const txt = String(data.cell.raw || "");
+          if (txt.includes(" (BA)")) {
+            data.cell.styles.textColor = [158, 27, 50];
+          }
         }
       },
     });
-    if (presenca.some((p: any) => p.participantes?.status === "busca_ativa")) {
-      const finalY = (doc as any).lastAutoTable?.finalY || py;
-      doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(80, 80, 80);
-      doc.text("Legenda: (BA) = participante em busca ativa no momento do registro.", 14, finalY + 5);
-      doc.setTextColor(0, 0, 0);
-    }
+    const finalY = (doc as any).lastAutoTable?.finalY || py;
+    doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(90, 103, 112);
+    doc.text("Legenda: ■ Presente · ☐ Ausente · (BA) Em busca ativa no momento do registro.", 14, finalY + 5);
+    doc.setTextColor(0, 0, 0);
+    // Assinatura do educador
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+    doc.text("________________________________", 105, finalY + 18, { align: "center" });
+    doc.text("Assinatura do(a) Educador(a)", 105, finalY + 22, { align: "center" });
   }
 
   doc.save(`SysCFV_Relatorio_${fileTimestamp()}.pdf`);
