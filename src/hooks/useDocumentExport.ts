@@ -546,11 +546,8 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
     styles: { default: { document: { run: { font: "Arial", size: 20 } } } },
     sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }],
   });
-  const buffer = await Packer.toBuffer(doc);
-  return new Blob([new Uint8Array(buffer)], {
-    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  });
-}
+  return await Packer.toBlob(doc);
+ }
 
 export async function exportRelatorioPdf(item: any, turmaNames: string[], presenca: any[]) {
   // Generate PDF directly via jsPDF
@@ -743,11 +740,8 @@ export async function buildPlanejamentoDocxBlob(item: any, turmaNames: string[])
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item.profiles?.nome || "Educador", size: 18, font: "Arial" })] }));
 
   const doc = new Document({ styles: { default: { document: { run: { font: "Arial", size: 20 } } } }, sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }] });
-  const buffer = await Packer.toBuffer(doc);
-  return new Blob([new Uint8Array(buffer)], {
-    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  });
-}
+  return await Packer.toBlob(doc);
+ }
 
 export async function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
   const template = await loadTemplate("planejamento.docx");
@@ -890,8 +884,7 @@ export async function exportFichaInscricaoDocx(p: any) {
   children.push(new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: "Responsável                                                        Coordenação SCFV", size: 16, font: "Arial" })] }));
 
   const doc = new Document({ styles: { default: { document: { run: { font: "Arial", size: 20 } } } }, sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }] });
-  const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([new Uint8Array(buffer)]), `SysCFV_FichaInscricao_${fileTimestamp()}.docx`);
+  saveAs(await Packer.toBlob(doc), `SysCFV_FichaInscricao_${fileTimestamp()}.docx`);
 }
 
 export async function exportFichaInscricaoPdf(p: any) {
@@ -1008,8 +1001,7 @@ export async function exportMatrizFrequenciaDocx(
     styles: { default: { document: { run: { font: "Arial", size: 16 } } } },
     sections: [{ properties: { page: { size: { width: 11906, height: 16838, orientation: PageOrientation.LANDSCAPE }, margin: { top: 500, right: 500, bottom: 500, left: 500 } } }, children }],
   });
-  const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([new Uint8Array(buffer)]), `SysCFV_Frequencia_${fileTimestamp()}.docx`);
+  saveAs(await Packer.toBlob(doc), `SysCFV_Frequencia_${fileTimestamp()}.docx`);
 }
 
 export async function exportMatrizFrequenciaPdf(

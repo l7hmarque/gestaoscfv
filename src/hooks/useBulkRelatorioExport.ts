@@ -265,8 +265,7 @@ async function generateBulkDocx(
     styles: { default: { document: { run: { font: "Arial", size: 20 } } } },
     sections,
   });
-  const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([new Uint8Array(buffer)]), sysCfvFileName("Relatorios_Lote", "docx", `${dateFrom}_a_${dateTo}`));
+  saveAs(await Packer.toBlob(doc), sysCfvFileName("Relatorios_Lote", "docx", `${dateFrom}_a_${dateTo}`));
 }
 
 async function generateBulkPdf(
