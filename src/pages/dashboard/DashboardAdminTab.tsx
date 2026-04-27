@@ -7,6 +7,7 @@ import { RotateCcw, Percent, TrendingUp, Upload, FileText, Check, X, Tags } from
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import TemplateTagMapper from "@/components/TemplateTagMapper";
+import { invalidateMissingTemplatesCache } from "@/hooks/useDocumentExport";
 
 const TEMPLATES = [
   { key: "relatorio.docx", label: "Relatório de Atividade", description: "Tags: <<DATA>>, <<EDUCADOR>>, <<TURMAS>>, <<NOME_ATIVIDADE>>, <<SCORE_ELO>>..." },
@@ -47,6 +48,7 @@ export default function DashboardAdminTab() {
     if (error) { toast.error("Erro no upload: " + error.message); return; }
     toast.success(`Template "${templateKey}" enviado com sucesso`);
     setUploadedTemplates(prev => ({ ...prev, [templateKey]: true }));
+    invalidateMissingTemplatesCache(templateKey);
   };
 
   const handleRemove = async (templateKey: string) => {
@@ -54,6 +56,7 @@ export default function DashboardAdminTab() {
     if (error) { toast.error("Erro: " + error.message); return; }
     toast.success(`Template "${templateKey}" removido`);
     setUploadedTemplates(prev => { const n = { ...prev }; delete n[templateKey]; return n; });
+    invalidateMissingTemplatesCache(templateKey);
   };
 
   const resetElo = async () => {

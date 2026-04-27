@@ -15,13 +15,23 @@ import { tipoAtividadeLabels } from "@/lib/constants";
 
 // ===== TEMPLATE CACHE =====
 const templateCache: Record<string, ArrayBuffer> = {};
+const missingTemplates: Set<string> = new Set();
+
+/** Limpa o cache negativo de templates ausentes (chame após upload de novo modelo). */
+export function invalidateMissingTemplatesCache(templateName?: string) {
+  if (templateName) missingTemplates.delete(templateName);
+  else missingTemplates.clear();
+}
 
 async function loadTemplate(templateName: string): Promise<ArrayBuffer | null> {
   if (templateCache[templateName]) return templateCache[templateName];
+  // Cache negativo: evita re-fetch de templates ausentes (poluem o console com 400)
+  if (missingTemplates.has(templateName)) return null;
   try {
     const { data, error } = await supabase.storage.from("templates").download(templateName);
     if (error || !data) {
       console.info(`[docx] template '${templateName}' indisponível, usando fallback gerado.`, error?.message);
+      missingTemplates.add(templateName);
       return null;
     }
     const buffer = await data.arrayBuffer();
@@ -29,6 +39,7 @@ async function loadTemplate(templateName: string): Promise<ArrayBuffer | null> {
     return buffer;
   } catch (e) {
     console.info(`[docx] erro ao baixar template '${templateName}', usando fallback.`, e);
+    missingTemplates.add(templateName);
     return null;
   }
 }
