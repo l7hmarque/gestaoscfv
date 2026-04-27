@@ -89,7 +89,7 @@ function headerCell(text: string, width: number, opts?: { colSpan?: number; rowS
     borders: cellBorders,
     margins: cellMargins,
     width: { size: width, type: WidthType.DXA },
-    shading: { fill: opts?.shading || "D9E2F3", type: ShadingType.CLEAR },
+    shading: { fill: opts?.shading || "000000", type: ShadingType.CLEAR },
     columnSpan: opts?.colSpan,
     rowSpan: opts?.rowSpan,
     verticalAlign: "center" as any,
@@ -122,7 +122,7 @@ function sectionTitle(text: string): Paragraph {
 function subNote(text: string): Paragraph {
   return new Paragraph({
     spacing: { before: 60, after: 60 },
-    children: [new TextRun({ text, font: "Arial", size: 16, italics: true, color: "666666" })],
+    children: [new TextRun({ text, font: "Arial", size: 16, italics: true, color: "000000" })],
   });
 }
 
@@ -531,7 +531,7 @@ Deno.serve(async (req: Request) => {
     if (outputFormat === "xlsx") {
       const wb = XLSX.utils.book_new();
       const border = { style: "thin", color: { rgb: "000000" } };
-      const hdrStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1A5276" } }, border: { top: border, bottom: border, left: border, right: border }, alignment: { wrapText: true, vertical: "center" } };
+      const hdrStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "000000" } }, border: { top: border, bottom: border, left: border, right: border }, alignment: { wrapText: true, vertical: "center" } };
       const cellStyle = { border: { top: border, bottom: border, left: border, right: border }, alignment: { wrapText: true, vertical: "center" } };
       const instStyle = { font: { bold: true, sz: 14 }, alignment: { horizontal: "center" } };
 
@@ -771,7 +771,7 @@ Deno.serve(async (req: Request) => {
             if (!ws[addr]) ws[addr] = { v: "", t: "s" };
             if (isDesligado && dataDeslig && d > dataDeslig) {
               ws[addr].v = "D";
-              ws[addr].s = { fill: { fgColor: { rgb: "CCCCCC" } }, font: { color: { rgb: "666666" } }, border: { top: border, bottom: border, left: border, right: border } };
+              ws[addr].s = { fill: { fgColor: { rgb: "000000" } }, font: { color: { rgb: "FFFFFF" } }, border: { top: border, bottom: border, left: border, right: border } };
             } else {
               const key = `${p.id}_${d}`;
               if (presencaSet.has(key)) {
@@ -921,12 +921,12 @@ Deno.serve(async (req: Request) => {
         presencaChildren.push(new Paragraph({
           alignment: AlignmentType.CENTER,
           spacing: { after: 40 },
-          children: [new TextRun({ text: "Sociedade Civil Nossa Senhora Aparecida", bold: true, font: "Arial", size: 18, color: "1A5276" })],
+          children: [new TextRun({ text: "Sociedade Civil Nossa Senhora Aparecida", bold: true, font: "Arial", size: 18, color: "000000" })],
         }));
         presencaChildren.push(new Paragraph({
           alignment: AlignmentType.CENTER,
           spacing: { after: 100 },
-          children: [new TextRun({ text: "Centro de Atenção Integral ao Adolescente - CAIA Medianeira", font: "Arial", size: 16, color: "2C3E50" })],
+          children: [new TextRun({ text: "Centro de Atenção Integral ao Adolescente - CAIA Medianeira", font: "Arial", size: 16, color: "000000" })],
         }));
         presencaChildren.push(new Paragraph({
           alignment: AlignmentType.CENTER,
@@ -958,9 +958,9 @@ Deno.serve(async (req: Request) => {
 
         // Header row
         const headerCells = [
-          headerCell("Nº", numColW, { shading: "1A5276" }),
-          headerCell("Nome do Participante", nameColW, { shading: "1A5276" }),
-          ...datas.map(dt => headerCell(dt, dateColW, { shading: "1A5276" })),
+          headerCell("Nº", numColW, { shading: "000000" }),
+          headerCell("Nome do Participante", nameColW, { shading: "000000" }),
+          ...datas.map(dt => headerCell(dt, dateColW, { shading: "000000" })),
         ];
         const tableRows: DocxTableRow[] = [new DocxTableRow({ children: headerCells })];
 
@@ -979,7 +979,7 @@ Deno.serve(async (req: Request) => {
                   text: isDesligado ? `${member.nome_completo} (D)` : member.nome_completo,
                   font: "Arial", size: 16,
                   strike: isDesligado,
-                  color: isDesligado ? "999999" : undefined,
+                  color: isDesligado ? "000000" : undefined,
                 })],
               })],
             }),
