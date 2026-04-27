@@ -20,6 +20,7 @@ import { sysCfvFileName } from "@/lib/fileNaming";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
 import { exportBulkRelatorios } from "@/hooks/useBulkRelatorioExport";
+import { FormatPicker, ExportFormat } from "@/components/FormatPicker";
 
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -150,6 +151,12 @@ export default function ExportarRelatoriosPage() {
   const [atendDateFrom, setAtendDateFrom] = useState(format(startOfMonth(now), "yyyy-MM-dd"));
   const [atendDateTo, setAtendDateTo] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
 
+  // Format selectors
+  const [reoFormats, setReoFormats] = useState<ExportFormat[]>(["docx", "xlsx"]);
+  const [pcFormats, setPcFormats] = useState<ExportFormat[]>(["xlsx", "pdf"]);
+  const [atendFormats, setAtendFormats] = useState<ExportFormat[]>(["xlsx", "pdf"]);
+  const [gestaoFormats, setGestaoFormats] = useState<ExportFormat[]>(["pdf", "xlsx"]);
+
   const mesRef = `${ano}-${mes}`;
   const mesNum = parseInt(mes);
 
@@ -173,22 +180,25 @@ export default function ExportarRelatoriosPage() {
   };
 
   const exportarREO = async () => {
+    if (!reoFormats.length) { toast.error("Selecione ao menos um formato"); return; }
     setLoadingReo(true);
     try {
-      const [docxRes, xlsxRes] = await Promise.all([
-        supabase.functions.invoke("generate-reo", { body: { mes, ano, formato: "docx" } }),
-        supabase.functions.invoke("generate-reo", { body: { mes, ano, formato: "xlsx" } }),
-      ]);
-
+      const reoFormatos = reoFormats.filter(f => f === "docx" || f === "xlsx") as Array<"docx" | "xlsx">;
+      const calls = reoFormatos.map(formato =>
+        supabase.functions.invoke("generate-reo", { body: { mes, ano, formato } })
+      );
+      const results = await Promise.allSettled(calls);
       const downloads: Promise<void>[] = [];
-      if (docxRes.data?.url) downloads.push(downloadFromUrl(docxRes.data.url, docxRes.data.fileName || `REO_${ano}-${mes}.docx`));
-      if (xlsxRes.data?.url) downloads.push(downloadFromUrl(xlsxRes.data.url, xlsxRes.data.fileName || `REO_${ano}-${mes}.xlsx`));
-
+      results.forEach((r, i) => {
+        if (r.status === "fulfilled" && r.value.data?.url) {
+          downloads.push(downloadFromUrl(r.value.data.url, r.value.data.fileName || `REO_${ano}-${mes}.${reoFormatos[i]}`));
+        }
+      });
       if (downloads.length > 0) {
         await Promise.all(downloads);
-        toast.success(`REO gerado com sucesso! (${downloads.length} arquivo(s))`);
+        toast.success(`REO gerado! (${downloads.length} arquivo(s))`);
       } else {
-        throw new Error(docxRes.data?.error || xlsxRes.data?.error || "Erro desconhecido");
+        throw new Error("Nenhum formato retornou arquivo");
       }
     } catch (err: any) {
       console.error("Erro REO:", err);
@@ -471,6 +481,7 @@ export default function ExportarRelatoriosPage() {
 
   // ===================== Prestação de Contas =====================
   const exportarPrestacaoContas = async () => {
+    if (!pcFormats.length) { toast.error("Selecione ao menos um formato"); return; }
     setLoadingPC(true);
     try {
       const fmtVal = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -533,10 +544,13 @@ export default function ExportarRelatoriosPage() {
       });
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(catRows), "Categorias");
 
-      const bufXlsx = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-      saveAs(new Blob([bufXlsx], { type: "application/octet-stream" }), sysCfvFileName("PrestacaoContas", "xlsx", mesRef));
+      if (pcFormats.includes("xlsx")) {
+        const bufXlsx = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+        saveAs(new Blob([bufXlsx], { type: "application/octet-stream" }), sysCfvFileName("PrestacaoContas", "xlsx", mesRef));
+      }
 
       // PDF
+      if (pcFormats.includes("pdf")) {
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
       doc.setFontSize(16);
       doc.text("PRESTAÇÃO DE CONTAS — " + mesLabel, 14, 15);
@@ -570,8 +584,9 @@ export default function ExportarRelatoriosPage() {
         headStyles: { fillColor: [50, 50, 50], fontSize: 7 },
       });
       doc.save(sysCfvFileName("PrestacaoContas", "pdf", mesRef));
+      }
 
-      toast.success("Prestação de Contas gerada (XLSX + PDF)!");
+      toast.success(`Prestação de Contas gerada (${pcFormats.map(f => f.toUpperCase()).join(" + ")})!`);
     } catch (err: any) {
       toast.error("Erro ao gerar prestação de contas: " + (err.message || ""));
     } finally {
@@ -619,6 +634,7 @@ export default function ExportarRelatoriosPage() {
 
   // ===================== Atendimentos Técnicos =====================
   const exportarAtendimentosTecnicos = async () => {
+    if (!atendFormats.length) { toast.error("Selecione ao menos um formato"); return; }
     setLoadingAtendimentos(true);
     try {
       const [{ data: atendimentos }, { data: profilesData }, { data: participantesData }] = await Promise.all([
@@ -635,7 +651,12 @@ export default function ExportarRelatoriosPage() {
       const tipoLabel = (v: string) => TIPO_ATENDIMENTO_LABELS[v] || v;
       const periodoLabel = `${format(new Date(atendDateFrom + "T12:00:00"), "dd/MM/yyyy")} a ${format(new Date(atendDateTo + "T12:00:00"), "dd/MM/yyyy")}`;
 
+      // Resumo por tipo (compartilhado entre XLSX e PDF)
+      const tipoMap: Record<string, number> = {};
+      atds.forEach((a: any) => { tipoMap[tipoLabel(a.tipo)] = (tipoMap[tipoLabel(a.tipo)] || 0) + 1; });
+
       // XLSX
+      if (atendFormats.includes("xlsx")) {
       const border = { style: "thin" as const, color: { rgb: "000000" } };
       const hdr = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "323232" } }, border: { top: border, bottom: border, left: border, right: border } };
       const cellS = { border: { top: border, bottom: border, left: border, right: border } };
@@ -675,9 +696,6 @@ export default function ExportarRelatoriosPage() {
       }
       XLSX.utils.book_append_sheet(wb, ws, "Atendimentos");
 
-      // Resumo por tipo
-      const tipoMap: Record<string, number> = {};
-      atds.forEach((a: any) => { tipoMap[tipoLabel(a.tipo)] = (tipoMap[tipoLabel(a.tipo)] || 0) + 1; });
       const resumoRows: any[][] = [["Tipo", "Quantidade"]];
       Object.entries(tipoMap).forEach(([tipo, qt]) => resumoRows.push([tipo, qt]));
       resumoRows.push(["TOTAL", atds.length]);
@@ -686,8 +704,10 @@ export default function ExportarRelatoriosPage() {
       XLSX.utils.book_append_sheet(wb, wsR, "Resumo");
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
       saveAs(new Blob([buf]), sysCfvFileName("RelEquipeTecnica", "xlsx"));
+      }
 
       // PDF
+      if (atendFormats.includes("pdf")) {
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
       doc.setFontSize(14);
       doc.text("RELATÓRIO DE ATIVIDADES DA EQUIPE TÉCNICA", 14, 15);
@@ -721,8 +741,9 @@ export default function ExportarRelatoriosPage() {
         headStyles: { fillColor: [50, 50, 50] },
       });
       doc.save(sysCfvFileName("RelEquipeTecnica", "pdf"));
+      }
 
-      toast.success("Relatório da equipe técnica gerado (XLSX + PDF)!");
+      toast.success(`Relatório da equipe técnica gerado (${atendFormats.map(f => f.toUpperCase()).join(" + ")})!`);
     } catch (err: any) {
       toast.error("Erro: " + (err.message || "Erro desconhecido"));
     } finally {
@@ -809,9 +830,14 @@ export default function ExportarRelatoriosPage() {
                 metas, recursos humanos, monitoramento, execução financeira e anexos fotográficos.
                 Gera <strong>DOCX + XLSX</strong> simultaneamente no servidor.
               </p>
-              <Button onClick={exportarREO} disabled={anyLoading} className="gap-2">
+              <FormatPicker
+                available={["docx", "xlsx"]}
+                value={reoFormats}
+                onChange={setReoFormats}
+              />
+              <Button onClick={exportarREO} disabled={anyLoading || !reoFormats.length} className="gap-2">
                 {loadingReo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Exportar REO (DOCX + XLSX)
+                Exportar REO
               </Button>
             </CardContent>
           </Card>
@@ -852,9 +878,14 @@ export default function ExportarRelatoriosPage() {
                 Resumo financeiro, despesas detalhadas com status de comprovação e saldos por categoria.
                 Gera <strong>XLSX + PDF</strong> simultaneamente.
               </p>
-              <Button onClick={exportarPrestacaoContas} disabled={anyLoading} className="gap-2">
+              <FormatPicker
+                available={["pdf", "xlsx"]}
+                value={pcFormats}
+                onChange={setPcFormats}
+              />
+              <Button onClick={exportarPrestacaoContas} disabled={anyLoading || !pcFormats.length} className="gap-2">
                 {loadingPC ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Exportar Prestação de Contas (PDF + XLSX)
+                Exportar Prestação de Contas
               </Button>
             </CardContent>
           </Card>
@@ -924,9 +955,14 @@ export default function ExportarRelatoriosPage() {
                   <Input type="date" value={atendDateTo} onChange={e => setAtendDateTo(e.target.value)} className="h-9 text-sm mt-1 w-44" />
                 </div>
               </div>
-              <Button onClick={exportarAtendimentosTecnicos} disabled={anyLoading} className="gap-2">
+              <FormatPicker
+                available={["pdf", "xlsx"]}
+                value={atendFormats}
+                onChange={setAtendFormats}
+              />
+              <Button onClick={exportarAtendimentosTecnicos} disabled={anyLoading || !atendFormats.length} className="gap-2">
                 {loadingAtendimentos ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Exportar Atendimentos (XLSX + PDF)
+                Exportar Atendimentos
               </Button>
             </CardContent>
           </Card>
@@ -991,20 +1027,24 @@ export default function ExportarRelatoriosPage() {
                   <Input className="w-[90px] mt-1" value={gestaoAnoFim} onChange={e => setGestaoAnoFim(e.target.value)} />
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button onClick={() => exportarGestao("ambos")} disabled={anyLoading} className="gap-2">
-                  {loadingGestao ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  Exportar PDF + XLSX
-                </Button>
-                <Button onClick={() => exportarGestao("pdf")} disabled={anyLoading} variant="outline" className="gap-2">
-                  {loadingGestao ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                  Só PDF
-                </Button>
-                <Button onClick={() => exportarGestao("xlsx")} disabled={anyLoading} variant="outline" className="gap-2">
-                  {loadingGestao ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-                  Só XLSX
-                </Button>
-              </div>
+              <FormatPicker
+                available={["pdf", "xlsx"]}
+                value={gestaoFormats}
+                onChange={setGestaoFormats}
+              />
+              <Button
+                onClick={() => {
+                  const fmt = gestaoFormats.includes("pdf") && gestaoFormats.includes("xlsx")
+                    ? "ambos"
+                    : gestaoFormats[0] as "pdf" | "xlsx";
+                  exportarGestao(fmt);
+                }}
+                disabled={anyLoading || !gestaoFormats.length}
+                className="gap-2"
+              >
+                {loadingGestao ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Exportar Relatório de Gestão
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
