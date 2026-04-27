@@ -975,6 +975,32 @@ const EquipeTecnicaPage = () => {
     }
   };
 
+  // Hot-swap status na aba Busca Ativa (não permite mudar de/para "desligado" diretamente — usa fluxo de desligamento via Participantes)
+  const handleBAStatusChange = async (p: any, newStatus: string) => {
+    if (guardDemo(isDemo)) return;
+    if (newStatus === p.status) return;
+    if (newStatus === "desligado") {
+      toast.info("Para desligar, use o botão de desligamento na página de Participantes (requer motivo e justificativa).");
+      return;
+    }
+    const updates: any = { status: newStatus };
+    if (p.status === "desligado" && newStatus !== "desligado") {
+      updates.data_desligamento = null;
+      updates.motivo_desligamento = null;
+      updates.justificativa_desligamento = null;
+    }
+    const { error } = await supabase.from("participantes").update(updates).eq("id", p.id);
+    if (error) { toast.error(error.message); return; }
+    await auditLog({
+      acao: "alteração de status",
+      tabela: "participantes",
+      registro_id: p.id,
+      detalhes: `Status: ${p.status} → ${newStatus} (via Busca Ativa)`,
+    });
+    toast.success(`Status alterado para ${newStatus === "ativo" ? "Ativo" : newStatus === "busca_ativa" ? "Busca Ativa" : newStatus}`);
+    await loadAll();
+  };
+
   const exportRelatorioBuscaAtiva = () => {
     if (filteredBA.length === 0) { toast.error("Nenhum participante para exportar"); return; }
 
