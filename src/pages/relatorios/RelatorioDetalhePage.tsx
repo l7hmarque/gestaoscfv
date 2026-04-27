@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
-import { exportRelatorioDocx, exportRelatorioPdf } from "@/hooks/useDocumentExport";
+import { exportRelatorioDocx, exportRelatorioPdf, ensurePresencaForExport } from "@/hooks/useDocumentExport";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { TIPOS_ATIVIDADE } from "@/lib/constants";
@@ -614,7 +614,8 @@ const RelatorioDetalhePage = () => {
           <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={async () => {
             try {
               toast.info("Gerando DOCX...");
-              await exportRelatorioDocx(item, turmaNames, presenca, fotos);
+              const presencaExport = await ensurePresencaForExport(item.id, presenca);
+              await exportRelatorioDocx(item, turmaNames, presencaExport, fotos);
               toast.success("DOCX gerado!");
             } catch (e) {
               console.error("Erro ao gerar DOCX:", e);
@@ -627,7 +628,8 @@ const RelatorioDetalhePage = () => {
           <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={async () => {
             try {
               toast.info("Gerando PDF...");
-              await exportRelatorioPdf(item, turmaNames, presenca);
+              const presencaExport = await ensurePresencaForExport(item.id, presenca);
+              await exportRelatorioPdf(item, turmaNames, presencaExport);
               toast.success("PDF gerado!");
             } catch (e) {
               console.error("Erro ao gerar PDF:", e);
