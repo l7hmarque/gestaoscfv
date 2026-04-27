@@ -1,86 +1,91 @@
+## Diagnóstico
 
-## Objetivo
+Confirmei via banco que **os dados existem e estão íntegros**: 260 participantes com nome, 6 atendimentos no mês, 195 documentos na biblioteca, 128 registros de busca ativa, 2.006 presenças. Logo, todos os sintomas de "sumiço" são problemas de **leitura/render no frontend** ou de **exportação**, não perda de dados.
 
-Implementar a nova **paleta cromática institucional por formato** em todos os documentos exportados, eliminar a aba REO da página `Exportar Relatórios`, adicionar seletor de formatos e corrigir o bug que impede o download em "Relatórios de Atividades + Listas de Presença".
+Causa raiz dos problemas reportados:
 
----
+1. **PDF de presença com "%" e "&"** — As linhas usam `"■"` e `"☐"` (Unicode `U+25A0` / `U+2610`). A fonte padrão `helvetica` do jsPDF é Latin-1: glyphs ausentes saem como caracteres aleatórios (`%`, `&`, `'`). Mesmo bug ocorre em `useBulkRelatorioExport` (PDF do bulk) e em `useDocumentExport.exportMatrizFrequenciaPdf` (lista mensal).
 
-## Nova paleta por formato (regra global)
+2. **DOCX/PDF de presença "sem nomes"** — A lista anexa só é desenhada se `presenca.length > 0`. Quando o relatório foi salvo sem nenhuma linha em `relatorio_presenca` (caso comum quando o educador apenas informa `num_participantes` no formulário sem marcar a chamada), o anexo aparece vazio mesmo havendo turma vinculada. Precisamos: (a) carregar fallback de `turma_participantes` quando `relatorio_presenca` está vazio; (b) ocultar a seção quando realmente não há participantes; (c) garantir que o nome venha do alias correto em todos os builders (já é `participantes.nome_completo`).
 
-| Formato | Paleta | Aplicação |
-|---|---|---|
-| **DOCX** | Branco + Vermelho SCNSA + Azul SCNSA | Títulos coloridos, cabeçalhos de tabela em vermelho/azul, badges e destaques em azul |
-| **PDF**  | Apenas preto e branco (sem cinza) | Cabeçalhos de tabela 100% preto com texto branco, sem zebra/alternateRow, sem `setTextColor(150)` |
-| **XLSX** | Apenas preto e branco (sem cinza) | Cabeçalho preto / texto branco, células brancas com bordas pretas, sem fills cinza |
+3. **Listas de chamada de Turmas "sem nomes"** — `exportListaPresencaPdf` e o XLSX em `exportListaPresenca.ts` recebem o array `participantes`/`members` da página. Vou auditar a página `TurmaDetalhePage` / `TurmasPage` para confirmar que ela faz o `select` com `participantes(nome_completo)` e não está filtrando por `data_saida` de modo a esvaziar o resultado.
 
-Cores SCNSA já usadas no projeto:
-- `SCNSA_RED` → `#9E1B32`
-- `SCNSA_BLUE` → `#1F3864` (já presente como `ACCENT_COLOR`)
+4. **"Atendimentos sumiram" na Equipe Técnica** + **"Biblioteca vazia"** — Banco tem dados (6 atendimentos no mês; 195 docs). Vou auditar `EquipeTecnicaPage` (filtro por mês/educador/profissional pode estar zerado por bug recente) e `BibliotecaPage` (filtro por status/educador pode estar excluindo `pendente`). Possível efeito colateral de uma das edições recentes do hot-swap/coordenação.
+
+5. **Exportação de Atendimentos Técnicos: "nenhum atendimento no período"** — `ExportarRelatoriosPage` usa filtro de período padrão "mês atual". Há 6 atendimentos com `created_at` em abril/2026 mas a query provavelmente filtra por `data_atendimento` (campo correto). Se o frontend monta range `2026-04-01..2026-04-30` mas os dados estão em outro mês, ou se o filtro virou string vazia após o último refactor, retorna vazio. Vou conferir e corrigir.
+
+6. **REO no Dashboard baixa só XLSX mesmo com DOCX marcado** — A aba `Rel.Mensal` do Dashboard chama a edge `generate-reo`, que retorna apenas XLSX. O checkbox de DOCX é ignorado. Vou (a) remover o checkbox DOCX se realmente não há geração DOCX no edge, ou (b) gerar DOCX local equivalente. Decisão: **remover o checkbox** (REO é planilha técnica, DOCX não tem sentido — coerente com a remoção da aba REO em Exportar Relatórios).
+
+7. **REO/Relatório Mensal XLSX "feio e cinza"** — A edge `generate-reo` e `generate-relatorio-mensal` aplicam estilos `fgColor` cinza (`D9D9D9`, `F2F2F2`) e a paleta atual exige preto/branco. Vou alterar essas duas edge functions.
+
+8. **Relatório Mensal XLSX "sem presenças"** — A edge `generate-relatorio-mensal` agrupa presença lendo `relatorio_presenca` + `presenca`. Vou validar o JOIN para garantir que cada participante apareça em todas as turmas a que pertence e que o cabeçalho de datas cubra todos os dias com aula registrada.
 
 ---
 
 ## Mudanças por arquivo
 
-### 1. Arquivos centrais (afetam tudo)
+### A. Glyphs em PDF (corrige "%" e "&")
 
-**`src/lib/xlsxInstHeader.ts`**
-- Substituir todos os `fgColor: { rgb: "F2F2F2" | "D9D9D9" | "F7F7F7" | "333333" }` por **preto puro `000000`** (cabeçalhos) ou **branco `FFFFFF`** (corpo).
-- `applyTableHeaderStyle`: fundo `000000`, texto `FFFFFF`.
-- Remover tons cinza dos `instStyles`/`subInfoStyle`/`turmaInfoStyle`.
+Substituir `"■"`/`"☐"` por `"P"`/`"A"` (ou `"X"`/`""`) **somente em PDFs**, mantendo `■`/`☐` em DOCX (Word renderiza Segoe UI Symbol corretamente):
 
-**`src/hooks/useDocumentExport.ts`** (DOCX colorido SCNSA)
-- Manter `ACCENT_COLOR` (azul SCNSA) e `SCNSA_RED`.
-- Substituir todas as ocorrências de `LIGHT_BG`/`HEADER_COLOR` cinza por azul SCNSA (cabeçalhos) ou branco (corpo); destaques de status (BA, busca ativa) em vermelho SCNSA.
-- Trocar fundos cinza `"555555"`, `"CCCCCC"` em separadores/legendas por azul/vermelho ou preto fino.
+- `src/hooks/useDocumentExport.ts`
+  - `exportRelatorioPdf` (linha ~695): `p.presente ? "P" : "A"` + atualizar legenda.
+  - `exportMatrizFrequenciaPdf` (linha ~1071): trocar `"■"` por `"P"` e `"—"` (D) por `"D"`.
+  - `exportListaPresencaPdf`: garantir células vazias.
+- `src/hooks/useBulkRelatorioExport.ts` (`generateBulkPdf`): mesma troca.
+- `src/hooks/useRelatorioGestao.ts` (`exportRelatorioGestaoPDF`): se houver glyphs Unicode, trocar.
 
-### 2. PDFs — remover cinza
+### B. Lista de presença vazia em DOCX/PDF (anexo do Relatório de Atividade)
 
-**`src/hooks/useRelatorioGestao.ts`** (`exportRelatorioGestaoPDF`)
-- `gray50 = [50,50,50]` → `[0,0,0]`.
-- `altRow = [245,245,245]` → remover (sem `alternateRowStyles`).
-- `setTextColor(150)` no rodapé → `setTextColor(0)`.
-- `headStyles.fillColor: [31,56,100]`, `[180,30,30]`, `[50,50,50]` → `[0,0,0]` com `textColor: [255,255,255]`.
-- `setTextColor(158,27,50)` / `(90,103,112)` / `(180,30,30)` → `setTextColor(0,0,0)`.
-- `fillColor: [245,245,245]` em column styles → remover.
+Em `RelatorioDetalhePage.tsx`, antes de chamar `exportRelatorioDocx/Pdf`:
+- Se `presenca.length === 0`, **carregar fallback** de `turma_participantes` (via `relatorio_turmas`) preenchendo todos como ausentes; ou
+- **Ocultar a seção** "Lista de Frequência" se ainda assim ficar zero (em vez de gerar tabela só com cabeçalho).
 
-**`src/hooks/useBulkRelatorioExport.ts`** (`generateBulkPdf`)
-- `headStyles.fillColor: [31,56,100]` → `[0,0,0]`; remover `alternateRowStyles`; remover `setTextColor(90,103,112)` e `[158,27,50]`.
+Mesmo tratamento em `useBulkRelatorioExport.ts` (`generateBulkDocx`/`Pdf`) — hoje monta a lista direto do `presenca` que vem do select; quando o relatório não tem `relatorio_presenca`, o builder precisa puxar de `turma_participantes`.
 
-**`src/pages/relatorios/ExportarRelatoriosPage.tsx`** (PDF de Atendimentos e Prestação de Contas)
-- Auditar `headStyles.fillColor` / `alternateRowStyles` / `setTextColor(...)` em todas as funções e zerar para preto/branco.
+### C. Listas de Turmas (chamada) "sem nomes"
 
-### 3. XLSX — remover cinza
+Auditar `TurmasPage.tsx` e `TurmaDetalhePage.tsx`:
+- Confirmar que `select` traz `participantes(nome_completo)`.
+- Confirmar que `is("data_saida", null)` não está derrubando todos por dado legado (data_saida pode ter sido preenchido em massa por alguma migration de desligamento administrativo). Se for o caso, ajustar para `or(data_saida.is.null, data_saida.gt.${endOfMonth})`.
 
-**`src/hooks/useRelatorioGestao.ts`** (`exportRelatorioGestaoXLSX`)
-- `headerStyle.fill.fgColor: "D9D9D9"` → `"000000"` + `font.color: "FFFFFF"`.
+### D. Equipe Técnica — "atendimentos sumiram"
 
-**`src/hooks/useBulkRelatorioExport.ts`** (`generateBulkXlsx`)
-- Trocar `fgColor: "1A5276"` → `"000000"`.
+`EquipeTecnicaPage.tsx`: revisar o estado `mesFiltro/anoFiltro/profissionalFiltro`. Provavelmente o último commit de hot-swap mexeu em `useEffect`/dependências e zerou o filtro. Restaurar default = mês corrente, sem filtro de profissional.
 
-**`src/pages/relatorios/ExportarRelatoriosPage.tsx`**
-- `hdr` do XLSX de atendimentos: `fgColor: "323232"` → `"000000"`.
-- Auditar Resumo/Atividades/Metas: nenhum `fgColor` cinza.
+### E. Biblioteca vazia
 
-**`src/lib/exportListaPresenca.ts`** — auditar e converter qualquer cinza.
+`BibliotecaPage.tsx` / `BibliotecaAccordion.tsx`: a tabela tem 195 linhas. Se a página filtra por `status = 'gerado'`, a maioria está `pendente` (precisam ser geradas pelo worker, que ainda não roda). Ajustar a UI para listar **todos os status** com badge (Pendente / Gerado / Erro) e botão "Regenerar".
 
-### 4. Página `Exportar Relatórios` — ajustes funcionais
+### F. Exportar Atendimentos Técnicos — "nenhum no período"
 
-**`src/pages/relatorios/ExportarRelatoriosPage.tsx`**
-- **Eliminar a aba REO** (TabsTrigger, TabsContent e função `exportarREO`, `loadingReo`, `reoFormats`). Atualizar grid para `grid-cols-6`.
-- **Bug "Relatórios de Atividades + Listas" não baixa**: a chamada passa `educadorId: undefined`, mas o hook compara contra `"todos"`. Corrigir para passar `educadorId: ativEducadorId === "__all__" ? "todos" : ativEducadorId` e validar que `formatos` é repassado.
-- Adicionar `FormatPicker` (DOCX/PDF/XLSX) ao card "Atividades + Listas" e remover toast de sucesso "cego" — só exibir após a Promise do hook resolver com sucesso real (deixar o hook ser a fonte do toast; remover o `toast.success` redundante de `exportarAtividadesLote`).
+`ExportarRelatoriosPage.tsx`: corrigir o filtro de data para usar `data_atendimento` (ou `created_at`, conferir) e validar que `dataFrom`/`dataTo` não estão vazios. Adicionar log de diagnóstico. Garantir que o toast de "vazio" só aparece se realmente vazio.
+
+### G. REO no Dashboard — DOCX ignorado
+
+`DashboardRelatorioMensalTab.tsx`:
+- Remover checkbox DOCX do REO (REO é XLSX-only).
+- Aplicar paleta preto/branco no REO chamando a edge `generate-reo` com flag de estilo, **OU** reescrever a edge para usar paleta P&B.
+
+### H. Edges `generate-reo` e `generate-relatorio-mensal` — paleta + presenças
+
+- `supabase/functions/generate-reo/index.ts` e `generate-relatorio-mensal/index.ts`:
+  - Substituir todos `fgColor: "D9D9D9"|"F2F2F2"|"333333"` por `"000000"` (cabeçalhos) com `font.color: "FFFFFF"`; corpo em `"FFFFFF"` puro.
+  - Auditar a query de presenças: garantir que retorna `participantes.nome_completo` para cada turma e cada data, sem filtros que excluam participantes ativos.
+
+### I. Memória
+
+Atualizar `mem://estilo/documentos-institucionais-padrao` para refletir a paleta correta por formato (DOCX azul/vermelho SCNSA; PDF/XLSX preto e branco) — já constava na plano anterior, garantir aplicação.
 
 ---
 
 ## Critério de aceite
 
-1. Aba REO removida; página tem 6 abas.
-2. "Atividades + Listas" baixa o ZIP/PDF/XLSX corretamente quando "Todos" está selecionado.
-3. Nenhum DOCX/PDF/XLSX gerado contém cinza (`setTextColor(150)`, `fillColor:[245,245,245]`, `fgColor:"D9D9D9"` etc.) — buscas `rg` por esses padrões devem retornar vazio nos arquivos de export.
-4. DOCX exibe títulos em vermelho/azul SCNSA; PDFs e XLSX em preto puro com texto branco em cabeçalhos.
-
----
-
-## Memória a atualizar
-
-- `mem://estilo/documentos-institucionais-padrao` — substituir "grayscale" pela nova regra cromática por formato.
+1. PDF de presença mostra `P`/`A` (sem `%`, `&`) e legenda atualizada.
+2. DOCX e PDF de relatório SEMPRE listam os nomes dos participantes da(s) turma(s) vinculada(s), mesmo quando o educador não marcou chamada.
+3. Página de Turmas → "Baixar Lista" mostra todos os participantes da turma.
+4. Página Equipe Técnica volta a exibir os 6 atendimentos do mês.
+5. Página Biblioteca lista os 195 documentos (com status Pendente/Gerado).
+6. Exportar Atendimentos retorna o XLSX preenchido.
+7. REO do Dashboard baixa apenas XLSX (sem checkbox DOCX) e em preto/branco.
+8. Relatório Mensal XLSX traz nomes e marcações de presença em todas as listas das turmas.
