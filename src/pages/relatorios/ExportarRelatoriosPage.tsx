@@ -634,6 +634,7 @@ export default function ExportarRelatoriosPage() {
 
   // ===================== Atendimentos Técnicos =====================
   const exportarAtendimentosTecnicos = async () => {
+    if (!atendFormats.length) { toast.error("Selecione ao menos um formato"); return; }
     setLoadingAtendimentos(true);
     try {
       const [{ data: atendimentos }, { data: profilesData }, { data: participantesData }] = await Promise.all([
@@ -651,6 +652,7 @@ export default function ExportarRelatoriosPage() {
       const periodoLabel = `${format(new Date(atendDateFrom + "T12:00:00"), "dd/MM/yyyy")} a ${format(new Date(atendDateTo + "T12:00:00"), "dd/MM/yyyy")}`;
 
       // XLSX
+      if (atendFormats.includes("xlsx")) {
       const border = { style: "thin" as const, color: { rgb: "000000" } };
       const hdr = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "323232" } }, border: { top: border, bottom: border, left: border, right: border } };
       const cellS = { border: { top: border, bottom: border, left: border, right: border } };
@@ -701,8 +703,10 @@ export default function ExportarRelatoriosPage() {
       XLSX.utils.book_append_sheet(wb, wsR, "Resumo");
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
       saveAs(new Blob([buf]), sysCfvFileName("RelEquipeTecnica", "xlsx"));
+      }
 
       // PDF
+      if (atendFormats.includes("pdf")) {
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
       doc.setFontSize(14);
       doc.text("RELATÓRIO DE ATIVIDADES DA EQUIPE TÉCNICA", 14, 15);
@@ -736,8 +740,9 @@ export default function ExportarRelatoriosPage() {
         headStyles: { fillColor: [50, 50, 50] },
       });
       doc.save(sysCfvFileName("RelEquipeTecnica", "pdf"));
+      }
 
-      toast.success("Relatório da equipe técnica gerado (XLSX + PDF)!");
+      toast.success(`Relatório da equipe técnica gerado (${atendFormats.map(f => f.toUpperCase()).join(" + ")})!`);
     } catch (err: any) {
       toast.error("Erro: " + (err.message || "Erro desconhecido"));
     } finally {
