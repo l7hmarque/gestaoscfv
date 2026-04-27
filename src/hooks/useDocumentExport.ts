@@ -1050,8 +1050,8 @@ export async function exportMatrizFrequenciaPdf(
   doc.text("PREFEITURA MUNICIPAL DE MEDIANEIRA", 148, y, { align: "center" });
   y += 3; doc.setFont("helvetica", "normal"); doc.setFontSize(8);
   doc.text("SECRETARIA DE ASSISTÊNCIA SOCIAL — CAIA — SCFV", 148, y, { align: "center" });
-  y += 5; doc.setFontSize(11); doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold");
-  doc.text("LISTA DE FREQUÊNCIA", 148, y, { align: "center" });
+  y += 5; doc.setFontSize(11); doc.setTextColor(158, 27, 50); doc.setFont("helvetica", "bold");
+  doc.text(preenchida ? "LISTA DE FREQUÊNCIA" : "LISTA DE CHAMADA", 148, y, { align: "center" });
   doc.setTextColor(0); doc.setFont("helvetica", "normal"); y += 5;
   doc.setFontSize(8);
   doc.text(`Turma: ${turma.nome}  |  Período: ${turma.periodo || "—"}  |  Faixa: ${turma.faixa_etaria || "—"}  |  Exportado: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, y);
@@ -1061,16 +1061,32 @@ export async function exportMatrizFrequenciaPdf(
   autoTable(doc, {
     startY: y,
     head: [["Nº", "Nome", ...dateHeaders]],
-    body: participantes.map((p, i) => [i + 1, p.nome, ...datas.map(d => preenchida ? (p.presencas[d] === "D" ? "D" : p.presencas[d] ? "✓" : "") : "")]),
-    headStyles: { fillColor: [50, 50, 50], fontSize: 6, cellPadding: 1.5 },
+    body: participantes.map((p, i) => [i + 1, p.nome, ...datas.map(d => preenchida ? (p.presencas[d] === "D" ? "—" : p.presencas[d] ? "■" : "") : "")]),
+    headStyles: { fillColor: [31, 56, 100], fontSize: 6, cellPadding: 1.5, textColor: [255,255,255] },
     styles: { fontSize: 6, cellPadding: 1.5 },
     columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 40 } },
+    didParseCell: (data: any) => {
+      if (data.section === "body" && data.column.index >= 2) {
+        data.cell.styles.halign = "center";
+        if (String(data.cell.raw) === "■") data.cell.styles.fontStyle = "bold";
+      }
+      if (data.section === "body" && data.column.index === 1) {
+        const txt = String(data.cell.raw || "");
+        if (txt.includes("(BA)")) data.cell.styles.textColor = [158, 27, 50];
+      }
+    },
   });
+  const finalY = (doc as any).lastAutoTable?.finalY || y;
+  doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(90, 103, 112);
+  doc.text("Legenda: ■ Presente · vazio Ausente · — Sem aula/desligado · (BA) Em busca ativa", 14, finalY + 4);
+  doc.setTextColor(0,0,0); doc.setFont("helvetica", "normal");
 
-  doc.save(`SysCFV_Frequencia_${fileTimestamp()}.pdf`);
+  const slug = (turma.nome || "Turma").replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
+  const baseName = preenchida ? "ListaFrequencia" : "ListaChamada";
+  doc.save(`SysCFV_${baseName}_${slug}_${fileTimestamp()}.pdf`);
 }
 
-// ===== LISTA DE PRESENÇA (em branco, por mês) =====
+// ===== LISTA DE CHAMADA (em branco, por mês — para impressão e marcação manual) =====
 const DIAS_MAP: Record<string, number> = {
   seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6, dom: 0,
   segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6, domingo: 0,
@@ -1105,9 +1121,11 @@ export async function exportListaPresencaPdf(
   y += 3.5; doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
   doc.text("Centro de Atenção Integral ao Adolescente - Medianeira", 148, y, { align: "center" });
 
-  y += 5; doc.setFontSize(11); doc.setTextColor(26, 82, 118); doc.setFont("helvetica", "bold");
-  doc.text("LISTA DE PRESENÇA - SCFV", 148, y, { align: "center" });
-  doc.setTextColor(0); doc.setFont("helvetica", "normal"); y += 5;
+  y += 5; doc.setFontSize(12); doc.setTextColor(158, 27, 50); doc.setFont("helvetica", "bold");
+  doc.text("LISTA DE CHAMADA — SCFV", 148, y, { align: "center" });
+  doc.setFontSize(8); doc.setTextColor(90, 103, 112); doc.setFont("helvetica", "italic");
+  y += 4; doc.text("Para preenchimento manual durante a atividade", 148, y, { align: "center" });
+  doc.setTextColor(0); doc.setFont("helvetica", "normal"); y += 4;
 
   // Info turma
   doc.setFontSize(8);
@@ -1122,42 +1140,55 @@ export async function exportListaPresencaPdf(
   const dayNames: Record<number, string> = { 0: "Dom", 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sáb" };
   const dayLabels = datas.map(d => dayNames[d.getDay()]);
 
-  // Table
+  // Table — linhas altas para escrita manual + coluna Observações
+  const obsColIndex = 2 + datas.length;
   autoTable(doc, {
     startY: y,
     head: [
-      ["Nº", "Nome do Participante", ...dateHeaders],
-      ["", "", ...dayLabels],
+      ["Nº", "Nome do Participante", ...dateHeaders, "Observações"],
+      ["", "", ...dayLabels, ""],
     ],
     body: participantes.map((p, i) => [
       i + 1,
       p.nome,
-      ...datas.map(() => "[ ]"),
+      ...datas.map(() => ""),
+      "",
     ]),
-    headStyles: { fillColor: [50, 50, 50], fontSize: 6, cellPadding: 1.5, halign: "center" },
-    styles: { fontSize: 6, cellPadding: 1.5 },
+    headStyles: { fillColor: [31, 56, 100], fontSize: 7, cellPadding: 1.5, halign: "center", textColor: [255,255,255] },
+    styles: { fontSize: 7, cellPadding: 2, minCellHeight: 9, lineColor: [120, 120, 120], lineWidth: 0.2 },
     columnStyles: {
       0: { cellWidth: 7, halign: "center" },
-      1: { cellWidth: 45 },
+      1: { cellWidth: 50 },
+      [obsColIndex]: { cellWidth: 40 },
     },
     didParseCell: (data: any) => {
-      // Style the checkbox cells
-      if (data.section === "body" && data.column.index >= 2) {
+      // Centraliza colunas de data
+      if (data.section === "body" && data.column.index >= 2 && data.column.index < obsColIndex) {
         data.cell.styles.halign = "center";
-        data.cell.styles.fontSize = 7;
+      }
+      // Destaca (BA) no nome em vermelho
+      if (data.section === "body" && data.column.index === 1) {
+        const txt = String(data.cell.raw || "");
+        if (txt.includes("(BA)")) data.cell.styles.textColor = [158, 27, 50];
       }
     },
   });
 
-  // Footer - assinatura
+  // Legend + Footer (3 assinaturas)
   const finalY = (doc as any).lastAutoTable?.finalY || 180;
+  doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(90, 103, 112);
+  doc.text("Legenda: marque ■ ou X na data de presença · (BA) = participante em busca ativa.", 14, finalY + 5);
+  doc.setTextColor(0); doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.text("________________________________", 14, finalY + 12);
-  doc.text("Assinatura do Educador(a)", 14, finalY + 16);
-  doc.text("________________________________", 180, finalY + 12);
-  doc.text("Assinatura do Coordenador(a)", 180, finalY + 16);
+  doc.text("________________________________", 30, finalY + 18, { align: "center" });
+  doc.text("Educador(a)", 30, finalY + 22, { align: "center" });
+  doc.text("________________________________", 148, finalY + 18, { align: "center" });
+  doc.text("Coordenação", 148, finalY + 22, { align: "center" });
+  doc.text("____ /____ /________", 250, finalY + 18, { align: "center" });
+  doc.text("Data", 250, finalY + 22, { align: "center" });
 
-  doc.save(`SysCFV_Lista_Presenca_${turma.nome.replace(/\s+/g, "_")}_${meses[mes]}_${ano}.pdf`);
+  const slug = (turma.nome || "Turma").replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
+  doc.save(`SysCFV_ListaChamada_${slug}_${ano}-${String(mes + 1).padStart(2, "0")}.pdf`);
 }
 
 // ===== PRONTUÁRIO TÉCNICO =====
