@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -64,27 +64,35 @@ export default function BibliotecaPage() {
     enabled: !authLoading,
   });
 
-  // Sincroniza com origem: garante que cada relatório/planejamento tem registro
-  const { data: missing } = useQuery({
-    queryKey: ["biblioteca-sync", tab],
-    queryFn: async () => {
-      const tabela = tab === "relatorio" ? "relatorios_atividade" : "planejamentos";
-      const { data: origens } = await supabase.from(tabela).select("id");
-      const idsExistentes = new Set((docs || []).map(d => d.origem_id));
-      const faltantes = (origens || []).filter((o: any) => !idsExistentes.has(o.id));
-      // Enfileira até 50 por vez para não sobrecarregar
-      for (const o of faltantes.slice(0, 50)) {
-        await supabase.rpc("enqueue_biblioteca_doc", { _tipo: tab, _origem_id: o.id });
+  // Sincroniza com a origem **uma única vez por aba/sessão**, sem loops de re-render.
+  // Usa um guard via ref para garantir que o efeito só roda 1x para cada tab.
+  const syncedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!docs || syncedRef.current.has(tab)) return;
+    syncedRef.current.add(tab);
+    (async () => {
+      try {
+        const tabela = tab === "relatorio" ? "relatorios_atividade" : "planejamentos";
+        const { data: origens } = await supabase.from(tabela).select("id");
+        const idsExistentes = new Set(docs.map(d => d.origem_id));
+        const faltantes = (origens || []).filter((o: any) => !idsExistentes.has(o.id));
+        if (faltantes.length === 0) return;
+        // Processa todos em paralelo limitado (chunks de 25 simultâneos)
+        const chunkSize = 25;
+        for (let i = 0; i < faltantes.length; i += chunkSize) {
+          const chunk = faltantes.slice(i, i + chunkSize);
+          await Promise.allSettled(
+            chunk.map((o: any) =>
+              supabase.rpc("enqueue_biblioteca_doc", { _tipo: tab, _origem_id: o.id })
+            )
+          );
+        }
+        refetch();
+      } catch (e) {
+        console.warn("[biblioteca] sync falhou:", e);
       }
-      return faltantes.length;
-    },
-    enabled: !!docs,
-  });
-
-  // Refetch após sync
-  if (missing && missing > 0 && !isLoading) {
-    setTimeout(() => refetch(), 500);
-  }
+    })();
+  }, [docs, tab, refetch]);
 
   // Agrupar por Ano → Mês
   const arvore = useMemo(() => {
