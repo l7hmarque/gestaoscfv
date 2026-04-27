@@ -745,7 +745,7 @@ export default function ExportarRelatoriosPage() {
     }
   };
 
-  const anyLoading = loadingReo || loadingRelMensal || loadingPC || loadingAnual || loadingAtividades || loadingAtendimentos || loadingGestao;
+  const anyLoading = loadingRelMensal || loadingPC || loadingAnual || loadingAtividades || loadingAtendimentos || loadingGestao;
 
   return (
     <div className="space-y-6">
@@ -777,9 +777,8 @@ export default function ExportarRelatoriosPage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="reo" className="space-y-4">
-        <TabsList className="grid grid-cols-7 w-full">
-          <TabsTrigger value="reo">REO</TabsTrigger>
+      <Tabs defaultValue="mensal" className="space-y-4">
+        <TabsList className="grid grid-cols-6 w-full">
           <TabsTrigger value="mensal">Rel. Mensal</TabsTrigger>
           <TabsTrigger value="pc">Prest. Contas</TabsTrigger>
           <TabsTrigger value="atividades">Atividades</TabsTrigger>
@@ -787,33 +786,6 @@ export default function ExportarRelatoriosPage() {
           <TabsTrigger value="anual">Anual</TabsTrigger>
           <TabsTrigger value="gestao">Gestão</TabsTrigger>
         </TabsList>
-
-        {/* REO */}
-        <TabsContent value="reo">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-5 w-5" /> Relatório de Execução do Objeto (REO)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Documento institucional com atividades propostas × desenvolvidas, equipe técnica,
-                metas, recursos humanos, monitoramento, execução financeira e anexos fotográficos.
-                Gera <strong>DOCX + XLSX</strong> simultaneamente no servidor.
-              </p>
-              <FormatPicker
-                available={["docx", "xlsx"]}
-                value={reoFormats}
-                onChange={setReoFormats}
-              />
-              <Button onClick={exportarREO} disabled={anyLoading || !reoFormats.length} className="gap-2">
-                {loadingReo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Exportar REO
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Relatório Mensal */}
         <TabsContent value="mensal">
