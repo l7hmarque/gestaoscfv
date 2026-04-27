@@ -369,7 +369,7 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     // Presença loop
     PRESENCA: presenca.map((p, i) => ({
       NUM: i + 1,
-      NOME: safeStr(p.participantes?.nome_completo, ""),
+      NOME: safeStr(p.participantes?.nome_completo, "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""),
       STATUS: p.presente ? "☑" : "☐",
       JUSTIFICATIVA: safeStr(p.justificativa, ""),
     })),
