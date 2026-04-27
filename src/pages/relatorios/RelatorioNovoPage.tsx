@@ -908,6 +908,14 @@ const RelatorioNovoPage = () => {
                       }}
                     />
                     <span className={cn("text-sm flex-1", !presente && "text-muted-foreground line-through")}>{p.nome}</span>
+                    {p.status === "busca_ativa" && (
+                      <span
+                        title="Em busca ativa — marcar presença reverte automaticamente para Ativo"
+                        className="text-[10px] font-semibold px-1.5 py-0.5 rounded border border-amber-500/40 text-amber-700 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/30"
+                      >
+                        Busca Ativa
+                      </span>
+                    )}
                     {!presente && (
                       <Input
                         value={form.justificativas[p.id] || ""}

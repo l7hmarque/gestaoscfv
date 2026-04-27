@@ -205,7 +205,7 @@ const RelatorioDetalhePage = () => {
 
   const fetchPresenca = useCallback(async () => {
     if (!id) return;
-    const { data } = await supabase.from("relatorio_presenca").select("*, participantes(nome_completo)").eq("relatorio_id", id);
+    const { data } = await supabase.from("relatorio_presenca").select("*, participantes(nome_completo, status)").eq("relatorio_id", id);
     if (data) {
       setPresenca(data.sort((a: any, b: any) => {
         const nA = a.participantes?.nome_completo || a.nome_avulso || "";

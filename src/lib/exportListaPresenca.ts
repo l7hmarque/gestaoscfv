@@ -22,6 +22,7 @@ interface MemberInfo {
   data_desligamento?: string | null;
   transferido?: boolean;
   data_transferencia?: string | null;
+  busca_ativa?: boolean;
 }
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
@@ -135,11 +136,12 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   const orderedMembers = [...activeMembers, ...transferidoMembers, ...desligadoMembers];
 
   orderedMembers.forEach((m, i) => {
+    const baTag = m.busca_ativa && !m.desligado && !m.transferido ? " (BA)" : "";
     const label = m.desligado
       ? `${m.nome} (D${m.data_desligamento ? " " + m.data_desligamento : ""})`
       : m.transferido
         ? `${m.nome} (T${m.data_transferencia ? " " + m.data_transferencia : ""})`
-        : m.nome;
+        : `${m.nome}${baTag}`;
     rows.push([i + 1, label, ...datas.map(() => (m.desligado || m.transferido) ? "—" : "")]);
   });
 
@@ -147,6 +149,10 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   rows.push([]);
   const signRow = headerStartRow + 1 + orderedMembers.length + 1;
   rows.push(["", `Assinatura do(a) Educador(a): ${"_".repeat(60)}`]);
+  // Legend row
+  rows.push([""]);
+  const legendRow = signRow + 2;
+  rows.push(["", "Legenda: (BA) = Em busca ativa  ·  (D) = Desligado  ·  (T) = Transferido"]);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
 
@@ -156,6 +162,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
     merges.push({ s: { r, c: 0 }, e: { r, c: totalCols - 1 } });
   }
   merges.push({ s: { r: signRow, c: 1 }, e: { r: signRow, c: totalCols - 1 } });
+  merges.push({ s: { r: legendRow, c: 1 }, e: { r: legendRow, c: totalCols - 1 } });
   ws["!merges"] = merges;
 
   // Apply styles

@@ -1,85 +1,83 @@
-# Correção da Biblioteca de Documentos (.docx)
 
-## Diagnóstico
+## Diagnóstico — lógica atual
 
-Após investigar código + dados reais:
+### 1. Checklist de presença no Relatório de Atividade (`/relatorios/novo`)
+**Arquivo:** `src/pages/relatorios/RelatorioNovoPage.tsx`
 
-| Verificação | Resultado |
-|---|---|
-| Linhas em `biblioteca_documentos` | 151 relatórios + 24 planejamentos, **todas com `origem_id` único** (constraint `UNIQUE(tipo, origem_id)` ativa) |
-| Objetos no bucket `biblioteca-docx` | **0** (nada foi efetivamente persistido em Storage) |
-| Relatórios totais vs registros na biblioteca | 171 relatórios reais × 151 na biblioteca → **20 faltando** |
-| Erro ao baixar pela Biblioteca | Confirmado: `captureBlob` em `bibliotecaDocx.ts` tenta sobrescrever `saveAs` de um módulo ESM imutável |
-| Botões "Exportar" em Detalhe / Lote | Continuam chamando `saveAs` direto — funcionam normalmente |
+- Linha 188: o filtro já permite `["ativo", "busca_ativa"]` — ou seja, quem está em busca ativa **JÁ aparece** no checklist para lançamento de presença. ✅
+- Linha 358-365: já existe auto-reversão (presença marcada → status volta para `ativo` + registro em `busca_ativa_registros` + atendimento).
+- **Problema:** na renderização (linha 910), só mostra `{p.nome}` sem nenhum indicador visual de que o participante está em busca ativa. O educador não percebe a situação na hora de marcar.
 
-**Causas:**
+### 2. Lista preenchida exportada do relatório (PDF/DOCX da atividade)
+**Arquivo:** `src/hooks/useDocumentExport.ts` (linha 658)
 
-1. **Erro "Cannot set property saveAs"** — a estratégia de monkey-patch do `file-saver` não funciona em build ESM (esbuild congela exports). Mesmo com cast `as any`, o getter do Module Record permanece read-only no runtime.
-2. **Sensação de "duplicação"** — o `useQuery` `["biblioteca-sync"]` em `BibliotecaPage.tsx` (linha 68-87) tem dois problemas:
-   - `setTimeout(() => refetch(), 500)` é chamado durante o render sem guarda → causa loop visual de re-fetch.
-   - A cada montagem da página enfileira até 50 itens "faltantes" via RPC, e o RPC faz `ON CONFLICT DO UPDATE SET status='pendente', updated_at=now()` → cada registro existente é "tocado" e a lista parece se mexer.
-   - Isso também resseta `status='gerado'` → `'pendente'` perdendo a marcação, e dispara muitas chamadas RPC desnecessárias.
-3. **20 relatórios faltando** — sync só pega 50 por execução e o loop quebrado nunca completa todos.
+- A tabela "Lista de Presença" do PDF do relatório usa apenas `nome_completo`, `presente`, `justificativa`. **Não traz o status** do participante.
+- O dado vem da tabela `relatorio_presenca` joineado com `participantes(nome_completo)` — não puxa `status`.
 
-## Correções
+### 3. Matriz mensal de frequência (preenchida) — `/presenca/exportar`
+**Arquivo:** `src/pages/presenca/PresencaExportarPage.tsx` (linhas 82–123)
 
-### 1. Substituir o monkey-patch de `saveAs` por geração direta de Blob
+- O `select` traz `status` e já adiciona sufixo " (Desligado em DD/MM)" no nome.
+- **Problema:** ignora completamente `busca_ativa`. Só trata `desligado`.
 
-Em `src/lib/bibliotecaDocx.ts`, em vez de interceptar `saveAs`, vou:
+### 4. Lista em branco para impressão — `handleExportLista` na mesma página + `exportListaPresencaPdf`
+- Linha 153: o `select` **nem traz `status`** (`select("participante_id, participantes(nome_completo, created_at)")`). Só trata desligamento manualmente, mas pelo `status === "desligado"` que aqui sequer existe.
+- Resultado: participantes em busca ativa aparecem como qualquer outro, sem indicação.
 
-- Refatorar `gerarDocxRelatorioBlob` / `gerarDocxPlanejamentoBlob` para chamar diretamente `Packer.toBlob(...)` da biblioteca `docx`, **reutilizando os mesmos builders** (`buildRelatorioTemplateData`, etc.) já presentes em `useDocumentExport.ts`.
-- Para isso, vou **exportar uma função auxiliar** `buildRelatorioDocxBlob(item, turmas, presenca, fotos)` em `useDocumentExport.ts` que retorna `Blob` em vez de chamar `saveAs`. A função pública `exportRelatorioDocx` passa a ser apenas `buildRelatorioDocxBlob(...) → saveAs(...)`.
-- Mesma coisa para `exportPlanejamentoDocx` → `buildPlanejamentoDocxBlob`.
-- Remover `captureBlob` e a importação de `file-saver` em `bibliotecaDocx.ts`.
+### 5. Lista em branco XLSX por turma — `exportSingleListaPresenca` / `exportAllListasPresenca`
+**Arquivos:** `src/lib/exportListaPresenca.ts` + `src/pages/turmas/TurmaDetalhePage.tsx` (linha 257) + `src/pages/turmas/TurmasPage.tsx` (linha 182)
 
-Resultado: download da Biblioteca passa a funcionar; downloads de Detalhe e Lote continuam idênticos (sem regressão).
+- A interface `MemberInfo` só tem `desligado` e `transferido`. **Não tem campo para busca ativa.**
+- `TurmaDetalhePage` já busca `status` mas só usa para determinar `desligado`/`transferido`, descartando `busca_ativa`.
+- `TurmasPage` (exportação em massa) só pula `desligado` e nem inclui o status dos demais.
 
-### 2. Corrigir o loop de re-enqueue na BibliotecaPage
+---
 
-Em `src/pages/biblioteca/BibliotecaPage.tsx`:
+## Plano de implementação
 
-- Remover o bloco que chama `setTimeout(refetch, 500)` durante o render (linhas 85-87) — isso é antipattern e causa o "tremor" da lista.
-- Mover a sincronização para um `useEffect` que roda **uma vez por sessão** (com guard `useRef`), não a cada render.
-- Ampliar o batch para 200 itens e iterar até esgotar todos os faltantes (em vez de 50 fixos).
-- Após sync completo, chamar `refetch()` uma única vez.
+**Símbolo escolhido:** `🔍` (lupa) sufixado ao nome — `Maria Silva 🔍` — visível em DOCX/PDF/XLSX e nos checklists. (Alternativa ASCII puro `[BA]` se preferir manter grayscale estrito; pergunto na execução se quiser trocar.)
 
-### 3. Ajustar `enqueue_biblioteca_doc` para **não resetar status**
+### Mudança 1 — Checklist do Relatório de Atividade
+`src/pages/relatorios/RelatorioNovoPage.tsx` (linha ~910)
+- Ao lado do nome, exibir badge discreto "Busca Ativa" (já temos `p.status` em memória) quando `p.status === "busca_ativa"`.
+- Tooltip: "Marcar presença reverte automaticamente para Ativo".
 
-Migration nova: alterar a função `ON CONFLICT` para **só atualizar metadados** (titulo, educador_nome, turma_nome) e **preservar `status`, `gerado_em`, `storage_path`** quando o registro já existe. Isso elimina o problema de re-enqueue marcar tudo como pendente novamente.
+### Mudança 2 — Lista preenchida (PDF do relatório)
+`src/hooks/useDocumentExport.ts` (linha ~658) e onde os dados de `presenca` são buscados
+- Estender o select para incluir `participantes(nome_completo, status)`.
+- Ao montar a linha, sufixar `🔍` no nome quando `status === "busca_ativa"` na data do relatório.
+- Adicionar legenda no rodapé da tabela: "🔍 = participante em busca ativa no momento do registro".
 
-### 4. Alimentar retroativamente os 20 relatórios faltantes
+### Mudança 3 — Matriz mensal `/presenca/exportar` (preenchida)
+`src/pages/presenca/PresencaExportarPage.tsx` `handleExport` (linha ~82)
+- Já traz `status`. Adicionar sufixo `🔍` quando `status === "busca_ativa"` (sem sobrescrever sufixo de desligamento).
 
-A correção do item 2 já cuida disso na próxima abertura da página. Adicionalmente, vou disparar uma chamada SQL imediata via migration:
+### Mudança 4 — Lista em branco `/presenca/exportar` (impressão)
+`handleExportLista` (linha ~150)
+- Estender select para incluir `status, data_desligamento`.
+- Sufixar `🔍` para `busca_ativa` e manter " (Desligado…)" para desligados.
 
-```sql
--- Enfileirar todos os relatórios e planejamentos sem registro na biblioteca
-INSERT INTO biblioteca_documentos (tipo, origem_id, ...) 
-SELECT 'relatorio', r.id, ... FROM relatorios_atividade r
-WHERE NOT EXISTS (SELECT 1 FROM biblioteca_documentos b WHERE b.tipo='relatorio' AND b.origem_id = r.id);
--- idem para planejamentos
-```
+### Mudança 5 — Lista em branco XLSX por turma (`exportListaPresenca.ts`)
+- Adicionar campo opcional `busca_ativa?: boolean` em `MemberInfo`.
+- Renderizar `Nome 🔍` quando `busca_ativa = true` (sem strikethrough — eles ainda participam).
+- Atualizar callers:
+  - `src/pages/turmas/TurmaDetalhePage.tsx` (linha 257): adicionar `busca_ativa: m.status === "busca_ativa"`.
+  - `src/pages/turmas/TurmasPage.tsx` (linha 182): repassar status (`busca_ativa: tp.participantes?.status === "busca_ativa"`).
+- Adicionar uma linha de legenda no rodapé da planilha: "🔍 = Em busca ativa".
 
-(Será feito chamando o próprio `enqueue_biblioteca_doc` em loop dentro de uma DO block.)
+### Mudança 6 — Garantir nas demais exportações relacionadas
+- Conferir `exportMatrizFrequenciaDocx` / `exportListaPresencaPdf` (provavelmente em `useDocumentExport.ts` ou similar) para aplicar o mesmo sufixo `🔍`.
 
-### 5. Sobre "excluir duplicados em Storage"
+---
 
-**Não há duplicados** nem em Storage (0 objetos) nem na tabela (constraint UNIQUE ativa). O que o usuário percebe como duplicação é o re-render causado pelo bug do item 2. Após corrigir, o efeito visual desaparece. Não é necessária nenhuma exclusão de dados.
+## Resumo do comportamento após as mudanças
 
-### 6. Botões de exportar em Detalhe/Lote
+| Local | Antes | Depois |
+|---|---|---|
+| Checklist relatório | nome cru | nome + badge "Busca Ativa" |
+| PDF relatório (preenchido) | nome | nome + 🔍 + legenda |
+| Matriz mensal preenchida | só desligados marcados | desligados + 🔍 para busca ativa |
+| Lista em branco impressa (PDF) | sem status | 🔍 para busca ativa |
+| Lista em branco XLSX (turma única e em massa) | só desligados/transferidos | + 🔍 para busca ativa, com legenda |
 
-**Sem mudanças necessárias.** Eles já chamam `saveAs` diretamente e continuam baixando pelo navegador independentemente da Biblioteca. Apenas confirmo no plano que o comportamento atual é mantido.
-
-## Arquivos afetados
-
-- `src/lib/bibliotecaDocx.ts` — remover `captureBlob`, usar builders diretos
-- `src/hooks/useDocumentExport.ts` — extrair `buildRelatorioDocxBlob` e `buildPlanejamentoDocxBlob` reutilizáveis
-- `src/pages/biblioteca/BibliotecaPage.tsx` — corrigir loop de sync, mover para `useEffect` com guard
-- Nova migration SQL — atualizar `enqueue_biblioteca_doc` para preservar status, e DO block para enfileirar os 20 faltantes
-
-## Resultado esperado
-
-- Download pela Biblioteca volta a funcionar (sem o erro de `saveAs` getter)
-- Lista da Biblioteca para de "tremer"/duplicar visualmente
-- Os 20 relatórios faltantes aparecem automaticamente
-- Botões "Exportar .docx" em Detalhe / Lote continuam baixando pelo navegador como sempre
-- Status `gerado` deixa de ser revertido a `pendente` em cada visita
+Nenhuma migração de banco necessária — todos os dados já existem em `participantes.status`.

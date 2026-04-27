@@ -369,7 +369,7 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     // Presença loop
     PRESENCA: presenca.map((p, i) => ({
       NUM: i + 1,
-      NOME: safeStr(p.participantes?.nome_completo, ""),
+      NOME: safeStr(p.participantes?.nome_completo, "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""),
       STATUS: p.presente ? "☑" : "☐",
       JUSTIFICATIVA: safeStr(p.justificativa, ""),
     })),
@@ -518,7 +518,7 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
       ]}),
       ...presenca.map((p, i) => new TableRow({ children: [
         new TableCell({ width: { size: 600, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 14, font: "Arial" })] })] }),
-        new TableCell({ width: { size: 6260, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: safeStr(p.participantes?.nome_completo, ""), size: 14, font: "Arial" })] })] }),
+        new TableCell({ width: { size: 6260, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: safeStr(p.participantes?.nome_completo, "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""), size: 14, font: "Arial" })] })] }),
         new TableCell({
           width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins,
           shading: { fill: p.presente ? "E0E0E0" : "FFFFFF", type: ShadingType.CLEAR },
@@ -528,6 +528,10 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
       ]})),
     ];
     children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [600, 6260, 1200, 1300], rows: presRows }));
+    // Legend
+    if (presenca.some((p: any) => p.participantes?.status === "busca_ativa")) {
+      children.push(new Paragraph({ spacing: { before: 100 }, children: [new TextRun({ text: "Legenda: (BA) = participante em busca ativa no momento do registro.", size: 14, font: "Arial", italics: true, color: "555555" })] }));
+    }
     children.push(new Paragraph({ spacing: { before: 300 }, children: [] }));
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "________________________________", size: 18, font: "Arial" })] }));
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Assinatura do(a) Educador(a)`, size: 16, font: "Arial", italics: true })] }));
@@ -655,7 +659,12 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     autoTable(doc, {
       startY: py,
       head: [["Nº", "Nome do Participante", "Presença", "Justificativa"]],
-      body: presenca.map((p, i) => [i + 1, p.participantes?.nome_completo || "", p.presente ? "Presente" : "Ausente", p.justificativa || ""]),
+      body: presenca.map((p, i) => [
+        i + 1,
+        (p.participantes?.nome_completo || "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""),
+        p.presente ? "Presente" : "Ausente",
+        p.justificativa || "",
+      ]),
       headStyles: { fillColor: [50, 50, 50], fontSize: 7, textColor: [255, 255, 255] },
       styles: { fontSize: 7, cellPadding: 2 },
       columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 20, halign: "center" } },
@@ -669,6 +678,12 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
         }
       },
     });
+    if (presenca.some((p: any) => p.participantes?.status === "busca_ativa")) {
+      const finalY = (doc as any).lastAutoTable?.finalY || py;
+      doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(80, 80, 80);
+      doc.text("Legenda: (BA) = participante em busca ativa no momento do registro.", 14, finalY + 5);
+      doc.setTextColor(0, 0, 0);
+    }
   }
 
   doc.save(`SysCFV_Relatorio_${fileTimestamp()}.pdf`);
