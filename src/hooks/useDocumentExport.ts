@@ -380,6 +380,15 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
 }
 
 export async function exportRelatorioDocx(item: any, turmaNames: string[], presenca: any[], fotos: any[]) {
+  const blob = await buildRelatorioDocxBlob(item, turmaNames, presenca, fotos);
+  saveAs(blob, `SysCFV_Relatorio_${fileTimestamp()}.docx`);
+}
+
+/**
+ * Versão "blob-only" usada pela Biblioteca de Documentos.
+ * Não chama saveAs — retorna o Blob para upload/zip.
+ */
+export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], presenca: any[], fotos: any[]): Promise<Blob> {
   // Normalizar entradas para evitar crashes em propriedades ausentes
   item = item || {};
   turmaNames = Array.isArray(turmaNames) ? turmaNames : [];
@@ -405,8 +414,7 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
         // Can't easily append to docxtemplater output, so fall through to full fallback
         console.info("Template used but presença table generated via fallback code.");
       } else {
-        saveAs(blob, `SysCFV_Relatorio_${fileTimestamp()}.docx`);
-        return;
+        return blob;
       }
     } catch (e) {
       console.error("Template fill failed, generating fallback DOCX:", e);
@@ -539,7 +547,9 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
     sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }],
   });
   const buffer = await Packer.toBuffer(doc);
-  saveAs(new Blob([new Uint8Array(buffer)]), `SysCFV_Relatorio_${fileTimestamp()}.docx`);
+  return new Blob([new Uint8Array(buffer)], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
 }
 
 export async function exportRelatorioPdf(item: any, turmaNames: string[], presenca: any[]) {
