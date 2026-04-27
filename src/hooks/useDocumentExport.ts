@@ -276,6 +276,16 @@ function safeStr(v: any, fallback = "—"): string {
   return String(v);
 }
 
+/**
+ * Glyphs ASCII para PDFs (jsPDF Helvetica é Latin-1 e renderiza
+ * caracteres Unicode como ■ ☐ — como '%', '&', '\''). Em DOCX usamos
+ * os símbolos Unicode normalmente (Word renderiza com Segoe UI Symbol).
+ */
+const PDF_PRESENTE = "P";
+const PDF_AUSENTE = "A";
+const PDF_DESLIGADO = "D";
+const PDF_LEGENDA = "Legenda: P Presente · A Ausente · D Sem aula/desligado · (BA) Em busca ativa.";
+
 function infoRow(label: string, value: string | null | undefined): TableRow {
   return new TableRow({
     children: [
