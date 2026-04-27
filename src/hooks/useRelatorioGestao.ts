@@ -301,8 +301,7 @@ export async function exportRelatorioGestaoPDF(mesInicio: number, anoInicio: num
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pw = doc.internal.pageSize.getWidth();
-  const gray50 = [50, 50, 50] as [number, number, number];
-  const altRow = [245, 245, 245] as [number, number, number];
+  const black = [0, 0, 0] as [number, number, number];
   let y = 0;
 
   function sectionTitle(title: string) {
@@ -326,8 +325,7 @@ export async function exportRelatorioGestaoPDF(mesInicio: number, anoInicio: num
       head,
       body,
       styles: { fontSize: 7, cellPadding: 1.5 },
-      headStyles: { fillColor: gray50, fontSize: 7, textColor: [255, 255, 255] },
-      alternateRowStyles: { fillColor: altRow },
+      headStyles: { fillColor: black, fontSize: 7, textColor: [255, 255, 255] },
       margin: { left: 14, right: 14 },
       ...opts,
     });
@@ -532,7 +530,7 @@ export async function exportRelatorioGestaoPDF(mesInicio: number, anoInicio: num
     doc.setPage(i);
     if (i > 1) {
       doc.setFontSize(7);
-      doc.setTextColor(150);
+      doc.setTextColor(0, 0, 0);
       doc.text(`SCFV/SCNSA — Relatório de Gestão — ${periodoLabel}`, 14, 290);
       doc.text(`Página ${i} de ${pageCount}`, pw - 14, 290, { align: "right" });
       doc.setTextColor(0);
