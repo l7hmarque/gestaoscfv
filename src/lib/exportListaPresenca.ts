@@ -47,16 +47,16 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   const borders = { top: border, bottom: border, left: border, right: border };
 
   const institutionStyle = {
-    font: { bold: true, sz: 11, color: { rgb: "000000" } },
+    font: { bold: true, sz: 11, color: { rgb: "FFFFFF" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     border: borders,
-    fill: { fgColor: { rgb: "E8E8E8" } },
+    fill: { fgColor: { rgb: "000000" } },
   };
   const subtitleStyle = {
-    font: { bold: true, sz: 9, color: { rgb: "333333" } },
+    font: { bold: true, sz: 9, color: { rgb: "FFFFFF" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
     border: borders,
-    fill: { fgColor: { rgb: "E8E8E8" } },
+    fill: { fgColor: { rgb: "000000" } },
   };
   const titleStyle = {
     font: { bold: true, sz: 13, color: { rgb: "FFFFFF" } },
@@ -68,13 +68,13 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
     font: { bold: true, sz: 12, color: { rgb: "000000" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const },
     border: borders,
-    fill: { fgColor: { rgb: "D0D0D0" } },
+    fill: { fgColor: { rgb: "FFFFFF" } },
   };
   const infoStyle = {
-    font: { sz: 9, color: { rgb: "333333" } },
+    font: { sz: 9, color: { rgb: "000000" } },
     alignment: { horizontal: "center" as const, vertical: "center" as const },
     border: borders,
-    fill: { fgColor: { rgb: "F5F5F5" } },
+    fill: { fgColor: { rgb: "FFFFFF" } },
   };
   const separatorStyle = {
     border: borders,
@@ -82,12 +82,12 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   };
   const hdrStyle = {
     font: { bold: true, color: { rgb: "FFFFFF" }, sz: 8 },
-    fill: { fgColor: { rgb: "333333" } },
+    fill: { fgColor: { rgb: "000000" } },
     border: borders,
     alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: true },
   };
   const cellStyle = { border: borders, alignment: { vertical: "center" as const }, font: { sz: 8 } };
-  const cellStrikeStyle = { border: borders, alignment: { vertical: "center" as const }, font: { sz: 8, strike: true, color: { rgb: "999999" } } };
+  const cellStrikeStyle = { border: borders, alignment: { vertical: "center" as const }, font: { sz: 8, strike: true, color: { rgb: "000000" } } };
   const cellCenterStyle = { border: borders, alignment: { horizontal: "center" as const, vertical: "center" as const }, font: { sz: 8 } };
   const signStyle = {
     font: { sz: 9, italic: true },
