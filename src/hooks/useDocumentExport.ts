@@ -518,7 +518,7 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
       ]}),
       ...presenca.map((p, i) => new TableRow({ children: [
         new TableCell({ width: { size: 600, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 14, font: "Arial" })] })] }),
-        new TableCell({ width: { size: 6260, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: safeStr(p.participantes?.nome_completo, ""), size: 14, font: "Arial" })] })] }),
+        new TableCell({ width: { size: 6260, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: safeStr(p.participantes?.nome_completo, "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""), size: 14, font: "Arial" })] })] }),
         new TableCell({
           width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins,
           shading: { fill: p.presente ? "E0E0E0" : "FFFFFF", type: ShadingType.CLEAR },
@@ -528,6 +528,10 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
       ]})),
     ];
     children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [600, 6260, 1200, 1300], rows: presRows }));
+    // Legend
+    if (presenca.some((p: any) => p.participantes?.status === "busca_ativa")) {
+      children.push(new Paragraph({ spacing: { before: 100 }, children: [new TextRun({ text: "Legenda: (BA) = participante em busca ativa no momento do registro.", size: 14, font: "Arial", italics: true, color: "555555" })] }));
+    }
     children.push(new Paragraph({ spacing: { before: 300 }, children: [] }));
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "________________________________", size: 18, font: "Arial" })] }));
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Assinatura do(a) Educador(a)`, size: 16, font: "Arial", italics: true })] }));
