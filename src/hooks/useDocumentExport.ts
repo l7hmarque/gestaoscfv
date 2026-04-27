@@ -15,6 +15,13 @@ import { tipoAtividadeLabels } from "@/lib/constants";
 
 // ===== TEMPLATE CACHE =====
 const templateCache: Record<string, ArrayBuffer> = {};
+const missingTemplates: Set<string> = new Set();
+
+/** Limpa o cache negativo de templates ausentes (chame após upload de novo modelo). */
+export function invalidateMissingTemplatesCache(templateName?: string) {
+  if (templateName) missingTemplates.delete(templateName);
+  else missingTemplates.clear();
+}
 
 async function loadTemplate(templateName: string): Promise<ArrayBuffer | null> {
   if (templateCache[templateName]) return templateCache[templateName];
