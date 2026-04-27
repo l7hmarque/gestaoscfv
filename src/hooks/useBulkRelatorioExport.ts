@@ -223,19 +223,15 @@ async function generateBulkPdf(
           const baTag = p.participantes?.status === "busca_ativa" ? " (BA)" : "";
           return [i + 1, safe(p.participantes?.nome_completo) + baTag, p.presente ? "■" : ""];
         }),
-        headStyles: { fillColor: [31, 56, 100], fontSize: 7, textColor: [255, 255, 255] },
+        headStyles: { fillColor: [0, 0, 0], fontSize: 7, textColor: [255, 255, 255] },
         styles: { fontSize: 7, cellPadding: 2 },
         columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 18, halign: "center" } },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
         didParseCell: (data: any) => {
           if (data.section === "body" && data.column.index === 2) {
             data.cell.styles.halign = "center";
             data.cell.styles.fontStyle = "bold";
           }
-          if (data.section === "body" && data.column.index === 1) {
-            const txt = String(data.cell.raw || "");
-            if (txt.includes("(BA)")) data.cell.styles.textColor = [158, 27, 50];
-          }
+          // PDF preto/branco: sem destaque colorido
         },
       });
       const finalY = (doc as any).lastAutoTable?.finalY || py;
