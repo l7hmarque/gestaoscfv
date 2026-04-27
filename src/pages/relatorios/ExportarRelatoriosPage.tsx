@@ -631,7 +631,7 @@ export default function ExportarRelatoriosPage() {
       // XLSX
       if (atendFormats.includes("xlsx")) {
       const border = { style: "thin" as const, color: { rgb: "000000" } };
-      const hdr = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "323232" } }, border: { top: border, bottom: border, left: border, right: border } };
+      const hdr = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "000000" } }, border: { top: border, bottom: border, left: border, right: border } };
       const cellS = { border: { top: border, bottom: border, left: border, right: border } };
       const wb = XLSX.utils.book_new();
       const rows: any[][] = [

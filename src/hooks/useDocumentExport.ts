@@ -276,6 +276,59 @@ function safeStr(v: any, fallback = "—"): string {
   return String(v);
 }
 
+/**
+ * Glyphs ASCII para PDFs (jsPDF Helvetica é Latin-1 e renderiza
+ * caracteres Unicode como ■ ☐ — como '%', '&', '\''). Em DOCX usamos
+ * os símbolos Unicode normalmente (Word renderiza com Segoe UI Symbol).
+ */
+const PDF_PRESENTE = "P";
+const PDF_AUSENTE = "A";
+const PDF_DESLIGADO = "D";
+const PDF_LEGENDA = "Legenda: P Presente · A Ausente · D Sem aula/desligado · (BA) Em busca ativa.";
+
+/**
+ * Garante que o anexo de Lista de Frequência tenha nomes mesmo quando o
+ * educador não marcou a chamada (relatorio_presenca vazio). Faz fallback
+ * para a interseção dos participantes vinculados às turmas do relatório.
+ * Retorna o array de presença pronto para os builders DOCX/PDF.
+ */
+export async function ensurePresencaForExport(
+  relatorioId: string,
+  presencaAtual: any[],
+): Promise<any[]> {
+  if (presencaAtual && presencaAtual.length > 0) return presencaAtual;
+  try {
+    const { data: rt } = await supabase
+      .from("relatorio_turmas")
+      .select("turma_id")
+      .eq("relatorio_id", relatorioId);
+    const turmaIds = (rt || []).map((r: any) => r.turma_id).filter(Boolean);
+    if (turmaIds.length === 0) return [];
+    const { data: tp } = await supabase
+      .from("turma_participantes")
+      .select("participante_id, participantes(id, nome_completo, status)")
+      .in("turma_id", turmaIds);
+    const seen = new Map<string, any>();
+    (tp || []).forEach((row: any) => {
+      const p = row.participantes;
+      if (!p?.id || seen.has(p.id)) return;
+      seen.set(p.id, {
+        participante_id: p.id,
+        presente: false,
+        justificativa: "",
+        nome_avulso: null,
+        participantes: { nome_completo: p.nome_completo, status: p.status },
+      });
+    });
+    return Array.from(seen.values()).sort((a: any, b: any) =>
+      (a.participantes?.nome_completo || "").localeCompare(b.participantes?.nome_completo || ""),
+    );
+  } catch (e) {
+    console.warn("[ensurePresencaForExport] falha no fallback:", e);
+    return presencaAtual || [];
+  }
+}
+
 function infoRow(label: string, value: string | null | undefined): TableRow {
   return new TableRow({
     children: [
@@ -692,7 +745,7 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
       body: presenca.map((p, i) => [
         i + 1,
         (p.participantes?.nome_completo || "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""),
-        p.presente ? "■" : "☐",
+        p.presente ? PDF_PRESENTE : PDF_AUSENTE,
         p.justificativa || "",
       ]),
       headStyles: { fillColor: [0, 0, 0], fontSize: 7, textColor: [255, 255, 255] },
@@ -704,7 +757,7 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     });
     const finalY = (doc as any).lastAutoTable?.finalY || py;
     doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(0, 0, 0);
-    doc.text("Legenda: ■ Presente · ☐ Ausente · (BA) Em busca ativa no momento do registro.", 14, finalY + 5);
+    doc.text("Legenda: P Presente · A Ausente · (BA) Em busca ativa no momento do registro.", 14, finalY + 5);
     doc.setTextColor(0, 0, 0);
     // Assinatura do educador
     doc.setFont("helvetica", "normal"); doc.setFontSize(8);
@@ -1068,21 +1121,21 @@ export async function exportMatrizFrequenciaPdf(
   autoTable(doc, {
     startY: y,
     head: [["Nº", "Nome", ...dateHeaders]],
-    body: participantes.map((p, i) => [i + 1, p.nome, ...datas.map(d => preenchida ? (p.presencas[d] === "D" ? "—" : p.presencas[d] ? "■" : "") : "")]),
+    body: participantes.map((p, i) => [i + 1, p.nome, ...datas.map(d => preenchida ? (p.presencas[d] === "D" ? PDF_DESLIGADO : p.presencas[d] ? PDF_PRESENTE : "") : "")]),
     headStyles: { fillColor: [0, 0, 0], fontSize: 6, cellPadding: 1.5, textColor: [255,255,255] },
     styles: { fontSize: 6, cellPadding: 1.5 },
     columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 40 } },
     didParseCell: (data: any) => {
       if (data.section === "body" && data.column.index >= 2) {
         data.cell.styles.halign = "center";
-        if (String(data.cell.raw) === "■") data.cell.styles.fontStyle = "bold";
+        if (String(data.cell.raw) === PDF_PRESENTE) data.cell.styles.fontStyle = "bold";
       }
       // PDF preto/branco: sem destaque colorido para (BA)
     },
   });
   const finalY = (doc as any).lastAutoTable?.finalY || y;
   doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(0, 0, 0);
-  doc.text("Legenda: ■ Presente · vazio Ausente · — Sem aula/desligado · (BA) Em busca ativa", 14, finalY + 4);
+  doc.text(PDF_LEGENDA, 14, finalY + 4);
   doc.setTextColor(0,0,0); doc.setFont("helvetica", "normal");
 
   const slug = (turma.nome || "Turma").replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
@@ -1177,7 +1230,7 @@ export async function exportListaPresencaPdf(
   // Legend + Footer (3 assinaturas)
   const finalY = (doc as any).lastAutoTable?.finalY || 180;
   doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(0, 0, 0);
-  doc.text("Legenda: marque ■ ou X na data de presença · (BA) = participante em busca ativa.", 14, finalY + 5);
+  doc.text("Legenda: marque X na data de presença · (BA) = participante em busca ativa.", 14, finalY + 5);
   doc.setTextColor(0); doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.text("________________________________", 30, finalY + 18, { align: "center" });

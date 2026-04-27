@@ -40,7 +40,7 @@ export async function exportBulkRelatorios({
   toast.info("Carregando dados para exportação...");
 
   // Fetch all needed data
-  const [relatorios, relPresenca, relTurmas, relFotos, profiles, turmas, participantes] = await Promise.all([
+  const [relatorios, relPresenca, relTurmas, relFotos, profiles, turmas, participantes, turmaParticipantes] = await Promise.all([
     fetchAllRows("relatorios_atividade", { select: "*, profiles!relatorios_atividade_educador_id_fkey(nome), planejamentos!relatorios_atividade_planejamento_id_fkey(titulo)", order: { column: "data", ascending: true } }),
     fetchAllRows("relatorio_presenca", { select: "*, participantes(nome_completo)" }),
     fetchAllRows("relatorio_turmas", { select: "*, turmas(nome)" }),
@@ -48,6 +48,7 @@ export async function exportBulkRelatorios({
     fetchAllRows("profiles", { select: "id, nome" }),
     fetchAllRows("turmas", { select: "id, nome" }),
     fetchAllRows("participantes", { select: "id, nome_completo, status, data_desligamento" }),
+    fetchAllRows("turma_participantes", { select: "turma_id, participante_id" }),
   ]);
 
   // Filter by date range
@@ -86,6 +87,42 @@ export async function exportBulkRelatorios({
     arr.push(rf);
     fotosByRel.set(rf.relatorio_id, arr);
   });
+
+  // Fallback de presença: para relatórios sem chamada lançada, monta a lista
+  // a partir dos participantes vinculados às turmas do relatório (todos como
+  // ausentes). Garante que o anexo nunca saia sem nomes.
+  const partsById = new Map<string, any>();
+  (participantes || []).forEach((p: any) => partsById.set(p.id, p));
+  const partsByTurma = new Map<string, string[]>();
+  (turmaParticipantes || []).forEach((tp: any) => {
+    const arr = partsByTurma.get(tp.turma_id) || [];
+    arr.push(tp.participante_id);
+    partsByTurma.set(tp.turma_id, arr);
+  });
+  for (const rel of filtered) {
+    if ((presencaByRel.get(rel.id) || []).length > 0) continue;
+    const turmaIds = (turmasByRel.get(rel.id) || []).map((rt: any) => rt.turma_id);
+    const seen = new Set<string>();
+    const fallback: any[] = [];
+    turmaIds.forEach((tid: string) => {
+      (partsByTurma.get(tid) || []).forEach((pid) => {
+        if (seen.has(pid)) return;
+        seen.add(pid);
+        const p = partsById.get(pid);
+        if (!p) return;
+        fallback.push({
+          relatorio_id: rel.id,
+          participante_id: pid,
+          presente: false,
+          justificativa: "",
+          nome_avulso: null,
+          participantes: { nome_completo: p.nome_completo, status: p.status },
+        });
+      });
+    });
+    fallback.sort((a, b) => (a.participantes.nome_completo || "").localeCompare(b.participantes.nome_completo || ""));
+    if (fallback.length > 0) presencaByRel.set(rel.id, fallback);
+  }
 
   // Gera apenas os formatos solicitados — usa Promise.allSettled para tolerar falha parcial.
   const formatJobs: { name: ExportFormat; run: () => Promise<void> }[] = [];
@@ -221,7 +258,7 @@ async function generateBulkPdf(
         head: [["Nº", "Nome do Participante", "Presença"]],
         body: presenca.map((p, i) => {
           const baTag = p.participantes?.status === "busca_ativa" ? " (BA)" : "";
-          return [i + 1, safe(p.participantes?.nome_completo) + baTag, p.presente ? "■" : ""];
+          return [i + 1, safe(p.participantes?.nome_completo) + baTag, p.presente ? "P" : "A"];
         }),
         headStyles: { fillColor: [0, 0, 0], fontSize: 7, textColor: [255, 255, 255] },
         styles: { fontSize: 7, cellPadding: 2 },
@@ -235,9 +272,9 @@ async function generateBulkPdf(
         },
       });
       const finalY = (doc as any).lastAutoTable?.finalY || py;
-      doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(90, 103, 112);
+      doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(0, 0, 0);
       doc.text(
-        "Legenda: ■ Presente · vazio Ausente · (BA) Em busca ativa.",
+        "Legenda: P Presente · A Ausente · (BA) Em busca ativa.",
         14,
         finalY + 4
       );
