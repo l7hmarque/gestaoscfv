@@ -986,7 +986,7 @@ export async function exportMatrizFrequenciaDocx(
         PARTICIPANTES: participantes.map((p, i) => ({
           NUM: i + 1,
           NOME: p.nome,
-          ...Object.fromEntries(datas.map((d, di) => [`D${di + 1}`, preenchida ? (p.presencas[d] === "D" ? "D" : p.presencas[d] ? "✓" : "") : ""])),
+          ...Object.fromEntries(datas.map((d, di) => [`D${di + 1}`, preenchida ? (p.presencas[d] === "D" ? "—" : p.presencas[d] ? "■" : "") : ""])),
         })),
         DATAS: dateHeaders.map((d, i) => ({ HEADER: d, INDEX: i + 1 })),
       };
@@ -1017,15 +1017,16 @@ export async function exportMatrizFrequenciaDocx(
   const dataRows = participantes.map((p, i) => new TableRow({ children: [
     new TableCell({ width: { size: numColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 14, font: "Arial" })] })] }),
     new TableCell({ width: { size: nameColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.nome, size: 14, font: "Arial" })] })] }),
-    ...datas.map(d => new TableCell({ width: { size: dateColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: preenchida ? (p.presencas[d] === "D" ? "D" : p.presencas[d] ? "✓" : "") : "", size: 14, font: "Arial", color: p.presencas[d] === "D" ? "999999" : undefined })] })] })),
+    ...datas.map(d => new TableCell({ width: { size: dateColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: preenchida ? (p.presencas[d] === "D" ? "—" : p.presencas[d] ? "■" : "") : "", size: 16, font: "Segoe UI Symbol", bold: !!p.presencas[d] && p.presencas[d] !== "D", color: p.presencas[d] === "D" ? SCNSA_GRAY : undefined })] })] })),
   ]}));
 
   const children = [
     ...headerParagraphs(),
-    new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 100 }, children: [new TextRun({ text: "LISTA DE FREQUÊNCIA", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR })] }),
+    new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 100 }, children: [new TextRun({ text: preenchida ? "LISTA DE FREQUÊNCIA" : "LISTA DE CHAMADA", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR })] }),
     new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: `Turma: ${turma.nome}  |  Período: ${turma.periodo || "—"}  |  Faixa Etária: ${turma.faixa_etaria || "—"}`, size: 18, font: "Arial" })] }),
     new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: `Exportado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, size: 16, font: "Arial", italics: true })] }),
     new Table({ width: { size: totalWidth, type: WidthType.DXA }, columnWidths: [numColWidth, nameColWidth, ...datas.map(() => dateColWidth)], rows: [headerRow, ...dataRows] }),
+    new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: "Legenda: ■ Presente · vazio Ausente · — Sem aula/desligado · (BA) Em busca ativa", size: 14, font: "Arial", italics: true, color: SCNSA_GRAY })] }),
     new Paragraph({ spacing: { before: 400 }, children: [] }),
     new Paragraph({ children: [new TextRun({ text: "________________________________", size: 18, font: "Arial" })] }),
     new Paragraph({ children: [new TextRun({ text: "Assinatura do Educador", size: 16, font: "Arial" })] }),
@@ -1035,7 +1036,9 @@ export async function exportMatrizFrequenciaDocx(
     styles: { default: { document: { run: { font: "Arial", size: 16 } } } },
     sections: [{ properties: { page: { size: { width: 11906, height: 16838, orientation: PageOrientation.LANDSCAPE }, margin: { top: 500, right: 500, bottom: 500, left: 500 } } }, children }],
   });
-  saveAs(await Packer.toBlob(doc), `SysCFV_Frequencia_${fileTimestamp()}.docx`);
+  const slug = (turma.nome || "Turma").replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
+  const baseName = preenchida ? "ListaFrequencia" : "ListaChamada";
+  saveAs(await Packer.toBlob(doc), `SysCFV_${baseName}_${slug}_${fileTimestamp()}.docx`);
 }
 
 export async function exportMatrizFrequenciaPdf(
