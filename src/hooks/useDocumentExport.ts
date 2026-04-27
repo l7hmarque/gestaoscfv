@@ -815,7 +815,7 @@ export async function exportPlanejamentoPdf(item: any, turmaNames: string[]) {
   autoTable(doc, {
     startY: y, body: fields, theme: "grid",
     styles: { fontSize: 8, cellPadding: 3 },
-    columnStyles: { 0: { fontStyle: "bold", cellWidth: 35, fillColor: [245, 245, 245] } },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 35, fillColor: [255, 255, 255] } },
   });
 
   const finalY = (doc as any).lastAutoTable.finalY;
@@ -965,7 +965,7 @@ export async function exportFichaInscricaoPdf(p: any) {
   autoTable(doc, {
     startY: y, body: fields, theme: "grid",
     styles: { fontSize: 8, cellPadding: 2.5 },
-    columnStyles: { 0: { fontStyle: "bold", cellWidth: 35, fillColor: [245, 245, 245] } },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 35, fillColor: [255, 255, 255] } },
   });
 
   const finalY = (doc as any).lastAutoTable.finalY;
