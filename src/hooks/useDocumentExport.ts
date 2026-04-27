@@ -316,21 +316,9 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
 
   // Handle tipo_atividade as array or legacy string
   const tipoArr: string[] = Array.isArray(item.tipo_atividade) ? item.tipo_atividade : (item.tipo_atividade ? [item.tipo_atividade] : []);
-  const tipoLabelsMap: Record<string, string> = {
-    momento_educando: "Momento Educando",
-    evento: "Evento ou Data Comemorativa",
-    socioeducativa_idosos: "Atividade Socioeducativa (Idosos)",
-    colonia_ferias: "Atividade de Colônia de Férias",
-    arte_cultura: "Oficina de Arte e Cultura",
-    futebol_esportes: "Oficina de Futebol e Outros Esportes / Recreativo",
-    karate: "Oficina de Karatê",
-    outra_oficina: "Outra Oficina",
-  };
-  const tipoDisplay = tipoArr.map(v => {
-    let label = tipoLabelsMap[v] || v;
-    if ((v === "evento" || v === "outra_oficina") && item.tipo_atividade_detalhe) label += `: ${item.tipo_atividade_detalhe}`;
-    return label;
-  }).join(", ") || "—";
+  const tipoDisplay = tipoArr.length > 0
+    ? tipoAtividadeLabels(tipoArr, item.tipo_atividade_detalhe)
+    : "—";
 
   return {
     DATA: item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : "",
@@ -368,6 +356,7 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     ANALISE_IA: safeStr(item.analise_ia, ""),
     OBJETIVO: item.objetivo_alcancado ? (objLabels[item.objetivo_alcancado] || item.objetivo_alcancado) : "",
     INTERVENCOES: safeStr(item.intervencoes, ""),
+    ATIVIDADES_REALIZADAS: safeStr(item.intervencoes, ""),
     OBSERVACOES: safeStr(item.observacoes, ""),
     // New tags
     NOME_GRUPO: safeStr(item._nome_grupo || turmaNames.join(", "), ""),
@@ -376,7 +365,7 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     PRESENCA: presenca.map((p, i) => ({
       NUM: i + 1,
       NOME: safeStr(p.participantes?.nome_completo, "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""),
-      STATUS: p.presente ? "☑" : "☐",
+      STATUS: p.presente ? "■" : "☐",
       JUSTIFICATIVA: safeStr(p.justificativa, ""),
     })),
     HAS_PRESENCA: presenca.length > 0,
