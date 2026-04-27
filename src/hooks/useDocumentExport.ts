@@ -11,6 +11,7 @@ import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { tipoAtividadeLabels } from "@/lib/constants";
 
 // ===== TEMPLATE CACHE =====
 const templateCache: Record<string, ArrayBuffer> = {};
@@ -227,9 +228,14 @@ function buildPhotoSection(photos: PhotoBuffer[], caption: string): Paragraph[] 
 }
 
 // ===== SHARED CONSTANTS (fallback) =====
-const HEADER_COLOR = "323232";
-const ACCENT_COLOR = "000000";
-const LIGHT_BG = "F5F5F5";
+// Paleta SCNSA — aplicada apenas em listas/relatórios institucionais
+const SCNSA_BLUE = "1F3864";    // Azul institucional (cabeçalhos, faixas)
+const SCNSA_RED = "9E1B32";     // Vermelho de destaque (títulos, score, BA)
+const SCNSA_GRAY = "5A6770";    // Cinza auxiliar (legendas, footer)
+const SCNSA_INFO_BG = "E8EEF5"; // Fundo claro informativo
+const HEADER_COLOR = SCNSA_BLUE;
+const ACCENT_COLOR = SCNSA_RED;
+const LIGHT_BG = SCNSA_INFO_BG;
 const cellBorder = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" };
 const borders = { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder };
 const cellMargins = { top: 60, bottom: 60, left: 80, right: 80 };
@@ -275,7 +281,7 @@ function infoRow(label: string, value: string | null | undefined): TableRow {
 
 function checkbox(checked: boolean, label: string): TextRun[] {
   return [
-    new TextRun({ text: checked ? "☑ " : "☐ ", size: 18, font: "Segoe UI Symbol" }),
+    new TextRun({ text: checked ? "■ " : "☐ ", size: 18, font: "Segoe UI Symbol", bold: checked }),
     new TextRun({ text: label + "   ", size: 18, font: "Arial" }),
   ];
 }
@@ -310,21 +316,9 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
 
   // Handle tipo_atividade as array or legacy string
   const tipoArr: string[] = Array.isArray(item.tipo_atividade) ? item.tipo_atividade : (item.tipo_atividade ? [item.tipo_atividade] : []);
-  const tipoLabelsMap: Record<string, string> = {
-    momento_educando: "Momento Educando",
-    evento: "Evento ou Data Comemorativa",
-    socioeducativa_idosos: "Atividade Socioeducativa (Idosos)",
-    colonia_ferias: "Atividade de Colônia de Férias",
-    arte_cultura: "Oficina de Arte e Cultura",
-    futebol_esportes: "Oficina de Futebol e Outros Esportes / Recreativo",
-    karate: "Oficina de Karatê",
-    outra_oficina: "Outra Oficina",
-  };
-  const tipoDisplay = tipoArr.map(v => {
-    let label = tipoLabelsMap[v] || v;
-    if ((v === "evento" || v === "outra_oficina") && item.tipo_atividade_detalhe) label += `: ${item.tipo_atividade_detalhe}`;
-    return label;
-  }).join(", ") || "—";
+  const tipoDisplay = tipoArr.length > 0
+    ? tipoAtividadeLabels(tipoArr, item.tipo_atividade_detalhe)
+    : "—";
 
   return {
     DATA: item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : "",
@@ -362,6 +356,7 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     ANALISE_IA: safeStr(item.analise_ia, ""),
     OBJETIVO: item.objetivo_alcancado ? (objLabels[item.objetivo_alcancado] || item.objetivo_alcancado) : "",
     INTERVENCOES: safeStr(item.intervencoes, ""),
+    ATIVIDADES_REALIZADAS: safeStr(item.intervencoes, ""),
     OBSERVACOES: safeStr(item.observacoes, ""),
     // New tags
     NOME_GRUPO: safeStr(item._nome_grupo || turmaNames.join(", "), ""),
@@ -370,7 +365,7 @@ function buildRelatorioTemplateData(item: any, turmaNames: string[], presenca: a
     PRESENCA: presenca.map((p, i) => ({
       NUM: i + 1,
       NOME: safeStr(p.participantes?.nome_completo, "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""),
-      STATUS: p.presente ? "☑" : "☐",
+      STATUS: p.presente ? "■" : "☐",
       JUSTIFICATIVA: safeStr(p.justificativa, ""),
     })),
     HAS_PRESENCA: presenca.length > 0,
@@ -430,12 +425,32 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
     ]}),
   ];
 
+  // Turmas: uma por linha, fonte menor para legibilidade
+  const turmasCellChildren = turmaNames.length > 0
+    ? turmaNames.map(n => new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `• ${n}`, size: 16, font: "Arial" })] }))
+    : [new Paragraph({ children: [new TextRun({ text: "—", size: 18, font: "Arial" })] })];
+  const tipoArrFb: string[] = Array.isArray(item.tipo_atividade) ? item.tipo_atividade : (item.tipo_atividade ? [item.tipo_atividade] : []);
+  const tipoFbDisplay = tipoArrFb.length > 0 ? tipoAtividadeLabels(tipoArrFb, item.tipo_atividade_detalhe) : "—";
+
+  const turmasRow = new TableRow({
+    children: [
+      new TableCell({
+        width: { size: 2800, type: WidthType.DXA }, borders, margins: cellMargins,
+        shading: { fill: LIGHT_BG, type: ShadingType.CLEAR },
+        children: [new Paragraph({ children: [new TextRun({ text: "Turma(s)", bold: true, size: 18, font: "Arial" })] })],
+      }),
+      new TableCell({
+        width: { size: 6560, type: WidthType.DXA }, borders, margins: cellMargins,
+        children: turmasCellChildren,
+      }),
+    ],
+  });
   const rows = [
     infoRow("Data", item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : ""),
     infoRow("Dia da Semana", item.dia_semana),
     infoRow("Educador", item.profiles?.nome),
-    infoRow("Turma(s)", turmaNames.join(", ")),
-    infoRow("Tipo de Atividade", Array.isArray(item.tipo_atividade) ? item.tipo_atividade.join(", ") : (item.tipo_atividade || "")),
+    turmasRow,
+    infoRow("Tipo de Atividade", tipoFbDisplay),
     infoRow("Nome da Atividade", item.nome_atividade),
   ];
   children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [2800, 6560], rows }));
@@ -487,7 +502,7 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
   }
 
   if (item.intervencoes) {
-    children.push(new Paragraph({ spacing: { after: 50 }, children: [new TextRun({ text: "Intervenções:", bold: true, size: 18, font: "Arial" })] }));
+    children.push(new Paragraph({ spacing: { after: 50 }, children: [new TextRun({ text: "Atividades Realizadas:", bold: true, size: 18, font: "Arial" })] }));
     children.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: item.intervencoes, size: 18, font: "Arial" })] }));
   }
   if (item.observacoes) {
@@ -500,7 +515,7 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
     // REO-style attendance table
     children.push(...headerParagraphs());
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 100 }, children: [
-      new TextRun({ text: "LISTA DE PRESENÇA", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR }),
+      new TextRun({ text: "LISTA DE FREQUÊNCIA", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR }),
     ]}));
     children.push(new Paragraph({ spacing: { after: 50 }, children: [
       new TextRun({ text: `Atividade: ${safeStr(item.nome_atividade, "")}  |  Data: ${item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : ""}  |  Turma(s): ${turmaNames.join(", ")}`, size: 16, font: "Arial" }),
@@ -508,30 +523,28 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
     children.push(new Paragraph({ spacing: { after: 100 }, children: [
       new TextRun({ text: `Educador(a): ${safeStr(item.profiles?.nome, "")}`, size: 16, font: "Arial" }),
     ]}));
-    
+
     const presRows = [
       new TableRow({ children: [
         new TableCell({ width: { size: 600, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Nº", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 6260, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nome do Participante", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Presença", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 1300, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Assinatura", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 7160, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nome do Participante", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 1600, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Presença", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
       ]}),
       ...presenca.map((p, i) => new TableRow({ children: [
         new TableCell({ width: { size: 600, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 14, font: "Arial" })] })] }),
-        new TableCell({ width: { size: 6260, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: safeStr(p.participantes?.nome_completo, "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""), size: 14, font: "Arial" })] })] }),
+        new TableCell({ width: { size: 7160, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [
+          new TextRun({ text: safeStr(p.participantes?.nome_completo, ""), size: 14, font: "Arial" }),
+          ...(p.participantes?.status === "busca_ativa" ? [new TextRun({ text: " (BA)", size: 14, font: "Arial", bold: true, color: SCNSA_RED })] : []),
+        ] })] }),
         new TableCell({
-          width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins,
-          shading: { fill: p.presente ? "E0E0E0" : "FFFFFF", type: ShadingType.CLEAR },
-          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: p.presente ? "✓" : "", size: 18, font: "Arial", bold: true, color: "000000" })] })],
+          width: { size: 1600, type: WidthType.DXA }, borders, margins: cellMargins,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: p.presente ? "■" : "☐", size: 20, font: "Segoe UI Symbol", bold: true, color: "000000" })] })],
         }),
-        new TableCell({ width: { size: 1300, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [] })] }),
       ]})),
     ];
-    children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [600, 6260, 1200, 1300], rows: presRows }));
+    children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [600, 7160, 1600], rows: presRows }));
     // Legend
-    if (presenca.some((p: any) => p.participantes?.status === "busca_ativa")) {
-      children.push(new Paragraph({ spacing: { before: 100 }, children: [new TextRun({ text: "Legenda: (BA) = participante em busca ativa no momento do registro.", size: 14, font: "Arial", italics: true, color: "555555" })] }));
-    }
+    children.push(new Paragraph({ spacing: { before: 100 }, children: [new TextRun({ text: "Legenda: ■ Presente · ☐ Ausente · (BA) Em busca ativa no momento do registro.", size: 14, font: "Arial", italics: true, color: SCNSA_GRAY })] }));
     children.push(new Paragraph({ spacing: { before: 300 }, children: [] }));
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "________________________________", size: 18, font: "Arial" })] }));
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Assinatura do(a) Educador(a)`, size: 16, font: "Arial", italics: true })] }));
@@ -563,8 +576,11 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     ["Data", item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : "—"],
     ["Dia da Semana", safeStr(item.dia_semana)],
     ["Educador", safeStr(item.profiles?.nome)],
-    ["Turma(s)", turmaNames.join(", ") || "—"],
-    ["Tipo de Atividade", safeStr(Array.isArray(item.tipo_atividade) ? item.tipo_atividade.join(", ") : item.tipo_atividade)],
+    ["Turma(s)", turmaNames.length > 0 ? turmaNames.map(n => `• ${n}`).join("\n") : "—"],
+    ["Tipo de Atividade", (() => {
+      const arr = Array.isArray(item.tipo_atividade) ? item.tipo_atividade : (item.tipo_atividade ? [item.tipo_atividade] : []);
+      return arr.length > 0 ? tipoAtividadeLabels(arr, item.tipo_atividade_detalhe) : "—";
+    })()],
     ["Nome da Atividade", safeStr(item.nome_atividade)],
   ];
   autoTable(doc, {
@@ -637,7 +653,7 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
   }
 
   if (item.intervencoes) {
-    doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.text("Intervenções:", 14, y); y += 4;
+    doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.text("Atividades Realizadas:", 14, y); y += 4;
     doc.setFont("helvetica", "normal"); doc.text(item.intervencoes, 14, y, { maxWidth: 180 });
     y += Math.ceil(item.intervencoes.length / 90) * 4 + 3;
   }
@@ -652,7 +668,7 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     doc.addPage();
     let py = pdfHeader(doc, 10);
     doc.setFontSize(11); doc.setFont("helvetica", "bold");
-    doc.text("Lista de Presença", 105, py, { align: "center" }); py += 5;
+    doc.text("Lista de Frequência", 105, py, { align: "center" }); py += 5;
     doc.setFontSize(8); doc.setFont("helvetica", "normal");
     doc.text(`Referente à atividade: ${safeStr(item.nome_atividade, "")}  —  Data: ${item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : ""}  —  Turma(s): ${turmaNames.join(", ")}  —  Educador(a): ${safeStr(item.profiles?.nome, "")}`, 14, py, { maxWidth: 180 });
     py += 6;
@@ -662,28 +678,31 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
       body: presenca.map((p, i) => [
         i + 1,
         (p.participantes?.nome_completo || "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""),
-        p.presente ? "Presente" : "Ausente",
+        p.presente ? "■" : "☐",
         p.justificativa || "",
       ]),
-      headStyles: { fillColor: [50, 50, 50], fontSize: 7, textColor: [255, 255, 255] },
+      headStyles: { fillColor: [31, 56, 100], fontSize: 7, textColor: [255, 255, 255] },
       styles: { fontSize: 7, cellPadding: 2 },
-      columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 20, halign: "center" } },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
+      columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 18, halign: "center", fontStyle: "bold" } },
+      alternateRowStyles: { fillColor: [232, 238, 245] },
       didParseCell: (data: any) => {
-        if (data.section === "body" && data.column.index === 2) {
-          const isPresente = data.cell.raw === "Presente";
-          data.cell.styles.fillColor = isPresente ? [235, 235, 235] : [255, 255, 255];
-          data.cell.styles.textColor = [0, 0, 0];
-          data.cell.styles.fontStyle = "bold";
+        // Highlight (BA) tag in red on the name column
+        if (data.section === "body" && data.column.index === 1) {
+          const txt = String(data.cell.raw || "");
+          if (txt.includes(" (BA)")) {
+            data.cell.styles.textColor = [158, 27, 50];
+          }
         }
       },
     });
-    if (presenca.some((p: any) => p.participantes?.status === "busca_ativa")) {
-      const finalY = (doc as any).lastAutoTable?.finalY || py;
-      doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(80, 80, 80);
-      doc.text("Legenda: (BA) = participante em busca ativa no momento do registro.", 14, finalY + 5);
-      doc.setTextColor(0, 0, 0);
-    }
+    const finalY = (doc as any).lastAutoTable?.finalY || py;
+    doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(90, 103, 112);
+    doc.text("Legenda: ■ Presente · ☐ Ausente · (BA) Em busca ativa no momento do registro.", 14, finalY + 5);
+    doc.setTextColor(0, 0, 0);
+    // Assinatura do educador
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+    doc.text("________________________________", 105, finalY + 18, { align: "center" });
+    doc.text("Assinatura do(a) Educador(a)", 105, finalY + 22, { align: "center" });
   }
 
   doc.save(`SysCFV_Relatorio_${fileTimestamp()}.pdf`);
@@ -967,7 +986,7 @@ export async function exportMatrizFrequenciaDocx(
         PARTICIPANTES: participantes.map((p, i) => ({
           NUM: i + 1,
           NOME: p.nome,
-          ...Object.fromEntries(datas.map((d, di) => [`D${di + 1}`, preenchida ? (p.presencas[d] === "D" ? "D" : p.presencas[d] ? "✓" : "") : ""])),
+          ...Object.fromEntries(datas.map((d, di) => [`D${di + 1}`, preenchida ? (p.presencas[d] === "D" ? "—" : p.presencas[d] ? "■" : "") : ""])),
         })),
         DATAS: dateHeaders.map((d, i) => ({ HEADER: d, INDEX: i + 1 })),
       };
@@ -998,15 +1017,16 @@ export async function exportMatrizFrequenciaDocx(
   const dataRows = participantes.map((p, i) => new TableRow({ children: [
     new TableCell({ width: { size: numColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 14, font: "Arial" })] })] }),
     new TableCell({ width: { size: nameColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: p.nome, size: 14, font: "Arial" })] })] }),
-    ...datas.map(d => new TableCell({ width: { size: dateColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: preenchida ? (p.presencas[d] === "D" ? "D" : p.presencas[d] ? "✓" : "") : "", size: 14, font: "Arial", color: p.presencas[d] === "D" ? "999999" : undefined })] })] })),
+    ...datas.map(d => new TableCell({ width: { size: dateColWidth, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: preenchida ? (p.presencas[d] === "D" ? "—" : p.presencas[d] ? "■" : "") : "", size: 16, font: "Segoe UI Symbol", bold: !!p.presencas[d] && p.presencas[d] !== "D", color: p.presencas[d] === "D" ? SCNSA_GRAY : undefined })] })] })),
   ]}));
 
   const children = [
     ...headerParagraphs(),
-    new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 100 }, children: [new TextRun({ text: "LISTA DE FREQUÊNCIA", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR })] }),
+    new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 100 }, children: [new TextRun({ text: preenchida ? "LISTA DE FREQUÊNCIA" : "LISTA DE CHAMADA", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR })] }),
     new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: `Turma: ${turma.nome}  |  Período: ${turma.periodo || "—"}  |  Faixa Etária: ${turma.faixa_etaria || "—"}`, size: 18, font: "Arial" })] }),
     new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: `Exportado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, size: 16, font: "Arial", italics: true })] }),
     new Table({ width: { size: totalWidth, type: WidthType.DXA }, columnWidths: [numColWidth, nameColWidth, ...datas.map(() => dateColWidth)], rows: [headerRow, ...dataRows] }),
+    new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: "Legenda: ■ Presente · vazio Ausente · — Sem aula/desligado · (BA) Em busca ativa", size: 14, font: "Arial", italics: true, color: SCNSA_GRAY })] }),
     new Paragraph({ spacing: { before: 400 }, children: [] }),
     new Paragraph({ children: [new TextRun({ text: "________________________________", size: 18, font: "Arial" })] }),
     new Paragraph({ children: [new TextRun({ text: "Assinatura do Educador", size: 16, font: "Arial" })] }),
@@ -1016,7 +1036,9 @@ export async function exportMatrizFrequenciaDocx(
     styles: { default: { document: { run: { font: "Arial", size: 16 } } } },
     sections: [{ properties: { page: { size: { width: 11906, height: 16838, orientation: PageOrientation.LANDSCAPE }, margin: { top: 500, right: 500, bottom: 500, left: 500 } } }, children }],
   });
-  saveAs(await Packer.toBlob(doc), `SysCFV_Frequencia_${fileTimestamp()}.docx`);
+  const slug = (turma.nome || "Turma").replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
+  const baseName = preenchida ? "ListaFrequencia" : "ListaChamada";
+  saveAs(await Packer.toBlob(doc), `SysCFV_${baseName}_${slug}_${fileTimestamp()}.docx`);
 }
 
 export async function exportMatrizFrequenciaPdf(
@@ -1028,8 +1050,8 @@ export async function exportMatrizFrequenciaPdf(
   doc.text("PREFEITURA MUNICIPAL DE MEDIANEIRA", 148, y, { align: "center" });
   y += 3; doc.setFont("helvetica", "normal"); doc.setFontSize(8);
   doc.text("SECRETARIA DE ASSISTÊNCIA SOCIAL — CAIA — SCFV", 148, y, { align: "center" });
-  y += 5; doc.setFontSize(11); doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold");
-  doc.text("LISTA DE FREQUÊNCIA", 148, y, { align: "center" });
+  y += 5; doc.setFontSize(11); doc.setTextColor(158, 27, 50); doc.setFont("helvetica", "bold");
+  doc.text(preenchida ? "LISTA DE FREQUÊNCIA" : "LISTA DE CHAMADA", 148, y, { align: "center" });
   doc.setTextColor(0); doc.setFont("helvetica", "normal"); y += 5;
   doc.setFontSize(8);
   doc.text(`Turma: ${turma.nome}  |  Período: ${turma.periodo || "—"}  |  Faixa: ${turma.faixa_etaria || "—"}  |  Exportado: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, y);
@@ -1039,16 +1061,32 @@ export async function exportMatrizFrequenciaPdf(
   autoTable(doc, {
     startY: y,
     head: [["Nº", "Nome", ...dateHeaders]],
-    body: participantes.map((p, i) => [i + 1, p.nome, ...datas.map(d => preenchida ? (p.presencas[d] === "D" ? "D" : p.presencas[d] ? "✓" : "") : "")]),
-    headStyles: { fillColor: [50, 50, 50], fontSize: 6, cellPadding: 1.5 },
+    body: participantes.map((p, i) => [i + 1, p.nome, ...datas.map(d => preenchida ? (p.presencas[d] === "D" ? "—" : p.presencas[d] ? "■" : "") : "")]),
+    headStyles: { fillColor: [31, 56, 100], fontSize: 6, cellPadding: 1.5, textColor: [255,255,255] },
     styles: { fontSize: 6, cellPadding: 1.5 },
     columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 40 } },
+    didParseCell: (data: any) => {
+      if (data.section === "body" && data.column.index >= 2) {
+        data.cell.styles.halign = "center";
+        if (String(data.cell.raw) === "■") data.cell.styles.fontStyle = "bold";
+      }
+      if (data.section === "body" && data.column.index === 1) {
+        const txt = String(data.cell.raw || "");
+        if (txt.includes("(BA)")) data.cell.styles.textColor = [158, 27, 50];
+      }
+    },
   });
+  const finalY = (doc as any).lastAutoTable?.finalY || y;
+  doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(90, 103, 112);
+  doc.text("Legenda: ■ Presente · vazio Ausente · — Sem aula/desligado · (BA) Em busca ativa", 14, finalY + 4);
+  doc.setTextColor(0,0,0); doc.setFont("helvetica", "normal");
 
-  doc.save(`SysCFV_Frequencia_${fileTimestamp()}.pdf`);
+  const slug = (turma.nome || "Turma").replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
+  const baseName = preenchida ? "ListaFrequencia" : "ListaChamada";
+  doc.save(`SysCFV_${baseName}_${slug}_${fileTimestamp()}.pdf`);
 }
 
-// ===== LISTA DE PRESENÇA (em branco, por mês) =====
+// ===== LISTA DE CHAMADA (em branco, por mês — para impressão e marcação manual) =====
 const DIAS_MAP: Record<string, number> = {
   seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6, dom: 0,
   segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6, domingo: 0,
@@ -1083,9 +1121,11 @@ export async function exportListaPresencaPdf(
   y += 3.5; doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
   doc.text("Centro de Atenção Integral ao Adolescente - Medianeira", 148, y, { align: "center" });
 
-  y += 5; doc.setFontSize(11); doc.setTextColor(26, 82, 118); doc.setFont("helvetica", "bold");
-  doc.text("LISTA DE PRESENÇA - SCFV", 148, y, { align: "center" });
-  doc.setTextColor(0); doc.setFont("helvetica", "normal"); y += 5;
+  y += 5; doc.setFontSize(12); doc.setTextColor(158, 27, 50); doc.setFont("helvetica", "bold");
+  doc.text("LISTA DE CHAMADA — SCFV", 148, y, { align: "center" });
+  doc.setFontSize(8); doc.setTextColor(90, 103, 112); doc.setFont("helvetica", "italic");
+  y += 4; doc.text("Para preenchimento manual durante a atividade", 148, y, { align: "center" });
+  doc.setTextColor(0); doc.setFont("helvetica", "normal"); y += 4;
 
   // Info turma
   doc.setFontSize(8);
@@ -1100,42 +1140,55 @@ export async function exportListaPresencaPdf(
   const dayNames: Record<number, string> = { 0: "Dom", 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sáb" };
   const dayLabels = datas.map(d => dayNames[d.getDay()]);
 
-  // Table
+  // Table — linhas altas para escrita manual + coluna Observações
+  const obsColIndex = 2 + datas.length;
   autoTable(doc, {
     startY: y,
     head: [
-      ["Nº", "Nome do Participante", ...dateHeaders],
-      ["", "", ...dayLabels],
+      ["Nº", "Nome do Participante", ...dateHeaders, "Observações"],
+      ["", "", ...dayLabels, ""],
     ],
     body: participantes.map((p, i) => [
       i + 1,
       p.nome,
-      ...datas.map(() => "[ ]"),
+      ...datas.map(() => ""),
+      "",
     ]),
-    headStyles: { fillColor: [50, 50, 50], fontSize: 6, cellPadding: 1.5, halign: "center" },
-    styles: { fontSize: 6, cellPadding: 1.5 },
+    headStyles: { fillColor: [31, 56, 100], fontSize: 7, cellPadding: 1.5, halign: "center", textColor: [255,255,255] },
+    styles: { fontSize: 7, cellPadding: 2, minCellHeight: 9, lineColor: [120, 120, 120], lineWidth: 0.2 },
     columnStyles: {
       0: { cellWidth: 7, halign: "center" },
-      1: { cellWidth: 45 },
+      1: { cellWidth: 50 },
+      [obsColIndex]: { cellWidth: 40 },
     },
     didParseCell: (data: any) => {
-      // Style the checkbox cells
-      if (data.section === "body" && data.column.index >= 2) {
+      // Centraliza colunas de data
+      if (data.section === "body" && data.column.index >= 2 && data.column.index < obsColIndex) {
         data.cell.styles.halign = "center";
-        data.cell.styles.fontSize = 7;
+      }
+      // Destaca (BA) no nome em vermelho
+      if (data.section === "body" && data.column.index === 1) {
+        const txt = String(data.cell.raw || "");
+        if (txt.includes("(BA)")) data.cell.styles.textColor = [158, 27, 50];
       }
     },
   });
 
-  // Footer - assinatura
+  // Legend + Footer (3 assinaturas)
   const finalY = (doc as any).lastAutoTable?.finalY || 180;
+  doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(90, 103, 112);
+  doc.text("Legenda: marque ■ ou X na data de presença · (BA) = participante em busca ativa.", 14, finalY + 5);
+  doc.setTextColor(0); doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.text("________________________________", 14, finalY + 12);
-  doc.text("Assinatura do Educador(a)", 14, finalY + 16);
-  doc.text("________________________________", 180, finalY + 12);
-  doc.text("Assinatura do Coordenador(a)", 180, finalY + 16);
+  doc.text("________________________________", 30, finalY + 18, { align: "center" });
+  doc.text("Educador(a)", 30, finalY + 22, { align: "center" });
+  doc.text("________________________________", 148, finalY + 18, { align: "center" });
+  doc.text("Coordenação", 148, finalY + 22, { align: "center" });
+  doc.text("____ /____ /________", 250, finalY + 18, { align: "center" });
+  doc.text("Data", 250, finalY + 22, { align: "center" });
 
-  doc.save(`SysCFV_Lista_Presenca_${turma.nome.replace(/\s+/g, "_")}_${meses[mes]}_${ano}.pdf`);
+  const slug = (turma.nome || "Turma").replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
+  doc.save(`SysCFV_ListaChamada_${slug}_${ano}-${String(mes + 1).padStart(2, "0")}.pdf`);
 }
 
 // ===== PRONTUÁRIO TÉCNICO =====

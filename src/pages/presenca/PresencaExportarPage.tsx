@@ -247,15 +247,18 @@ const PresencaExportarPage = () => {
         </CardContent>
       </Card>
 
-      {/* Matriz de Frequência */}
+      {/* Lista de Frequência (preenchida — documento oficial) */}
       <Card>
-        <CardHeader><CardTitle className="text-sm">Matriz de Frequência</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">Lista de Frequência (preenchida)</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">Exporta as presenças já registradas no sistema.</p>
+          <p className="text-xs text-muted-foreground">
+            Documento oficial com as presenças já lançadas no sistema. Use para anexar a relatórios, REO e prestação de contas.
+            Marcadores: <strong>■</strong> presente · vazio ausente · <strong>—</strong> sem aula/desligado · <strong>(BA)</strong> em busca ativa.
+          </p>
 
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <Checkbox checked={preenchida} onCheckedChange={(v) => setPreenchida(!!v)} />
-            Incluir presenças já lançadas (preenchida)
+            Incluir presenças já lançadas
           </label>
 
           <div className="flex gap-2">
@@ -268,19 +271,15 @@ const PresencaExportarPage = () => {
               Exportar PDF
             </Button>
           </div>
-
-          <p className="text-[10px] text-muted-foreground">
-            {preenchida ? "Presenças lançadas digitalmente serão marcadas com ✓." : "Será gerada em branco para preenchimento manual."}
-          </p>
         </CardContent>
       </Card>
 
-      {/* Lista de Presença (em branco) */}
+      {/* Lista de Chamada (em branco — para impressão e marcação manual) */}
       <Card>
-        <CardHeader><CardTitle className="text-sm">📋 Lista de Presença (para impressão)</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">Lista de Chamada (em branco — para impressão)</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Gera lista em branco com as datas do mês baseadas nos dias de atendimento da turma. Ideal para imprimir e preencher de caneta.
+            Instrumento de campo. Gera lista em branco com as datas do mês baseadas nos dias de atendimento da turma — para o educador imprimir e marcar a presença de caneta durante a atividade.
           </p>
 
           <div className="flex gap-3">
@@ -310,11 +309,11 @@ const PresencaExportarPage = () => {
 
           <Button size="sm" className="gap-1.5" disabled={loadingLista || filteredTurmas.length === 0} onClick={handleExportLista}>
             {loadingLista ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
-            Gerar Lista de Presença (PDF)
+            Gerar Lista de Chamada (PDF)
           </Button>
 
           <p className="text-[10px] text-muted-foreground">
-            PDF A4 paisagem com cabeçalho institucional, nomes e quadradinhos ☐ para cada data de atendimento do mês.
+            PDF A4 paisagem, linhas altas para escrita, coluna de Observações e 3 assinaturas (educador, coordenação, data). Não vai para a Biblioteca de Documentos.
           </p>
         </CardContent>
       </Card>
