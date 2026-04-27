@@ -1057,7 +1057,7 @@ export async function exportMatrizFrequenciaPdf(
   doc.text("PREFEITURA MUNICIPAL DE MEDIANEIRA", 148, y, { align: "center" });
   y += 3; doc.setFont("helvetica", "normal"); doc.setFontSize(8);
   doc.text("SECRETARIA DE ASSISTÊNCIA SOCIAL — CAIA — SCFV", 148, y, { align: "center" });
-  y += 5; doc.setFontSize(11); doc.setTextColor(158, 27, 50); doc.setFont("helvetica", "bold");
+  y += 5; doc.setFontSize(11); doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold");
   doc.text(preenchida ? "LISTA DE FREQUÊNCIA" : "LISTA DE CHAMADA", 148, y, { align: "center" });
   doc.setTextColor(0); doc.setFont("helvetica", "normal"); y += 5;
   doc.setFontSize(8);
@@ -1069,7 +1069,7 @@ export async function exportMatrizFrequenciaPdf(
     startY: y,
     head: [["Nº", "Nome", ...dateHeaders]],
     body: participantes.map((p, i) => [i + 1, p.nome, ...datas.map(d => preenchida ? (p.presencas[d] === "D" ? "—" : p.presencas[d] ? "■" : "") : "")]),
-    headStyles: { fillColor: [31, 56, 100], fontSize: 6, cellPadding: 1.5, textColor: [255,255,255] },
+    headStyles: { fillColor: [0, 0, 0], fontSize: 6, cellPadding: 1.5, textColor: [255,255,255] },
     styles: { fontSize: 6, cellPadding: 1.5 },
     columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 40 } },
     didParseCell: (data: any) => {
@@ -1077,14 +1077,11 @@ export async function exportMatrizFrequenciaPdf(
         data.cell.styles.halign = "center";
         if (String(data.cell.raw) === "■") data.cell.styles.fontStyle = "bold";
       }
-      if (data.section === "body" && data.column.index === 1) {
-        const txt = String(data.cell.raw || "");
-        if (txt.includes("(BA)")) data.cell.styles.textColor = [158, 27, 50];
-      }
+      // PDF preto/branco: sem destaque colorido para (BA)
     },
   });
   const finalY = (doc as any).lastAutoTable?.finalY || y;
-  doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(90, 103, 112);
+  doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(0, 0, 0);
   doc.text("Legenda: ■ Presente · vazio Ausente · — Sem aula/desligado · (BA) Em busca ativa", 14, finalY + 4);
   doc.setTextColor(0,0,0); doc.setFont("helvetica", "normal");
 
@@ -1128,9 +1125,9 @@ export async function exportListaPresencaPdf(
   y += 3.5; doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
   doc.text("Centro de Atenção Integral ao Adolescente - Medianeira", 148, y, { align: "center" });
 
-  y += 5; doc.setFontSize(12); doc.setTextColor(158, 27, 50); doc.setFont("helvetica", "bold");
+  y += 5; doc.setFontSize(12); doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold");
   doc.text("LISTA DE CHAMADA — SCFV", 148, y, { align: "center" });
-  doc.setFontSize(8); doc.setTextColor(90, 103, 112); doc.setFont("helvetica", "italic");
+  doc.setFontSize(8); doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "italic");
   y += 4; doc.text("Para preenchimento manual durante a atividade", 148, y, { align: "center" });
   doc.setTextColor(0); doc.setFont("helvetica", "normal"); y += 4;
 
@@ -1161,8 +1158,8 @@ export async function exportListaPresencaPdf(
       ...datas.map(() => ""),
       "",
     ]),
-    headStyles: { fillColor: [31, 56, 100], fontSize: 7, cellPadding: 1.5, halign: "center", textColor: [255,255,255] },
-    styles: { fontSize: 7, cellPadding: 2, minCellHeight: 9, lineColor: [120, 120, 120], lineWidth: 0.2 },
+    headStyles: { fillColor: [0, 0, 0], fontSize: 7, cellPadding: 1.5, halign: "center", textColor: [255,255,255] },
+    styles: { fontSize: 7, cellPadding: 2, minCellHeight: 9, lineColor: [0, 0, 0], lineWidth: 0.2 },
     columnStyles: {
       0: { cellWidth: 7, halign: "center" },
       1: { cellWidth: 50 },
@@ -1173,17 +1170,13 @@ export async function exportListaPresencaPdf(
       if (data.section === "body" && data.column.index >= 2 && data.column.index < obsColIndex) {
         data.cell.styles.halign = "center";
       }
-      // Destaca (BA) no nome em vermelho
-      if (data.section === "body" && data.column.index === 1) {
-        const txt = String(data.cell.raw || "");
-        if (txt.includes("(BA)")) data.cell.styles.textColor = [158, 27, 50];
-      }
+      // PDF preto/branco: sem destaque colorido para (BA)
     },
   });
 
   // Legend + Footer (3 assinaturas)
   const finalY = (doc as any).lastAutoTable?.finalY || 180;
-  doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(90, 103, 112);
+  doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(0, 0, 0);
   doc.text("Legenda: marque ■ ou X na data de presença · (BA) = participante em busca ativa.", 14, finalY + 5);
   doc.setTextColor(0); doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
@@ -1225,7 +1218,7 @@ export async function exportProntuarioPdf(
   y += 4; doc.setFont("helvetica", "normal"); doc.setFontSize(8);
   doc.text("Centro de Atenção Integral ao Adolescente - Medianeira", 105, y, { align: "center" });
 
-  y += 6; doc.setFontSize(13); doc.setTextColor(180, 30, 30); doc.setFont("helvetica", "bold");
+  y += 6; doc.setFontSize(13); doc.setTextColor(0, 0, 0); doc.setFont("helvetica", "bold");
   doc.text("PRONTUÁRIO TÉCNICO — SCFV/CAIA", 105, y, { align: "center" });
   doc.setTextColor(0); doc.setFont("helvetica", "normal"); y += 8;
 
@@ -1294,7 +1287,7 @@ export async function exportProntuarioPdf(
       startY: y,
       head: [["Data", "Tipo", "Profissional", "Descrição", "Encaminhamento"]],
       body: rows,
-      headStyles: { fillColor: [180, 30, 30], fontSize: 7, cellPadding: 2 },
+      headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 7, cellPadding: 2 },
       styles: { fontSize: 7, cellPadding: 2 },
       columnStyles: { 0: { cellWidth: 18 }, 1: { cellWidth: 25 }, 2: { cellWidth: 25 }, 3: { cellWidth: 70 } },
       margin: { left: 14, right: 14 },
@@ -1305,7 +1298,7 @@ export async function exportProntuarioPdf(
   const pageCount = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
-    doc.setFontSize(7); doc.setTextColor(100);
+    doc.setFontSize(7); doc.setTextColor(0, 0, 0);
     doc.text(`Emitido em ${format(new Date(), "dd/MM/yyyy HH:mm")} — Documento sigiloso — Página ${i}/${pageCount}`, 105, 290, { align: "center" });
     doc.setTextColor(0);
   }
