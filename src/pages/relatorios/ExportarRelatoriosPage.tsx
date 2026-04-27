@@ -589,14 +589,15 @@ export default function ExportarRelatoriosPage() {
 
   // ===================== Atividades em Lote =====================
   const exportarAtividadesLote = async () => {
+    if (!ativFormats.length) { toast.error("Selecione ao menos um formato"); return; }
     setLoadingAtividades(true);
     try {
       await exportBulkRelatorios({
         dateFrom: ativDateFrom,
         dateTo: ativDateTo,
-        educadorId: ativEducadorId === "__all__" ? undefined : ativEducadorId,
+        educadorId: ativEducadorId === "__all__" ? "todos" : ativEducadorId,
+        formatos: ativFormats,
       });
-      toast.success("Relatórios de atividades exportados!");
     } catch (err: any) {
       toast.error("Erro: " + (err.message || "Erro desconhecido"));
     } finally {
