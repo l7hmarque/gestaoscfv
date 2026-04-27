@@ -1,81 +1,85 @@
-# Plano — Importação de despesas com rastreabilidade e revisão completa
+# Correção da Biblioteca de Documentos (.docx)
 
-Quatro melhorias no fluxo de importação por PDF/IA do módulo Financeiro: telemetria detalhada do validador, histórico persistente por lote, edição inline antes do lançamento e bloqueio quando há pendências.
+## Diagnóstico
 
-## 1. Logs detalhados de transformação no validador
+Após investigar código + dados reais:
 
-Estender `src/lib/despesaImportValidation.ts` e `src/lib/sitCodeMappings.ts` para registrar, em cada warning, exatamente **como** a transformação aconteceu — não só o resultado.
+| Verificação | Resultado |
+|---|---|
+| Linhas em `biblioteca_documentos` | 151 relatórios + 24 planejamentos, **todas com `origem_id` único** (constraint `UNIQUE(tipo, origem_id)` ativa) |
+| Objetos no bucket `biblioteca-docx` | **0** (nada foi efetivamente persistido em Storage) |
+| Relatórios totais vs registros na biblioteca | 171 relatórios reais × 151 na biblioteca → **20 faltando** |
+| Erro ao baixar pela Biblioteca | Confirmado: `captureBlob` em `bibliotecaDocx.ts` tenta sobrescrever `saveAs` de um módulo ESM imutável |
+| Botões "Exportar" em Detalhe / Lote | Continuam chamando `saveAs` direto — funcionam normalmente |
 
-Cada `DespesaWarning` ganha campos novos:
-- `rule` — identificador estável da regra aplicada (ex: `truncate.sit_numero_doc_despesa`, `map.tipo_doc_despesa.alias`, `map.tipo_doc_despesa.numeric_prefix`, `fallback.cnpj_to_tipo_favorecido`, `default.data_lancamento.today`).
-- `source` — de onde veio o valor original (`ai.sit_tipo_doc_despesa`, `ai.tipo_documento`, `derived.cnpj_cpf`, `user_edit`).
-- `matchedAlias` — quando vem do mapeamento label→código, qual alias bateu (ex: `"NFS E"` matched in `SIT_TIPO_DOC_DESPESA[1]`).
+**Causas:**
 
-O modal de revisão exibe esses metadados em formato compacto: `Tipo doc despesa: "NFS-e" → 1 (Nota Fiscal) [regra: map.tipo_doc_despesa.alias, alias: NFS E]`. Um botão "Copiar diagnóstico" copia para a área de transferência um JSON com `{ fileName, despIdx, original, warnings, missing }` por despesa, para colar em correções de prompts da IA ou em chamados.
+1. **Erro "Cannot set property saveAs"** — a estratégia de monkey-patch do `file-saver` não funciona em build ESM (esbuild congela exports). Mesmo com cast `as any`, o getter do Module Record permanece read-only no runtime.
+2. **Sensação de "duplicação"** — o `useQuery` `["biblioteca-sync"]` em `BibliotecaPage.tsx` (linha 68-87) tem dois problemas:
+   - `setTimeout(() => refetch(), 500)` é chamado durante o render sem guarda → causa loop visual de re-fetch.
+   - A cada montagem da página enfileira até 50 itens "faltantes" via RPC, e o RPC faz `ON CONFLICT DO UPDATE SET status='pendente', updated_at=now()` → cada registro existente é "tocado" e a lista parece se mexer.
+   - Isso também resseta `status='gerado'` → `'pendente'` perdendo a marcação, e dispara muitas chamadas RPC desnecessárias.
+3. **20 relatórios faltando** — sync só pega 50 por execução e o loop quebrado nunca completa todos.
 
-Adicionalmente, ao processar um lote o `confirmAndSaveImportedDocs` faz `console.groupCollapsed("[ImportDespesas] lote <id>")` e loga: arquivos processados, totais OK/ajuste/bloqueado, e a lista de regras únicas que foram disparadas com contagem (`truncate.sit_numero_doc_despesa: 4×`, `map.tipo_doc_pagamento.alias: 7×`).
+## Correções
 
-## 2. Histórico persistente por lote de importação
+### 1. Substituir o monkey-patch de `saveAs` por geração direta de Blob
 
-Nova tabela `despesa_lotes_importacao` (migration):
-- `id uuid pk`
-- `confirmado_por uuid` (auth.uid)
-- `confirmado_por_nome text`
-- `confirmado_em timestamptz default now()`
-- `mes_referencia text`
-- `total_despesas int`, `total_ok int`, `total_ajustes int`, `total_bloqueadas int`
-- `arquivos jsonb` — `[{ fileName, storageUrl, qtdDespesas }]`
-- `resumo_warnings jsonb` — agregação por `rule` com contagem
-- `lote_id uuid` (mesmo `lote_id` injetado nas linhas de `despesas`, permite navegar)
+Em `src/lib/bibliotecaDocx.ts`, em vez de interceptar `saveAs`, vou:
 
-RLS:
-- SELECT: autenticado.
-- INSERT: coordenação OU técnico.
-- UPDATE/DELETE: bloqueado (histórico imutável).
+- Refatorar `gerarDocxRelatorioBlob` / `gerarDocxPlanejamentoBlob` para chamar diretamente `Packer.toBlob(...)` da biblioteca `docx`, **reutilizando os mesmos builders** (`buildRelatorioTemplateData`, etc.) já presentes em `useDocumentExport.ts`.
+- Para isso, vou **exportar uma função auxiliar** `buildRelatorioDocxBlob(item, turmas, presenca, fotos)` em `useDocumentExport.ts` que retorna `Blob` em vez de chamar `saveAs`. A função pública `exportRelatorioDocx` passa a ser apenas `buildRelatorioDocxBlob(...) → saveAs(...)`.
+- Mesma coisa para `exportPlanejamentoDocx` → `buildPlanejamentoDocxBlob`.
+- Remover `captureBlob` e a importação de `file-saver` em `bibliotecaDocx.ts`.
 
-`confirmAndSaveImportedDocs` passa a, depois do `INSERT` em `despesas`, gravar uma linha em `despesa_lotes_importacao` com o snapshot do lote.
+Resultado: download da Biblioteca passa a funcionar; downloads de Detalhe e Lote continuam idênticos (sem regressão).
 
-Nova aba na página Financeiro: **"Lotes importados"** (ou seção dentro da aba Despesas). Lista paginada com:
-- Data/hora, responsável, mês de referência, badges OK/ajustes/bloqueadas, nº de arquivos.
-- Botão "Ver despesas do lote" → abre modal listando despesas filtradas por `lote_id`, com link direto para Regularizar cada uma.
-- Botão "Baixar diagnóstico" → JSON dos warnings agregados (útil para corrigir templates de PDF).
+### 2. Corrigir o loop de re-enqueue na BibliotecaPage
 
-## 3. Edição inline pré-confirmação no modal de revisão
+Em `src/pages/biblioteca/BibliotecaPage.tsx`:
 
-Refatorar o modal `reviewOpen` em `FinanceiroPage.tsx` para que cada linha de despesa expanda em um editor inline mostrando **apenas os campos com warning ou missing**, mais os campos-chave SIT.
+- Remover o bloco que chama `setTimeout(refetch, 500)` durante o render (linhas 85-87) — isso é antipattern e causa o "tremor" da lista.
+- Mover a sincronização para um `useEffect` que roda **uma vez por sessão** (com guard `useRef`), não a cada render.
+- Ampliar o batch para 200 itens e iterar até esgotar todos os faltantes (em vez de 50 fixos).
+- Após sync completo, chamar `refetch()` uma única vez.
 
-Comportamento:
-- Cada item da lista vira um `<Collapsible>`. Cabeçalho mantém badge OK/ajustes/bloqueada como hoje.
-- Ao expandir, renderiza um mini-formulário em grid com inputs controlados para: `descricao`, `fornecedor`, `cnpj_cpf`, `valor`, `data_lancamento`, `sit_nome_favorecido`, `sit_tipo_doc_favorecido` (Select CNPJ/CPF/EXT), `sit_tipo_doc_despesa` (Select com os 6 códigos), `sit_numero_doc_despesa`, `sit_data_doc_despesa`, `sit_tipo_doc_pagamento` (Select), `sit_numero_doc_pagamento`, `sit_data_debito`.
-- Inputs com limites (ex: `sit_numero_doc_despesa`) usam `maxLength` + contador `7/10` para evitar truncamento posterior.
-- Cada alteração chama `updateDocExtracted(docIdx, despIdx, field, value)` (já existe). O `validatedDocs` é recalculado a cada render, então badges/warnings atualizam em tempo real — o usuário vê o erro sumir conforme edita.
-- Botão **"Aplicar sugestão da IA"** ao lado de cada warning de mapeamento: preenche o campo com o `applied` proposto e marca `source: "user_edit"` no próximo recálculo.
-- Botão **"Remover esta despesa"** por linha (já existe `removeDespesa`, só expor no modal).
+### 3. Ajustar `enqueue_biblioteca_doc` para **não resetar status**
 
-## 4. Bloqueio automático quando há campos obrigatórios ausentes
+Migration nova: alterar a função `ON CONFLICT` para **só atualizar metadados** (titulo, educador_nome, turma_nome) e **preservar `status`, `gerado_em`, `storage_path`** quando o registro já existe. Isso elimina o problema de re-enqueue marcar tudo como pendente novamente.
 
-Mudar a regra atual (que apenas avisa) para bloquear o lançamento.
+### 4. Alimentar retroativamente os 20 relatórios faltantes
 
-- Botão "Confirmar e lançar" fica `disabled` quando `totalWithMissing > 0`. Tooltip: "Resolva as N despesas com campos obrigatórios ausentes antes de lançar."
-- Topo do modal ganha banner vermelho fixo quando há bloqueios, com botão **"Mostrar só pendências"** que filtra a lista para itens com `missing.length > 0`.
-- A ordenação da lista passa a ser: bloqueadas primeiro, depois ajustes, depois OK — facilitando atacar pendências.
-- Cada arquivo no agrupamento mostra contadores próprios (ex: `relatorio.pdf — 12 despesas (2 bloqueadas, 5 ajustes, 5 OK)`).
-- Remover o texto atual "serão lançadas como incompletas" e a flag `sit_completo: obrigatoriosOk` continua sendo gravada (despesas só entram via revisão limpa).
-- O botão `Regularizar` na listagem de despesas continua existindo para casos legados, mas o pipeline de importação não cria mais despesas incompletas.
+A correção do item 2 já cuida disso na próxima abertura da página. Adicionalmente, vou disparar uma chamada SQL imediata via migration:
 
-Para liberar uma "via expressa" controlada, adiciono um checkbox secundário **"Lançar mesmo assim como pendentes (apenas coordenação)"** visível só para `coordenacao`, que reativa o botão. Sem o checkbox, lançamento bloqueado para todos.
+```sql
+-- Enfileirar todos os relatórios e planejamentos sem registro na biblioteca
+INSERT INTO biblioteca_documentos (tipo, origem_id, ...) 
+SELECT 'relatorio', r.id, ... FROM relatorios_atividade r
+WHERE NOT EXISTS (SELECT 1 FROM biblioteca_documentos b WHERE b.tipo='relatorio' AND b.origem_id = r.id);
+-- idem para planejamentos
+```
 
-## Detalhes técnicos
+(Será feito chamando o próprio `enqueue_biblioteca_doc` em loop dentro de uma DO block.)
 
-**Arquivos alterados/criados:**
-- `src/lib/despesaImportValidation.ts` — adicionar `rule`, `source`, `matchedAlias` ao `DespesaWarning`; aplicar nos chamadores de `truncWithWarn`, `resolveSitCodeWithWarn`, fallbacks de data e favorecido.
-- `src/lib/sitCodeMappings.ts` — `numericResolve` e resolvers retornam também `matchedAlias` e `rule`.
-- `src/components/financeiro/ImportReviewDialog.tsx` (novo) — extrai o modal de revisão hoje inline na `FinanceiroPage` para conter o editor inline (Collapsible + form), ordenação por severidade, filtro "só pendências", banner de bloqueio e botão de diagnóstico.
-- `src/components/financeiro/LotesImportadosTab.tsx` (novo) — listagem dos lotes históricos.
-- `src/pages/financeiro/FinanceiroPage.tsx` — usa o novo dialog, grava `despesa_lotes_importacao` no `confirmAndSaveImportedDocs`, adiciona aba/seção de lotes.
-- `src/hooks/useCurrentUserRoles.ts` (se ainda não existir, ou usar o existente) — para o checkbox exclusivo de coordenação.
-- `supabase/migrations/<timestamp>_create_despesa_lotes_importacao.sql` — tabela + RLS.
+### 5. Sobre "excluir duplicados em Storage"
 
-**Conformidade SIT:** o bloqueio de obrigatórios garante que toda despesa importada já entre `sit_completo = true`, melhorando a taxa de exportação `Despesa.txt`.
+**Não há duplicados** nem em Storage (0 objetos) nem na tabela (constraint UNIQUE ativa). O que o usuário percebe como duplicação é o re-render causado pelo bug do item 2. Após corrigir, o efeito visual desaparece. Não é necessária nenhuma exclusão de dados.
 
-**Compatibilidade:** o fluxo manual (botão "+ Despesa" individual) e o lote em planilha não passam pelo validador novo — sem regressões. Regularização posterior via `RegularizarSitDialog` continua funcionando para despesas legadas.
+### 6. Botões de exportar em Detalhe/Lote
+
+**Sem mudanças necessárias.** Eles já chamam `saveAs` diretamente e continuam baixando pelo navegador independentemente da Biblioteca. Apenas confirmo no plano que o comportamento atual é mantido.
+
+## Arquivos afetados
+
+- `src/lib/bibliotecaDocx.ts` — remover `captureBlob`, usar builders diretos
+- `src/hooks/useDocumentExport.ts` — extrair `buildRelatorioDocxBlob` e `buildPlanejamentoDocxBlob` reutilizáveis
+- `src/pages/biblioteca/BibliotecaPage.tsx` — corrigir loop de sync, mover para `useEffect` com guard
+- Nova migration SQL — atualizar `enqueue_biblioteca_doc` para preservar status, e DO block para enfileirar os 20 faltantes
+
+## Resultado esperado
+
+- Download pela Biblioteca volta a funcionar (sem o erro de `saveAs` getter)
+- Lista da Biblioteca para de "tremer"/duplicar visualmente
+- Os 20 relatórios faltantes aparecem automaticamente
+- Botões "Exportar .docx" em Detalhe / Lote continuam baixando pelo navegador como sempre
+- Status `gerado` deixa de ser revertido a `pendente` em cada visita
