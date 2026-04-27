@@ -425,12 +425,32 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
     ]}),
   ];
 
+  // Turmas: uma por linha, fonte menor para legibilidade
+  const turmasCellChildren = turmaNames.length > 0
+    ? turmaNames.map(n => new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `• ${n}`, size: 16, font: "Arial" })] }))
+    : [new Paragraph({ children: [new TextRun({ text: "—", size: 18, font: "Arial" })] })];
+  const tipoArrFb: string[] = Array.isArray(item.tipo_atividade) ? item.tipo_atividade : (item.tipo_atividade ? [item.tipo_atividade] : []);
+  const tipoFbDisplay = tipoArrFb.length > 0 ? tipoAtividadeLabels(tipoArrFb, item.tipo_atividade_detalhe) : "—";
+
+  const turmasRow = new TableRow({
+    children: [
+      new TableCell({
+        width: { size: 2800, type: WidthType.DXA }, borders, margins: cellMargins,
+        shading: { fill: LIGHT_BG, type: ShadingType.CLEAR },
+        children: [new Paragraph({ children: [new TextRun({ text: "Turma(s)", bold: true, size: 18, font: "Arial" })] })],
+      }),
+      new TableCell({
+        width: { size: 6560, type: WidthType.DXA }, borders, margins: cellMargins,
+        children: turmasCellChildren,
+      }),
+    ],
+  });
   const rows = [
     infoRow("Data", item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : ""),
     infoRow("Dia da Semana", item.dia_semana),
     infoRow("Educador", item.profiles?.nome),
-    infoRow("Turma(s)", turmaNames.join(", ")),
-    infoRow("Tipo de Atividade", Array.isArray(item.tipo_atividade) ? item.tipo_atividade.join(", ") : (item.tipo_atividade || "")),
+    turmasRow,
+    infoRow("Tipo de Atividade", tipoFbDisplay),
     infoRow("Nome da Atividade", item.nome_atividade),
   ];
   children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [2800, 6560], rows }));
@@ -482,7 +502,7 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
   }
 
   if (item.intervencoes) {
-    children.push(new Paragraph({ spacing: { after: 50 }, children: [new TextRun({ text: "Intervenções:", bold: true, size: 18, font: "Arial" })] }));
+    children.push(new Paragraph({ spacing: { after: 50 }, children: [new TextRun({ text: "Atividades Realizadas:", bold: true, size: 18, font: "Arial" })] }));
     children.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: item.intervencoes, size: 18, font: "Arial" })] }));
   }
   if (item.observacoes) {
@@ -495,7 +515,7 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
     // REO-style attendance table
     children.push(...headerParagraphs());
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 100 }, children: [
-      new TextRun({ text: "LISTA DE PRESENÇA", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR }),
+      new TextRun({ text: "LISTA DE FREQUÊNCIA", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR }),
     ]}));
     children.push(new Paragraph({ spacing: { after: 50 }, children: [
       new TextRun({ text: `Atividade: ${safeStr(item.nome_atividade, "")}  |  Data: ${item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : ""}  |  Turma(s): ${turmaNames.join(", ")}`, size: 16, font: "Arial" }),
@@ -503,30 +523,28 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
     children.push(new Paragraph({ spacing: { after: 100 }, children: [
       new TextRun({ text: `Educador(a): ${safeStr(item.profiles?.nome, "")}`, size: 16, font: "Arial" }),
     ]}));
-    
+
     const presRows = [
       new TableRow({ children: [
         new TableCell({ width: { size: 600, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Nº", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 6260, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nome do Participante", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Presença", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 1300, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Assinatura", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 7160, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nome do Participante", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 1600, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Presença", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
       ]}),
       ...presenca.map((p, i) => new TableRow({ children: [
         new TableCell({ width: { size: 600, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 14, font: "Arial" })] })] }),
-        new TableCell({ width: { size: 6260, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: safeStr(p.participantes?.nome_completo, "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""), size: 14, font: "Arial" })] })] }),
+        new TableCell({ width: { size: 7160, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [
+          new TextRun({ text: safeStr(p.participantes?.nome_completo, ""), size: 14, font: "Arial" }),
+          ...(p.participantes?.status === "busca_ativa" ? [new TextRun({ text: " (BA)", size: 14, font: "Arial", bold: true, color: SCNSA_RED })] : []),
+        ] })] }),
         new TableCell({
-          width: { size: 1200, type: WidthType.DXA }, borders, margins: cellMargins,
-          shading: { fill: p.presente ? "E0E0E0" : "FFFFFF", type: ShadingType.CLEAR },
-          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: p.presente ? "✓" : "", size: 18, font: "Arial", bold: true, color: "000000" })] })],
+          width: { size: 1600, type: WidthType.DXA }, borders, margins: cellMargins,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: p.presente ? "■" : "☐", size: 20, font: "Segoe UI Symbol", bold: true, color: "000000" })] })],
         }),
-        new TableCell({ width: { size: 1300, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [] })] }),
       ]})),
     ];
-    children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [600, 6260, 1200, 1300], rows: presRows }));
+    children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [600, 7160, 1600], rows: presRows }));
     // Legend
-    if (presenca.some((p: any) => p.participantes?.status === "busca_ativa")) {
-      children.push(new Paragraph({ spacing: { before: 100 }, children: [new TextRun({ text: "Legenda: (BA) = participante em busca ativa no momento do registro.", size: 14, font: "Arial", italics: true, color: "555555" })] }));
-    }
+    children.push(new Paragraph({ spacing: { before: 100 }, children: [new TextRun({ text: "Legenda: ■ Presente · ☐ Ausente · (BA) Em busca ativa no momento do registro.", size: 14, font: "Arial", italics: true, color: SCNSA_GRAY })] }));
     children.push(new Paragraph({ spacing: { before: 300 }, children: [] }));
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "________________________________", size: 18, font: "Arial" })] }));
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Assinatura do(a) Educador(a)`, size: 16, font: "Arial", italics: true })] }));
