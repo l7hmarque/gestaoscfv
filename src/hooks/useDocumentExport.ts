@@ -659,7 +659,12 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     autoTable(doc, {
       startY: py,
       head: [["Nº", "Nome do Participante", "Presença", "Justificativa"]],
-      body: presenca.map((p, i) => [i + 1, p.participantes?.nome_completo || "", p.presente ? "Presente" : "Ausente", p.justificativa || ""]),
+      body: presenca.map((p, i) => [
+        i + 1,
+        (p.participantes?.nome_completo || "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""),
+        p.presente ? "Presente" : "Ausente",
+        p.justificativa || "",
+      ]),
       headStyles: { fillColor: [50, 50, 50], fontSize: 7, textColor: [255, 255, 255] },
       styles: { fontSize: 7, cellPadding: 2 },
       columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 20, halign: "center" } },
@@ -673,6 +678,12 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
         }
       },
     });
+    if (presenca.some((p: any) => p.participantes?.status === "busca_ativa")) {
+      const finalY = (doc as any).lastAutoTable?.finalY || py;
+      doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(80, 80, 80);
+      doc.text("Legenda: (BA) = participante em busca ativa no momento do registro.", 14, finalY + 5);
+      doc.setTextColor(0, 0, 0);
+    }
   }
 
   doc.save(`SysCFV_Relatorio_${fileTimestamp()}.pdf`);
