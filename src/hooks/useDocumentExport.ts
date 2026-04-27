@@ -599,7 +599,7 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
   autoTable(doc, {
     startY: y, body: info, theme: "grid",
     styles: { fontSize: 8, cellPadding: 2 },
-    columnStyles: { 0: { fontStyle: "bold", cellWidth: 35, fillColor: [245, 245, 245] } },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 35, fillColor: [255, 255, 255] } },
   });
   y = (doc as any).lastAutoTable.finalY + 4;
 
@@ -624,13 +624,14 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     ["Respeito Mútuo", item.respeito_mutuo],
   ];
   const colorMap: Record<number, [number, number, number]> = {
-    1: [224, 224, 224], 2: [192, 192, 192], 3: [160, 160, 160], 4: [112, 112, 112], 5: [64, 64, 64],
+    // Escala em preto puro: 1 = branco, 5 = preto
+    1: [255, 255, 255], 2: [255, 255, 255], 3: [255, 255, 255], 4: [0, 0, 0], 5: [0, 0, 0],
   };
   autoTable(doc, {
     startY: y,
     head: [["Competência", "Valor", "Nível"]],
     body: comps.map(([l, v]) => [l, v || "—", v ? LIKERT_LABELS[v as number] : "—"]),
-    headStyles: { fillColor: [50, 50, 50], fontSize: 8 },
+    headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 8 },
     styles: { fontSize: 8, cellPadding: 2 },
     columnStyles: { 0: { cellWidth: 40 }, 1: { cellWidth: 20, halign: "center" } },
     didParseCell: (data: any) => {
@@ -654,7 +655,7 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     startY: y,
     body: [["Presentes", String(item.num_participantes ?? 0), "Ausentes", String(item.num_ausentes ?? 0), "% Adesão", item.pct_adesao != null ? `${Number(item.pct_adesao).toFixed(0)}%` : "—"]],
     theme: "grid", styles: { fontSize: 8, cellPadding: 2, halign: "center" },
-    columnStyles: { 0: { fontStyle: "bold", fillColor: [245, 245, 245] }, 2: { fontStyle: "bold", fillColor: [245, 245, 245] }, 4: { fontStyle: "bold", fillColor: [245, 245, 245] } },
+    columnStyles: { 0: { fontStyle: "bold", fillColor: [255, 255, 255] }, 2: { fontStyle: "bold", fillColor: [255, 255, 255] }, 4: { fontStyle: "bold", fillColor: [255, 255, 255] } },
   });
   y = (doc as any).lastAutoTable.finalY + 4;
 
@@ -694,22 +695,15 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
         p.presente ? "■" : "☐",
         p.justificativa || "",
       ]),
-      headStyles: { fillColor: [31, 56, 100], fontSize: 7, textColor: [255, 255, 255] },
+      headStyles: { fillColor: [0, 0, 0], fontSize: 7, textColor: [255, 255, 255] },
       styles: { fontSize: 7, cellPadding: 2 },
       columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { cellWidth: 18, halign: "center", fontStyle: "bold" } },
-      alternateRowStyles: { fillColor: [232, 238, 245] },
       didParseCell: (data: any) => {
-        // Highlight (BA) tag in red on the name column
-        if (data.section === "body" && data.column.index === 1) {
-          const txt = String(data.cell.raw || "");
-          if (txt.includes(" (BA)")) {
-            data.cell.styles.textColor = [158, 27, 50];
-          }
-        }
+        // Sem destaque colorido em PDF (paleta preto/branco). (BA) permanece como texto.
       },
     });
     const finalY = (doc as any).lastAutoTable?.finalY || py;
-    doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(90, 103, 112);
+    doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(0, 0, 0);
     doc.text("Legenda: ■ Presente · ☐ Ausente · (BA) Em busca ativa no momento do registro.", 14, finalY + 5);
     doc.setTextColor(0, 0, 0);
     // Assinatura do educador
