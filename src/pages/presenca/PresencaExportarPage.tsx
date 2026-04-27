@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Download, Loader2, FileSpreadsheet, FileText, Printer } from "lucide-react";
+import { ArrowLeft, Download, Loader2, Printer } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { exportMatrizFrequenciaDocx, exportMatrizFrequenciaPdf, exportListaPresencaPdf } from "@/hooks/useDocumentExport";
 import { isBairroSCFV } from "@/lib/constants";
+import { buildLista } from "@/lib/listaFrequencia";
+import { FormatPicker, type ExportFormat } from "@/components/FormatPicker";
 
 const FAIXAS = [
   { value: "6-8", label: "6-8 anos" },
@@ -29,10 +30,13 @@ const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Ag
 
 const PresencaExportarPage = () => {
   const [turmas, setTurmas] = useState<any[]>([]);
-  const [preenchida, setPreenchida] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [loadingLista, setLoadingLista] = useState(false);
+  const [loadingFreq, setLoadingFreq] = useState(false);
+  const [loadingChamada, setLoadingChamada] = useState(false);
   const [turmasLoading, setTurmasLoading] = useState(true);
+
+  // Formatos selecionados em cada card
+  const [fmtFreq, setFmtFreq] = useState<ExportFormat[]>(["docx"]);
+  const [fmtChamada, setFmtChamada] = useState<ExportFormat[]>(["pdf"]);
 
   // Month/year for lista de presença
   const now = new Date();
@@ -74,109 +78,42 @@ const PresencaExportarPage = () => {
     return true;
   });
 
-  const handleExport = async (format: "docx" | "pdf") => {
-    if (filteredTurmas.length === 0) { toast.error("Nenhuma turma corresponde aos filtros"); return; }
+  const handleRun = async (modo: "frequencia" | "chamada") => {
+    const formatos = modo === "frequencia" ? fmtFreq : fmtChamada;
+    if (filteredTurmas.length === 0) {
+      toast.error("Nenhuma turma corresponde aos filtros");
+      return;
+    }
+    if (formatos.length === 0) {
+      toast.error("Selecione ao menos um formato");
+      return;
+    }
+    const setLoading = modo === "frequencia" ? setLoadingFreq : setLoadingChamada;
     setLoading(true);
     try {
-      for (const turma of filteredTurmas) {
-        const { data: tpData } = await supabase
-          .from("turma_participantes")
-          .select("participante_id, participantes(nome_completo, status, data_desligamento, created_at)")
-          .eq("turma_id", turma.id);
-        const endDate = Number(mesSel) === 12 ? `${Number(anoSel)+1}-01-01` : `${anoSel}-${String(Number(mesSel)+1).padStart(2,"0")}-01`;
-
-        const { data: presData } = await supabase
-          .from("presenca")
-          .select("participante_id, data, presente")
-          .eq("turma_id", turma.id)
-          .order("data");
-
-        const datasSet = new Set<string>();
-        (presData || []).forEach(p => datasSet.add(p.data));
-        const datas = Array.from(datasSet).sort();
-
-        const participantes = (tpData || [])
-          .filter((tp: any) => !tp.participantes?.created_at || tp.participantes.created_at < endDate)
-          .map((tp: any) => {
-            const isDesligado = tp.participantes?.status === "desligado";
-            const isBuscaAtiva = tp.participantes?.status === "busca_ativa";
-            const dataDeslig = tp.participantes?.data_desligamento || null;
-            const presencas: Record<string, boolean | string> = {};
-            (presData || []).filter(p => p.participante_id === tp.participante_id).forEach(p => {
-              // If desligado and presence date is after data_desligamento, mark as "D"
-              if (isDesligado && dataDeslig && p.data > dataDeslig) {
-                presencas[p.data] = "D";
-              } else {
-                presencas[p.data] = p.presente || false;
-              }
-            });
-            // For dates after desligamento that have no record, also mark "D"
-            if (isDesligado && dataDeslig) {
-              datas.forEach(d => {
-                if (d > dataDeslig && presencas[d] === undefined) {
-                  presencas[d] = "D";
-                }
-              });
-            }
-            const suffix = isDesligado && dataDeslig
-              ? ` (Desligado em ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})`
-              : isBuscaAtiva ? " (BA)" : "";
-            return { nome: (tp.participantes?.nome_completo || "") + suffix, presencas };
-          })
-          .sort((a, b) => a.nome.localeCompare(b.nome));
-
-        if (format === "docx") {
-          await exportMatrizFrequenciaDocx(turma, participantes, datas, preenchida);
-        } else {
-          await exportMatrizFrequenciaPdf(turma, participantes, datas, preenchida);
-        }
+      const r = await buildLista({
+        modo,
+        escopo: "turma",
+        formatos,
+        mes: Number(mesSel) + 1, // page state usa 0-11
+        ano: Number(anoSel),
+        turmas: filteredTurmas as any,
+      });
+      if (r.ok) {
+        toast.success(
+          `${r.turmasProcessadas} turma(s) · ${r.formatosGerados.map((f) => f.toUpperCase()).join(", ")}` +
+            (r.turmasIgnoradas ? ` · ${r.turmasIgnoradas} ignorada(s)` : "")
+        );
+      } else {
+        toast.error(r.mensagens[0] || "Falha ao exportar");
       }
-      toast.success(`${filteredTurmas.length} matriz(es) exportada(s) em ${format.toUpperCase()}`);
-    } catch (err) {
-      toast.error("Erro ao exportar");
+      if (r.formatosFalha.length > 0) {
+        toast.warning(`Falhas em: ${r.formatosFalha.map((f) => f.toUpperCase()).join(", ")}`);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao exportar");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleExportLista = async () => {
-    if (filteredTurmas.length === 0) { toast.error("Nenhuma turma corresponde aos filtros"); return; }
-    const turmasSemDias = filteredTurmas.filter(t => !t.dias_semana || t.dias_semana.length === 0);
-    if (turmasSemDias.length > 0) {
-      toast.warning(`${turmasSemDias.length} turma(s) sem dias de atendimento cadastrados serão ignoradas`);
-    }
-    const turmasComDias = filteredTurmas.filter(t => t.dias_semana && t.dias_semana.length > 0);
-    if (turmasComDias.length === 0) { toast.error("Nenhuma turma com dias de atendimento cadastrados"); return; }
-
-    setLoadingLista(true);
-    try {
-      for (const turma of turmasComDias) {
-        const { data: tpData } = await supabase
-          .from("turma_participantes")
-          .select("participante_id, participantes(nome_completo, status, data_desligamento, created_at)")
-          .eq("turma_id", turma.id);
-        const endDateLista = Number(mesSel) === 12 ? `${Number(anoSel)+1}-01-01` : `${anoSel}-${String(Number(mesSel)+1).padStart(2,"0")}-01`;
-
-        const participantes = (tpData || [])
-          .filter((tp: any) => !tp.participantes?.created_at || tp.participantes.created_at < endDateLista)
-          .map((tp: any) => {
-            const isDesligado = tp.participantes?.status === "desligado";
-            const isBuscaAtiva = tp.participantes?.status === "busca_ativa";
-            const dataDeslig = tp.participantes?.data_desligamento || null;
-            const suffix = isDesligado && dataDeslig
-              ? ` (Desligado em ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})`
-              : isBuscaAtiva ? " (BA)" : "";
-            return { nome: (tp.participantes?.nome_completo || "") + suffix };
-          })
-          .sort((a, b) => a.nome.localeCompare(b.nome));
-
-        await exportListaPresencaPdf(turma, participantes, Number(anoSel), Number(mesSel));
-      }
-      toast.success(`${turmasComDias.length} lista(s) de presença gerada(s)`);
-    } catch (err) {
-      toast.error("Erro ao gerar lista de presença");
-    } finally {
-      setLoadingLista(false);
     }
   };
 
@@ -247,41 +184,10 @@ const PresencaExportarPage = () => {
         </CardContent>
       </Card>
 
-      {/* Lista de Frequência (preenchida — documento oficial) */}
+      {/* Mês e Ano (compartilhado pelas duas listas) */}
       <Card>
-        <CardHeader><CardTitle className="text-sm">Lista de Frequência (preenchida)</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Documento oficial com as presenças já lançadas no sistema. Use para anexar a relatórios, REO e prestação de contas.
-            Marcadores: <strong>■</strong> presente · vazio ausente · <strong>—</strong> sem aula/desligado · <strong>(BA)</strong> em busca ativa.
-          </p>
-
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <Checkbox checked={preenchida} onCheckedChange={(v) => setPreenchida(!!v)} />
-            Incluir presenças já lançadas
-          </label>
-
-          <div className="flex gap-2">
-            <Button size="sm" className="gap-1.5" disabled={loading || filteredTurmas.length === 0} onClick={() => handleExport("docx")}>
-              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
-              Exportar DOCX
-            </Button>
-            <Button size="sm" variant="outline" className="gap-1.5" disabled={loading || filteredTurmas.length === 0} onClick={() => handleExport("pdf")}>
-              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
-              Exportar PDF
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Lista de Chamada (em branco — para impressão e marcação manual) */}
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Lista de Chamada (em branco — para impressão)</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Instrumento de campo. Gera lista em branco com as datas do mês baseadas nos dias de atendimento da turma — para o educador imprimir e marcar a presença de caneta durante a atividade.
-          </p>
-
+        <CardHeader><CardTitle className="text-sm">Período de Referência</CardTitle></CardHeader>
+        <CardContent>
           <div className="flex gap-3">
             <div className="flex-1">
               <Label className="text-xs font-medium mb-1 block">Mês</Label>
@@ -306,14 +212,54 @@ const PresencaExportarPage = () => {
               </Select>
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          <Button size="sm" className="gap-1.5" disabled={loadingLista || filteredTurmas.length === 0} onClick={handleExportLista}>
-            {loadingLista ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
-            Gerar Lista de Chamada (PDF)
+      {/* Lista de Frequência (preenchida — documento oficial) */}
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Lista de Frequência (preenchida)</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Documento oficial com as presenças já lançadas no sistema. Use para anexar a relatórios, REO e prestação de contas.
+            Marcadores: <strong>■</strong> presente · vazio ausente · <strong>—</strong> sem aula/desligado · <strong>(BA)</strong> em busca ativa · <strong>(D)</strong> desligado · <strong>(T)</strong> transferido.
+          </p>
+
+          <FormatPicker available={["docx", "pdf", "xlsx"]} value={fmtFreq} onChange={setFmtFreq} />
+
+          <Button
+            size="sm"
+            className="gap-1.5"
+            disabled={loadingFreq || filteredTurmas.length === 0 || fmtFreq.length === 0}
+            onClick={() => handleRun("frequencia")}
+          >
+            {loadingFreq ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            Exportar Frequência
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Lista de Chamada (em branco — para impressão e marcação manual) */}
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Lista de Chamada (em branco — para impressão)</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Instrumento de campo. Gera lista em branco com as datas do mês baseadas nos dias de atendimento da turma — para o educador imprimir e marcar a presença de caneta durante a atividade.
+          </p>
+
+          <FormatPicker available={["pdf", "docx", "xlsx"]} value={fmtChamada} onChange={setFmtChamada} />
+
+          <Button
+            size="sm"
+            className="gap-1.5"
+            disabled={loadingChamada || filteredTurmas.length === 0 || fmtChamada.length === 0}
+            onClick={() => handleRun("chamada")}
+          >
+            {loadingChamada ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+            Gerar Lista de Chamada
           </Button>
 
           <p className="text-[10px] text-muted-foreground">
-            PDF A4 paisagem, linhas altas para escrita, coluna de Observações e 3 assinaturas (educador, coordenação, data). Não vai para a Biblioteca de Documentos.
+            PDF A4 paisagem com linhas altas para escrita, coluna de Observações e 3 assinaturas (educador, coordenação, data). Turmas sem dias de atendimento cadastrados são ignoradas.
           </p>
         </CardContent>
       </Card>
