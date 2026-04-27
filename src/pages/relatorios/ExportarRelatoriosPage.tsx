@@ -20,6 +20,7 @@ import { sysCfvFileName } from "@/lib/fileNaming";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
 import { exportBulkRelatorios } from "@/hooks/useBulkRelatorioExport";
+import { FormatPicker, ExportFormat } from "@/components/FormatPicker";
 
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -149,6 +150,12 @@ export default function ExportarRelatoriosPage() {
   // Atendimentos export state
   const [atendDateFrom, setAtendDateFrom] = useState(format(startOfMonth(now), "yyyy-MM-dd"));
   const [atendDateTo, setAtendDateTo] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
+
+  // Format selectors
+  const [reoFormats, setReoFormats] = useState<ExportFormat[]>(["docx", "xlsx"]);
+  const [pcFormats, setPcFormats] = useState<ExportFormat[]>(["xlsx", "pdf"]);
+  const [atendFormats, setAtendFormats] = useState<ExportFormat[]>(["xlsx", "pdf"]);
+  const [gestaoFormats, setGestaoFormats] = useState<ExportFormat[]>(["pdf", "xlsx"]);
 
   const mesRef = `${ano}-${mes}`;
   const mesNum = parseInt(mes);
