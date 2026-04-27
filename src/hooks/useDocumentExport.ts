@@ -702,7 +702,7 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
       body: presenca.map((p, i) => [
         i + 1,
         (p.participantes?.nome_completo || "") + (p.participantes?.status === "busca_ativa" ? " (BA)" : ""),
-        p.presente ? "■" : "☐",
+        p.presente ? PDF_PRESENTE : PDF_AUSENTE,
         p.justificativa || "",
       ]),
       headStyles: { fillColor: [0, 0, 0], fontSize: 7, textColor: [255, 255, 255] },
@@ -714,7 +714,7 @@ export async function exportRelatorioPdf(item: any, turmaNames: string[], presen
     });
     const finalY = (doc as any).lastAutoTable?.finalY || py;
     doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(0, 0, 0);
-    doc.text("Legenda: ■ Presente · ☐ Ausente · (BA) Em busca ativa no momento do registro.", 14, finalY + 5);
+    doc.text("Legenda: P Presente · A Ausente · (BA) Em busca ativa no momento do registro.", 14, finalY + 5);
     doc.setTextColor(0, 0, 0);
     // Assinatura do educador
     doc.setFont("helvetica", "normal"); doc.setFontSize(8);
