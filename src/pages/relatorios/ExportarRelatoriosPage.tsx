@@ -129,7 +129,6 @@ export default function ExportarRelatoriosPage() {
   const [mes, setMes] = useState(String(now.getMonth() + 1).padStart(2, "0"));
   const [anoAnual, setAnoAnual] = useState(String(now.getFullYear()));
 
-  const [loadingReo, setLoadingReo] = useState(false);
   const [loadingRelMensal, setLoadingRelMensal] = useState(false);
   const [loadingPC, setLoadingPC] = useState(false);
   const [loadingAnual, setLoadingAnual] = useState(false);
@@ -152,10 +151,10 @@ export default function ExportarRelatoriosPage() {
   const [atendDateTo, setAtendDateTo] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
 
   // Format selectors
-  const [reoFormats, setReoFormats] = useState<ExportFormat[]>(["docx", "xlsx"]);
   const [pcFormats, setPcFormats] = useState<ExportFormat[]>(["xlsx", "pdf"]);
   const [atendFormats, setAtendFormats] = useState<ExportFormat[]>(["xlsx", "pdf"]);
   const [gestaoFormats, setGestaoFormats] = useState<ExportFormat[]>(["pdf", "xlsx"]);
+  const [ativFormats, setAtivFormats] = useState<ExportFormat[]>(["docx", "pdf", "xlsx"]);
 
   const mesRef = `${ano}-${mes}`;
   const mesNum = parseInt(mes);
