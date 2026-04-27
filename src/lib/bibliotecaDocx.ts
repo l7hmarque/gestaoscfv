@@ -25,7 +25,7 @@ async function carregarRelatorioCompleto(id: string) {
 
   const { data: presenca } = await supabase
     .from("relatorio_presenca")
-    .select("presente, justificativa, participantes(nome_completo)")
+    .select("presente, justificativa, participantes(nome_completo, status)")
     .eq("relatorio_id", id);
 
   const { data: fotos } = await supabase
