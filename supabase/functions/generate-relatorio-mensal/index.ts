@@ -79,7 +79,7 @@ function applyHeaderStyle(ws: any, row: number, colCount: number) {
     const addr = XLSX.utils.encode_cell({ r: row, c });
     if (!ws[addr]) ws[addr] = { v: "", t: "s" };
     ws[addr].s = {
-      font: { bold: true }, fill: { fgColor: { rgb: "D9D9D9" } },
+      font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "000000" } },
       border: { top: border, bottom: border, left: border, right: border },
       alignment: { wrapText: true, vertical: "center" },
     };
@@ -370,7 +370,7 @@ function generateMonthSheets(
         // If desligado and date is after data_desligamento, mark with grey "D"
         if (isDesligado && dataDeslig && d > dataDeslig) {
           ws[addr].v = "D";
-          ws[addr].s = { fill: { fgColor: { rgb: "CCCCCC" } }, font: { color: { rgb: "666666" } }, border: borderObj };
+          ws[addr].s = { fill: { fgColor: { rgb: "000000" } }, font: { color: { rgb: "FFFFFF" } }, border: borderObj };
         } else {
           const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
           const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
