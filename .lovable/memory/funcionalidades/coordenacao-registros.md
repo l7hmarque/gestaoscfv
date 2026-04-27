@@ -1,0 +1,6 @@
+---
+name: Registros da Coordenação
+description: Diário operacional unificado da Coordenação (reuniões, tarefas, comunicados, ações) com status, prioridade, prazo e tags na tabela coordenacao_atividades
+type: feature
+---
+A aba **Registros** em /coordenacao usa a tabela `coordenacao_atividades` ampliada com colunas `status` (aberto/em_andamento/concluido/cancelado), `prioridade` (baixa/media/alta), `prazo`, `responsaveis` (uuid[]) e `tags` (text[]). Tipos controlados em `TIPOS_REGISTRO_COORD` (src/lib/constants.ts): reuniao, comunicado, tarefa, acao_decisao, visita_tecnica, articulacao_rede, formacao_equipe, documento, evento, outro. UI tem criação enxuta + Collapsible para extras, filtros por mês/tipo/status/prioridade, contadores (Total, Abertos, Concluídos, Atrasados, Tempo dedicado), troca rápida de status via DropdownMenu e botão atalho "Marcar concluído". Toda criação/alteração de status/exclusão grava em audit_log com ações `registro_coordenacao_criado|status|excluido` — esses logs alimentam automaticamente os KPIs da aba **Decisões**, que NÃO é cadastro manual e sim espelho do audit_log filtrado por período (proprias, equipe, aprovações, exclusões, desligamentos). Acesso restrito ao perfil Coordenação via RLS já existente.
