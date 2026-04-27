@@ -1187,7 +1187,7 @@ export async function exportListaPresencaPdf(
   // Legend + Footer (3 assinaturas)
   const finalY = (doc as any).lastAutoTable?.finalY || 180;
   doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(0, 0, 0);
-  doc.text("Legenda: marque ■ ou X na data de presença · (BA) = participante em busca ativa.", 14, finalY + 5);
+  doc.text("Legenda: marque X na data de presença · (BA) = participante em busca ativa.", 14, finalY + 5);
   doc.setTextColor(0); doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.text("________________________________", 30, finalY + 18, { align: "center" });
