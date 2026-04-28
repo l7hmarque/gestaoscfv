@@ -54,7 +54,7 @@ export function KanbanCard({ tarefa, isConcluida, hasDeps, onClick }: Props) {
               {atrasada && <AlertTriangle className="h-3 w-3" />}
             </span>
           )}
-          {hasDeps && <Link2 className="h-3 w-3" title="Tem dependências" />}
+          {hasDeps && <span title="Tem dependências"><Link2 className="h-3 w-3" /></span>}
         </div>
         {tarefa.responsavel ? (
           <Avatar className="h-6 w-6">
