@@ -24,6 +24,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis
 import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2, Phone, MapPin, Search, Eye, UserCheck, UserX, Mail, ChevronDown, ChevronUp, Check, X as XIcon, FileImage, Network, ShieldAlert, Target, Link2 } from "lucide-react";
 import { calcFaixaFromDate, displayAge, PERIODO_LABELS } from "@/lib/constants";
 import { RecadosEquipeCards } from "@/components/RecadosEquipeCards";
+import { RoteirosTab } from "./roteiros/RoteirosTab";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
@@ -1159,6 +1160,7 @@ const EquipeTecnicaPage = () => {
           </TabsTrigger>
           
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
+          <TabsTrigger value="roteiros" className="gap-1"><MapPin className="h-3.5 w-3.5" />Roteiros</TabsTrigger>
           <TabsTrigger value="alertas" className="gap-1">
             Alertas
             {pendentes.length > 0 && (
@@ -1636,6 +1638,11 @@ const EquipeTecnicaPage = () => {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ROTEIROS */}
+        <TabsContent value="roteiros" className="space-y-4">
+          <RoteirosTab />
         </TabsContent>
 
         {/* ALERTAS */}

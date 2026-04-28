@@ -3087,6 +3087,104 @@ export type Database = {
           },
         ]
       }
+      roteiro_visitas: {
+        Row: {
+          atendimento_id: string | null
+          bairro_nome: string | null
+          created_at: string
+          horario_realizado: string | null
+          id: string
+          ordem: number
+          origem: string
+          participante_id: string
+          relato: string | null
+          roteiro_id: string
+          status_visita: string
+          updated_at: string
+        }
+        Insert: {
+          atendimento_id?: string | null
+          bairro_nome?: string | null
+          created_at?: string
+          horario_realizado?: string | null
+          id?: string
+          ordem?: number
+          origem?: string
+          participante_id: string
+          relato?: string | null
+          roteiro_id: string
+          status_visita?: string
+          updated_at?: string
+        }
+        Update: {
+          atendimento_id?: string | null
+          bairro_nome?: string | null
+          created_at?: string
+          horario_realizado?: string | null
+          id?: string
+          ordem?: number
+          origem?: string
+          participante_id?: string
+          relato?: string | null
+          roteiro_id?: string
+          status_visita?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roteiro_visitas_roteiro_id_fkey"
+            columns: ["roteiro_id"]
+            isOneToOne: false
+            referencedRelation: "roteiros_visita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roteiros_visita: {
+        Row: {
+          concluido_em: string | null
+          created_at: string
+          criado_por: string | null
+          data_visita: string
+          horario_saida: string | null
+          id: string
+          observacoes: string | null
+          responsaveis: string[] | null
+          status: string
+          titulo: string
+          updated_at: string
+          veiculo: string | null
+        }
+        Insert: {
+          concluido_em?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_visita: string
+          horario_saida?: string | null
+          id?: string
+          observacoes?: string | null
+          responsaveis?: string[] | null
+          status?: string
+          titulo: string
+          updated_at?: string
+          veiculo?: string | null
+        }
+        Update: {
+          concluido_em?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_visita?: string
+          horario_saida?: string | null
+          id?: string
+          observacoes?: string | null
+          responsaveis?: string[] | null
+          status?: string
+          titulo?: string
+          updated_at?: string
+          veiculo?: string | null
+        }
+        Relationships: []
+      }
       sit_codigos: {
         Row: {
           ativo: boolean
