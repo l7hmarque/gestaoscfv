@@ -1,42 +1,120 @@
-# Correções: Coordenação fora do Lovable e Delta de participantes
+## Hub de Projetos & Tarefas
 
-## Problema 1 — "Failed to fetch dynamically imported module" para CoordenacaoPage
+Novo módulo `/projetos` para criar projetos (instâncias), endereçar tarefas a colaboradores, acompanhar via Kanban, Gantt com dependências, lista filtrada e ficha de tarefa com comentários/checklist/anexos.
 
-**Diagnóstico**: O arquivo `src/pages/coordenacao/CoordenacaoPage.tsx` existe, compila sem erros (`vite build` gera o chunk normalmente: `CoordenacaoPage-8-8bCsJN.js`), e a rota está registrada em `App.tsx`. O erro acontece quando o navegador tem cache de uma versão anterior do `index.html` apontando para um chunk que não existe mais (hash mudou após os deploys recentes de edge functions e correções).
+### Localização e acesso
+- Item "Projetos" no grupo **Gestão** do `AppSidebar` (visível para todos os profissionais autenticados).
+- Rota nova `/projetos` (lista de projetos) e `/projetos/:id` (workspace do projeto).
+- Qualquer profissional pode criar projetos. Dentro de cada projeto, papéis:
+  - **Owner** (criador) — edita tudo, arquiva, exclui projeto.
+  - **Membro** — cria/edita tarefas e move cards.
+  - **Observador** — somente leitura.
+- Coordenação tem visibilidade universal (vê todos os projetos, mesmo sem ser membro).
 
-**Solução**: Não há bug de código a corrigir. O preview do Lovable resolve com hard-refresh (Ctrl+Shift+R). O ambiente publicado (`gestaoscfv.lovable.app`) precisa de **Publish/Update** para receber as mudanças de frontend mais recentes — alterações de frontend não são aplicadas automaticamente como as de backend.
+### Modelo de dados (novas tabelas)
+```text
+projetos
+  id, nome, descricao, status (ativo|pausado|concluido|arquivado),
+  cor, owner_id (profiles), data_inicio, data_fim_prevista, created_at, updated_at
 
-**Ação**: Após este plano, indicarei ao usuário fazer hard-refresh + Publish para garantir que o módulo da Coordenação seja servido com hash atualizado.
+projeto_membros
+  projeto_id, profile_id, papel (owner|membro|observador), PRIMARY KEY (projeto_id, profile_id)
 
-## Problema 2 — Menu "Coordenação" não aparece no site publicado
+projeto_colunas         -- colunas configuráveis do Kanban
+  id, projeto_id, nome, ordem, cor
+  -- seed automático ao criar projeto: A Fazer / Em Andamento / Em Revisão / Concluído
 
-**Diagnóstico**: O item está corretamente condicionado a `isCoord` em `AppSidebar.tsx` (linha 82) e aparece no preview do Lovable. Se não aparece em produção é porque o build publicado é mais antigo.
+projeto_tarefas
+  id, projeto_id, coluna_id, titulo, descricao,
+  responsavel_id (profiles), criador_id, prioridade (baixa|media|alta|urgente),
+  data_inicio, prazo, duracao_estimada_horas, progresso_pct,
+  ordem_kanban, tags text[], created_at, updated_at, concluido_em
 
-**Solução**: Mesmo Publish acima resolve.
+projeto_tarefa_dependencias
+  tarefa_id, depende_de_id, tipo (FS), PRIMARY KEY (tarefa_id, depende_de_id)
+  -- ciclo prevenido por trigger
 
-## Problema 3 — Delta negativo (-107) de participantes ativos
+projeto_tarefa_checklist
+  id, tarefa_id, texto, concluido bool, ordem
 
-**Causa raiz** (confirmada via query):
-- `now_ativos` = 86 (participantes com status='ativo' hoje)
-- `count_30d` = 193 (TODOS os participantes cadastrados antes de 30 dias atrás, independentemente do status atual)
-- A fórmula em `get_dashboard_stats` conta como "ativos há 30 dias" qualquer registro com `iniciou_em <= hoje-30d` cujo `data_desligamento` ainda não foi preenchido. Como muitos desligamentos legados (status diferente de 'ativo') não têm `data_desligamento`, eles entram na contagem.
-- Resultado: 86 − 193 = **−107** (falsamente negativo).
+projeto_tarefa_comentarios
+  id, tarefa_id, autor_id, texto, created_at
 
-**Correção** (migration SQL):
-Reescrever o cálculo de `v_count_30d` em `get_dashboard_stats` para:
+projeto_tarefa_anexos
+  id, tarefa_id, storage_path, nome, mime, tamanho, autor_id, created_at
 
-```sql
-SELECT count(*) INTO v_count_30d
-FROM participantes
-WHERE coalesce(iniciou_em, created_at::date) <= (current_date - interval '30 days')::date
-  AND status IN ('ativo','busca_ativa')   -- considera apenas quem segue ativo no sistema
-  AND (data_desligamento IS NULL OR data_desligamento > (current_date - interval '30 days')::date);
+-- Storage bucket "projeto-anexos" privado (RLS por membresia do projeto)
 ```
 
-Adicionalmente, respeitar o marco operacional `v_data_corte` (01/04/2026): se `(current_date - 30 days) < v_data_corte`, retornar `v_delta_participantes = 0` (não há histórico anterior ao marco para comparação significativa).
+**RLS resumida:** SELECT em todas as tabelas filhas exige `EXISTS (membro do projeto) OR has_role(coordenacao)`. INSERT/UPDATE em tarefas exige papel `membro|owner`. DELETE de projeto só `owner` ou `coordenacao`.
 
-## Arquivos afetados
+**Trigger anti-ciclo** em `projeto_tarefa_dependencias` faz busca recursiva e levanta exceção se a dependência criar loop.
 
-- `supabase/migrations/<timestamp>_fix_dashboard_delta.sql` — atualizar função `get_dashboard_stats`.
+### Telas
 
-Nenhuma alteração de frontend necessária para os 3 problemas além do Publish.
+**`/projetos` — Lista de projetos**
+- Cards (grid) com nome, % conclusão (tarefas concluídas/total), prazo, contagem de membros, dot de status.
+- Filtros: status, "meus projetos", busca por nome.
+- Botão "Novo projeto" → diálogo (nome, descrição, cor, datas, membros iniciais).
+
+**`/projetos/:id` — Workspace** (Tabs controladas, padrão do projeto)
+1. **Visão geral** — KPIs (tarefas abertas, atrasadas, concluídas este mês, % progresso), descrição do projeto, prazo, membros com avatar.
+2. **Kanban** — colunas drag-and-drop com `@dnd-kit/core` + `@dnd-kit/sortable`. Card mostra título, responsável (avatar), prazo (badge vermelha se atrasada), prioridade (cor), ícone de dependência se houver predecessoras pendentes (e bloqueia movimento para "Concluído"). Botão "+ tarefa" por coluna.
+3. **Lista** — tabela com filtros (responsável, prazo, prioridade, tag, status). Edição inline de status/prazo/responsável.
+4. **Gantt** — timeline construída em SVG (sem nova lib pesada): eixo de dias/semanas, barras por tarefa baseadas em `data_inicio` → `prazo`, marco vertical do `data_fim_prevista` do projeto, setas curvas ligando dependências (FS). Zoom dia/semana/mês. Hover mostra tooltip; clique abre ficha da tarefa.
+5. **Membros** — adicionar/remover profissionais (busca em `profiles`), trocar papel.
+6. **Configurações** — nome, datas, cor, arquivar/excluir (com justificativa registrada em `audit_log`).
+
+**Ficha da tarefa** (Sheet lateral, abre de qualquer tela)
+- Edição de todos os campos.
+- **Checklist** de subtarefas com progresso automático (% feito atualiza `progresso_pct` da tarefa).
+- **Dependências**: combobox para adicionar predecessoras (mesma projeto), com badge de status. Bloqueia auto-dependência e ciclos (validação cliente + trigger no banco).
+- **Comentários** com @menções (reusa `MentionInput`) — cada menção dispara notificação.
+- **Anexos** via Storage bucket `projeto-anexos` (upload Base64 em chunks, padrão do sistema).
+- Botão "Concluir tarefa" — só habilitado se todas as predecessoras estiverem concluídas.
+
+### Notificações
+Ao **criar/atribuir tarefa**, **alterar responsável**, **mudar prazo**, ou **mencionar em comentário**:
+- Insere linha em `notificacoes` (sino existente do `NotificationBell`) com link `/projetos/:id?tarefa=:tarefa_id`.
+- Insere `recados` com `tipo_recado='tecnico'`, destinatário = responsável, corpo automatizado ("Nova tarefa atribuída no projeto X — prazo DD/MM").
+- Card "Tarefas pendentes pra você" no `/dashboard` (atalho), reaproveitando padrão dos outros widgets.
+
+### Estética e padrões
+- Mesma identidade do hub Coordenação (header com ícone em `bg-primary/10`, cards `border-l-4 border-l-primary/60`, Tabs controladas).
+- Componentes reutilizam `@/components/ui/*` (Card, Tabs, Sheet, Select, Badge, DropdownMenu).
+- Drag-and-drop instala apenas `@dnd-kit/core` + `@dnd-kit/sortable` (lightweight, sem React 19 conflicts). Gantt feito sob medida em SVG — sem nova dependência.
+- TanStack Query para cache (já em uso no projeto).
+- Datas exibidas DD/MM, padrão SysCFV; nomes em Title Case na criação de projetos.
+
+### Detalhes técnicos
+- Migrations: criar tabelas + índices em `projeto_id`, `responsavel_id`, `prazo` + trigger anti-ciclo + bucket Storage + policies RLS.
+- Função SQL `get_projeto_stats(_projeto_id)` retornando jsonb com KPIs (totais por status, atrasadas, % conclusão, próximos vencimentos) — chamada na aba Visão geral.
+- Função SQL `criar_projeto(_nome, ..., _membros_ids[])` que cria projeto, adiciona owner como membro, cria 4 colunas padrão e retorna id (transação).
+- Drag no Kanban faz UPDATE otimista (`coluna_id`, `ordem_kanban`) com revert em erro.
+- Gantt: cálculo de min/max datas, escala em pixels, virtualização opcional se >200 tarefas (fora do MVP).
+- Memória nova: `mem://funcionalidades/hub-projetos-tarefas` documentando estrutura, papéis e regra de bloqueio por dependência.
+
+### Arquivos a criar
+```text
+src/pages/projetos/
+  ProjetosListPage.tsx
+  ProjetoWorkspacePage.tsx
+  tabs/VisaoGeralTab.tsx
+  tabs/KanbanTab.tsx
+  tabs/ListaTab.tsx
+  tabs/GanttTab.tsx
+  tabs/MembrosTab.tsx
+  tabs/ConfiguracoesTab.tsx
+  components/TarefaSheet.tsx
+  components/GanttChart.tsx
+  components/KanbanColumn.tsx
+  components/KanbanCard.tsx
+  components/NovoProjetoDialog.tsx
+src/hooks/useProjetos.ts
+src/hooks/useProjetoTarefas.ts
+src/lib/projetoHelpers.ts (cores, formatos, validação dependência)
+supabase/migrations/<timestamp>_hub_projetos.sql
+```
+
+### Fora do MPV (para iterações futuras)
+- Templates de projeto, recorrência de tarefas, time tracking real, exportação Gantt em PNG/PDF, integração com calendário externo, automações tipo "ao concluir → mover".
