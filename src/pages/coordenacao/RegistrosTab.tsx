@@ -64,7 +64,7 @@ export function RegistrosTab() {
       const [y, m] = filtroMes.split("-").map(Number);
       const fim = new Date(y, m, 1).toISOString().slice(0, 10);
       let q = (supabase.from as any)("coordenacao_atividades")
-        .select("*, profiles:coordenador_id(nome)")
+        .select("*")
         .gte("data", inicio)
         .lt("data", fim)
         .order("data", { ascending: false });
@@ -73,7 +73,14 @@ export function RegistrosTab() {
       if (filtroPrio !== "todas") q = q.eq("prioridade", filtroPrio);
       const { data, error } = await q;
       if (error) throw error;
-      return data as any[];
+      const rows = (data ?? []) as any[];
+      const ids = Array.from(new Set(rows.map(r => r.coordenador_id).filter(Boolean)));
+      let nomeMap: Record<string, string> = {};
+      if (ids.length) {
+        const { data: profs } = await (supabase.from as any)("profiles").select("id, nome").in("id", ids);
+        nomeMap = Object.fromEntries((profs ?? []).map((p: any) => [p.id, p.nome]));
+      }
+      return rows.map(r => ({ ...r, profiles: r.coordenador_id ? { nome: nomeMap[r.coordenador_id] ?? null } : null }));
     },
   });
 
