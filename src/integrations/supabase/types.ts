@@ -2229,6 +2229,416 @@ export type Database = {
         }
         Relationships: []
       }
+      projeto_colunas: {
+        Row: {
+          cor: string | null
+          created_at: string
+          id: string
+          is_concluido: boolean
+          nome: string
+          ordem: number
+          projeto_id: string
+        }
+        Insert: {
+          cor?: string | null
+          created_at?: string
+          id?: string
+          is_concluido?: boolean
+          nome: string
+          ordem?: number
+          projeto_id: string
+        }
+        Update: {
+          cor?: string | null
+          created_at?: string
+          id?: string
+          is_concluido?: boolean
+          nome?: string
+          ordem?: number
+          projeto_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projeto_colunas_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projeto_membros: {
+        Row: {
+          created_at: string
+          papel: string
+          profile_id: string
+          projeto_id: string
+        }
+        Insert: {
+          created_at?: string
+          papel?: string
+          profile_id: string
+          projeto_id: string
+        }
+        Update: {
+          created_at?: string
+          papel?: string
+          profile_id?: string
+          projeto_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projeto_membros_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_membros_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_membros_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projeto_tarefa_anexos: {
+        Row: {
+          autor_id: string
+          created_at: string
+          id: string
+          mime: string | null
+          nome: string
+          storage_path: string
+          tamanho: number | null
+          tarefa_id: string
+        }
+        Insert: {
+          autor_id: string
+          created_at?: string
+          id?: string
+          mime?: string | null
+          nome: string
+          storage_path: string
+          tamanho?: number | null
+          tarefa_id: string
+        }
+        Update: {
+          autor_id?: string
+          created_at?: string
+          id?: string
+          mime?: string | null
+          nome?: string
+          storage_path?: string
+          tamanho?: number | null
+          tarefa_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projeto_tarefa_anexos_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_tarefa_anexos_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_tarefa_anexos_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "projeto_tarefas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projeto_tarefa_checklist: {
+        Row: {
+          concluido: boolean
+          created_at: string
+          id: string
+          ordem: number
+          tarefa_id: string
+          texto: string
+        }
+        Insert: {
+          concluido?: boolean
+          created_at?: string
+          id?: string
+          ordem?: number
+          tarefa_id: string
+          texto: string
+        }
+        Update: {
+          concluido?: boolean
+          created_at?: string
+          id?: string
+          ordem?: number
+          tarefa_id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projeto_tarefa_checklist_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "projeto_tarefas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projeto_tarefa_comentarios: {
+        Row: {
+          autor_id: string
+          created_at: string
+          id: string
+          tarefa_id: string
+          texto: string
+        }
+        Insert: {
+          autor_id: string
+          created_at?: string
+          id?: string
+          tarefa_id: string
+          texto: string
+        }
+        Update: {
+          autor_id?: string
+          created_at?: string
+          id?: string
+          tarefa_id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projeto_tarefa_comentarios_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_tarefa_comentarios_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_tarefa_comentarios_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "projeto_tarefas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projeto_tarefa_dependencias: {
+        Row: {
+          created_at: string
+          depende_de_id: string
+          tarefa_id: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          depende_de_id: string
+          tarefa_id: string
+          tipo?: string
+        }
+        Update: {
+          created_at?: string
+          depende_de_id?: string
+          tarefa_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projeto_tarefa_dependencias_depende_de_id_fkey"
+            columns: ["depende_de_id"]
+            isOneToOne: false
+            referencedRelation: "projeto_tarefas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_tarefa_dependencias_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "projeto_tarefas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projeto_tarefas: {
+        Row: {
+          coluna_id: string
+          concluido_em: string | null
+          created_at: string
+          criador_id: string
+          data_inicio: string | null
+          descricao: string | null
+          duracao_estimada_horas: number | null
+          id: string
+          ordem_kanban: number
+          prazo: string | null
+          prioridade: string
+          progresso_pct: number
+          projeto_id: string
+          responsavel_id: string | null
+          tags: string[] | null
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          coluna_id: string
+          concluido_em?: string | null
+          created_at?: string
+          criador_id: string
+          data_inicio?: string | null
+          descricao?: string | null
+          duracao_estimada_horas?: number | null
+          id?: string
+          ordem_kanban?: number
+          prazo?: string | null
+          prioridade?: string
+          progresso_pct?: number
+          projeto_id: string
+          responsavel_id?: string | null
+          tags?: string[] | null
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          coluna_id?: string
+          concluido_em?: string | null
+          created_at?: string
+          criador_id?: string
+          data_inicio?: string | null
+          descricao?: string | null
+          duracao_estimada_horas?: number | null
+          id?: string
+          ordem_kanban?: number
+          prazo?: string | null
+          prioridade?: string
+          progresso_pct?: number
+          projeto_id?: string
+          responsavel_id?: string | null
+          tags?: string[] | null
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projeto_tarefas_coluna_id_fkey"
+            columns: ["coluna_id"]
+            isOneToOne: false
+            referencedRelation: "projeto_colunas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_tarefas_criador_id_fkey"
+            columns: ["criador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_tarefas_criador_id_fkey"
+            columns: ["criador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_tarefas_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_tarefas_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_tarefas_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projetos: {
+        Row: {
+          cor: string
+          created_at: string
+          data_fim_prevista: string | null
+          data_inicio: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          owner_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cor?: string
+          created_at?: string
+          data_fim_prevista?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          owner_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cor?: string
+          created_at?: string
+          data_fim_prevista?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          owner_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projetos_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projetos_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recados: {
         Row: {
           ciente: boolean
@@ -3163,6 +3573,17 @@ export type Database = {
       }
     }
     Functions: {
+      criar_projeto: {
+        Args: {
+          _cor?: string
+          _data_fim_prevista?: string
+          _data_inicio?: string
+          _descricao?: string
+          _membros_ids?: string[]
+          _nome: string
+        }
+        Returns: string
+      }
       enqueue_biblioteca_doc: {
         Args: { _origem_id: string; _tipo: string }
         Returns: string
@@ -3216,6 +3637,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_projeto_stats: { Args: { _projeto_id: string }; Returns: Json }
       get_restricoes_alimentares: { Args: never; Returns: Json }
       has_role: {
         Args: {
@@ -3223,6 +3645,14 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      is_projeto_member: {
+        Args: { _projeto_id: string; _user_id: string }
+        Returns: boolean
+      }
+      projeto_member_papel: {
+        Args: { _projeto_id: string; _user_id: string }
+        Returns: string
       }
       recalcular_busca_ativa: {
         Args: { _participante_ids?: string[] }
