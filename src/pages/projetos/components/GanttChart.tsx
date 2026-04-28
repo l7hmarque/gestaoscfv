@@ -5,7 +5,7 @@ import { formatDataBR } from "@/lib/projetoHelpers";
 type Tarefa = {
   id: string;
   titulo: string;
-  inicio_previsto: string | null;
+  data_inicio: string | null;
   prazo: string | null;
   progresso_pct: number | null;
 };
@@ -33,12 +33,12 @@ function diffDays(a: Date, b: Date): number {
 
 export function GanttChart({ tarefas, dependencias, prazoProjeto, onSelect }: Props) {
   const data = useMemo(() => {
-    const validas = tarefas.filter(t => t.inicio_previsto || t.prazo);
+    const validas = tarefas.filter(t => t.data_inicio || t.prazo);
     if (validas.length === 0) return null;
 
     const datas: Date[] = [];
     validas.forEach(t => {
-      const i = parseDate(t.inicio_previsto);
+      const i = parseDate(t.data_inicio);
       const f = parseDate(t.prazo);
       if (i) datas.push(i);
       if (f) datas.push(f);
@@ -53,8 +53,8 @@ export function GanttChart({ tarefas, dependencias, prazoProjeto, onSelect }: Pr
     const totalDias = diffDays(min, max) + 1;
 
     const linhas = validas.map((t, idx) => {
-      const inicio = parseDate(t.inicio_previsto) ?? parseDate(t.prazo)!;
-      const fim = parseDate(t.prazo) ?? parseDate(t.inicio_previsto)!;
+      const inicio = parseDate(t.data_inicio) ?? parseDate(t.prazo)!;
+      const fim = parseDate(t.prazo) ?? parseDate(t.data_inicio)!;
       const x = diffDays(min, inicio) * DAY_W;
       const w = Math.max(DAY_W, (diffDays(inicio, fim) + 1) * DAY_W);
       return { tarefa: t, idx, x, w, y: idx * ROW_H + 4 };
@@ -139,7 +139,7 @@ export function GanttChart({ tarefas, dependencias, prazoProjeto, onSelect }: Pr
                 <g key={l.tarefa.id} style={{ cursor: "pointer" }} onClick={() => onSelect(l.tarefa.id)}>
                   <rect x={l.x} y={l.y} width={l.w} height={ROW_H - 8} rx={3} fill="hsl(var(--primary) / 0.2)" stroke="hsl(var(--primary))" />
                   <rect x={l.x} y={l.y} width={(l.w * pct) / 100} height={ROW_H - 8} rx={3} fill="hsl(var(--primary))" />
-                  <title>{l.tarefa.titulo} — {formatDataBR(l.tarefa.inicio_previsto)} → {formatDataBR(l.tarefa.prazo)}</title>
+                  <title>{l.tarefa.titulo} — {formatDataBR(l.tarefa.data_inicio)} → {formatDataBR(l.tarefa.prazo)}</title>
                 </g>
               );
             })}
