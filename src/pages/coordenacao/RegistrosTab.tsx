@@ -99,6 +99,12 @@ export function RegistrosTab() {
     if (error) { toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }); return; }
     await log({ acao: "registro_coordenacao_criado", tabela: "coordenacao_atividades", registro_id: inserted.id, detalhes: `${tipoRegistroLabel(categoria)} — ${titulo}` });
     toast({ title: "Registro criado" });
+    // Garante que o registro recém-criado fique visível ajustando filtros se necessário
+    const mesDoRegistro = (data || HOJE_ISO()).slice(0, 7);
+    if (mesDoRegistro !== filtroMes) setFiltroMes(mesDoRegistro);
+    if (filtroCat !== "todas" && filtroCat !== categoria) setFiltroCat("todas");
+    if (filtroStatus !== "todos" && filtroStatus !== statusForm) setFiltroStatus("todos");
+    if (filtroPrio !== "todas" && filtroPrio !== prioridade) setFiltroPrio("todas");
     setTitulo(""); setDescricao(""); setDuracao(""); setPrazo(""); setTagsInput("");
     setStatusForm("aberto"); setPrioridade("media"); setOpenExtras(false);
     qc.invalidateQueries({ queryKey: ["coord-registros"] });
