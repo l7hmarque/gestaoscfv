@@ -1640,6 +1640,11 @@ const EquipeTecnicaPage = () => {
           </Card>
         </TabsContent>
 
+        {/* ROTEIROS */}
+        <TabsContent value="roteiros" className="space-y-4">
+          <RoteirosTab />
+        </TabsContent>
+
         {/* ALERTAS */}
         <TabsContent value="alertas" className="space-y-4">
           {pendentes.length > 0 && (
