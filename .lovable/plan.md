@@ -1,120 +1,84 @@
-## Hub de Projetos & Tarefas
+## Roteiros de Visita Domiciliar — Equipe Técnica
 
-Novo módulo `/projetos` para criar projetos (instâncias), endereçar tarefas a colaboradores, acompanhar via Kanban, Gantt com dependências, lista filtrada e ficha de tarefa com comentários/checklist/anexos.
+Nova funcionalidade para a equipe técnica montar, executar e imprimir roteiros de visita domiciliar a partir de participantes em **Busca Ativa** e **Matrículas Pendentes** (status `busca_ativa`, `pendente` ou `incompleto`).
 
-### Localização e acesso
-- Item "Projetos" no grupo **Gestão** do `AppSidebar` (visível para todos os profissionais autenticados).
-- Rota nova `/projetos` (lista de projetos) e `/projetos/:id` (workspace do projeto).
-- Qualquer profissional pode criar projetos. Dentro de cada projeto, papéis:
-  - **Owner** (criador) — edita tudo, arquiva, exclui projeto.
-  - **Membro** — cria/edita tarefas e move cards.
-  - **Observador** — somente leitura.
-- Coordenação tem visibilidade universal (vê todos os projetos, mesmo sem ser membro).
+### Fluxo do usuário
 
-### Modelo de dados (novas tabelas)
+1. Na página **Equipe Técnica**, nova aba **Roteiros de Visita**.
+2. Botão "Novo Roteiro" abre wizard:
+   - **Passo 1 — Dados:** título, data, horário de saída, responsáveis (multi-select de profissionais), veículo (opcional, texto livre), observações.
+   - **Passo 2 — Selecionar visitas:** lista filtrável (status BA / Matrícula Pendente / ambos) agrupada por bairro, com checkbox por participante. Cada linha mostra nome, idade, bairro, telefone, último contato, motivo (BA ou matrícula nova). Contador de visitas selecionadas.
+   - **Passo 3 — Ordenar:** drag-and-drop para definir ordem das visitas dentro de cada bairro (usa `@dnd-kit` já instalado).
+3. Salvar gera o roteiro e redireciona para `/equipe-tecnica/roteiros/:id`.
+4. **Página do Roteiro** mostra:
+   - Cabeçalho com data/horário/responsáveis/total de visitas.
+   - Visitas agrupadas por bairro, em cards interativos com:
+     - Nome, idade/faixa, endereço completo, telefone(s), responsável familiar, observações do cadastro.
+     - Badge "Busca Ativa" ou "Matrícula Nova".
+     - Status da visita (Pendente / Realizada / Não atendido / Recusou / Endereço não localizado).
+     - Campo de relato pós-visita + horário real + botão "Gerar atendimento" (cria registro em `atendimentos` tipo `visita_domiciliar` já vinculado).
+   - Botão **Exportar PDF** (formato impressão, 1–2 cards por página, sem elementos interativos).
+   - Botão **Concluir roteiro** (marca como finalizado).
+5. Lista de roteiros mostra cards com data, status (rascunho/em andamento/concluído), nº visitas e progresso (X de Y realizadas).
+
+### Estrutura de dados (novas tabelas)
+
 ```text
-projetos
-  id, nome, descricao, status (ativo|pausado|concluido|arquivado),
-  cor, owner_id (profiles), data_inicio, data_fim_prevista, created_at, updated_at
+roteiros_visita
+  id, titulo, data_visita, horario_saida, observacoes,
+  responsaveis (uuid[]), veiculo, status (rascunho|em_andamento|concluido),
+  criado_por (profile_id), created_at, updated_at, concluido_em
 
-projeto_membros
-  projeto_id, profile_id, papel (owner|membro|observador), PRIMARY KEY (projeto_id, profile_id)
-
-projeto_colunas         -- colunas configuráveis do Kanban
-  id, projeto_id, nome, ordem, cor
-  -- seed automático ao criar projeto: A Fazer / Em Andamento / Em Revisão / Concluído
-
-projeto_tarefas
-  id, projeto_id, coluna_id, titulo, descricao,
-  responsavel_id (profiles), criador_id, prioridade (baixa|media|alta|urgente),
-  data_inicio, prazo, duracao_estimada_horas, progresso_pct,
-  ordem_kanban, tags text[], created_at, updated_at, concluido_em
-
-projeto_tarefa_dependencias
-  tarefa_id, depende_de_id, tipo (FS), PRIMARY KEY (tarefa_id, depende_de_id)
-  -- ciclo prevenido por trigger
-
-projeto_tarefa_checklist
-  id, tarefa_id, texto, concluido bool, ordem
-
-projeto_tarefa_comentarios
-  id, tarefa_id, autor_id, texto, created_at
-
-projeto_tarefa_anexos
-  id, tarefa_id, storage_path, nome, mime, tamanho, autor_id, created_at
-
--- Storage bucket "projeto-anexos" privado (RLS por membresia do projeto)
+roteiro_visitas
+  id, roteiro_id, participante_id, bairro_nome (cache),
+  origem (busca_ativa|matricula_pendente),
+  ordem (int), status_visita (pendente|realizada|nao_atendido|recusou|endereco_nao_encontrado),
+  relato (text), horario_realizado (time), atendimento_id (uuid, fk gerado),
+  updated_at
 ```
 
-**RLS resumida:** SELECT em todas as tabelas filhas exige `EXISTS (membro do projeto) OR has_role(coordenacao)`. INSERT/UPDATE em tarefas exige papel `membro|owner`. DELETE de projeto só `owner` ou `coordenacao`.
+**RLS:** SELECT/INSERT/UPDATE/DELETE liberados para `tecnico` e `coordenacao` (mesmo padrão de `atendimentos`). Sem foreign keys rígidas para `auth.users`; FKs entre as duas tabelas com `on delete cascade`.
 
-**Trigger anti-ciclo** em `projeto_tarefa_dependencias` faz busca recursiva e levanta exceção se a dependência criar loop.
+### Arquitetura técnica
 
-### Telas
+- **Rotas (App.tsx):**
+  - `/equipe-tecnica/roteiros/novo` → `RoteiroNovoPage` (wizard)
+  - `/equipe-tecnica/roteiros/:id` → `RoteiroDetalhePage`
+  - Lista integrada como nova aba dentro de `EquipeTecnicaPage` (sem nova rota só pra lista, evitando inflar sidebar).
+- **Componentes novos** (`src/pages/equipe-tecnica/roteiros/`):
+  - `RoteirosTab.tsx` — lista de roteiros + botão "Novo".
+  - `RoteiroNovoPage.tsx` — wizard 3 passos.
+  - `RoteiroDetalhePage.tsx` — cards interativos + ações.
+  - `components/VisitaCard.tsx` — card único reutilizável.
+  - `components/RoteiroPdfExport.tsx` — gera PDF via `jsPDF` + `autoTable` (libs já no projeto).
+- **Hook:** `src/hooks/useRoteirosVisita.ts` — fetch/mutações.
+- **Helper:** nome de arquivo via `sysCfvFileName("RoteiroVisita", "pdf", titulo)`.
+- **Cuidados anti-quebra:**
+  - Apenas **adicionar** rota e aba; não tocar em nenhum fluxo existente da `EquipeTecnicaPage` (apenas inserir 1 nova `<TabsTrigger>` + `<TabsContent>`).
+  - Estado da Tab controlado (já é o padrão da página).
+  - Migration cria tabelas novas sem alterar existentes.
+  - Nenhuma alteração em `src/integrations/supabase/types.ts`, `client.ts`, `.env`.
+  - Cast `as any` nas queries Supabase enquanto `types.ts` não regenera (padrão usado em `busca_ativa_registros` e `coordenacao_atividades`).
 
-**`/projetos` — Lista de projetos**
-- Cards (grid) com nome, % conclusão (tarefas concluídas/total), prazo, contagem de membros, dot de status.
-- Filtros: status, "meus projetos", busca por nome.
-- Botão "Novo projeto" → diálogo (nome, descrição, cor, datas, membros iniciais).
+### Exportação PDF
 
-**`/projetos/:id` — Workspace** (Tabs controladas, padrão do projeto)
-1. **Visão geral** — KPIs (tarefas abertas, atrasadas, concluídas este mês, % progresso), descrição do projeto, prazo, membros com avatar.
-2. **Kanban** — colunas drag-and-drop com `@dnd-kit/core` + `@dnd-kit/sortable`. Card mostra título, responsável (avatar), prazo (badge vermelha se atrasada), prioridade (cor), ícone de dependência se houver predecessoras pendentes (e bloqueia movimento para "Concluído"). Botão "+ tarefa" por coluna.
-3. **Lista** — tabela com filtros (responsável, prazo, prioridade, tag, status). Edição inline de status/prazo/responsável.
-4. **Gantt** — timeline construída em SVG (sem nova lib pesada): eixo de dias/semanas, barras por tarefa baseadas em `data_inicio` → `prazo`, marco vertical do `data_fim_prevista` do projeto, setas curvas ligando dependências (FS). Zoom dia/semana/mês. Hover mostra tooltip; clique abre ficha da tarefa.
-5. **Membros** — adicionar/remover profissionais (busca em `profiles`), trocar papel.
-6. **Configurações** — nome, datas, cor, arquivar/excluir (com justificativa registrada em `audit_log`).
-
-**Ficha da tarefa** (Sheet lateral, abre de qualquer tela)
-- Edição de todos os campos.
-- **Checklist** de subtarefas com progresso automático (% feito atualiza `progresso_pct` da tarefa).
-- **Dependências**: combobox para adicionar predecessoras (mesma projeto), com badge de status. Bloqueia auto-dependência e ciclos (validação cliente + trigger no banco).
-- **Comentários** com @menções (reusa `MentionInput`) — cada menção dispara notificação.
-- **Anexos** via Storage bucket `projeto-anexos` (upload Base64 em chunks, padrão do sistema).
-- Botão "Concluir tarefa" — só habilitado se todas as predecessoras estiverem concluídas.
+- A4 retrato, cabeçalho com logo/nome do roteiro/data/responsáveis.
+- Para cada bairro: título do bairro, depois cards (nº ordem + dados de cada participante, espaço para anotações).
+- Layout limpo, grayscale, fonte sans, footer com paginação.
+- Nome: `SysCFV_RoteiroVisita_{titulo}_{YYYY-MM-DD}_{HHmmss}.pdf`.
 
 ### Notificações
-Ao **criar/atribuir tarefa**, **alterar responsável**, **mudar prazo**, ou **mencionar em comentário**:
-- Insere linha em `notificacoes` (sino existente do `NotificationBell`) com link `/projetos/:id?tarefa=:tarefa_id`.
-- Insere `recados` com `tipo_recado='tecnico'`, destinatário = responsável, corpo automatizado ("Nova tarefa atribuída no projeto X — prazo DD/MM").
-- Card "Tarefas pendentes pra você" no `/dashboard` (atalho), reaproveitando padrão dos outros widgets.
 
-### Estética e padrões
-- Mesma identidade do hub Coordenação (header com ícone em `bg-primary/10`, cards `border-l-4 border-l-primary/60`, Tabs controladas).
-- Componentes reutilizam `@/components/ui/*` (Card, Tabs, Sheet, Select, Badge, DropdownMenu).
-- Drag-and-drop instala apenas `@dnd-kit/core` + `@dnd-kit/sortable` (lightweight, sem React 19 conflicts). Gantt feito sob medida em SVG — sem nova dependência.
-- TanStack Query para cache (já em uso no projeto).
-- Datas exibidas DD/MM, padrão SysCFV; nomes em Title Case na criação de projetos.
+- Ao criar um roteiro, cria automaticamente um **recado técnico** para cada profissional listado em `responsaveis` (mesma mecânica usada em projetos), apontando para a URL do roteiro.
 
-### Detalhes técnicos
-- Migrations: criar tabelas + índices em `projeto_id`, `responsavel_id`, `prazo` + trigger anti-ciclo + bucket Storage + policies RLS.
-- Função SQL `get_projeto_stats(_projeto_id)` retornando jsonb com KPIs (totais por status, atrasadas, % conclusão, próximos vencimentos) — chamada na aba Visão geral.
-- Função SQL `criar_projeto(_nome, ..., _membros_ids[])` que cria projeto, adiciona owner como membro, cria 4 colunas padrão e retorna id (transação).
-- Drag no Kanban faz UPDATE otimista (`coluna_id`, `ordem_kanban`) com revert em erro.
-- Gantt: cálculo de min/max datas, escala em pixels, virtualização opcional se >200 tarefas (fora do MVP).
-- Memória nova: `mem://funcionalidades/hub-projetos-tarefas` documentando estrutura, papéis e regra de bloqueio por dependência.
+### Memória
 
-### Arquivos a criar
-```text
-src/pages/projetos/
-  ProjetosListPage.tsx
-  ProjetoWorkspacePage.tsx
-  tabs/VisaoGeralTab.tsx
-  tabs/KanbanTab.tsx
-  tabs/ListaTab.tsx
-  tabs/GanttTab.tsx
-  tabs/MembrosTab.tsx
-  tabs/ConfiguracoesTab.tsx
-  components/TarefaSheet.tsx
-  components/GanttChart.tsx
-  components/KanbanColumn.tsx
-  components/KanbanCard.tsx
-  components/NovoProjetoDialog.tsx
-src/hooks/useProjetos.ts
-src/hooks/useProjetoTarefas.ts
-src/lib/projetoHelpers.ts (cores, formatos, validação dependência)
-supabase/migrations/<timestamp>_hub_projetos.sql
-```
+Salvar `mem://funcionalidades/roteiros-visita-domiciliar` documentando estrutura e regras (origem BA/Matrícula, status de visita, geração automática de atendimento).
 
-### Fora do MPV (para iterações futuras)
-- Templates de projeto, recorrência de tarefas, time tracking real, exportação Gantt em PNG/PDF, integração com calendário externo, automações tipo "ao concluir → mover".
+### Entregáveis
+
+1. Migration SQL com 2 tabelas + RLS + trigger `updated_at`.
+2. 5 arquivos novos em `src/pages/equipe-tecnica/roteiros/` + 1 hook.
+3. 2 rotas adicionais em `App.tsx`.
+4. 1 nova aba em `EquipeTecnicaPage.tsx` (alteração mínima e isolada).
+5. Memória registrada.
