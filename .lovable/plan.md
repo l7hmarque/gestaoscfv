@@ -1,84 +1,79 @@
-## Roteiros de Visita Domiciliar — Equipe Técnica
+## Objetivo
 
-Nova funcionalidade para a equipe técnica montar, executar e imprimir roteiros de visita domiciliar a partir de participantes em **Busca Ativa** e **Matrículas Pendentes** (status `busca_ativa`, `pendente` ou `incompleto`).
+Permitir que o motorista confirme **embarcou / não embarcou** mesmo sem internet no caminho. As ações são salvas localmente no celular e sincronizadas automaticamente assim que o sinal voltar — sem perder nenhuma confirmação.
 
-### Fluxo do usuário
+## Estratégia (resumo)
 
-1. Na página **Equipe Técnica**, nova aba **Roteiros de Visita**.
-2. Botão "Novo Roteiro" abre wizard:
-   - **Passo 1 — Dados:** título, data, horário de saída, responsáveis (multi-select de profissionais), veículo (opcional, texto livre), observações.
-   - **Passo 2 — Selecionar visitas:** lista filtrável (status BA / Matrícula Pendente / ambos) agrupada por bairro, com checkbox por participante. Cada linha mostra nome, idade, bairro, telefone, último contato, motivo (BA ou matrícula nova). Contador de visitas selecionadas.
-   - **Passo 3 — Ordenar:** drag-and-drop para definir ordem das visitas dentro de cada bairro (usa `@dnd-kit` já instalado).
-3. Salvar gera o roteiro e redireciona para `/equipe-tecnica/roteiros/:id`.
-4. **Página do Roteiro** mostra:
-   - Cabeçalho com data/horário/responsáveis/total de visitas.
-   - Visitas agrupadas por bairro, em cards interativos com:
-     - Nome, idade/faixa, endereço completo, telefone(s), responsável familiar, observações do cadastro.
-     - Badge "Busca Ativa" ou "Matrícula Nova".
-     - Status da visita (Pendente / Realizada / Não atendido / Recusou / Endereço não localizado).
-     - Campo de relato pós-visita + horário real + botão "Gerar atendimento" (cria registro em `atendimentos` tipo `visita_domiciliar` já vinculado).
-   - Botão **Exportar PDF** (formato impressão, 1–2 cards por página, sem elementos interativos).
-   - Botão **Concluir roteiro** (marca como finalizado).
-5. Lista de roteiros mostra cards com data, status (rascunho/em andamento/concluído), nº visitas e progresso (X de Y realizadas).
+1. **PWA instalável** — para o motorista "instalar" o sistema no celular e o app continuar abrindo sem rede.
+2. **Cache offline da página de transporte** — service worker guarda o app shell + dados do dia.
+3. **Fila local de ações (IndexedDB)** — toda confirmação feita offline vira um item na fila local.
+4. **Sincronização automática** — assim que detectar internet, a fila é enviada para o backend (`participante_checkins`) na ordem em que foi feita.
+5. **UI clara de status** — badges mostrando "Offline", "Pendente sincronizar", "Sincronizado".
 
-### Estrutura de dados (novas tabelas)
+## O que será feito
 
-```text
-roteiros_visita
-  id, titulo, data_visita, horario_saida, observacoes,
-  responsaveis (uuid[]), veiculo, status (rascunho|em_andamento|concluido),
-  criado_por (profile_id), created_at, updated_at, concluido_em
+### 1. Instalar PWA (vite-plugin-pwa)
+- Configurar `vite.config.ts` com `VitePWA`, manifest (nome "SysCFV", ícones, tema preto/cinza), `registerType: "autoUpdate"`.
+- Estratégia Workbox:
+  - **App shell** (HTML/CSS/JS): `NetworkFirst` com fallback para cache.
+  - **Endpoints Supabase de leitura do transporte do dia**: `StaleWhileRevalidate` com TTL de 24 h.
+- Adicionar `navigateFallbackDenylist: [/^\/~oauth/, /^\/api/]` para não quebrar OAuth.
+- Criar página `/install` simples explicando "Adicionar à tela inicial" no Android/iOS.
+- Adicionar meta tags mobile no `index.html` (apple-touch-icon, theme-color preto).
 
-roteiro_visitas
-  id, roteiro_id, participante_id, bairro_nome (cache),
-  origem (busca_ativa|matricula_pendente),
-  ordem (int), status_visita (pendente|realizada|nao_atendido|recusou|endereco_nao_encontrado),
-  relato (text), horario_realizado (time), atendimento_id (uuid, fk gerado),
-  updated_at
-```
+### 2. Camada offline-first para check-ins
+- **Novo arquivo `src/lib/offlineQueue.ts`**:
+  - Usa IndexedDB (via `idb`) com store `transporte_pendentes`.
+  - Cada item: `{ id_local, participante_id, data, periodo, embarcou, embarcou_em, criado_em, tentativas, status }`.
+  - API: `enfileirar()`, `listarPendentes()`, `marcarSincronizado()`, `incrementarTentativa()`.
+- **Novo `src/hooks/useTransporteOffline.ts`**:
+  - Detecta `navigator.onLine` + listeners `online/offline`.
+  - Faz merge dos check-ins do servidor com os pendentes locais para a UI mostrar tudo unificado.
+  - Expõe `marcarEmbarque(participanteId, embarcou)` que:
+    - Se online: salva direto no Supabase (comportamento atual).
+    - Se offline: enfileira em IndexedDB e atualiza UI otimisticamente.
+- **Sincronização automática**:
+  - Ao voltar online, processa fila em ordem cronológica via `upsert` em `participante_checkins` usando chave `(participante_id, data, periodo)`.
+  - Em caso de erro, mantém na fila (max 5 tentativas) e mostra toast.
+  - Também tenta sincronizar a cada 30 s enquanto a aba estiver aberta.
 
-**RLS:** SELECT/INSERT/UPDATE/DELETE liberados para `tecnico` e `coordenacao` (mesmo padrão de `atendimentos`). Sem foreign keys rígidas para `auth.users`; FKs entre as duas tabelas com `on delete cascade`.
+### 3. Cache dos dados do dia para uso offline
+- Quando o motorista abre a página com internet:
+  - Buscar pontos, participantes ativos por ponto e check-ins do dia → salvar snapshot em IndexedDB (`transporte_snapshot_dia`).
+- Quando offline:
+  - `DashboardTransporteTab` carrega do snapshot local; mostra badge "Modo offline — dados de HH:MM".
 
-### Arquitetura técnica
+### 4. UI de feedback no `DashboardTransporteTab.tsx`
+- Indicador no topo: 🟢 **Online** / 🔴 **Offline** / 🟡 **N pendentes sincronizando**.
+- Em cada participante com check-in feito offline: badge pequeno "⏳ Aguardando envio".
+- Botão manual **"Sincronizar agora"** quando houver pendências.
+- Toast ao concluir sincronização: "X embarques sincronizados".
 
-- **Rotas (App.tsx):**
-  - `/equipe-tecnica/roteiros/novo` → `RoteiroNovoPage` (wizard)
-  - `/equipe-tecnica/roteiros/:id` → `RoteiroDetalhePage`
-  - Lista integrada como nova aba dentro de `EquipeTecnicaPage` (sem nova rota só pra lista, evitando inflar sidebar).
-- **Componentes novos** (`src/pages/equipe-tecnica/roteiros/`):
-  - `RoteirosTab.tsx` — lista de roteiros + botão "Novo".
-  - `RoteiroNovoPage.tsx` — wizard 3 passos.
-  - `RoteiroDetalhePage.tsx` — cards interativos + ações.
-  - `components/VisitaCard.tsx` — card único reutilizável.
-  - `components/RoteiroPdfExport.tsx` — gera PDF via `jsPDF` + `autoTable` (libs já no projeto).
-- **Hook:** `src/hooks/useRoteirosVisita.ts` — fetch/mutações.
-- **Helper:** nome de arquivo via `sysCfvFileName("RoteiroVisita", "pdf", titulo)`.
-- **Cuidados anti-quebra:**
-  - Apenas **adicionar** rota e aba; não tocar em nenhum fluxo existente da `EquipeTecnicaPage` (apenas inserir 1 nova `<TabsTrigger>` + `<TabsContent>`).
-  - Estado da Tab controlado (já é o padrão da página).
-  - Migration cria tabelas novas sem alterar existentes.
-  - Nenhuma alteração em `src/integrations/supabase/types.ts`, `client.ts`, `.env`.
-  - Cast `as any` nas queries Supabase enquanto `types.ts` não regenera (padrão usado em `busca_ativa_registros` e `coordenacao_atividades`).
+### 5. Backend (mínimo)
+- Garantir índice/constraint de unicidade em `participante_checkins(participante_id, data, periodo)` — necessário para o `upsert` do sync funcionar sem duplicar (verificar migration; se não existir, criar).
 
-### Exportação PDF
+## Detalhes técnicos
 
-- A4 retrato, cabeçalho com logo/nome do roteiro/data/responsáveis.
-- Para cada bairro: título do bairro, depois cards (nº ordem + dados de cada participante, espaço para anotações).
-- Layout limpo, grayscale, fonte sans, footer com paginação.
-- Nome: `SysCFV_RoteiroVisita_{titulo}_{YYYY-MM-DD}_{HHmmss}.pdf`.
+- **Dependências novas**: `vite-plugin-pwa`, `workbox-window`, `idb`.
+- **Arquivos novos**:
+  - `src/lib/offlineQueue.ts`
+  - `src/lib/transporteSnapshot.ts`
+  - `src/hooks/useTransporteOffline.ts`
+  - `src/pages/InstallPage.tsx` (rota `/install`)
+  - `public/icon-192.png`, `public/icon-512.png` (ícones PWA preto/branco)
+- **Arquivos editados**:
+  - `vite.config.ts` (plugin PWA)
+  - `index.html` (meta tags)
+  - `src/App.tsx` (rota `/install` + registro do SW)
+  - `src/pages/dashboard/DashboardTransporteTab.tsx` (usar hook offline + UI status)
+- **Migration** (se necessária): unique constraint em `participante_checkins(participante_id, data, periodo)`.
 
-### Notificações
+## Limitações conhecidas (a comunicar ao motorista)
 
-- Ao criar um roteiro, cria automaticamente um **recado técnico** para cada profissional listado em `responsaveis` (mesma mecânica usada em projetos), apontando para a URL do roteiro.
+- O motorista precisa abrir a página **uma vez com internet no início do dia** para baixar a lista de paradas/participantes do dia.
+- iOS: a instalação na tela inicial é via Safari → Compartilhar → "Adicionar à Tela de Início".
+- Após instalar, o ícone do SysCFV abre direto em tela cheia, igual a um app.
 
-### Memória
+## Próximos passos após aprovação
 
-Salvar `mem://funcionalidades/roteiros-visita-domiciliar` documentando estrutura e regras (origem BA/Matrícula, status de visita, geração automática de atendimento).
-
-### Entregáveis
-
-1. Migration SQL com 2 tabelas + RLS + trigger `updated_at`.
-2. 5 arquivos novos em `src/pages/equipe-tecnica/roteiros/` + 1 hook.
-3. 2 rotas adicionais em `App.tsx`.
-4. 1 nova aba em `EquipeTecnicaPage.tsx` (alteração mínima e isolada).
-5. Memória registrada.
+Implemento PWA + fila offline + UI, e instruo você a abrir a página uma vez com internet para o cache inicial. Depois é só testar colocando o celular em modo avião e marcando embarques.
