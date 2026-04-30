@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -95,17 +95,17 @@ export function DataTable<T extends Record<string, any>>({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={searchPlaceholder}
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(0); }}
-            className="pl-9 h-9 text-sm"
+            className="pl-9 h-10 sm:h-9 text-sm"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
           {selectable && selectedIds && selectedIds.size > 0 && (
             <span className="text-xs font-medium text-primary">{selectedIds.size} selecionado(s)</span>
           )}
@@ -120,11 +120,12 @@ export function DataTable<T extends Record<string, any>>({
         </div>
       </div>
 
-      <div className="border rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
+      {/* Desktop: full table */}
+      <div className="hidden md:block border rounded-lg overflow-hidden bg-card shadow-xs">
+        <div className="scroll-x">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/50">
+              <TableRow className="bg-surface-2 hover:bg-surface-2">
                 {selectable && (
                   <TableHead className="w-10 px-2">
                     <Checkbox
@@ -137,7 +138,7 @@ export function DataTable<T extends Record<string, any>>({
                 {columns.map(col => (
                   <TableHead
                     key={col.key}
-                    className={`text-[11px] font-semibold whitespace-nowrap uppercase tracking-wider ${col.sortable !== false ? "cursor-pointer select-none hover:bg-muted/50" : ""}`}
+                    className={`text-[11px] font-semibold text-muted-foreground whitespace-nowrap uppercase tracking-[0.08em] ${col.sortable !== false ? "cursor-pointer select-none hover:bg-muted/50" : ""}`}
                     onClick={() => col.sortable !== false && handleSort(col.key)}
                   >
                     <div className="flex items-center gap-1">
@@ -161,7 +162,7 @@ export function DataTable<T extends Record<string, any>>({
                 </TableRow>
               ) : (
                 paged.map((row, i) => (
-                  <TableRow key={row.id || i} className={`text-sm hover:bg-muted/40 ${i % 2 === 1 ? "bg-muted/30" : ""} ${selectable && selectedIds?.has(row.id) ? "bg-primary/5" : ""}`}>
+                  <TableRow key={row.id || i} className={`text-sm transition-colors hover:bg-muted/40 ${i % 2 === 1 ? "bg-muted/20" : ""} ${selectable && selectedIds?.has(row.id) ? "bg-primary/5" : ""}`}>
                     {selectable && (
                       <TableCell className="w-10 px-2 py-2">
                         <Checkbox
@@ -183,8 +184,52 @@ export function DataTable<T extends Record<string, any>>({
         </div>
       </div>
 
+      {/* Mobile: card list */}
+      <div className="md:hidden space-y-2">
+        {paged.length === 0 ? (
+          <div className="border rounded-lg bg-card p-6 text-center text-sm text-muted-foreground shadow-xs">
+            Nenhum registro encontrado
+          </div>
+        ) : (
+          paged.map((row, i) => {
+            const [primary, ...rest] = columns;
+            const isSelected = selectable && selectedIds?.has(row.id);
+            return (
+              <div
+                key={row.id || i}
+                className={`border rounded-lg bg-card p-3 shadow-xs transition-colors ${isSelected ? "border-primary/40 bg-primary/5" : ""}`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0 flex-1 text-sm font-semibold text-foreground break-words">
+                    {primary.render ? primary.render(row) : (row[primary.key] ?? "—")}
+                  </div>
+                  {selectable && (
+                    <Checkbox
+                      checked={selectedIds?.has(row.id) || false}
+                      onCheckedChange={() => toggleOne(row.id)}
+                      className="mt-0.5"
+                    />
+                  )}
+                </div>
+                <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1.5 text-xs">
+                  {rest.map(col => {
+                    const value = col.render ? col.render(row) : (row[col.key] ?? "—");
+                    return (
+                      <React.Fragment key={col.key}>
+                        <dt className="text-[10px] uppercase tracking-wider text-muted-foreground self-center">{col.label}</dt>
+                        <dd className="text-foreground min-w-0 break-words">{value}</dd>
+                      </React.Fragment>
+                    );
+                  })}
+                </dl>
+              </div>
+            );
+          })
+        )}
+      </div>
+
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground">
             Página {page + 1} de {totalPages}
           </span>

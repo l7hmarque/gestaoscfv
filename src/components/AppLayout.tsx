@@ -31,20 +31,22 @@ export function AppLayout() {
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <SystemBanner />
-          <header className="h-[52px] flex items-center justify-between border-b bg-gradient-to-r from-card to-background px-4 shrink-0 print:hidden">
-            <SidebarTrigger />
-            <div className="flex items-center gap-1">
+          <header className="sticky top-0 z-30 h-14 flex items-center justify-between border-b bg-gradient-header backdrop-blur supports-[backdrop-filter]:bg-card/85 px-3 sm:px-4 shrink-0 print:hidden">
+            <SidebarTrigger className="h-9 w-9" />
+            <div className="flex items-center gap-0.5 sm:gap-1">
               <SendRecadoDialog toTecnicos />
               <NotificationBell />
               {myProfileId && (
-                <Button variant="ghost" size="icon" onClick={() => navigate(`/profissional/${myProfileId}`)} title="Meu Perfil">
+                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate(`/profissional/${myProfileId}`)} title="Meu Perfil">
                   <User className="h-4 w-4" />
                 </Button>
               )}
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-4 md:p-6">
-            <Outlet />
+          <main className="flex-1 overflow-auto px-3 py-4 sm:px-5 sm:py-5 lg:px-8 lg:py-6">
+            <div className="mx-auto w-full max-w-[1400px] animate-fade-in">
+              <Outlet />
+            </div>
           </main>
         </div>
       </div>
