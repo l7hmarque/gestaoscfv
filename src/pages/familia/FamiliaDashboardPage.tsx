@@ -374,20 +374,34 @@ export default function FamiliaDashboardPage() {
 
             {/* ===== ATIVIDADES RECENTES ===== */}
             {/* ===== CHECK-IN ===== */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                <Bus className="h-4 w-4" /> Confirmar presença
-                {streak > 0 && (
-                  <span className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-orange-600">
-                    <Flame className="h-3.5 w-3.5" /> {streak} dia{streak > 1 ? "s" : ""} confirmando
-                  </span>
+            <Card className="border-2 border-primary/40 bg-gradient-to-br from-primary/5 via-background to-background shadow-md ring-1 ring-primary/10">
+              <CardContent className="pt-5 pb-5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-full bg-primary text-primary-foreground shadow-sm">
+                    <Bus className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-base font-bold text-foreground leading-tight">Confirmar presença</h3>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+                        Ação rápida
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Avise se o(a) {p.nome_completo.split(" ")[0]} vai ou não no transporte
+                    </p>
+                  </div>
+                  {streak > 0 && (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 bg-orange-100 dark:bg-orange-950/40 px-2 py-1 rounded-full whitespace-nowrap">
+                      <Flame className="h-3.5 w-3.5" /> {streak} dia{streak > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+                {ultimaConfirmacao && (
+                  <p className="text-xs text-muted-foreground">
+                    Última confirmação: {format(parseISO(ultimaConfirmacao.confirmado_em), "dd/MM HH:mm", { locale: ptBR })}
+                  </p>
                 )}
-              </h3>
-              {ultimaConfirmacao && (
-                <p className="text-xs text-muted-foreground">
-                  Última confirmação: {format(parseISO(ultimaConfirmacao.confirmado_em), "dd/MM HH:mm", { locale: ptBR })}
-                </p>
-              )}
 
               {(() => {
                 const aberto = isCheckinAberto(dataAlvo);
@@ -428,7 +442,7 @@ export default function FamiliaDashboardPage() {
 
                 return (
                   <div className="space-y-3">
-                    <p className="text-base font-semibold text-foreground text-center">{titulo}</p>
+                    <p className="text-lg font-bold text-foreground text-center bg-primary/10 rounded-md py-2">{titulo}</p>
                     {!respNome && (
                       <Input
                         placeholder="Seu nome (opcional, ajuda o motorista)"
@@ -478,13 +492,13 @@ export default function FamiliaDashboardPage() {
                         );
                       }
                       return (
-                        <Card key={per} className={lembretePulsante ? "border-l-4 border-l-amber-500 animate-pulse" : ""}>
+                        <Card key={per} className={`border-2 ${lembretePulsante ? "border-amber-400 animate-pulse" : "border-dashed border-primary/30"}`}>
                           <CardContent className="py-4 space-y-3">
-                            <p className="text-sm font-medium text-center text-muted-foreground">{periodoLabel}</p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <p className="text-sm font-bold text-center text-foreground uppercase tracking-wide">{periodoLabel} — pendente</p>
+                            <div className="grid grid-cols-2 gap-2">
                               <Button
                                 size="lg"
-                                className="h-14 text-base bg-green-600 hover:bg-green-700 text-white"
+                                className="h-16 text-base font-bold bg-green-600 hover:bg-green-700 text-white shadow-md"
                                 onClick={() => enviarCheckin(dataAlvo, per, true)}
                                 disabled={savingCheckin === sk}
                               >
@@ -493,7 +507,7 @@ export default function FamiliaDashboardPage() {
                               <Button
                                 size="lg"
                                 variant="outline"
-                                className="h-14 text-base border-red-300 text-red-700 hover:bg-red-50"
+                                className="h-16 text-base font-bold border-2 border-red-300 text-red-700 hover:bg-red-50"
                                 onClick={() => { setNaoVaiDialog({ data: dataAlvo, periodo: per }); setNaoVaiMotivo(""); }}
                                 disabled={savingCheckin === sk}
                               >
@@ -524,7 +538,8 @@ export default function FamiliaDashboardPage() {
                   </div>
                 );
               })()}
-            </div>
+              </CardContent>
+            </Card>
 
             {atividades.length > 0 && (
               <div className="space-y-3">
