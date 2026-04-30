@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
-import { MapPin, Clock, BookOpen, CalendarCheck, MessageSquare, FileText, ArrowLeft, Users, Calendar, Percent, UserCheck, Lock, Bus, Flame, ChevronDown } from "lucide-react";
+import { MapPin, Clock, BookOpen, CalendarCheck, MessageSquare, FileText, ArrowLeft, Users, Calendar as CalendarIcon, Percent, UserCheck, Lock, Bus, Flame, CalendarDays } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import confetti from "canvas-confetti";
@@ -56,7 +58,6 @@ export default function FamiliaDashboardPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [naoVaiDialog, setNaoVaiDialog] = useState<{ periodo: string; data: string } | null>(null);
   const [naoVaiMotivo, setNaoVaiMotivo] = useState("");
-  const [respNome, setRespNome] = useState("");
 
   useEffect(() => {
     const stored = sessionStorage.getItem("familia_participantes");
@@ -179,7 +180,7 @@ export default function FamiliaDashboardPage() {
           data: iso,
           periodo,
           confirmado,
-          confirmado_por: respNome || null,
+          confirmado_por: null,
           observacao: motivo || null,
         },
       });
