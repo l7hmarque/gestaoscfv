@@ -458,7 +458,7 @@ export default function FamiliaDashboardPage() {
                         <span>Período: <span className="text-foreground font-medium">{periodoLabel || "Sem dados"}</span></span>
                       </div>
                       <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+                        <CalendarIcon className="h-3.5 w-3.5 flex-shrink-0" />
                         <span>Início: <span className="text-foreground font-medium">{p.iniciou_em ? format(parseISO(p.iniciou_em), "dd/MM/yyyy") : "Sem dados"}</span></span>
                       </div>
                       <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -576,7 +576,11 @@ export default function FamiliaDashboardPage() {
                 </div>
                 {ultimaConfirmacao && (
                   <p className="text-xs text-muted-foreground">
-                    Última confirmação: {format(parseISO(ultimaConfirmacao.confirmado_em), "dd/MM HH:mm", { locale: ptBR })}
+                    Última confirmação:{" "}
+                    <span className={`font-semibold ${ultimaConfirmacao.confirmado ? "text-green-600" : "text-red-600"}`}>
+                      {ultimaConfirmacao.confirmado ? "✓ Vai no transporte" : "✗ Não vai"}
+                    </span>{" "}
+                    em {format(parseISO(ultimaConfirmacao.confirmado_em), "dd/MM 'às' HH:mm", { locale: ptBR })}
                   </p>
                 )}
 
