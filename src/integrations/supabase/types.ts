@@ -1151,6 +1151,57 @@ export type Database = {
           },
         ]
       }
+      familia_acessos: {
+        Row: {
+          acoes: Json
+          created_at: string
+          duracao_segundos: number | null
+          encerrado_em: string | null
+          id: string
+          iniciado_em: string
+          ip_address: string | null
+          match_type: string | null
+          participante_id: string | null
+          participante_ids: string[] | null
+          participante_nome: string | null
+          total_acoes: number
+          ultimo_ping_em: string
+          user_agent: string | null
+        }
+        Insert: {
+          acoes?: Json
+          created_at?: string
+          duracao_segundos?: number | null
+          encerrado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          ip_address?: string | null
+          match_type?: string | null
+          participante_id?: string | null
+          participante_ids?: string[] | null
+          participante_nome?: string | null
+          total_acoes?: number
+          ultimo_ping_em?: string
+          user_agent?: string | null
+        }
+        Update: {
+          acoes?: Json
+          created_at?: string
+          duracao_segundos?: number | null
+          encerrado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          ip_address?: string | null
+          match_type?: string | null
+          participante_id?: string | null
+          participante_ids?: string[] | null
+          participante_nome?: string | null
+          total_acoes?: number
+          ultimo_ping_em?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       feed_comentarios: {
         Row: {
           autor_id: string
