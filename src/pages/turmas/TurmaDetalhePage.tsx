@@ -14,6 +14,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
+
+type EducadorLite = { id: string; user_id: string; nome: string; cargo: string | null; ativo: boolean | null; foto_url: string | null };
 import { isBairroSCFV, OFICINAS_TURMA, PERIODO_LABELS, FAIXA_LABELS, calcAge } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { format } from "date-fns";
@@ -46,7 +48,7 @@ const TurmaDetalhePage = () => {
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [allParticipantes, setAllParticipantes] = useState<{ id: string; nome_completo: string; periodo: string | null }[]>([]);
   const [bairros, setBairros] = useState<Tables<"bairros">[]>([]);
-  const [educadores, setEducadores] = useState<Tables<"profiles">[]>([]);
+  const [educadores, setEducadores] = useState<EducadorLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
