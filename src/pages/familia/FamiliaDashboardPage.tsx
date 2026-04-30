@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
-import { MapPin, Clock, BookOpen, CalendarCheck, MessageSquare, FileText, ArrowLeft, Users, Calendar as CalendarIcon, Percent, UserCheck, Lock, Bus, Flame, CalendarDays } from "lucide-react";
+import { MapPin, Clock, BookOpen, CalendarCheck, MessageSquare, FileText, ArrowLeft, Users, Calendar as CalendarIcon, Percent, UserCheck, Lock, Bus, Flame, CalendarDays, Camera, Image as ImageIcon, Upload, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import confetti from "canvas-confetti";
@@ -59,6 +59,10 @@ export default function FamiliaDashboardPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [naoVaiDialog, setNaoVaiDialog] = useState<{ periodo: string; data: string } | null>(null);
   const [naoVaiMotivo, setNaoVaiMotivo] = useState("");
+  const [fotoDialogOpen, setFotoDialogOpen] = useState(false);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [fotoUploading, setFotoUploading] = useState(false);
+  const fotoFileRef = useRef<File | null>(null);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("familia_participantes");
@@ -218,6 +222,97 @@ export default function FamiliaDashboardPage() {
     setNaoVaiMotivo("");
   };
 
+  // ===== Upload da foto do participante (família) =====
+  const comprimirImagem = (file: File): Promise<{ blob: Blob; dataUrl: string }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX = 800;
+          let { width, height } = img;
+          if (width > height && width > MAX) { height = Math.round((height * MAX) / width); width = MAX; }
+          else if (height > MAX) { width = Math.round((width * MAX) / height); height = MAX; }
+          const canvas = document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("Canvas não suportado"));
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob((blob) => {
+            if (!blob) return reject(new Error("Falha ao gerar imagem"));
+            const r2 = new FileReader();
+            r2.onload = () => resolve({ blob, dataUrl: r2.result as string });
+            r2.onerror = () => reject(new Error("Falha ao ler imagem"));
+            r2.readAsDataURL(blob);
+          }, "image/jpeg", 0.85);
+        };
+        img.onerror = () => reject(new Error("Imagem inválida"));
+        img.src = reader.result as string;
+      };
+      reader.onerror = () => reject(new Error("Falha ao ler arquivo"));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const escolherFoto = (capture: boolean) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/jpeg,image/png,image/webp";
+    if (capture) input.setAttribute("capture", "user");
+    input.onchange = async (ev: any) => {
+      const file: File | undefined = ev.target?.files?.[0];
+      if (!file) return;
+      try {
+        const { blob, dataUrl } = await comprimirImagem(file);
+        fotoFileRef.current = new File([blob], "foto.jpg", { type: "image/jpeg" });
+        setFotoPreview(dataUrl);
+      } catch (e: any) {
+        toast.error(e.message || "Não foi possível processar a imagem");
+      }
+    };
+    input.click();
+  };
+
+  const enviarFoto = async () => {
+    if (!p || !fotoFileRef.current || !fotoPreview) return;
+    setFotoUploading(true);
+    try {
+      const token = sessionStorage.getItem("familia_token") || undefined;
+      const acesso_id = sessionStorage.getItem("familia_acesso_id") || undefined;
+      const res = await supabase.functions.invoke("public-familia-data", {
+        body: {
+          participante_id: p.id,
+          tipo: "upload_foto",
+          token,
+          acesso_id,
+          foto_base64: fotoPreview,
+          content_type: "image/jpeg",
+        },
+      });
+      const data: any = res.data;
+      if (data?.error || res.error) {
+        toast.error(data?.error || res.error?.message || "Falha ao enviar foto");
+        return;
+      }
+      // Atualiza lista local + sessionStorage
+      const novoUrl: string = data.foto_url;
+      setParticipantes(prev => {
+        const cp = [...prev];
+        cp[selected] = { ...cp[selected], foto_url: novoUrl };
+        sessionStorage.setItem("familia_participantes", JSON.stringify(cp));
+        return cp;
+      });
+      toast.success("Foto atualizada com sucesso 📸");
+      setFotoDialogOpen(false);
+      setFotoPreview(null);
+      fotoFileRef.current = null;
+    } catch (e: any) {
+      toast.error(e.message || "Erro inesperado");
+    } finally {
+      setFotoUploading(false);
+    }
+  };
+
   if (!p) return null;
 
   const pctAtual = presenca?.mesAtual?.total
@@ -279,13 +374,23 @@ export default function FamiliaDashboardPage() {
             <Card>
               <CardContent className="pt-6 pb-5">
                 <div className="flex items-start gap-4">
-                  {p.foto_url ? (
-                    <img src={p.foto_url} alt="" className="w-16 h-16 rounded-full object-cover flex-shrink-0" />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl flex-shrink-0">
-                      {p.nome_completo.charAt(0)}
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setFotoPreview(null); fotoFileRef.current = null; setFotoDialogOpen(true); }}
+                    className="relative group flex-shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-primary"
+                    title="Alterar foto"
+                  >
+                    {p.foto_url ? (
+                      <img src={p.foto_url} alt="" className="w-16 h-16 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl">
+                        {p.nome_completo.charAt(0)}
+                      </div>
+                    )}
+                    <span className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full p-1.5 shadow ring-2 ring-background group-hover:scale-110 transition-transform">
+                      <Camera className="h-3 w-3" />
+                    </span>
+                  </button>
                   <div className="flex-1 min-w-0">
                     <h2 className="font-bold text-lg text-foreground leading-tight">{p.nome_completo}</h2>
                     <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
@@ -688,6 +793,52 @@ export default function FamiliaDashboardPage() {
                 Confirmar ausência
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={fotoDialogOpen} onOpenChange={(o) => { if (!o && !fotoUploading) { setFotoDialogOpen(false); setFotoPreview(null); fotoFileRef.current = null; } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Camera className="h-5 w-5" /> Foto do(a) {p.nome_completo.split(" ")[0]}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/20 px-3 py-2.5 text-xs text-amber-900 dark:text-amber-200 space-y-1.5">
+              <p className="font-semibold flex items-center gap-1">📋 Antes de enviar, confira:</p>
+              <ul className="list-disc pl-5 space-y-0.5">
+                <li>Foto do <strong>rosto da criança</strong> bem visível</li>
+                <li>Ambiente <strong>bem iluminado</strong></li>
+                <li>Fundo de preferência uma <strong>parede branca</strong></li>
+                <li>Se tiver, usar a <strong>camiseta do CAIA</strong></li>
+              </ul>
+            </div>
+
+            {fotoPreview ? (
+              <div className="space-y-3">
+                <div className="flex justify-center">
+                  <img src={fotoPreview} alt="Pré-visualização" className="w-40 h-40 rounded-full object-cover border-4 border-primary/30 shadow" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="outline" onClick={() => { setFotoPreview(null); fotoFileRef.current = null; }} disabled={fotoUploading}>
+                    Trocar
+                  </Button>
+                  <Button onClick={enviarFoto} disabled={fotoUploading} className="gap-2">
+                    {fotoUploading ? <><Loader2 className="h-4 w-4 animate-spin" /> Enviando...</> : <><Upload className="h-4 w-4" /> Confirmar</>}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <Button onClick={() => escolherFoto(true)} variant="outline" className="h-20 flex-col gap-1.5">
+                  <Camera className="h-6 w-6 text-primary" />
+                  <span className="text-xs font-medium">Tirar foto</span>
+                </Button>
+                <Button onClick={() => escolherFoto(false)} variant="outline" className="h-20 flex-col gap-1.5">
+                  <ImageIcon className="h-6 w-6 text-primary" />
+                  <span className="text-xs font-medium">Da galeria</span>
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -309,6 +309,47 @@ Deno.serve(async (req) => {
         return respond({ success: true, checkin: data });
       }
 
+      case "upload_foto": {
+        const { foto_base64, content_type } = body;
+        if (!foto_base64 || typeof foto_base64 !== "string") {
+          return respond({ error: "foto_base64 obrigatório" }, 400);
+        }
+        const ct = (content_type as string) || "image/jpeg";
+        if (!/^image\/(jpeg|jpg|png|webp)$/i.test(ct)) {
+          return respond({ error: "Formato inválido — use JPG, PNG ou WEBP" }, 400);
+        }
+        // Decodifica base64 (data URL ou puro)
+        const b64 = foto_base64.includes(",") ? foto_base64.split(",")[1] : foto_base64;
+        let bytes: Uint8Array;
+        try {
+          bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        } catch {
+          return respond({ error: "base64 inválido" }, 400);
+        }
+        // Limite de 5MB após decodificação
+        if (bytes.byteLength > 5 * 1024 * 1024) {
+          return respond({ error: "Foto maior que 5MB — reduza a qualidade" }, 413);
+        }
+        const ext = ct.toLowerCase().endsWith("png") ? "png"
+                  : ct.toLowerCase().endsWith("webp") ? "webp" : "jpg";
+        const path = `familia/${participante_id}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabaseAdmin.storage
+          .from("fotos-participantes")
+          .upload(path, bytes, { contentType: ct, upsert: true });
+        if (upErr) return respond({ error: upErr.message }, 500);
+        // bucket é privado — gera URL assinada longa (1 ano)
+        const { data: signed, error: signErr } = await supabaseAdmin.storage
+          .from("fotos-participantes")
+          .createSignedUrl(path, 60 * 60 * 24 * 365);
+        if (signErr || !signed) return respond({ error: signErr?.message || "Falha ao gerar URL" }, 500);
+        const { error: updErr } = await supabaseAdmin
+          .from("participantes")
+          .update({ foto_url: signed.signedUrl })
+          .eq("id", participante_id);
+        if (updErr) return respond({ error: updErr.message }, 500);
+        return respond({ success: true, foto_url: signed.signedUrl });
+      }
+
       default:
         return respond({ error: "Tipo inválido" }, 400);
     }
