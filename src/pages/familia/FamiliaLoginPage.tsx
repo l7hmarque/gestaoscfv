@@ -41,6 +41,7 @@ export default function FamiliaLoginPage() {
 
       sessionStorage.setItem("familia_participantes", JSON.stringify(data.participantes));
       if (data.token) sessionStorage.setItem("familia_token", data.token);
+      if (data.acesso_id) sessionStorage.setItem("familia_acesso_id", data.acesso_id);
       navigate("/familia/painel");
     } catch (err: any) {
       toast.error("Erro ao buscar participante");
@@ -53,6 +54,7 @@ export default function FamiliaLoginPage() {
     if (fuzzyMatch) {
       sessionStorage.setItem("familia_participantes", JSON.stringify(fuzzyMatch.participantes));
       if (fuzzyMatch.token) sessionStorage.setItem("familia_token", fuzzyMatch.token);
+      if (fuzzyMatch.acesso_id) sessionStorage.setItem("familia_acesso_id", fuzzyMatch.acesso_id);
       navigate("/familia/painel");
     }
   };
