@@ -43,7 +43,7 @@ export default defineConfig(({ mode }) => ({
             options: { cacheName: "html", networkTimeoutSeconds: 3 },
           },
           {
-            urlPattern: ({ url }) => url.origin === self.location.origin && /\.(?:js|css|woff2?)$/.test(url.pathname),
+            urlPattern: /\.(?:js|css|woff2?)$/,
             handler: "StaleWhileRevalidate",
             options: { cacheName: "assets" },
           },
