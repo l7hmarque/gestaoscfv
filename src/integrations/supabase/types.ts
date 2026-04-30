@@ -2071,6 +2071,7 @@ export type Database = {
           horario_tarde: string | null
           id: string
           nome: string
+          ordem: number
         }
         Insert: {
           ativo?: boolean | null
@@ -2079,6 +2080,7 @@ export type Database = {
           horario_tarde?: string | null
           id?: string
           nome: string
+          ordem?: number
         }
         Update: {
           ativo?: boolean | null
@@ -2087,6 +2089,7 @@ export type Database = {
           horario_tarde?: string | null
           id?: string
           nome?: string
+          ordem?: number
         }
         Relationships: [
           {
