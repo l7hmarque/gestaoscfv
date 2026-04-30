@@ -29,7 +29,8 @@ const ProfissionalPerfilPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       const [profRes, turmasRes, planRes, relRes, presRes] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", id!).single(),
+        // Usa RPC para incluir campos sensíveis quando o próprio usuário/coordenação acessa
+        supabase.rpc("get_profile_full", { _profile_id: id! }).maybeSingle(),
         supabase.from("turmas").select("*, bairros(nome)").eq("educador_id", id!).order("nome"),
         supabase.from("planejamentos").select("*, planejamento_turmas(turma_id, turmas(nome))").eq("educador_id", id!).order("data_aplicacao", { ascending: false }),
         supabase.from("relatorios_atividade").select("*, relatorio_turmas(turma_id, turmas(nome)), planejamento_id").eq("educador_id", id!).order("data", { ascending: false }),

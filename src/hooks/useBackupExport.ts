@@ -111,7 +111,8 @@ export function useBackupExport() {
       }
 
       if (categories.includes("Profissionais")) {
-        const { data } = await supabase.from("profiles").select("*").order("nome");
+        // Sem campos sensíveis no backup do cliente (RH só pela coordenação via RPC).
+        const { data } = await supabase.from("profiles").select("id, user_id, nome, cargo, ativo, email, data_inicio, foto_url").order("nome");
         const { data: roles } = await supabase.from("user_roles").select("*");
         const roleMap = new Map<string, string[]>();
         (roles || []).forEach((r: any) => {

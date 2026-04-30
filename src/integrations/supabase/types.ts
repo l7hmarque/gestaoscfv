@@ -3721,6 +3721,37 @@ export type Database = {
       }
       get_pendencias_integridade: { Args: never; Returns: Json }
       get_pendencias_integridade_detalhes: { Args: never; Returns: Json }
+      get_profile_full: {
+        Args: { _profile_id: string }
+        Returns: {
+          ativo: boolean | null
+          carga_horaria: string | null
+          cargo: string | null
+          cpf: string | null
+          created_at: string | null
+          data_desligamento: string | null
+          data_inicio: string | null
+          email: string | null
+          endereco: string | null
+          foto_url: string | null
+          id: string
+          nome: string
+          registro_profissional: string | null
+          rg: string | null
+          rg_data_expedicao: string | null
+          rg_orgao_expedidor: string | null
+          salario: number | null
+          telefone: string | null
+          updated_at: string | null
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_profile_sensitive: {
         Args: { _profile_id: string }
         Returns: {
@@ -3750,6 +3781,29 @@ export type Database = {
       is_projeto_member: {
         Args: { _projeto_id: string; _user_id: string }
         Returns: boolean
+      }
+      list_profiles_rh: {
+        Args: never
+        Returns: {
+          ativo: boolean
+          carga_horaria: string
+          cargo: string
+          cpf: string
+          data_desligamento: string
+          data_inicio: string
+          email: string
+          endereco: string
+          foto_url: string
+          id: string
+          nome: string
+          registro_profissional: string
+          rg: string
+          rg_data_expedicao: string
+          rg_orgao_expedidor: string
+          salario: number
+          telefone: string
+          user_id: string
+        }[]
       }
       projeto_member_papel: {
         Args: { _projeto_id: string; _user_id: string }

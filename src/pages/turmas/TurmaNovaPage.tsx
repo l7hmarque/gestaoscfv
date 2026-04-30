@@ -65,7 +65,7 @@ const TurmaNovaPage = () => {
   useEffect(() => {
     Promise.all([
       supabase.from("bairros").select("*").order("nome"),
-      supabase.from("profiles").select("*").order("nome"),
+      supabase.from("profiles").select("id, user_id, nome, cargo, ativo, foto_url").order("nome"),
     ]).then(([{ data: b }, { data: e }]) => {
       setBairros(b || []);
       setEducadores(e || []);
