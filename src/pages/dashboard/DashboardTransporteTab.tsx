@@ -453,8 +453,8 @@ export default function DashboardTransporteTab() {
                       const naoEmbarcou = ck?.embarcou === false;
                       const pend = pendentesMap[`${p.id}_${periodoAtual}`];
 
-                      return (
-                        <div key={p.id} className={`flex items-center justify-between gap-2 p-2 rounded border-l-4 text-xs ${
+                       return (
+                         <div key={p.id} className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-2 rounded border-l-4 text-xs ${
                           embarcou ? "bg-emerald-50 dark:bg-emerald-950/20 border-l-emerald-600" :
                           naoEmbarcou ? "bg-red-50 dark:bg-red-950/20 border-l-red-600 opacity-70" :
                           confirmado ? "bg-emerald-50/50 dark:bg-emerald-950/10 border-l-emerald-500" :
@@ -462,7 +462,7 @@ export default function DashboardTransporteTab() {
                           "bg-background border-l-muted"
                         }`}>
                           <div className="flex-1 min-w-0">
-                            <p className={`font-medium truncate ${recusado || naoEmbarcou ? "line-through" : ""}`}>
+                            <p className={`font-medium break-words leading-snug ${recusado || naoEmbarcou ? "line-through" : ""}`}>
                               {p.nome}
                               {pend && (
                                 <Badge variant="outline" className="ml-1 text-[9px] gap-0.5 border-amber-500 text-amber-800 bg-amber-50 dark:bg-amber-950/30">
@@ -479,17 +479,17 @@ export default function DashboardTransporteTab() {
                             </p>
                           </div>
                           {!embarcou && !naoEmbarcou && (
-                            <div className="flex gap-1 shrink-0">
-                              <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1 border-emerald-600 text-emerald-700 hover:bg-emerald-50" onClick={() => marcarEmbarque(p.id, true)}>
-                                <CheckCircle2 className="h-3 w-3" /> Embarcou
+                            <div className="flex gap-1 shrink-0 w-full sm:w-auto">
+                              <Button size="sm" variant="outline" className="h-9 sm:h-7 text-xs sm:text-[10px] gap-1 border-emerald-600 text-emerald-700 hover:bg-emerald-50 flex-1 sm:flex-none" onClick={() => marcarEmbarque(p.id, true)}>
+                                <CheckCircle2 className="h-3.5 w-3.5 sm:h-3 sm:w-3" /> Embarcou
                               </Button>
-                              <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1 border-red-600 text-red-700 hover:bg-red-50" onClick={() => marcarEmbarque(p.id, false)}>
-                                <XCircle className="h-3 w-3" /> Não embarcou
+                              <Button size="sm" variant="outline" className="h-9 sm:h-7 text-xs sm:text-[10px] gap-1 border-red-600 text-red-700 hover:bg-red-50 flex-1 sm:flex-none" onClick={() => marcarEmbarque(p.id, false)}>
+                                <XCircle className="h-3.5 w-3.5 sm:h-3 sm:w-3" /> Não embarcou
                               </Button>
                             </div>
                           )}
                           {(embarcou || naoEmbarcou) && (
-                            <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={async () => {
+                            <Button size="sm" variant="ghost" className="h-7 text-xs self-end sm:self-auto" onClick={async () => {
                               await supabase.from("participante_checkins").update({ embarcou: null, embarcou_em: null } as any).eq("id", ck.id);
                               toast.info("Marcação removida");
                               loadCheckinsHoje();
