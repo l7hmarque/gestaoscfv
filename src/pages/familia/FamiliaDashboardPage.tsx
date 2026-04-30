@@ -73,13 +73,14 @@ export default function FamiliaDashboardPage() {
     setLoading(true);
     try {
       const token = sessionStorage.getItem("familia_token") || undefined;
+      const acesso_id = sessionStorage.getItem("familia_acesso_id") || undefined;
       const [turmasRes, atividadesRes, presencaRes, recadosRes, formularioRes, checkinsRes] = await Promise.all([
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "turmas", token } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "atividades", token } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "presenca", token } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "recados", token } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "formularios", token } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "checkins", token } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "turmas", token, acesso_id } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "atividades", token, acesso_id } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "presenca", token, acesso_id } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "recados", token, acesso_id } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "formularios", token, acesso_id } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "checkins", token, acesso_id } }),
       ]);
 
       setTurmas(turmasRes.data?.turmas || []);
@@ -152,6 +153,7 @@ export default function FamiliaDashboardPage() {
     setSavingCheckin(key);
     try {
       const token = sessionStorage.getItem("familia_token") || undefined;
+      const acesso_id = sessionStorage.getItem("familia_acesso_id") || undefined;
       const res = await supabase.functions.invoke("public-familia-data", {
         body: {
           participante_id: p.id,
