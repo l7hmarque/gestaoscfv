@@ -9,10 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, MapPin, Clock, Power, PowerOff, Pencil, Trash2, Check, X, Bus, CheckCircle2, XCircle, CircleDashed, RefreshCw } from "lucide-react";
+import { Plus, MapPin, Clock, Power, PowerOff, Pencil, Trash2, Check, X, Bus, CheckCircle2, XCircle, CircleDashed, RefreshCw, ArrowUp, ArrowDown, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { isBairroSCFV } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
+import { gerarRelatorioTransporteDia } from "@/lib/transporteRelatorio";
 
 interface Ponto {
   id: string;
@@ -21,6 +22,7 @@ interface Ponto {
   ativo: boolean | null;
   horario_manha: string | null;
   horario_tarde: string | null;
+  ordem?: number | null;
 }
 
 interface Bairro { id: string; nome: string; }
@@ -131,7 +133,7 @@ export default function DashboardTransporteTab() {
   const loadAll = async () => {
     const [bRes, pRes, partRes] = await Promise.all([
       supabase.from("bairros").select("*").order("nome"),
-      supabase.from("pontos_transporte").select("*").order("nome") as any,
+      supabase.from("pontos_transporte").select("*").order("ordem").order("nome") as any,
       supabase.from("participantes").select("id, nome_completo, periodo, ponto_transporte_id").in("status", ["ativo", "busca_ativa"] as any),
     ]);
     setBairros(bRes.data || []);
@@ -249,6 +251,37 @@ export default function DashboardTransporteTab() {
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(p);
   });
+  // Ordena pontos dentro de cada bairro por `ordem` (e nome como fallback)
+  Object.keys(grouped).forEach(k => {
+    grouped[k].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0) || a.nome.localeCompare(b.nome, "pt-BR"));
+  });
+
+  /** Reordena ponto dentro do bairro trocando posição com o vizinho. */
+  const moverPonto = async (pt: Ponto, direcao: "up" | "down") => {
+    const irmaos = grouped[bairroNome(pt.bairro_id)] || [];
+    const idx = irmaos.findIndex(p => p.id === pt.id);
+    const alvoIdx = direcao === "up" ? idx - 1 : idx + 1;
+    if (alvoIdx < 0 || alvoIdx >= irmaos.length) return;
+    const a = irmaos[idx];
+    const b = irmaos[alvoIdx];
+    const ordemA = a.ordem ?? idx + 1;
+    const ordemB = b.ordem ?? alvoIdx + 1;
+    await Promise.all([
+      supabase.from("pontos_transporte").update({ ordem: ordemB } as any).eq("id", a.id),
+      supabase.from("pontos_transporte").update({ ordem: ordemA } as any).eq("id", b.id),
+    ]);
+    loadAll();
+  };
+
+  const exportarRelatorio = async () => {
+    try {
+      toast.info("Gerando relatório...");
+      await gerarRelatorioTransporteDia(hojeStr, periodoAtual);
+      toast.success("Relatório gerado");
+    } catch (e: any) {
+      toast.error(e.message || "Falha ao gerar relatório");
+    }
+  };
 
   if (loading) return <p className="text-sm text-muted-foreground p-4">Carregando...</p>;
 
@@ -274,26 +307,58 @@ export default function DashboardTransporteTab() {
                 {periodoAtual === "manha" ? "🌅 Manhã" : "🌇 Tarde"} · {new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
               </Badge>
             </CardTitle>
-            <Button size="sm" variant="ghost" onClick={loadCheckinsHoje} disabled={refreshingCheckins} className="h-7 gap-1 text-xs">
-              <RefreshCw className={`h-3 w-3 ${refreshingCheckins ? "animate-spin" : ""}`} /> Atualizar
-            </Button>
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" onClick={exportarRelatorio} className="h-7 gap-1 text-xs">
+                <FileSpreadsheet className="h-3 w-3" /> Relatório do dia
+              </Button>
+              <Button size="sm" variant="ghost" onClick={loadCheckinsHoje} disabled={refreshingCheckins} className="h-7 gap-1 text-xs">
+                <RefreshCw className={`h-3 w-3 ${refreshingCheckins ? "animate-spin" : ""}`} /> Atualizar
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {pontos.filter(pt => pt.ativo !== false).map(pt => {
-              const todos = (participantesPorPontoFull[pt.id] || [])
-                .filter(p => p.periodo === periodoAtual || p.periodo === "integral")
-                .sort((a, b) => a.nome.localeCompare(b.nome));
-              if (todos.length === 0) return null;
+          <CardContent className="space-y-4">
+            {Object.entries(grouped)
+              .sort(([a], [b]) => a.localeCompare(b, "pt-BR"))
+              .map(([bairro, pts]) => {
+                const pontosAtivos = pts.filter(pt => pt.ativo !== false);
+                const blocos = pontosAtivos.map(pt => {
+                  const todos = (participantesPorPontoFull[pt.id] || [])
+                    .filter(p => p.periodo === periodoAtual || p.periodo === "integral")
+                    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+                  return { pt, todos };
+                }).filter(b => b.todos.length > 0);
+                if (blocos.length === 0) return null;
+
+                const totBairro = blocos.reduce((s, b) => s + b.todos.length, 0);
+                const confBairro = blocos.reduce((s, b) => s + b.todos.filter(p => checkinsHoje[`${p.id}_${periodoAtual}`]?.confirmado === true).length, 0);
+                const embBairro = blocos.reduce((s, b) => s + b.todos.filter(p => checkinsHoje[`${p.id}_${periodoAtual}`]?.embarcou === true).length, 0);
+
+                return (
+                  <div key={bairro} className="rounded-lg border-2 border-blue-200 dark:border-blue-900 overflow-hidden">
+                    <div className="bg-blue-50 dark:bg-blue-950/40 px-3 py-2 flex items-center justify-between flex-wrap gap-2">
+                      <span className="font-bold text-sm flex items-center gap-1.5 text-blue-900 dark:text-blue-200 uppercase tracking-wide">
+                        <MapPin className="h-4 w-4" /> {bairro}
+                      </span>
+                      <div className="text-[11px] flex gap-3">
+                        <span className="text-muted-foreground">{blocos.length} ponto{blocos.length > 1 ? "s" : ""}</span>
+                        <span className="text-emerald-700 font-semibold">✅ {embBairro}/{totBairro} embarcaram</span>
+                        <span className="text-blue-700 font-semibold">🟢 {confBairro} confirmados</span>
+                      </div>
+                    </div>
+                    <div className="p-3 space-y-3">
+                      {blocos.map(({ pt, todos }, blocoIdx) => {
               const confirmados = todos.filter(p => checkinsHoje[`${p.id}_${periodoAtual}`]?.confirmado === true).length;
               const naoVai = todos.filter(p => checkinsHoje[`${p.id}_${periodoAtual}`]?.confirmado === false).length;
               const pendentes = todos.length - confirmados - naoVai;
+              const horarioParada = periodoAtual === "manha" ? pt.horario_manha : pt.horario_tarde;
 
               return (
                 <div key={pt.id} className="border rounded-lg p-3 space-y-2 bg-muted/20">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <span className="font-semibold text-sm flex items-center gap-1.5">
-                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" /> {pt.nome}
-                      <span className="text-[10px] text-muted-foreground">({bairroNome(pt.bairro_id)})</span>
+                      <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">{blocoIdx + 1}</span>
+                      {pt.nome}
+                      {horarioParada && <span className="text-[10px] text-muted-foreground font-normal">⏱ {horarioParada}</span>}
                     </span>
                     <div className="flex gap-2 text-[11px]">
                       <span className="text-emerald-600 font-medium">🟢 {confirmados}</span>
@@ -350,7 +415,11 @@ export default function DashboardTransporteTab() {
                   </div>
                 </div>
               );
-            })}
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             {pontos.filter(pt => pt.ativo !== false && (participantesPorPontoFull[pt.id] || []).some(p => p.periodo === periodoAtual || p.periodo === "integral")).length === 0 && (
               <p className="text-xs text-muted-foreground italic">Nenhum participante atribuído aos pontos para o período da {periodoAtual === "manha" ? "manhã" : "tarde"}.</p>
             )}
@@ -374,10 +443,13 @@ export default function DashboardTransporteTab() {
       {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([bairro, pts]) => (
         <Card key={bairro}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><MapPin className="h-4 w-4" /> {bairro}</CardTitle>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <MapPin className="h-4 w-4" /> {bairro}
+              <span className="text-[10px] font-normal text-muted-foreground ml-1">(use ↑↓ para ordenar a sequência do motorista)</span>
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {pts.map(pt => {
+            {pts.map((pt, ptIdx) => {
               const parts = participantesPorPonto[pt.id] || [];
               const manha = parts.filter(p => p.periodo === "manha" || p.periodo === "integral");
               const tarde = parts.filter(p => p.periodo === "tarde" || p.periodo === "integral");
@@ -390,6 +462,7 @@ export default function DashboardTransporteTab() {
                       {bulkMode && (
                         <Checkbox checked={selected.has(pt.id)} onCheckedChange={() => toggleSelect(pt.id)} />
                       )}
+                      <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-muted text-[11px] font-bold text-muted-foreground">{ptIdx + 1}</span>
                       {isEditing ? (
                         <Input className="h-7 text-sm w-40" value={editForm.nome} onChange={e => setEditForm({ ...editForm, nome: e.target.value })} />
                       ) : (
@@ -405,6 +478,12 @@ export default function DashboardTransporteTab() {
                         </>
                       ) : (
                         <>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moverPonto(pt, "up")} disabled={ptIdx === 0} title="Subir na ordem">
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moverPonto(pt, "down")} disabled={ptIdx === pts.length - 1} title="Descer na ordem">
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          </Button>
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(pt)}><Pencil className="h-3.5 w-3.5" /></Button>
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => toggleAtivo(pt)}>
                             {pt.ativo !== false ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
