@@ -310,14 +310,24 @@ export default function FamiliaDashboardPage() {
 
             {/* ===== TRANSPORTE ===== */}
             {p.ponto_transporte && (
-              <div className="space-y-3">
+              (() => {
+                const bairroNome = (p.ponto_transporte.bairro_nome || "").toLowerCase();
+                const bairroColor = bairroNome.includes("independ")
+                  ? { bg: "bg-red-600", text: "text-red-600", border: "border-red-600/40", soft: "bg-red-50" }
+                  : bairroNome.includes("alvorada")
+                  ? { bg: "bg-purple-600", text: "text-purple-600", border: "border-purple-600/40", soft: "bg-purple-50" }
+                  : bairroNome.includes("irene")
+                  ? { bg: "bg-green-600", text: "text-green-600", border: "border-green-600/40", soft: "bg-green-50" }
+                  : { bg: "bg-primary", text: "text-primary", border: "border-primary/30", soft: "bg-primary/5" };
+                return (
+                <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
                   <MapPin className="h-4 w-4" /> Transporte
                 </h3>
-                <Card className="border-primary/30 bg-primary/5">
+                <Card className={`${bairroColor.border} ${bairroColor.soft}`}>
                   <CardContent className="pt-5 pb-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-full bg-primary text-primary-foreground">
+                      <div className={`p-2 rounded-full ${bairroColor.bg} text-white`}>
                         <MapPin className="h-4 w-4" />
                       </div>
                       <div>
@@ -344,7 +354,7 @@ export default function FamiliaDashboardPage() {
                   </CardContent>
                 </Card>
                 <p className="text-xs text-muted-foreground text-center">
-                  Localize seu ponto no mapa: <strong className="text-primary">{p.ponto_transporte.nome}</strong>
+                  Localize seu ponto no mapa: <strong className={bairroColor.text}>{p.ponto_transporte.nome}</strong>
                 </p>
                 <div className="rounded-xl overflow-hidden border shadow-sm">
                   <iframe
@@ -357,7 +367,9 @@ export default function FamiliaDashboardPage() {
                     title="Mapa de pontos de transporte"
                   />
                 </div>
-              </div>
+                </div>
+                );
+              })()
             )}
 
             {/* ===== ATIVIDADES RECENTES ===== */}
