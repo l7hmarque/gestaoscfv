@@ -81,7 +81,20 @@ describe("Segurança: usuário autenticado (visitante) respeita RLS", () => {
       .from("profiles")
       .select("salario, cpf, rg, endereco, telefone")
       .limit(1);
-    expectNoLeak(data, error);
+    // RLS pode permitir ler o PRÓPRIO profile, mas as colunas sensíveis
+    // foram revogadas para o role `authenticated` — devem vir como null.
+    if (error) {
+      expect(error).toBeTruthy();
+      return;
+    }
+    for (const row of data ?? []) {
+      const r = row as Record<string, unknown>;
+      expect(r.salario).toBeNull();
+      expect(r.cpf).toBeNull();
+      expect(r.rg).toBeNull();
+      expect(r.endereco).toBeNull();
+      expect(r.telefone).toBeNull();
+    }
   });
 
   it("sit_configuracao — visitante NÃO acessa CNPJ/dados bancários", async () => {
