@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { participante_id, tipo, token } = body;
+    const { participante_id, tipo, token, acesso_id } = body;
 
     if (!participante_id || !tipo) {
       return respond({ error: "participante_id e tipo são obrigatórios" }, 400);
@@ -65,6 +65,37 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // Heartbeat / log de ação (best-effort, não bloqueia)
+    if (acesso_id) {
+      (async () => {
+        try {
+          const agora = new Date();
+          const { data: ac } = await supabaseAdmin
+            .from("familia_acessos")
+            .select("iniciado_em, acoes, total_acoes")
+            .eq("id", acesso_id)
+            .maybeSingle();
+          if (ac) {
+            const inicio = new Date(ac.iniciado_em).getTime();
+            const dur = Math.max(0, Math.floor((agora.getTime() - inicio) / 1000));
+            const novasAcoes = Array.isArray(ac.acoes) ? [...ac.acoes] : [];
+            // mantém só últimas 50 ações
+            novasAcoes.push({ tipo, em: agora.toISOString() });
+            const limitadas = novasAcoes.slice(-50);
+            await supabaseAdmin
+              .from("familia_acessos")
+              .update({
+                ultimo_ping_em: agora.toISOString(),
+                duracao_segundos: dur,
+                total_acoes: (ac.total_acoes || 0) + 1,
+                acoes: limitadas,
+              })
+              .eq("id", acesso_id);
+          }
+        } catch { /* ignore */ }
+      })();
+    }
 
     switch (tipo) {
       case "turmas": {

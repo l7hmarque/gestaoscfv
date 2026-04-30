@@ -58,6 +58,34 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    const userAgent = req.headers.get("user-agent") || null;
+    const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0].trim()
+      || req.headers.get("cf-connecting-ip")
+      || null;
+
+    async function registrarAcesso(participantes: any[], matchType: string) {
+      try {
+        const principal = participantes[0];
+        const { data } = await supabaseAdmin
+          .from("familia_acessos")
+          .insert({
+            participante_id: principal?.id || null,
+            participante_nome: principal?.nome_completo || null,
+            participante_ids: participantes.map((p: any) => p.id),
+            user_agent: userAgent,
+            ip_address: ipAddress,
+            match_type: matchType,
+            acoes: [{ tipo: "login", em: new Date().toISOString() }],
+            total_acoes: 1,
+          })
+          .select("id")
+          .single();
+        return data?.id || null;
+      } catch {
+        return null;
+      }
+    }
+
     // 1. Exact match
     const { data: exactMatch } = await supabaseAdmin
       .from("participantes")
@@ -88,6 +116,7 @@ Deno.serve(async (req) => {
 
         if (fullPart) {
           const token = await issueFamiliaToken([fullPart.id]);
+          const acesso_id = await registrarAcesso([fullPart], "fuzzy");
           return respond({
             found: true,
             match_type: "fuzzy",
@@ -95,6 +124,7 @@ Deno.serve(async (req) => {
             participantes: [buildSafe(fullPart)],
             needs_confirmation: true,
             token,
+            acesso_id,
           });
         }
       }
@@ -106,6 +136,7 @@ Deno.serve(async (req) => {
 
     const allIds = [participante.id, ...siblings.map((s: any) => s.id)];
     const token = await issueFamiliaToken(allIds);
+    const acesso_id = await registrarAcesso([participante, ...siblings], matchType);
 
     return respond({
       found: true,
@@ -113,6 +144,7 @@ Deno.serve(async (req) => {
       participantes: [buildSafe(participante), ...siblings.map(buildSafe)],
       needs_confirmation: false,
       token,
+      acesso_id,
     });
   } catch (err) {
     return respond({ error: err.message }, 500);
