@@ -796,6 +796,52 @@ export default function FamiliaDashboardPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={fotoDialogOpen} onOpenChange={(o) => { if (!o && !fotoUploading) { setFotoDialogOpen(false); setFotoPreview(null); fotoFileRef.current = null; } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Camera className="h-5 w-5" /> Foto do(a) {p.nome_completo.split(" ")[0]}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/20 px-3 py-2.5 text-xs text-amber-900 dark:text-amber-200 space-y-1.5">
+              <p className="font-semibold flex items-center gap-1">📋 Antes de enviar, confira:</p>
+              <ul className="list-disc pl-5 space-y-0.5">
+                <li>Foto do <strong>rosto da criança</strong> bem visível</li>
+                <li>Ambiente <strong>bem iluminado</strong></li>
+                <li>Fundo de preferência uma <strong>parede branca</strong></li>
+                <li>Se tiver, usar a <strong>camiseta do CAIA</strong></li>
+              </ul>
+            </div>
+
+            {fotoPreview ? (
+              <div className="space-y-3">
+                <div className="flex justify-center">
+                  <img src={fotoPreview} alt="Pré-visualização" className="w-40 h-40 rounded-full object-cover border-4 border-primary/30 shadow" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="outline" onClick={() => { setFotoPreview(null); fotoFileRef.current = null; }} disabled={fotoUploading}>
+                    Trocar
+                  </Button>
+                  <Button onClick={enviarFoto} disabled={fotoUploading} className="gap-2">
+                    {fotoUploading ? <><Loader2 className="h-4 w-4 animate-spin" /> Enviando...</> : <><Upload className="h-4 w-4" /> Confirmar</>}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <Button onClick={() => escolherFoto(true)} variant="outline" className="h-20 flex-col gap-1.5">
+                  <Camera className="h-6 w-6 text-primary" />
+                  <span className="text-xs font-medium">Tirar foto</span>
+                </Button>
+                <Button onClick={() => escolherFoto(false)} variant="outline" className="h-20 flex-col gap-1.5">
+                  <ImageIcon className="h-6 w-6 text-primary" />
+                  <span className="text-xs font-medium">Da galeria</span>
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
