@@ -8,11 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
-import { MapPin, Clock, BookOpen, CalendarCheck, MessageSquare, FileText, ArrowLeft, Users, Calendar, Percent, UserCheck, Lock, Bus, Flame, ChevronDown } from "lucide-react";
+import { MapPin, Clock, BookOpen, CalendarCheck, MessageSquare, FileText, ArrowLeft, Users, Calendar as CalendarIcon, Percent, UserCheck, Lock, Bus, Flame, CalendarDays } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import confetti from "canvas-confetti";
+import { cn } from "@/lib/utils";
 import {
   isCheckinAberto, dataDefaultCheckin, proximosDiasUteis,
   diaSemanaKey, formatarBR, hojeSP, parseDataISO, nowSP,
@@ -56,7 +59,6 @@ export default function FamiliaDashboardPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [naoVaiDialog, setNaoVaiDialog] = useState<{ periodo: string; data: string } | null>(null);
   const [naoVaiMotivo, setNaoVaiMotivo] = useState("");
-  const [respNome, setRespNome] = useState("");
 
   useEffect(() => {
     const stored = sessionStorage.getItem("familia_participantes");
@@ -179,7 +181,7 @@ export default function FamiliaDashboardPage() {
           data: iso,
           periodo,
           confirmado,
-          confirmado_por: respNome || null,
+          confirmado_por: null,
           observacao: motivo || null,
         },
       });
@@ -461,15 +463,40 @@ export default function FamiliaDashboardPage() {
 
                 return (
                   <div className="space-y-3">
-                    <p className="text-lg font-bold text-foreground text-center bg-primary/10 rounded-md py-2">{titulo}</p>
-                    {!respNome && (
-                      <Input
-                        placeholder="Seu nome (opcional, ajuda o motorista)"
-                        value={respNome}
-                        onChange={e => setRespNome(e.target.value)}
-                        className="text-sm"
-                      />
-                    )}
+                    {/* Seletor de data — calendário shadcn no popover */}
+                    <div className="flex items-center justify-between gap-2 bg-primary/10 rounded-md px-3 py-2">
+                      <p className="text-base sm:text-lg font-bold text-foreground flex-1 text-center">{titulo}</p>
+                      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="gap-1 shrink-0">
+                            <CalendarDays className="h-4 w-4" />
+                            <span className="hidden sm:inline">Outro dia</span>
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                          <Calendar
+                            mode="single"
+                            locale={ptBR}
+                            selected={parseDataISO(dataAlvo)}
+                            onSelect={(d) => {
+                              if (!d) return;
+                              const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                              setDataAlvo(iso);
+                              setPickerOpen(false);
+                            }}
+                            disabled={(date) => {
+                              const hoje = parseDataISO(hojeSP());
+                              hoje.setHours(0, 0, 0, 0);
+                              const max = new Date(hoje);
+                              max.setDate(max.getDate() + 14);
+                              return date < hoje || date > max;
+                            }}
+                            initialFocus
+                            className={cn("p-3 pointer-events-auto")}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                     {periodosDoParticipante.map(per => {
                       const c = checkinDoDia(dataAlvo, per);
                       const periodoLabel = per === "manha" ? "Manhã" : "Tarde";
@@ -540,20 +567,6 @@ export default function FamiliaDashboardPage() {
                         </Card>
                       );
                     })}
-
-                    <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setPickerOpen(o => !o)}>
-                      <ChevronDown className="h-3 w-3 mr-1" /> Confirmar para outro dia
-                    </Button>
-                    {pickerOpen && (
-                      <div className="flex flex-wrap gap-2 justify-center">
-                        {proximosDiasUteis(7).map(d => (
-                          <Button key={d} size="sm" variant={d === dataAlvo ? "default" : "outline"}
-                            onClick={() => { setDataAlvo(d); setPickerOpen(false); }}>
-                            {formatarBR(d)}
-                          </Button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 );
               })()}

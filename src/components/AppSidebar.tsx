@@ -52,7 +52,7 @@ const menuGroups = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
   const navigate = useNavigate();
@@ -106,6 +106,7 @@ export function AppSidebar() {
                           end={item.url === "/"}
                           className={`hover:bg-sidebar-accent/50 ${active ? "border-l-[3px] border-primary bg-primary/5 text-primary font-medium" : ""}`}
                           activeClassName="text-primary font-medium"
+                          onClick={() => { if (isMobile) setOpenMobile(false); }}
                         >
                           <item.icon className="h-4 w-4" />
                           {!collapsed && <span>{item.title}</span>}
@@ -125,7 +126,7 @@ export function AppSidebar() {
           {myProfileId && (
             <SidebarMenuItem>
               <SidebarMenuButton
-                onClick={() => navigate(`/profissional/${myProfileId}`)}
+                onClick={() => { if (isMobile) setOpenMobile(false); navigate(`/profissional/${myProfileId}`); }}
                 className="text-muted-foreground hover:text-foreground"
                 isActive={location.pathname === `/profissional/${myProfileId}`}
               >
