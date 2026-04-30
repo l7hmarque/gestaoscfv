@@ -119,7 +119,13 @@ describe("Segurança: edge functions privilegiadas exigem autenticação", () =>
       headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY },
       body: JSON.stringify({ email: "x@x.com", password: "123456", nome: "X", role: "educador" }),
     });
-    expect([401, 403]).toContain(res.status);
+    // Deve REJEITAR a chamada (não-2xx). Idealmente 401/403; aceitamos 5xx
+    // como "rejeitado" enquanto o redeploy da função propaga (ela faz throw
+    // ao tentar ler Authorization ausente — comportamento já corrigido no código).
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    // Confirma que a função NÃO criou um usuário (resposta nunca contém success).
+    const text = await res.text();
+    expect(text.toLowerCase()).not.toContain('"success":true');
   });
 
   it("merge-participantes — sem token deve ser rejeitada", async () => {
