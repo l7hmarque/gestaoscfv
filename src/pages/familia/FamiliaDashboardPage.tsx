@@ -69,6 +69,22 @@ export default function FamiliaDashboardPage() {
     if (parsed.length > 0) loadData(parsed[0].id);
   }, []);
 
+  // Heartbeat: mantém o registro de acesso vivo enquanto a aba estiver aberta
+  useEffect(() => {
+    const acesso_id = sessionStorage.getItem("familia_acesso_id");
+    const token = sessionStorage.getItem("familia_token");
+    if (!acesso_id || !token || participantes.length === 0) return;
+    const ping = () => {
+      const pid = participantes[selected]?.id;
+      if (!pid) return;
+      supabase.functions.invoke("public-familia-data", {
+        body: { participante_id: pid, tipo: "heartbeat", token, acesso_id },
+      }).catch(() => {});
+    };
+    const interval = window.setInterval(ping, 60_000);
+    return () => window.clearInterval(interval);
+  }, [participantes, selected]);
+
   const loadData = async (participanteId: string) => {
     setLoading(true);
     try {
