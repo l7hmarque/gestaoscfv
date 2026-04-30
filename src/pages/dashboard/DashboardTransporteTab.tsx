@@ -14,6 +14,9 @@ import { toast } from "sonner";
 import { isBairroSCFV } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { gerarRelatorioTransporteDia } from "@/lib/transporteRelatorio";
+import { useTransporteOffline } from "@/hooks/useTransporteOffline";
+import { salvarSnapshot, carregarSnapshot } from "@/lib/offlineDB";
+import { Wifi, WifiOff, CloudUpload, Hourglass } from "lucide-react";
 
 interface Ponto {
   id: string;
@@ -56,6 +59,11 @@ export default function DashboardTransporteTab() {
   const horaSP = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo", hour: "numeric", hour12: false }), 10);
   const periodoAtual: "manha" | "tarde" = horaSP < 12 ? "manha" : "tarde";
 
+  const { online, pendentes, pendentesMap, sincronizando, sincronizar, marcarEmbarqueOffline } = useTransporteOffline(() => {
+    // após sincronizar, recarrega da rede
+    loadCheckinsHoje();
+  });
+
   useEffect(() => { loadAll(); }, []);
 
   // Detect role
@@ -85,47 +93,89 @@ export default function DashboardTransporteTab() {
 
   const loadCheckinsHoje = async () => {
     setRefreshingCheckins(true);
-    const [{ data: checkins }, { data: parts }] = await Promise.all([
-      supabase.from("participante_checkins").select("*").eq("data", hojeStr),
-      supabase.from("participantes").select("id, nome_completo, periodo, ponto_transporte_id").in("status", ["ativo", "busca_ativa"] as any),
-    ]);
-    const ckMap: Record<string, any> = {};
-    (checkins || []).forEach((c: any) => {
-      ckMap[`${c.participante_id}_${c.periodo}`] = c;
-    });
-    setCheckinsHoje(ckMap);
-    const pMap: Record<string, { id: string; nome: string; periodo: string }[]> = {};
-    (parts || []).forEach((p: any) => {
-      if (p.ponto_transporte_id) {
-        if (!pMap[p.ponto_transporte_id]) pMap[p.ponto_transporte_id] = [];
-        pMap[p.ponto_transporte_id].push({ id: p.id, nome: p.nome_completo, periodo: p.periodo || "manha" });
-      }
-    });
-    setParticipantesPorPontoFull(pMap);
-    setRefreshingCheckins(false);
+    const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
+    if (!isOnline) {
+      // Modo offline: tenta carregar snapshot salvo
+      try {
+        const snap = await carregarSnapshot(hojeStr);
+        if (snap) {
+          const ckMap: Record<string, any> = {};
+          (snap.checkins || []).forEach((c: any) => { ckMap[`${c.participante_id}_${c.periodo}`] = c; });
+          setCheckinsHoje(ckMap);
+          const pMap: Record<string, { id: string; nome: string; periodo: string }[]> = {};
+          (snap.participantes || []).forEach((p: any) => {
+            if (p.ponto_transporte_id) {
+              if (!pMap[p.ponto_transporte_id]) pMap[p.ponto_transporte_id] = [];
+              pMap[p.ponto_transporte_id].push({ id: p.id, nome: p.nome_completo, periodo: p.periodo || "manha" });
+            }
+          });
+          setParticipantesPorPontoFull(pMap);
+        }
+      } catch (e) { console.error(e); }
+      setRefreshingCheckins(false);
+      return;
+    }
+    try {
+      const [{ data: checkins }, { data: parts }] = await Promise.all([
+        supabase.from("participante_checkins").select("*").eq("data", hojeStr),
+        supabase.from("participantes").select("id, nome_completo, periodo, ponto_transporte_id").in("status", ["ativo", "busca_ativa"] as any),
+      ]);
+      const ckMap: Record<string, any> = {};
+      (checkins || []).forEach((c: any) => {
+        ckMap[`${c.participante_id}_${c.periodo}`] = c;
+      });
+      setCheckinsHoje(ckMap);
+      const pMap: Record<string, { id: string; nome: string; periodo: string }[]> = {};
+      (parts || []).forEach((p: any) => {
+        if (p.ponto_transporte_id) {
+          if (!pMap[p.ponto_transporte_id]) pMap[p.ponto_transporte_id] = [];
+          pMap[p.ponto_transporte_id].push({ id: p.id, nome: p.nome_completo, periodo: p.periodo || "manha" });
+        }
+      });
+      setParticipantesPorPontoFull(pMap);
+      // salva snapshot para uso offline (inclui pontos e bairros já em memória)
+      try {
+        await salvarSnapshot({
+          data: hojeStr,
+          salvo_em: new Date().toISOString(),
+          pontos,
+          bairros,
+          participantes: (parts || []) as any,
+          checkins: (checkins || []) as any,
+        });
+      } catch (e) { console.error("[offline] snapshot falhou", e); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRefreshingCheckins(false);
+    }
   };
 
   const marcarEmbarque = async (participanteId: string, embarcou: boolean) => {
-    const key = `${participanteId}_${periodoAtual}`;
-    const existing = checkinsHoje[key];
-    if (existing) {
-      await supabase.from("participante_checkins").update({
-        embarcou,
-        embarcou_em: new Date().toISOString(),
-        embarcou_por: null, // será preenchido por trigger ou manualmente; mantém nulo p/ simplicidade
-      } as any).eq("id", existing.id);
-    } else {
-      await supabase.from("participante_checkins").insert({
+    const res = await marcarEmbarqueOffline({
+      participante_id: participanteId,
+      data: hojeStr,
+      periodo: periodoAtual,
+      embarcou,
+    });
+    // atualização otimista no estado local
+    setCheckinsHoje(prev => ({
+      ...prev,
+      [`${participanteId}_${periodoAtual}`]: {
+        ...(prev[`${participanteId}_${periodoAtual}`] || {}),
         participante_id: participanteId,
         data: hojeStr,
         periodo: periodoAtual,
-        confirmado: embarcou,
         embarcou,
         embarcou_em: new Date().toISOString(),
-      } as any);
+      },
+    }));
+    if (res.enviado) {
+      toast.success(embarcou ? "Embarque registrado" : "Marcado como não embarcou");
+      loadCheckinsHoje();
+    } else {
+      toast.warning(`📴 Sem internet — salvo no celular (${embarcou ? "embarcou" : "não embarcou"}). Será enviado quando voltar o sinal.`);
     }
-    toast.success(embarcou ? "Embarque registrado" : "Marcado como não embarcou");
-    loadCheckinsHoje();
   };
 
   const horaBR = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
