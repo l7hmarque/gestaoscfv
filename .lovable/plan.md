@@ -1,79 +1,96 @@
 ## Objetivo
 
-Permitir que o motorista confirme **embarcou / não embarcou** mesmo sem internet no caminho. As ações são salvas localmente no celular e sincronizadas automaticamente assim que o sinal voltar — sem perder nenhuma confirmação.
+Criar um participante "fantasma" **com cadastro completo** (bairro, ponto de transporte, responsáveis, escola, etc.) chamado **LEONARDO**, nascido em **11/02/2020**, para testar o **Painel da Família** sem que ele afete dashboards, KPIs, listas operacionais, exportações, busca ativa, transporte real ou prestação de contas.
 
-## Estratégia (resumo)
+## Abordagem (mais segura)
 
-1. **PWA instalável** — para o motorista "instalar" o sistema no celular e o app continuar abrindo sem rede.
-2. **Cache offline da página de transporte** — service worker guarda o app shell + dados do dia.
-3. **Fila local de ações (IndexedDB)** — toda confirmação feita offline vira um item na fila local.
-4. **Sincronização automática** — assim que detectar internet, a fila é enviada para o backend (`participante_checkins`) na ordem em que foi feita.
-5. **UI clara de status** — badges mostrando "Offline", "Pendente sincronizar", "Sincronizado".
+Adicionar uma **flag `is_teste boolean`** na tabela `participantes` e propagar o filtro em todos os pontos de agregação. Mais seguro que criar um novo valor de status (que quebraria triggers e switches espalhados pelo frontend).
 
-## O que será feito
+### Por que essa é a opção mais segura
+- **Não mexe no enum `status_participante`**: o fantasma fica com `status='ativo'` (necessário para o login no `/familia` funcionar) e o filtro `is_teste=false` esconde ele dos demais lugares.
+- **Default `false`**: nenhum participante existente é afetado.
+- **Reversível**: `DELETE FROM participantes WHERE is_teste=true;` remove tudo.
 
-### 1. Instalar PWA (vite-plugin-pwa)
-- Configurar `vite.config.ts` com `VitePWA`, manifest (nome "SysCFV", ícones, tema preto/cinza), `registerType: "autoUpdate"`.
-- Estratégia Workbox:
-  - **App shell** (HTML/CSS/JS): `NetworkFirst` com fallback para cache.
-  - **Endpoints Supabase de leitura do transporte do dia**: `StaleWhileRevalidate` com TTL de 24 h.
-- Adicionar `navigateFallbackDenylist: [/^\/~oauth/, /^\/api/]` para não quebrar OAuth.
-- Criar página `/install` simples explicando "Adicionar à tela inicial" no Android/iOS.
-- Adicionar meta tags mobile no `index.html` (apple-touch-icon, theme-color preto).
+## Cadastro completo do fantasma
 
-### 2. Camada offline-first para check-ins
-- **Novo arquivo `src/lib/offlineQueue.ts`**:
-  - Usa IndexedDB (via `idb`) com store `transporte_pendentes`.
-  - Cada item: `{ id_local, participante_id, data, periodo, embarcou, embarcou_em, criado_em, tentativas, status }`.
-  - API: `enfileirar()`, `listarPendentes()`, `marcarSincronizado()`, `incrementarTentativa()`.
-- **Novo `src/hooks/useTransporteOffline.ts`**:
-  - Detecta `navigator.onLine` + listeners `online/offline`.
-  - Faz merge dos check-ins do servidor com os pendentes locais para a UI mostrar tudo unificado.
-  - Expõe `marcarEmbarque(participanteId, embarcou)` que:
-    - Se online: salva direto no Supabase (comportamento atual).
-    - Se offline: enfileira em IndexedDB e atualiza UI otimisticamente.
-- **Sincronização automática**:
-  - Ao voltar online, processa fila em ordem cronológica via `upsert` em `participante_checkins` usando chave `(participante_id, data, periodo)`.
-  - Em caso de erro, mantém na fila (max 5 tentativas) e mostra toast.
-  - Também tenta sincronizar a cada 30 s enquanto a aba estiver aberta.
+| Campo | Valor |
+|---|---|
+| `nome_completo` | **LEONARDO** |
+| `data_nascimento` | **2020-02-11** (5 anos — válido pela regra de matrícula 5–99) |
+| `genero` | masculino |
+| `cor_raca` | parda |
+| `status` | ativo |
+| `is_teste` | **true** |
+| `periodo` | tarde |
+| `escola` | EMEF TESTE |
+| `serie` | Educação Infantil |
+| `endereco_rua` | Rua de Teste |
+| `endereco_numero` | 123 |
+| `endereco_bairro` | (nome do bairro escolhido) |
+| `bairro_id` | 1º bairro existente (ex.: JARDIM IRENE) |
+| `ponto_transporte_id` | 1º ponto vinculado ao bairro escolhido |
+| `responsavel1_nome` | RESPONSÁVEL TESTE |
+| `responsavel1_whatsapp` | 11999990000 |
+| `vinculo_resp1` | mae |
+| `responsavel2_nome` | RESPONSÁVEL TESTE 2 |
+| `responsavel2_whatsapp` | 11988880000 |
+| `vinculo_resp2` | pai |
+| `restricao_alimentar` | Lactose (teste) |
+| `outras_condicoes` | Cadastro de teste — ignorar |
+| `iniciou_em` | data atual |
+| `foto_url` | placeholder padrão |
 
-### 3. Cache dos dados do dia para uso offline
-- Quando o motorista abre a página com internet:
-  - Buscar pontos, participantes ativos por ponto e check-ins do dia → salvar snapshot em IndexedDB (`transporte_snapshot_dia`).
-- Quando offline:
-  - `DashboardTransporteTab` carrega do snapshot local; mostra badge "Modo offline — dados de HH:MM".
+A migration vai resolver `bairro_id` e `ponto_transporte_id` dinamicamente via subquery (`SELECT id FROM bairros LIMIT 1` etc.) para não quebrar caso configurações mudem.
 
-### 4. UI de feedback no `DashboardTransporteTab.tsx`
-- Indicador no topo: 🟢 **Online** / 🔴 **Offline** / 🟡 **N pendentes sincronizando**.
-- Em cada participante com check-in feito offline: badge pequeno "⏳ Aguardando envio".
-- Botão manual **"Sincronizar agora"** quando houver pendências.
-- Toast ao concluir sincronização: "X embarques sincronizados".
+## Mudanças no banco (1 migration)
 
-### 5. Backend (mínimo)
-- Garantir índice/constraint de unicidade em `participante_checkins(participante_id, data, periodo)` — necessário para o `upsert` do sync funcionar sem duplicar (verificar migration; se não existir, criar).
+1. `ALTER TABLE participantes ADD COLUMN is_teste boolean NOT NULL DEFAULT false;`
+2. Índice parcial `WHERE is_teste = true`.
+3. Atualizar RPCs para excluir `is_teste=true`:
+   - `get_dashboard_stats` (KPIs públicos: ativos, faixa, gênero, bairro, período, alertas, delta).
+   - `get_coordenacao_stats` (cobertura territorial).
+   - `get_pendencias_integridade` + `get_pendencias_integridade_detalhes`.
+   - `recalcular_busca_ativa` (não promove fantasma).
+   - `recalcular_vinculos_turmas` (não vincula a turma real).
+   - `find_similar_participants` e `find_fuzzy_participant` (não sugere como duplicata na matrícula pública).
+   - `get_restricoes_alimentares` (cozinha não vê).
+4. INSERT do LEONARDO com cadastro completo.
 
-## Detalhes técnicos
+## Mudanças nas Edge Functions
 
-- **Dependências novas**: `vite-plugin-pwa`, `workbox-window`, `idb`.
-- **Arquivos novos**:
-  - `src/lib/offlineQueue.ts`
-  - `src/lib/transporteSnapshot.ts`
-  - `src/hooks/useTransporteOffline.ts`
-  - `src/pages/InstallPage.tsx` (rota `/install`)
-  - `public/icon-192.png`, `public/icon-512.png` (ícones PWA preto/branco)
-- **Arquivos editados**:
-  - `vite.config.ts` (plugin PWA)
-  - `index.html` (meta tags)
-  - `src/App.tsx` (rota `/install` + registro do SW)
-  - `src/pages/dashboard/DashboardTransporteTab.tsx` (usar hook offline + UI status)
-- **Migration** (se necessária): unique constraint em `participante_checkins(participante_id, data, periodo)`.
+- `public-indicadores` (contagem do site público) → filtra `is_teste=false`.
+- `public-matricula` (deduplicação) → filtra `is_teste=false`.
+- `public-pontos` → filtra ao listar participantes por ponto.
+- `public-familia-auth` → **mantém aceitando** (é o que permite o login do fantasma).
 
-## Limitações conhecidas (a comunicar ao motorista)
+## Mudanças no Frontend
 
-- O motorista precisa abrir a página **uma vez com internet no início do dia** para baixar a lista de paradas/participantes do dia.
-- iOS: a instalação na tela inicial é via Safari → Compartilhar → "Adicionar à Tela de Início".
-- Após instalar, o ícone do SysCFV abre direto em tela cheia, igual a um app.
+Helper único `src/lib/participantesFilter.ts` para padronizar o filtro. Aplicar em:
 
-## Próximos passos após aprovação
+- `ParticipantesPage` — listagem principal
+- `PainelDesligamentoPage`
+- `DashboardTransporteTab` — embarque
+- `PresencaPage` — chamada do dia
+- `TurmaDetalhePage` / `TurmaNovaPage` — vínculos de turma
+- Hooks: `useBackupExport`, `useBulkRelatorioExport`, `useDashboardData`, `useCozinhaData`, `useCoordenacaoData`, `useRelatorioGestao`
 
-Implemento PWA + fila offline + UI, e instruo você a abrir a página uma vez com internet para o cache inicial. Depois é só testar colocando o celular em modo avião e marcando embarques.
+## Acesso ao Portal da Família
+
+Após a migration, acesse `/familia` com:
+- **Nome:** `LEONARDO`
+- **Data:** `11/02/2020`
+
+Tudo aparecerá preenchido — bairro, ponto de transporte com horários, escola, responsáveis, restrição alimentar, status do ônibus, etc.
+
+## Reversão
+
+```sql
+DELETE FROM participantes WHERE is_teste = true;
+```
+
+## Resumo
+
+- 1 migration (coluna + índice + 8 funções + INSERT completo do LEONARDO 11/02/2020)
+- 3 edge functions atualizadas
+- 1 helper novo + ~10 telas com filtro
+- 0 quebras esperadas (default `false`, status continua `ativo`)
