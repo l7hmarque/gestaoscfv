@@ -69,17 +69,34 @@ export default function FamiliaDashboardPage() {
     if (parsed.length > 0) loadData(parsed[0].id);
   }, []);
 
+  // Heartbeat: mantém o registro de acesso vivo enquanto a aba estiver aberta
+  useEffect(() => {
+    const acesso_id = sessionStorage.getItem("familia_acesso_id");
+    const token = sessionStorage.getItem("familia_token");
+    if (!acesso_id || !token || participantes.length === 0) return;
+    const ping = () => {
+      const pid = participantes[selected]?.id;
+      if (!pid) return;
+      supabase.functions.invoke("public-familia-data", {
+        body: { participante_id: pid, tipo: "heartbeat", token, acesso_id },
+      }).catch(() => {});
+    };
+    const interval = window.setInterval(ping, 60_000);
+    return () => window.clearInterval(interval);
+  }, [participantes, selected]);
+
   const loadData = async (participanteId: string) => {
     setLoading(true);
     try {
       const token = sessionStorage.getItem("familia_token") || undefined;
+      const acesso_id = sessionStorage.getItem("familia_acesso_id") || undefined;
       const [turmasRes, atividadesRes, presencaRes, recadosRes, formularioRes, checkinsRes] = await Promise.all([
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "turmas", token } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "atividades", token } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "presenca", token } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "recados", token } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "formularios", token } }),
-        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "checkins", token } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "turmas", token, acesso_id } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "atividades", token, acesso_id } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "presenca", token, acesso_id } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "recados", token, acesso_id } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "formularios", token, acesso_id } }),
+        supabase.functions.invoke("public-familia-data", { body: { participante_id: participanteId, tipo: "checkins", token, acesso_id } }),
       ]);
 
       setTurmas(turmasRes.data?.turmas || []);
@@ -152,11 +169,13 @@ export default function FamiliaDashboardPage() {
     setSavingCheckin(key);
     try {
       const token = sessionStorage.getItem("familia_token") || undefined;
+      const acesso_id = sessionStorage.getItem("familia_acesso_id") || undefined;
       const res = await supabase.functions.invoke("public-familia-data", {
         body: {
           participante_id: p.id,
           tipo: "registrar_checkin",
           token,
+          acesso_id,
           data: iso,
           periodo,
           confirmado,

@@ -11,6 +11,7 @@ import { useCoordenacaoData } from "@/hooks/useCoordenacaoData";
 import { PainelCoordenadorTab } from "./PainelCoordenadorTab";
 import { RegistrosTab } from "./RegistrosTab";
 import { PermissoesTab } from "./PermissoesTab";
+import { AcessosFamiliaTab } from "./AcessosFamiliaTab";
 
 export default function CoordenacaoPage() {
   const { user } = useAuth();
@@ -67,12 +68,13 @@ export default function CoordenacaoPage() {
       </header>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-7 w-full max-w-5xl">
+        <TabsList className="grid grid-cols-8 w-full max-w-6xl">
           <TabsTrigger value="painel">Painel</TabsTrigger>
           <TabsTrigger value="acoes">Ações Pendentes</TabsTrigger>
           <TabsTrigger value="decisoes">Decisões</TabsTrigger>
           <TabsTrigger value="qualidade">Qualidade</TabsTrigger>
           <TabsTrigger value="registros">Registros</TabsTrigger>
+          <TabsTrigger value="familia">Portal Família</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
           <TabsTrigger value="relatorio">Relatório</TabsTrigger>
         </TabsList>
@@ -145,6 +147,7 @@ export default function CoordenacaoPage() {
             </TabsContent>
 
             <TabsContent value="registros" className="mt-6"><RegistrosTab /></TabsContent>
+            <TabsContent value="familia" className="mt-6"><AcessosFamiliaTab /></TabsContent>
             <TabsContent value="permissoes" className="mt-6"><PermissoesTab /></TabsContent>
 
             <TabsContent value="relatorio" className="mt-6">
