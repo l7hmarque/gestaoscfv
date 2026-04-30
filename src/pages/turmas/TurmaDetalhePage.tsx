@@ -72,7 +72,7 @@ const TurmaDetalhePage = () => {
       supabase.from("turma_participantes").select("id, participante_id, data_saida, motivo_saida, participantes(nome_completo, periodo, status, data_desligamento)").eq("turma_id", id!),
       supabase.from("participantes").select("id, nome_completo, periodo, status").in("status", ["ativo", "busca_ativa"] as any).order("nome_completo"),
       supabase.from("bairros").select("*").order("nome"),
-      supabase.from("profiles").select("*").order("nome"),
+      supabase.from("profiles").select("id, user_id, nome, cargo, ativo, foto_url").order("nome"),
       supabase.from("planejamento_turmas").select("planejamento_id, planejamentos(id, titulo, data_aplicacao)").eq("turma_id", id!),
       supabase.from("relatorio_turmas").select("relatorio_id, relatorios_atividade(id, nome_atividade, data, score_elo)").eq("turma_id", id!),
     ]);

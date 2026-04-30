@@ -71,7 +71,8 @@ export default function DashboardProfissionaisTab() {
 
   const loadProfs = async () => {
     const [{ data: profiles }, { data: roles }] = await Promise.all([
-      supabase.from("profiles").select("*") as any,
+      // RPC com SECURITY DEFINER — apenas coordenação retorna linhas; demais recebem vazio.
+      supabase.rpc("list_profiles_rh") as any,
       supabase.from("user_roles").select("*"),
     ]);
     setProfs(profiles || []);
