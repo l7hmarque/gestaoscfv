@@ -98,6 +98,10 @@ Deno.serve(async (req) => {
     }
 
     switch (tipo) {
+      case "heartbeat": {
+        return respond({ ok: true });
+      }
+
       case "turmas": {
         const { data } = await supabaseAdmin
           .from("turma_participantes")
