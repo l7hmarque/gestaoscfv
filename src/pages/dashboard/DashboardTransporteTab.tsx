@@ -451,6 +451,7 @@ export default function DashboardTransporteTab() {
                       const recusado = ck?.confirmado === false;
                       const embarcou = ck?.embarcou === true;
                       const naoEmbarcou = ck?.embarcou === false;
+                      const pend = pendentesMap[`${p.id}_${periodoAtual}`];
 
                       return (
                         <div key={p.id} className={`flex items-center justify-between gap-2 p-2 rounded border-l-4 text-xs ${
@@ -461,7 +462,14 @@ export default function DashboardTransporteTab() {
                           "bg-background border-l-muted"
                         }`}>
                           <div className="flex-1 min-w-0">
-                            <p className={`font-medium truncate ${recusado || naoEmbarcou ? "line-through" : ""}`}>{p.nome}</p>
+                            <p className={`font-medium truncate ${recusado || naoEmbarcou ? "line-through" : ""}`}>
+                              {p.nome}
+                              {pend && (
+                                <Badge variant="outline" className="ml-1 text-[9px] gap-0.5 border-amber-500 text-amber-800 bg-amber-50 dark:bg-amber-950/30">
+                                  <Hourglass className="h-2.5 w-2.5" /> aguardando envio
+                                </Badge>
+                              )}
+                            </p>
                             <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
                               {embarcou ? <><CheckCircle2 className="h-3 w-3 text-emerald-600" /> Embarcou às {horaBR(ck.embarcou_em)}</> :
                                naoEmbarcou ? <><XCircle className="h-3 w-3 text-red-600" /> Não embarcou — {horaBR(ck.embarcou_em)}</> :
