@@ -1832,6 +1832,7 @@ export type Database = {
           genero: string | null
           id: string
           iniciou_em: string | null
+          is_teste: boolean
           justificativa_desligamento: string | null
           laudo: string | null
           motivo_desligamento: string | null
@@ -1875,6 +1876,7 @@ export type Database = {
           genero?: string | null
           id?: string
           iniciou_em?: string | null
+          is_teste?: boolean
           justificativa_desligamento?: string | null
           laudo?: string | null
           motivo_desligamento?: string | null
@@ -1918,6 +1920,7 @@ export type Database = {
           genero?: string | null
           id?: string
           iniciou_em?: string | null
+          is_teste?: boolean
           justificativa_desligamento?: string | null
           laudo?: string | null
           motivo_desligamento?: string | null

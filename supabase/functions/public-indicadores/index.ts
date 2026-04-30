@@ -18,7 +18,8 @@ serve(async (req) => {
     const { count: totalParticipantes } = await supabase
       .from("participantes")
       .select("*", { count: "exact", head: true })
-      .eq("status", "ativo");
+      .eq("status", "ativo")
+      .eq("is_teste", false);
 
     const { count: totalTurmas } = await supabase
       .from("turmas")
