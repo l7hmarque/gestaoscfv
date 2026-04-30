@@ -374,13 +374,23 @@ export default function FamiliaDashboardPage() {
             <Card>
               <CardContent className="pt-6 pb-5">
                 <div className="flex items-start gap-4">
-                  {p.foto_url ? (
-                    <img src={p.foto_url} alt="" className="w-16 h-16 rounded-full object-cover flex-shrink-0" />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl flex-shrink-0">
-                      {p.nome_completo.charAt(0)}
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setFotoPreview(null); fotoFileRef.current = null; setFotoDialogOpen(true); }}
+                    className="relative group flex-shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-primary"
+                    title="Alterar foto"
+                  >
+                    {p.foto_url ? (
+                      <img src={p.foto_url} alt="" className="w-16 h-16 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl">
+                        {p.nome_completo.charAt(0)}
+                      </div>
+                    )}
+                    <span className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full p-1.5 shadow ring-2 ring-background group-hover:scale-110 transition-transform">
+                      <Camera className="h-3 w-3" />
+                    </span>
+                  </button>
                   <div className="flex-1 min-w-0">
                     <h2 className="font-bold text-lg text-foreground leading-tight">{p.nome_completo}</h2>
                     <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
