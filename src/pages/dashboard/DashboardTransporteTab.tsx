@@ -471,8 +471,8 @@ export default function DashboardTransporteTab() {
                               )}
                             </p>
                             <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                              {embarcou ? <><CheckCircle2 className="h-3 w-3 text-emerald-600" /> Embarcou às {horaBR(ck.embarcou_em)}</> :
-                               naoEmbarcou ? <><XCircle className="h-3 w-3 text-red-600" /> Não embarcou — {horaBR(ck.embarcou_em)}</> :
+                              {embarcou ? <><CheckCircle2 className="h-3 w-3 text-emerald-600" /> Motorista marcou embarque às {horaBR(ck.embarcou_em)}</> :
+                               naoEmbarcou ? <><XCircle className="h-3 w-3 text-red-600" /> Motorista marcou ausência — {horaBR(ck.embarcou_em)}</> :
                                confirmado ? <><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Família confirmou {horaBR(ck.confirmado_em)}{ck.confirmado_por ? ` · ${ck.confirmado_por}` : ""}</> :
                                recusado ? <><XCircle className="h-3 w-3 text-red-500" /> Família avisou que não vai{ck.observacao ? ` · "${ck.observacao}"` : ""}</> :
                                <><CircleDashed className="h-3 w-3" /> Sem confirmação até as 06:00</>}
