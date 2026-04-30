@@ -14,6 +14,9 @@ import { toast } from "sonner";
 import { isBairroSCFV } from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { gerarRelatorioTransporteDia } from "@/lib/transporteRelatorio";
+import { useTransporteOffline } from "@/hooks/useTransporteOffline";
+import { salvarSnapshot, carregarSnapshot } from "@/lib/offlineDB";
+import { Wifi, WifiOff, CloudUpload, Hourglass } from "lucide-react";
 
 interface Ponto {
   id: string;
@@ -56,6 +59,11 @@ export default function DashboardTransporteTab() {
   const horaSP = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo", hour: "numeric", hour12: false }), 10);
   const periodoAtual: "manha" | "tarde" = horaSP < 12 ? "manha" : "tarde";
 
+  const { online, pendentes, pendentesMap, sincronizando, sincronizar, marcarEmbarqueOffline } = useTransporteOffline(() => {
+    // após sincronizar, recarrega da rede
+    loadCheckinsHoje();
+  });
+
   useEffect(() => { loadAll(); }, []);
 
   // Detect role
@@ -85,47 +93,89 @@ export default function DashboardTransporteTab() {
 
   const loadCheckinsHoje = async () => {
     setRefreshingCheckins(true);
-    const [{ data: checkins }, { data: parts }] = await Promise.all([
-      supabase.from("participante_checkins").select("*").eq("data", hojeStr),
-      supabase.from("participantes").select("id, nome_completo, periodo, ponto_transporte_id").in("status", ["ativo", "busca_ativa"] as any),
-    ]);
-    const ckMap: Record<string, any> = {};
-    (checkins || []).forEach((c: any) => {
-      ckMap[`${c.participante_id}_${c.periodo}`] = c;
-    });
-    setCheckinsHoje(ckMap);
-    const pMap: Record<string, { id: string; nome: string; periodo: string }[]> = {};
-    (parts || []).forEach((p: any) => {
-      if (p.ponto_transporte_id) {
-        if (!pMap[p.ponto_transporte_id]) pMap[p.ponto_transporte_id] = [];
-        pMap[p.ponto_transporte_id].push({ id: p.id, nome: p.nome_completo, periodo: p.periodo || "manha" });
-      }
-    });
-    setParticipantesPorPontoFull(pMap);
-    setRefreshingCheckins(false);
+    const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
+    if (!isOnline) {
+      // Modo offline: tenta carregar snapshot salvo
+      try {
+        const snap = await carregarSnapshot(hojeStr);
+        if (snap) {
+          const ckMap: Record<string, any> = {};
+          (snap.checkins || []).forEach((c: any) => { ckMap[`${c.participante_id}_${c.periodo}`] = c; });
+          setCheckinsHoje(ckMap);
+          const pMap: Record<string, { id: string; nome: string; periodo: string }[]> = {};
+          (snap.participantes || []).forEach((p: any) => {
+            if (p.ponto_transporte_id) {
+              if (!pMap[p.ponto_transporte_id]) pMap[p.ponto_transporte_id] = [];
+              pMap[p.ponto_transporte_id].push({ id: p.id, nome: p.nome_completo, periodo: p.periodo || "manha" });
+            }
+          });
+          setParticipantesPorPontoFull(pMap);
+        }
+      } catch (e) { console.error(e); }
+      setRefreshingCheckins(false);
+      return;
+    }
+    try {
+      const [{ data: checkins }, { data: parts }] = await Promise.all([
+        supabase.from("participante_checkins").select("*").eq("data", hojeStr),
+        supabase.from("participantes").select("id, nome_completo, periodo, ponto_transporte_id").in("status", ["ativo", "busca_ativa"] as any),
+      ]);
+      const ckMap: Record<string, any> = {};
+      (checkins || []).forEach((c: any) => {
+        ckMap[`${c.participante_id}_${c.periodo}`] = c;
+      });
+      setCheckinsHoje(ckMap);
+      const pMap: Record<string, { id: string; nome: string; periodo: string }[]> = {};
+      (parts || []).forEach((p: any) => {
+        if (p.ponto_transporte_id) {
+          if (!pMap[p.ponto_transporte_id]) pMap[p.ponto_transporte_id] = [];
+          pMap[p.ponto_transporte_id].push({ id: p.id, nome: p.nome_completo, periodo: p.periodo || "manha" });
+        }
+      });
+      setParticipantesPorPontoFull(pMap);
+      // salva snapshot para uso offline (inclui pontos e bairros já em memória)
+      try {
+        await salvarSnapshot({
+          data: hojeStr,
+          salvo_em: new Date().toISOString(),
+          pontos,
+          bairros,
+          participantes: (parts || []) as any,
+          checkins: (checkins || []) as any,
+        });
+      } catch (e) { console.error("[offline] snapshot falhou", e); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRefreshingCheckins(false);
+    }
   };
 
   const marcarEmbarque = async (participanteId: string, embarcou: boolean) => {
-    const key = `${participanteId}_${periodoAtual}`;
-    const existing = checkinsHoje[key];
-    if (existing) {
-      await supabase.from("participante_checkins").update({
-        embarcou,
-        embarcou_em: new Date().toISOString(),
-        embarcou_por: null, // será preenchido por trigger ou manualmente; mantém nulo p/ simplicidade
-      } as any).eq("id", existing.id);
-    } else {
-      await supabase.from("participante_checkins").insert({
+    const res = await marcarEmbarqueOffline({
+      participante_id: participanteId,
+      data: hojeStr,
+      periodo: periodoAtual,
+      embarcou,
+    });
+    // atualização otimista no estado local
+    setCheckinsHoje(prev => ({
+      ...prev,
+      [`${participanteId}_${periodoAtual}`]: {
+        ...(prev[`${participanteId}_${periodoAtual}`] || {}),
         participante_id: participanteId,
         data: hojeStr,
         periodo: periodoAtual,
-        confirmado: embarcou,
         embarcou,
         embarcou_em: new Date().toISOString(),
-      } as any);
+      },
+    }));
+    if (res.enviado) {
+      toast.success(embarcou ? "Embarque registrado" : "Marcado como não embarcou");
+      loadCheckinsHoje();
+    } else {
+      toast.warning(`📴 Sem internet — salvo no celular (${embarcou ? "embarcou" : "não embarcou"}). Será enviado quando voltar o sinal.`);
     }
-    toast.success(embarcou ? "Embarque registrado" : "Marcado como não embarcou");
-    loadCheckinsHoje();
   };
 
   const horaBR = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
@@ -306,8 +356,27 @@ export default function DashboardTransporteTab() {
               <Badge variant="outline" className="text-[10px] ml-1">
                 {periodoAtual === "manha" ? "🌅 Manhã" : "🌇 Tarde"} · {new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
               </Badge>
+              {online ? (
+                <Badge variant="outline" className="text-[10px] gap-1 border-emerald-600 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30">
+                  <Wifi className="h-3 w-3" /> Online
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px] gap-1 border-orange-600 text-orange-700 bg-orange-50 dark:bg-orange-950/30 animate-pulse">
+                  <WifiOff className="h-3 w-3" /> Offline
+                </Badge>
+              )}
+              {pendentes.length > 0 && (
+                <Badge variant="outline" className="text-[10px] gap-1 border-amber-600 text-amber-800 bg-amber-50 dark:bg-amber-950/30">
+                  <Hourglass className="h-3 w-3" /> {pendentes.length} aguardando envio
+                </Badge>
+              )}
             </CardTitle>
             <div className="flex gap-1">
+              {pendentes.length > 0 && (
+                <Button size="sm" variant="outline" onClick={sincronizar} disabled={!online || sincronizando} className="h-7 gap-1 text-xs">
+                  <CloudUpload className={`h-3 w-3 ${sincronizando ? "animate-pulse" : ""}`} /> Sincronizar agora
+                </Button>
+              )}
               <Button size="sm" variant="outline" onClick={exportarRelatorio} className="h-7 gap-1 text-xs">
                 <FileSpreadsheet className="h-3 w-3" /> Relatório do dia
               </Button>
@@ -317,6 +386,15 @@ export default function DashboardTransporteTab() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!online && (
+              <div className="rounded-md border border-orange-300 bg-orange-50 dark:bg-orange-950/20 px-3 py-2 text-xs text-orange-900 dark:text-orange-200 flex items-start gap-2">
+                <WifiOff className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-semibold">Modo offline ativo</p>
+                  <p>Pode marcar embarques normalmente — tudo será enviado automaticamente quando o sinal voltar.</p>
+                </div>
+              </div>
+            )}
             {Object.entries(grouped)
               .sort(([a], [b]) => a.localeCompare(b, "pt-BR"))
               .map(([bairro, pts]) => {
@@ -373,6 +451,7 @@ export default function DashboardTransporteTab() {
                       const recusado = ck?.confirmado === false;
                       const embarcou = ck?.embarcou === true;
                       const naoEmbarcou = ck?.embarcou === false;
+                      const pend = pendentesMap[`${p.id}_${periodoAtual}`];
 
                       return (
                         <div key={p.id} className={`flex items-center justify-between gap-2 p-2 rounded border-l-4 text-xs ${
@@ -383,7 +462,14 @@ export default function DashboardTransporteTab() {
                           "bg-background border-l-muted"
                         }`}>
                           <div className="flex-1 min-w-0">
-                            <p className={`font-medium truncate ${recusado || naoEmbarcou ? "line-through" : ""}`}>{p.nome}</p>
+                            <p className={`font-medium truncate ${recusado || naoEmbarcou ? "line-through" : ""}`}>
+                              {p.nome}
+                              {pend && (
+                                <Badge variant="outline" className="ml-1 text-[9px] gap-0.5 border-amber-500 text-amber-800 bg-amber-50 dark:bg-amber-950/30">
+                                  <Hourglass className="h-2.5 w-2.5" /> aguardando envio
+                                </Badge>
+                              )}
+                            </p>
                             <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
                               {embarcou ? <><CheckCircle2 className="h-3 w-3 text-emerald-600" /> Embarcou às {horaBR(ck.embarcou_em)}</> :
                                naoEmbarcou ? <><XCircle className="h-3 w-3 text-red-600" /> Não embarcou — {horaBR(ck.embarcou_em)}</> :
