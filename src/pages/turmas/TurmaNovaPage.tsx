@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
+
+type EducadorLite = { id: string; user_id: string; nome: string; cargo: string | null; ativo: boolean | null; foto_url: string | null };
 import { isBairroSCFV, calcFaixaFromDate, OFICINAS_TURMA } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
@@ -38,7 +40,7 @@ const TurmaNovaPage = () => {
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [bairros, setBairros] = useState<Tables<"bairros">[]>([]);
-  const [educadores, setEducadores] = useState<Tables<"profiles">[]>([]);
+  const [educadores, setEducadores] = useState<EducadorLite[]>([]);
   const [nome, setNome] = useState("");
   const [periodo, setPeriodo] = useState("manha");
   const [faixasEtarias, setFaixasEtarias] = useState<string[]>([]);
