@@ -222,6 +222,97 @@ export default function FamiliaDashboardPage() {
     setNaoVaiMotivo("");
   };
 
+  // ===== Upload da foto do participante (família) =====
+  const comprimirImagem = (file: File): Promise<{ blob: Blob; dataUrl: string }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX = 800;
+          let { width, height } = img;
+          if (width > height && width > MAX) { height = Math.round((height * MAX) / width); width = MAX; }
+          else if (height > MAX) { width = Math.round((width * MAX) / height); height = MAX; }
+          const canvas = document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("Canvas não suportado"));
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob((blob) => {
+            if (!blob) return reject(new Error("Falha ao gerar imagem"));
+            const r2 = new FileReader();
+            r2.onload = () => resolve({ blob, dataUrl: r2.result as string });
+            r2.onerror = () => reject(new Error("Falha ao ler imagem"));
+            r2.readAsDataURL(blob);
+          }, "image/jpeg", 0.85);
+        };
+        img.onerror = () => reject(new Error("Imagem inválida"));
+        img.src = reader.result as string;
+      };
+      reader.onerror = () => reject(new Error("Falha ao ler arquivo"));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const escolherFoto = (capture: boolean) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/jpeg,image/png,image/webp";
+    if (capture) input.setAttribute("capture", "user");
+    input.onchange = async (ev: any) => {
+      const file: File | undefined = ev.target?.files?.[0];
+      if (!file) return;
+      try {
+        const { blob, dataUrl } = await comprimirImagem(file);
+        fotoFileRef.current = new File([blob], "foto.jpg", { type: "image/jpeg" });
+        setFotoPreview(dataUrl);
+      } catch (e: any) {
+        toast.error(e.message || "Não foi possível processar a imagem");
+      }
+    };
+    input.click();
+  };
+
+  const enviarFoto = async () => {
+    if (!p || !fotoFileRef.current || !fotoPreview) return;
+    setFotoUploading(true);
+    try {
+      const token = sessionStorage.getItem("familia_token") || undefined;
+      const acesso_id = sessionStorage.getItem("familia_acesso_id") || undefined;
+      const res = await supabase.functions.invoke("public-familia-data", {
+        body: {
+          participante_id: p.id,
+          tipo: "upload_foto",
+          token,
+          acesso_id,
+          foto_base64: fotoPreview,
+          content_type: "image/jpeg",
+        },
+      });
+      const data: any = res.data;
+      if (data?.error || res.error) {
+        toast.error(data?.error || res.error?.message || "Falha ao enviar foto");
+        return;
+      }
+      // Atualiza lista local + sessionStorage
+      const novoUrl: string = data.foto_url;
+      setParticipantes(prev => {
+        const cp = [...prev];
+        cp[selected] = { ...cp[selected], foto_url: novoUrl };
+        sessionStorage.setItem("familia_participantes", JSON.stringify(cp));
+        return cp;
+      });
+      toast.success("Foto atualizada com sucesso 📸");
+      setFotoDialogOpen(false);
+      setFotoPreview(null);
+      fotoFileRef.current = null;
+    } catch (e: any) {
+      toast.error(e.message || "Erro inesperado");
+    } finally {
+      setFotoUploading(false);
+    }
+  };
+
   if (!p) return null;
 
   const pctAtual = presenca?.mesAtual?.total
