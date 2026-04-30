@@ -356,8 +356,27 @@ export default function DashboardTransporteTab() {
               <Badge variant="outline" className="text-[10px] ml-1">
                 {periodoAtual === "manha" ? "🌅 Manhã" : "🌇 Tarde"} · {new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
               </Badge>
+              {online ? (
+                <Badge variant="outline" className="text-[10px] gap-1 border-emerald-600 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30">
+                  <Wifi className="h-3 w-3" /> Online
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px] gap-1 border-orange-600 text-orange-700 bg-orange-50 dark:bg-orange-950/30 animate-pulse">
+                  <WifiOff className="h-3 w-3" /> Offline
+                </Badge>
+              )}
+              {pendentes.length > 0 && (
+                <Badge variant="outline" className="text-[10px] gap-1 border-amber-600 text-amber-800 bg-amber-50 dark:bg-amber-950/30">
+                  <Hourglass className="h-3 w-3" /> {pendentes.length} aguardando envio
+                </Badge>
+              )}
             </CardTitle>
             <div className="flex gap-1">
+              {pendentes.length > 0 && (
+                <Button size="sm" variant="outline" onClick={sincronizar} disabled={!online || sincronizando} className="h-7 gap-1 text-xs">
+                  <CloudUpload className={`h-3 w-3 ${sincronizando ? "animate-pulse" : ""}`} /> Sincronizar agora
+                </Button>
+              )}
               <Button size="sm" variant="outline" onClick={exportarRelatorio} className="h-7 gap-1 text-xs">
                 <FileSpreadsheet className="h-3 w-3" /> Relatório do dia
               </Button>
@@ -367,6 +386,15 @@ export default function DashboardTransporteTab() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!online && (
+              <div className="rounded-md border border-orange-300 bg-orange-50 dark:bg-orange-950/20 px-3 py-2 text-xs text-orange-900 dark:text-orange-200 flex items-start gap-2">
+                <WifiOff className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-semibold">Modo offline ativo</p>
+                  <p>Pode marcar embarques normalmente — tudo será enviado automaticamente quando o sinal voltar.</p>
+                </div>
+              </div>
+            )}
             {Object.entries(grouped)
               .sort(([a], [b]) => a.localeCompare(b, "pt-BR"))
               .map(([bairro, pts]) => {
