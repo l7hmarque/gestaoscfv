@@ -15,6 +15,7 @@ import { MapPin, Clock, BookOpen, CalendarCheck, MessageSquare, FileText, ArrowL
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import confetti from "canvas-confetti";
+import { cn } from "@/lib/utils";
 import {
   isCheckinAberto, dataDefaultCheckin, proximosDiasUteis,
   diaSemanaKey, formatarBR, hojeSP, parseDataISO, nowSP,
