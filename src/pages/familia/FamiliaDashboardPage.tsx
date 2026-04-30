@@ -159,6 +159,7 @@ export default function FamiliaDashboardPage() {
           participante_id: p.id,
           tipo: "registrar_checkin",
           token,
+          acesso_id,
           data: iso,
           periodo,
           confirmado,
