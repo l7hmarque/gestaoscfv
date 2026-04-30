@@ -578,7 +578,7 @@ export default function FamiliaDashboardPage() {
                   <p className="text-xs text-muted-foreground">
                     Última confirmação:{" "}
                     <span className={`font-semibold ${ultimaConfirmacao.confirmado ? "text-green-600" : "text-red-600"}`}>
-                      {ultimaConfirmacao.confirmado ? "✓ Vai no transporte" : "✗ Não vai"}
+                      {ultimaConfirmacao.confirmado ? "✓ Embarcou!" : "✗ Não Embarcou"}
                     </span>{" "}
                     em {format(parseISO(ultimaConfirmacao.confirmado_em), "dd/MM 'às' HH:mm", { locale: ptBR })}
                   </p>
@@ -679,7 +679,7 @@ export default function FamiliaDashboardPage() {
                                 )}
                                 {c.embarcou === false && c.embarcou_em && (
                                   <p className="mt-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                                    ⚠️ Motorista marcou ausência no ponto às {format(parseISO(c.embarcou_em), "HH:mm", { locale: ptBR })}
+                                    ⚠️ Motorista marcou Não Embarcou às {format(parseISO(c.embarcou_em), "HH:mm", { locale: ptBR })}
                                   </p>
                                 )}
                               </div>
