@@ -643,6 +643,16 @@ export default function FamiliaDashboardPage() {
                                   {format(parseISO(c.confirmado_em), "dd/MM HH:mm", { locale: ptBR })}
                                   {c.confirmado_por ? ` · por ${c.confirmado_por}` : ""}
                                 </p>
+                                {c.embarcou === true && c.embarcou_em && (
+                                  <p className="mt-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                                    🚐 Motorista confirmou embarque às {format(parseISO(c.embarcou_em), "HH:mm", { locale: ptBR })}
+                                  </p>
+                                )}
+                                {c.embarcou === false && c.embarcou_em && (
+                                  <p className="mt-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                    ⚠️ Motorista marcou ausência no ponto às {format(parseISO(c.embarcou_em), "HH:mm", { locale: ptBR })}
+                                  </p>
+                                )}
                               </div>
                               <Button size="sm" variant="ghost"
                                 onClick={() => enviarCheckin(dataAlvo, per, false)}
