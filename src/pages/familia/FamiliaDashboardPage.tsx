@@ -91,6 +91,31 @@ export default function FamiliaDashboardPage() {
     return () => window.clearInterval(interval);
   }, [participantes, selected]);
 
+  // Polling leve dos check-ins: detecta quando o motorista confirma embarque
+  useEffect(() => {
+    if (participantes.length === 0) return;
+    const refresh = async () => {
+      const pid = participantes[selected]?.id;
+      if (!pid || document.hidden) return;
+      const token = sessionStorage.getItem("familia_token") || undefined;
+      const acesso_id = sessionStorage.getItem("familia_acesso_id") || undefined;
+      try {
+        const res = await supabase.functions.invoke("public-familia-data", {
+          body: { participante_id: pid, tipo: "checkins", token, acesso_id },
+        });
+        const lista = (res.data as any)?.checkins;
+        if (Array.isArray(lista)) setCheckins(lista);
+      } catch {/* ignore */}
+    };
+    const interval = window.setInterval(refresh, 45_000);
+    const onVisible = () => { if (!document.hidden) refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [participantes, selected]);
+
   const loadData = async (participanteId: string) => {
     setLoading(true);
     try {
@@ -173,6 +198,32 @@ export default function FamiliaDashboardPage() {
     if (!p) return;
     const key = `${iso}-${periodo}-${confirmado}`;
     setSavingCheckin(key);
+    // Optimistic UI: feedback instantâneo, rede em background
+    const optimistic = {
+      data: iso,
+      periodo,
+      confirmado,
+      confirmado_em: new Date().toISOString(),
+      confirmado_por: null,
+      observacao: motivo || null,
+    };
+    const prevSnapshot = checkins;
+    setCheckins(prev => {
+      const idx = prev.findIndex((c: any) => c.data === iso && c.periodo === periodo);
+      if (idx >= 0) {
+        const cp = [...prev];
+        cp[idx] = { ...cp[idx], ...optimistic };
+        return cp;
+      }
+      return [optimistic, ...prev];
+    });
+    if (confirmado) {
+      // confetti em microtarefa pra não bloquear o paint do estado novo
+      setTimeout(() => confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } }), 0);
+      toast.success("Obrigado! O motorista já foi avisado 🚐");
+    } else {
+      toast.success("Registrado: hoje a criança não vai");
+    }
     try {
       const token = sessionStorage.getItem("familia_token") || undefined;
       const acesso_id = sessionStorage.getItem("familia_acesso_id") || undefined;
@@ -190,22 +241,22 @@ export default function FamiliaDashboardPage() {
         },
       });
       if ((res.data as any)?.error || res.error) {
+        // rollback
+        setCheckins(prevSnapshot);
         toast.error((res.data as any)?.error || res.error?.message || "Erro ao salvar");
         return;
       }
-      // Atualização local
+      // Reconcilia com servidor (mantém embarcou se já existir)
       const novo = (res.data as any).checkin;
       setCheckins(prev => {
         const idx = prev.findIndex((c: any) => c.data === iso && c.periodo === periodo);
-        if (idx >= 0) { const cp = [...prev]; cp[idx] = novo; return cp; }
+        if (idx >= 0) {
+          const cp = [...prev];
+          cp[idx] = { ...cp[idx], ...novo };
+          return cp;
+        }
         return [novo, ...prev];
       });
-      if (confirmado) {
-        confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
-        toast.success("Obrigado! O motorista já foi avisado 🚐");
-      } else {
-        toast.success("Registrado: hoje a criança não vai");
-      }
     } finally {
       setSavingCheckin(null);
     }
@@ -617,6 +668,16 @@ export default function FamiliaDashboardPage() {
                                   {format(parseISO(c.confirmado_em), "dd/MM HH:mm", { locale: ptBR })}
                                   {c.confirmado_por ? ` · por ${c.confirmado_por}` : ""}
                                 </p>
+                                {c.embarcou === true && c.embarcou_em && (
+                                  <p className="mt-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                                    🚐 Motorista confirmou embarque às {format(parseISO(c.embarcou_em), "HH:mm", { locale: ptBR })}
+                                  </p>
+                                )}
+                                {c.embarcou === false && c.embarcou_em && (
+                                  <p className="mt-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                    ⚠️ Motorista marcou ausência no ponto às {format(parseISO(c.embarcou_em), "HH:mm", { locale: ptBR })}
+                                  </p>
+                                )}
                               </div>
                               <Button size="sm" variant="ghost"
                                 onClick={() => enviarCheckin(dataAlvo, per, false)}

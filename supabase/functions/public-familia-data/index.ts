@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
 
         const { data } = await supabaseAdmin
           .from("participante_checkins")
-          .select("data, periodo, confirmado, confirmado_em, confirmado_por, observacao")
+          .select("data, periodo, confirmado, confirmado_em, confirmado_por, observacao, embarcou, embarcou_em")
           .eq("participante_id", participante_id)
           .gte("data", inicioISO)
           .lte("data", fimISO)
