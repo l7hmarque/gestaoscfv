@@ -91,6 +91,31 @@ export default function FamiliaDashboardPage() {
     return () => window.clearInterval(interval);
   }, [participantes, selected]);
 
+  // Polling leve dos check-ins: detecta quando o motorista confirma embarque
+  useEffect(() => {
+    if (participantes.length === 0) return;
+    const refresh = async () => {
+      const pid = participantes[selected]?.id;
+      if (!pid || document.hidden) return;
+      const token = sessionStorage.getItem("familia_token") || undefined;
+      const acesso_id = sessionStorage.getItem("familia_acesso_id") || undefined;
+      try {
+        const res = await supabase.functions.invoke("public-familia-data", {
+          body: { participante_id: pid, tipo: "checkins", token, acesso_id },
+        });
+        const lista = (res.data as any)?.checkins;
+        if (Array.isArray(lista)) setCheckins(lista);
+      } catch {/* ignore */}
+    };
+    const interval = window.setInterval(refresh, 45_000);
+    const onVisible = () => { if (!document.hidden) refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [participantes, selected]);
+
   const loadData = async (participanteId: string) => {
     setLoading(true);
     try {
