@@ -81,6 +81,7 @@ Deno.serve(async (req) => {
         .select("id, nome_completo, data_nascimento")
         .ilike("nome_completo", nomePadronizado)
         .eq("data_nascimento", data_nascimento)
+        .eq("is_teste", false)
         .limit(1)
         .maybeSingle();
 
