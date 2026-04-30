@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
-import { MapPin, Clock, BookOpen, CalendarCheck, MessageSquare, FileText, ArrowLeft, Users, Calendar as CalendarIcon, Percent, UserCheck, Lock, Bus, Flame, CalendarDays } from "lucide-react";
+import { MapPin, Clock, BookOpen, CalendarCheck, MessageSquare, FileText, ArrowLeft, Users, Calendar as CalendarIcon, Percent, UserCheck, Lock, Bus, Flame, CalendarDays, Camera, Image as ImageIcon, Upload, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import confetti from "canvas-confetti";
@@ -59,6 +59,10 @@ export default function FamiliaDashboardPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [naoVaiDialog, setNaoVaiDialog] = useState<{ periodo: string; data: string } | null>(null);
   const [naoVaiMotivo, setNaoVaiMotivo] = useState("");
+  const [fotoDialogOpen, setFotoDialogOpen] = useState(false);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [fotoUploading, setFotoUploading] = useState(false);
+  const fotoFileRef = useRef<File | null>(null);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("familia_participantes");
