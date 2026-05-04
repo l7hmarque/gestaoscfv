@@ -32,13 +32,13 @@ export function AppLayout() {
         <div className="flex-1 flex flex-col min-w-0">
           <SystemBanner />
           <header className="sticky top-0 z-30 h-14 flex items-center justify-between border-b bg-gradient-header backdrop-blur supports-[backdrop-filter]:bg-card/85 px-3 sm:px-4 shrink-0 print:hidden">
-            <SidebarTrigger className="h-9 w-9" />
-            <div className="flex items-center gap-0.5 sm:gap-1">
+            <SidebarTrigger className="h-10 w-10 [&_svg]:h-5 [&_svg]:w-5" />
+            <div className="flex items-center gap-1 sm:gap-1.5">
               <SendRecadoDialog toTecnicos />
               <NotificationBell />
               {myProfileId && (
-                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate(`/profissional/${myProfileId}`)} title="Meu Perfil">
-                  <User className="h-4 w-4" />
+                <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => navigate(`/profissional/${myProfileId}`)} title="Meu Perfil">
+                  <User className="h-5 w-5" />
                 </Button>
               )}
             </div>

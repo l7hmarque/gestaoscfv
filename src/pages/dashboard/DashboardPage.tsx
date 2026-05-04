@@ -19,6 +19,8 @@ import DashboardProfissionaisTab from "./DashboardProfissionaisTab";
 import DashboardAdminTab from "./DashboardAdminTab";
 import DashboardRelatorioMensalTab from "./DashboardRelatorioMensalTab";
 import { PendenciasIntegridadeBanner } from "@/components/PendenciasIntegridadeBanner";
+import { PageHeader } from "@/components/PageHeader";
+import { LayoutDashboard } from "lucide-react";
 
 const COLORS = [
   "hsl(0,58%,56%)", "hsl(210,22%,49%)", "hsl(142,50%,40%)",
@@ -505,21 +507,20 @@ function DashboardHeader() {
     ? new Date(dataCorte + "T00:00:00").toLocaleDateString("pt-BR")
     : null;
   return (
-    <div className="flex items-start justify-between gap-3 flex-wrap">
-      <div>
-        <h1 className="text-lg sm:text-xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-xs text-muted-foreground">Visão geral do projeto</p>
-      </div>
-      {dataFmt && (
+    <PageHeader
+      icon={<LayoutDashboard className="h-5 w-5" />}
+      title="Dashboard"
+      subtitle="Visão geral do projeto"
+      actions={dataFmt ? (
         <div
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border bg-muted/40 text-[11px] text-muted-foreground"
-          title={`Indicadores institucionais consideram apenas dados a partir de ${dataFmt}, marco operacional do SysCFV. Registros anteriores referem-se a chamadas físicas consolidadas.`}
+          title={`Indicadores institucionais consideram apenas dados a partir de ${dataFmt}, marco operacional do SysCFV.`}
         >
           <Clock size={12} className="opacity-70" />
           <span>Indicadores a partir de {dataFmt}</span>
         </div>
-      )}
-    </div>
+      ) : undefined}
+    />
   );
 }
 

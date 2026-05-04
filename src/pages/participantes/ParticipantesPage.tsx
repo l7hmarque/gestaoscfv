@@ -19,6 +19,8 @@ import type { Tables } from "@/integrations/supabase/types";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import { useAuth } from "@/contexts/AuthContext";
+import { PageHeader } from "@/components/PageHeader";
+import { Users } from "lucide-react";
 
 const statusLabel = STATUS_LABELS;
 const statusColor = STATUS_COLORS;
@@ -432,20 +434,21 @@ const ParticipantesPage = () => {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Participantes</h1>
-          <p className="text-sm text-muted-foreground">{filtered.length} participante{filtered.length !== 1 ? "s" : ""}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/participantes/importar"><Upload className="h-4 w-4 mr-1" />Importar</Link>
-          </Button>
-          <Button size="sm" asChild>
-            <Link to="/participantes/novo"><Plus className="h-4 w-4 mr-1" />Novo</Link>
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Users className="h-5 w-5" />}
+        title="Participantes"
+        subtitle={`${filtered.length} participante${filtered.length !== 1 ? "s" : ""}`}
+        actions={
+          <>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/participantes/importar"><Upload className="h-4 w-4 mr-1" />Importar</Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link to="/participantes/novo"><Plus className="h-4 w-4 mr-1" />Novo</Link>
+            </Button>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-[200px]">
