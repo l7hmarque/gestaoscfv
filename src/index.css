@@ -201,6 +201,28 @@
   .page-header {
     @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
   }
+  .page-title {
+    @apply text-xl sm:text-2xl font-bold tracking-tight text-foreground;
+  }
+  .page-subtitle {
+    @apply text-sm text-muted-foreground mt-0.5;
+  }
+
+  /* Form helpers — consistent across pages */
+  .form-grid {
+    @apply grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4;
+  }
+  .form-grid-3 {
+    @apply grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4;
+  }
+  .form-field {
+    @apply space-y-1.5;
+  }
+
+  /* KPI / stat card surface */
+  .stat-card {
+    @apply rounded-md border bg-card p-3 sm:p-4 shadow-xs hover:shadow-soft transition-shadow;
+  }
 
   /* Hide scrollbars on tab bars while keeping scroll */
   .no-scrollbar::-webkit-scrollbar { display: none; }

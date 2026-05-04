@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-tight transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
   {
     variants: {
       variant: {
@@ -12,6 +12,11 @@ const badgeVariants = cva(
         secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
+        success: "border-transparent bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))] hover:bg-[hsl(var(--success)/0.22)]",
+        warning: "border-transparent bg-[hsl(var(--warning)/0.18)] text-[hsl(var(--warning-foreground))] hover:bg-[hsl(var(--warning)/0.28)]",
+        info: "border-transparent bg-[hsl(var(--info)/0.15)] text-[hsl(var(--info))] hover:bg-[hsl(var(--info)/0.22)]",
+        muted: "border-transparent bg-muted text-muted-foreground hover:bg-muted/70",
+        soft: "border border-border bg-surface-2 text-foreground hover:bg-surface-3",
       },
     },
     defaultVariants: {
