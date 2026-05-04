@@ -101,15 +101,15 @@ export function AppSidebar() {
                   const active = location.pathname === item.url || (item.url !== "/" && location.pathname.startsWith(item.url));
                   return (
                     <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild isActive={active}>
+                       <SidebarMenuButton asChild isActive={active} className={isMobile ? "h-11 text-[15px]" : ""}>
                         <NavLink
                           to={item.url}
                           end={item.url === "/"}
-                          className={`relative rounded-sm transition-colors hover:bg-sidebar-accent/60 ${active ? "bg-primary/8 text-primary font-medium before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-r-sm before:bg-primary" : ""}`}
+                           className={`relative rounded-sm transition-colors hover:bg-sidebar-accent/60 ${active ? "bg-primary/8 text-primary font-medium before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-r-sm before:bg-primary" : ""}`}
                           activeClassName="text-primary font-medium"
                           onClick={() => { if (isMobile) setOpenMobile(false); }}
                         >
-                          <item.icon className={`h-4 w-4 ${active ? "text-primary" : ""}`} />
+                           <item.icon className={`${isMobile ? "h-[18px] w-[18px]" : "h-4 w-4"} ${active ? "text-primary" : ""}`} />
                           {!collapsed && <span>{item.title}</span>}
                         </NavLink>
                       </SidebarMenuButton>
