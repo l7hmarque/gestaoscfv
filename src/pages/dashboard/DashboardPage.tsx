@@ -21,6 +21,8 @@ import DashboardRelatorioMensalTab from "./DashboardRelatorioMensalTab";
 import { PendenciasIntegridadeBanner } from "@/components/PendenciasIntegridadeBanner";
 import { PageHeader } from "@/components/PageHeader";
 import { LayoutDashboard } from "lucide-react";
+import { IndicadorTimelineDrawer } from "@/components/dashboard/IndicadorTimelineDrawer";
+import type { IndicadorId } from "@/lib/indicadorTimelineFetchers";
 
 const COLORS = [
   "hsl(0,58%,56%)", "hsl(210,22%,49%)", "hsl(142,50%,40%)",
@@ -42,15 +44,22 @@ const quickShortcuts = [
 ];
 
 /* ── KPI Card ── */
-function KPICard({ icon: Icon, label, value, sub, color, delta, deltaLabel, tooltip }: {
+function KPICard({ icon: Icon, label, value, sub, color, delta, deltaLabel, tooltip, onClick }: {
   icon: any; label: string; value: string | number; sub?: string; color: string;
-  delta?: number; deltaLabel?: string; tooltip?: string;
+  delta?: number; deltaLabel?: string; tooltip?: string; onClick?: () => void;
 }) {
+  const interactive = !!onClick;
   return (
     <Card
-      className="hover:shadow-md transition-shadow border-l-4"
+      className={`hover:shadow-md transition-shadow border-l-4 ${
+        interactive ? "cursor-pointer hover:ring-2 hover:ring-primary/30 focus-within:ring-2 focus-within:ring-primary/40" : ""
+      }`}
       style={{ borderLeftColor: color }}
-      title={tooltip}
+      title={tooltip ?? (interactive ? "Clique para ver evolução e histórico técnico" : undefined)}
+      onClick={onClick}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={interactive ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick?.(); } } : undefined}
     >
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-start justify-between">
