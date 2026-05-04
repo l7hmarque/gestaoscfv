@@ -76,7 +76,8 @@ function monthLabel(key: string): string {
 async function fetchParticipantes(): Promise<TimelineResult> {
   const since = new Date();
   since.setDate(since.getDate() - 60);
-  const sinceISO = ymd(since);
+  const sinceISO = since.toISOString();
+  const hojeISO = ymd(new Date());
 
   // Total ativo HOJE (ponto âncora para reconstruir a série retroativa)
   const { count: ativosHojeCount } = await supabase
@@ -86,67 +87,53 @@ async function fetchParticipantes(): Promise<TimelineResult> {
     .neq("status", "desligado")
     .eq("is_teste", false);
 
-  // 1) Matrículas com iniciou_em no período
-  const { data: matriculasA } = await supabase
+  // Matrículas: usar created_at (quando foi REGISTRADO no sistema), não iniciou_em
+  const { data: matriculas } = await supabase
     .from("participantes")
     .select("id, nome_completo, data_nascimento, iniciou_em, created_at, periodo, bairros(nome), origem_encaminhamento, status, data_desligamento")
-    .gte("iniciou_em", sinceISO)
-    .eq("is_teste", false)
-    .order("iniciou_em", { ascending: false })
-    .limit(400);
-
-  // 2) Fallback: cadastros recentes sem iniciou_em (registros incompletos),
-  //    usar created_at como data efetiva da matrícula.
-  const { data: matriculasB } = await supabase
-    .from("participantes")
-    .select("id, nome_completo, data_nascimento, iniciou_em, created_at, periodo, bairros(nome), origem_encaminhamento, status, data_desligamento")
-    .is("iniciou_em", null)
-    .gte("created_at", since.toISOString())
+    .gte("created_at", sinceISO)
     .eq("is_teste", false)
     .order("created_at", { ascending: false })
     .limit(400);
 
-  // Une e deduplica por id
-  const mapMatriculas = new Map<string, any>();
-  [...(matriculasA || []), ...(matriculasB || [])].forEach((m: any) => {
-    if (!mapMatriculas.has(m.id)) mapMatriculas.set(m.id, m);
-  });
-  const matriculas = Array.from(mapMatriculas.values());
-
-  // Desligamentos no período
+  // Desligamentos: também usar created_at do registro? Não — desligamento NÃO tem timestamp de "registrado em".
+  // Usamos data_desligamento, mas filtramos datas futuras (inválidas para timeline retroativa).
   const { data: desligamentos } = await supabase
     .from("participantes")
     .select("id, nome_completo, data_nascimento, data_desligamento, motivo_desligamento, justificativa_desligamento, periodo, bairros(nome), iniciou_em")
-    .gte("data_desligamento", sinceISO)
+    .gte("data_desligamento", ymd(since))
+    .lte("data_desligamento", hojeISO)
     .eq("is_teste", false)
     .order("data_desligamento", { ascending: false })
     .limit(400);
 
-  // Transferências aprovadas (movimentação, delta 0)
+  // Transferências aprovadas (movimentação, delta 0) — limitar a hoje
   const { data: transferencias } = await supabase
     .from("participante_transferencias" as any)
     .select("id, participante_id, data_transferencia, motivo, turma_origem:turma_origem_id(nome), turma_destino:turma_destino_id(nome), participantes:participante_id(nome_completo, data_nascimento)")
-    .gte("data_transferencia", sinceISO)
+    .gte("data_transferencia", ymd(since))
+    .lte("data_transferencia", hojeISO)
     .order("data_transferencia", { ascending: false })
     .limit(200);
 
   type Ev = { dataISO: string; delta: number; ev: EventoTecnico };
   const evs: Ev[] = [];
 
-  matriculas.forEach((p: any) => {
+  (matriculas || []).forEach((p: any) => {
     const idade = calcAge(p.data_nascimento);
-    const dataEfetiva: string = p.iniciou_em || (p.created_at ? String(p.created_at).slice(0, 10) : ymd(new Date()));
-    const inferida = !p.iniciou_em;
+    // Eixo da timeline = data de REGISTRO no sistema
+    const dataRegistro = p.created_at ? String(p.created_at).slice(0, 10) : ymd(new Date());
+    // Limita a hoje (evita created_at futuro improvável)
+    const dataEfetiva = dataRegistro > hojeISO ? hojeISO : dataRegistro;
+    const iniciouFmt = p.iniciou_em ? p.iniciou_em.split("-").reverse().join("/") : "—";
     const ctx: ContextoLinha[] = [
       { campo: "Participante", valor: `${p.nome_completo}${idade != null ? ` (${idade}a)` : ""}`, link: `/participantes/${p.id}` },
       { campo: "Bairro", valor: p.bairros?.nome || "—" },
       { campo: "Período", valor: p.periodo || "—" },
       { campo: "Origem", valor: p.origem_encaminhamento || "—" },
       { campo: "Status atual", valor: p.status || "—" },
+      { campo: "Início efetivo (operacional)", valor: iniciouFmt },
     ];
-    if (inferida) {
-      ctx.push({ campo: "Data efetiva", valor: "Inferida do cadastro (sem iniciou_em registrado)" });
-    }
     evs.push({
       dataISO: dataEfetiva,
       delta: 1,
