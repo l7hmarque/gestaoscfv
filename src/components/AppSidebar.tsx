@@ -105,11 +105,11 @@ export function AppSidebar() {
                         <NavLink
                           to={item.url}
                           end={item.url === "/"}
-                          className={`hover:bg-sidebar-accent/50 ${active ? "border-l-[3px] border-primary bg-primary/5 text-primary font-medium" : ""}`}
+                          className={`relative rounded-sm transition-colors hover:bg-sidebar-accent/60 ${active ? "bg-primary/8 text-primary font-medium before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-r-sm before:bg-primary" : ""}`}
                           activeClassName="text-primary font-medium"
                           onClick={() => { if (isMobile) setOpenMobile(false); }}
                         >
-                          <item.icon className="h-4 w-4" />
+                          <item.icon className={`h-4 w-4 ${active ? "text-primary" : ""}`} />
                           {!collapsed && <span>{item.title}</span>}
                         </NavLink>
                       </SidebarMenuButton>
