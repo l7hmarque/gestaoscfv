@@ -19,6 +19,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import { exportBulkRelatorios } from "@/hooks/useBulkRelatorioExport";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/PageHeader";
+import { FileText } from "lucide-react";
 
 const OBJ_LABELS: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
 const OBJ_VARIANT: Record<string, "default" | "secondary" | "destructive"> = { alcancado: "default", parcial: "secondary", nao_alcancado: "destructive" };
@@ -197,25 +199,26 @@ const RelatoriosPage = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Relatórios de Atividade</h1>
-          <p className="text-sm text-muted-foreground">Registrar e acompanhar atividades realizadas</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={() => setExportOpen(true)}>
-            <Download className="h-4 w-4" />Exportar
-          </Button>
-          {isCoordenacao && (
-            <Button variant="outline" size="sm" className="gap-1 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setBulkOpen(true)}>
-              <Trash2 className="h-4 w-4" />Excluir em Lote
+      <PageHeader
+        icon={<FileText className="h-5 w-5" />}
+        title="Relatórios de Atividade"
+        subtitle="Registrar e acompanhar atividades realizadas"
+        actions={
+          <>
+            <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={() => setExportOpen(true)}>
+              <Download className="h-4 w-4" />Exportar
             </Button>
-          )}
-          <Button size="sm" asChild>
-            <Link to="/relatorios/novo"><Plus className="h-4 w-4 mr-1" />Novo</Link>
-          </Button>
-        </div>
-      </div>
+            {isCoordenacao && (
+              <Button variant="outline" size="sm" className="gap-1 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setBulkOpen(true)}>
+                <Trash2 className="h-4 w-4" />Excluir em Lote
+              </Button>
+            )}
+            <Button size="sm" asChild>
+              <Link to="/relatorios/novo"><Plus className="h-4 w-4 mr-1" />Novo</Link>
+            </Button>
+          </>
+        }
+      />
 
       <Tabs defaultValue="lista">
         <TabsList>

@@ -32,6 +32,7 @@ import autoTable from "jspdf-autotable";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
 import { validateDespesa, missingFieldLabel, type DespesaWarning } from "@/lib/despesaImportValidation";
 import { useAuth } from "@/contexts/AuthContext";
+import { PageHeader } from "@/components/PageHeader";
 
 type Categoria = { id: string; codigo: string; descricao: string; valor_previsto: number; created_at: string };
 type Parcela = { id: string; numero_parcela: number; valor: number; data_recebimento: string; created_at: string };
@@ -825,17 +826,19 @@ export default function FinanceiroPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold text-foreground">Financeiro</h1>
-        <div className="flex flex-wrap items-center gap-2">
+      <PageHeader
+        icon={<DollarSign className="h-5 w-5" />}
+        title="Financeiro"
+        subtitle="Orçamentos, despesas e prestação de contas"
+        actions={
           <Select value={mesRef} onValueChange={setMesRef}>
-            <SelectTrigger className="w-[180px] h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               {monthOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
-        </div>
-      </div>
+        }
+      />
 
       {/* Relatórios & Exportações */}
       <Card>
