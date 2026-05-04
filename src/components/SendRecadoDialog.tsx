@@ -116,7 +116,7 @@ export function SendRecadoDialog({ toTecnicos, paraFamilia, trigger, participant
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {trigger || <Button variant="ghost" size="icon" title="Enviar recado"><Send className="h-4 w-4" /></Button>}
+        {trigger || <Button variant="ghost" size="icon" className="h-10 w-10" title="Enviar recado"><Send className="h-5 w-5" /></Button>}
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>
