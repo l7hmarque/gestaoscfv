@@ -78,47 +78,84 @@ async function fetchParticipantes(): Promise<TimelineResult> {
   since.setDate(since.getDate() - 60);
   const sinceISO = ymd(since);
 
-  // Snapshot diário aproximado: total ativos hoje, recompondo para trás aplicando deltas reversos.
-  const { data: ativosHoje } = await supabase
+  // Total ativo HOJE (ponto âncora para reconstruir a série retroativa)
+  const { count: ativosHojeCount } = await supabase
     .from("participantes")
     .select("id", { count: "exact", head: true })
     .is("data_desligamento", null)
-    .neq("status", "desligado");
+    .neq("status", "desligado")
+    .eq("is_teste", false);
 
-  // Eventos: matrículas e desligamentos no período.
-  const { data: matriculas } = await supabase
+  // 1) Matrículas com iniciou_em no período
+  const { data: matriculasA } = await supabase
     .from("participantes")
-    .select("id, nome_completo, data_nascimento, iniciou_em, periodo, bairros(nome), origem_encaminhamento")
+    .select("id, nome_completo, data_nascimento, iniciou_em, created_at, periodo, bairros(nome), origem_encaminhamento, status, data_desligamento")
     .gte("iniciou_em", sinceISO)
+    .eq("is_teste", false)
     .order("iniciou_em", { ascending: false })
-    .limit(200);
+    .limit(400);
 
+  // 2) Fallback: cadastros recentes sem iniciou_em (registros incompletos),
+  //    usar created_at como data efetiva da matrícula.
+  const { data: matriculasB } = await supabase
+    .from("participantes")
+    .select("id, nome_completo, data_nascimento, iniciou_em, created_at, periodo, bairros(nome), origem_encaminhamento, status, data_desligamento")
+    .is("iniciou_em", null)
+    .gte("created_at", since.toISOString())
+    .eq("is_teste", false)
+    .order("created_at", { ascending: false })
+    .limit(400);
+
+  // Une e deduplica por id
+  const mapMatriculas = new Map<string, any>();
+  [...(matriculasA || []), ...(matriculasB || [])].forEach((m: any) => {
+    if (!mapMatriculas.has(m.id)) mapMatriculas.set(m.id, m);
+  });
+  const matriculas = Array.from(mapMatriculas.values());
+
+  // Desligamentos no período
   const { data: desligamentos } = await supabase
     .from("participantes")
     .select("id, nome_completo, data_nascimento, data_desligamento, motivo_desligamento, justificativa_desligamento, periodo, bairros(nome), iniciou_em")
     .gte("data_desligamento", sinceISO)
+    .eq("is_teste", false)
     .order("data_desligamento", { ascending: false })
+    .limit(400);
+
+  // Transferências aprovadas (movimentação, delta 0)
+  const { data: transferencias } = await supabase
+    .from("participante_transferencias" as any)
+    .select("id, participante_id, data_transferencia, motivo, turma_origem:turma_origem_id(nome), turma_destino:turma_destino_id(nome), participantes:participante_id(nome_completo, data_nascimento)")
+    .gte("data_transferencia", sinceISO)
+    .order("data_transferencia", { ascending: false })
     .limit(200);
 
   type Ev = { dataISO: string; delta: number; ev: EventoTecnico };
   const evs: Ev[] = [];
 
-  (matriculas || []).forEach((p: any) => {
+  matriculas.forEach((p: any) => {
     const idade = calcAge(p.data_nascimento);
+    const dataEfetiva: string = p.iniciou_em || (p.created_at ? String(p.created_at).slice(0, 10) : ymd(new Date()));
+    const inferida = !p.iniciou_em;
+    const ctx: ContextoLinha[] = [
+      { campo: "Participante", valor: `${p.nome_completo}${idade != null ? ` (${idade}a)` : ""}`, link: `/participantes/${p.id}` },
+      { campo: "Bairro", valor: p.bairros?.nome || "—" },
+      { campo: "Período", valor: p.periodo || "—" },
+      { campo: "Origem", valor: p.origem_encaminhamento || "—" },
+      { campo: "Status atual", valor: p.status || "—" },
+    ];
+    if (inferida) {
+      ctx.push({ campo: "Data efetiva", valor: "Inferida do cadastro (sem iniciou_em registrado)" });
+    }
     evs.push({
-      dataISO: p.iniciou_em,
+      dataISO: dataEfetiva,
       delta: 1,
       ev: {
-        data: p.iniciou_em,
+        data: dataEfetiva,
         tipo: "matricula",
         delta: 1,
         titulo: "MATRÍCULA",
-        contexto: [
-          { campo: "Participante", valor: `${p.nome_completo}${idade != null ? ` (${idade}a)` : ""}`, link: `/participantes/${p.id}` },
-          { campo: "Bairro", valor: p.bairros?.nome || "—" },
-          { campo: "Período", valor: p.periodo || "—" },
-          { campo: "Origem", valor: p.origem_encaminhamento || "—" },
-        ],
+        contexto: ctx,
       },
     });
   });
@@ -156,9 +193,32 @@ async function fetchParticipantes(): Promise<TimelineResult> {
     });
   });
 
+  (transferencias || []).forEach((t: any) => {
+    const idade = calcAge(t.participantes?.data_nascimento);
+    evs.push({
+      dataISO: t.data_transferencia,
+      delta: 0,
+      ev: {
+        data: t.data_transferencia,
+        tipo: "transferencia",
+        titulo: "TRANSFERÊNCIA",
+        contexto: [
+          {
+            campo: "Participante",
+            valor: `${t.participantes?.nome_completo || "—"}${idade != null ? ` (${idade}a)` : ""}`,
+            link: t.participante_id ? `/participantes/${t.participante_id}` : undefined,
+          },
+          { campo: "Origem", valor: t.turma_origem?.nome || "—" },
+          { campo: "Destino", valor: t.turma_destino?.nome || "—" },
+          { campo: "Motivo", valor: t.motivo || "—" },
+        ],
+      },
+    });
+  });
+
   // Reconstrói série diária reversa
   evs.sort((a, b) => (a.dataISO < b.dataISO ? 1 : -1));
-  const totalHoje = (ativosHoje as any)?.count ?? 0;
+  const totalHoje = ativosHojeCount ?? 0;
 
   // Mapa data -> delta acumulado
   const deltaPorDia = new Map<string, number>();

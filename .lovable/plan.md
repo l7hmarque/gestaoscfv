@@ -1,148 +1,57 @@
-## Drawer de tendência detalhada por indicador
+## Problema diagnosticado
 
-Ao clicar em um KPI do dashboard, abre um painel lateral esquerdo com **gráfico de evolução** e um **histórico técnico rico** — cada evento traz contexto operacional completo, não só o delta.
+A timeline do indicador **Participantes Ativos** está mostrando majoritariamente desligamentos. Investigando o banco em produção:
 
-### Layout
+- **271 participantes** criados nos últimos 60 dias.
+- Apenas **40** com `iniciou_em` no intervalo (que é o que o fetcher usa).
+- **62 participantes** estão com `iniciou_em = NULL` (16 em 27/03, 43 em 10/04, etc. — provavelmente importações em lote ou matrículas online antigas que não preencheram o campo).
+- Em paralelo, **105 desligamentos** no mesmo período → dominam a lista, dando a impressão de que "só tem desligamento".
 
-```text
-┌──── Drawer (esq, 520px) ───────────────────────┐
-│ ✕  Participantes Ativos                        │
-│    248 hoje  ▲ +12 (30 dias)  · pico: 251     │
-├────────────────────────────────────────────────┤
-│ ┌─ Evolução (últimos 60 dias) ──────────────┐  │
-│ │      ╱╲     ╱──                           │  │
-│ │  ╱──╯  ╲___╯       área sombreada         │  │
-│ │ marcos: ▼ desligamento em lote 23/04     │  │
-│ └───────────────────────────────────────────┘  │
-│                                                │
-│ Min 232  ·  Máx 251  ·  Média 243              │
-├────────────────────────────────────────────────┤
-│ HISTÓRICO TÉCNICO                              │
-│                                                │
-│ ┌─ 04/05/2026 — 14:32 ──────── +3 ▲ 248 ─┐    │
-│ │ MATRÍCULA | Ana Silva (8a) → JARDIM    │    │
-│ │ IRENE manhã · Maria Santos (10a) →     │    │
-│ │ ALVORADA tarde · João P. (7a) →        │    │
-│ │ JARDIM IRENE manhã                     │    │
-│ │ Origem: matrícula online · por Coord.  │    │
-│ └────────────────────────────────────────┘    │
-│                                                │
-│ ┌─ 02/05/2026 — 09:15 ──────── −1 ▼ 245 ─┐    │
-│ │ DESLIGAMENTO | Pedro Costa (12a)       │    │
-│ │ Turma: ADOLESCENTES — PARQUE INDEP.    │    │
-│ │ Motivo: mudança de cidade              │    │
-│ │ Tempo no SCFV: 8 meses · por Téc. RH   │    │
-│ └────────────────────────────────────────┘    │
-│ ...                                            │
-└────────────────────────────────────────────────┘
-```
+Resultado: matrículas reais ficam invisíveis e o gráfico fica desbalanceado, pois reconstrói o passado a partir de deltas incompletos.
 
-### O que torna o histórico "técnico"
+## Correções
 
-Cada linha do histórico inclui o máximo de contexto disponível para aquele evento:
+### 1. Backfill retroativo (migration data-only via insert tool)
 
-**Participantes Ativos** — para cada matrícula/desligamento/transferência:
-- Nome + idade + bairro/turma de destino + período
-- Origem (matrícula online, importação, manual)
-- Em desligamentos: motivo + justificativa + tempo de permanência
-- Quem executou (profissional)
-- Link para o perfil do participante
+Preencher `iniciou_em = COALESCE(iniciou_em, created_at::date)` para todos os participantes onde `iniciou_em IS NULL` e `is_teste = false`. Registrar no `audit_log` como ação administrativa.
 
-**Frequência Geral** — por mês/semana:
-- % presença + nº presentes / nº esperados
-- Top 3 turmas com maior queda vs mês anterior
-- Top 3 turmas com maior alta
-- Eventos pontuais com baixa anormal (ex: "13/04: 32% — feriado prolongado")
+Isso restaura coerência histórica do indicador sem inventar datas — usa a data real de criação do registro como proxy de matrícula.
 
-**Turmas Ativas** — abertura/encerramento:
-- Nome completo da turma + faixa etária + bairro + período
-- Educador vinculado
-- Nº inicial de participantes
-- Em encerramentos: motivo, último relatório, destino dos participantes
+### 2. Fetcher `fetchParticipantes` (src/lib/indicadorTimelineFetchers.ts)
 
-**Relatórios** — agregação mensal + destaques:
-- Total do mês + média ELO + média adesão
-- Top 3 educadores mais produtivos do mês
-- Turma mais ativa (mais relatórios)
-- Atividades destaque (ELO 5)
+Tornar o fetcher robusto a inconsistências futuras:
 
-**Planejamentos** — por evento:
-- Título + categoria + autor + nº de objetivos
-- Status (rascunho, finalizado)
+- **Fonte de matrículas**: usar `COALESCE(iniciou_em, created_at::date)` na consulta. Como Supabase JS não permite COALESCE direto, fazer **duas queries**:
+  - matrículas com `iniciou_em` no período
+  - participantes com `created_at` no período E `iniciou_em IS NULL` (fallback)
+  - unir e deduplicar por id
+- **Filtro `is_teste = false`** explícito (hoje não está, pode poluir).
+- **Excluir** participantes que já foram desligados antes do início do período (não são "matrícula" recente para o gráfico).
+- Marcar a origem do evento na contexto: `Origem do registro: matrícula online | importação | manual` quando disponível, e adicionar `Data efetiva` quando `iniciou_em` foi inferida do `created_at`.
+- **Janela**: manter 60 dias.
 
-**Média ELO** — por mês:
-- Score do mês + nº de relatórios computados
-- Top 3 atividades de maior score (com nome + educador)
-- Bottom 3 atividades de menor score (oportunidade de melhoria)
+### 3. Eventos adicionais — Transferências
 
-**Média Adesão** — por mês:
-- % adesão + nº esperado vs nº presente
-- Atividades com adesão > 90% e < 50%
+Hoje só "matrícula" e "desligamento" são eventos. Adicionar:
+- **TRANSFERÊNCIA APROVADA**: query em `transferencias_participante` (ou tabela equivalente) com `status = 'aprovada'` e `aprovado_em` no período. Não altera total ativo (delta 0), mas é movimentação relevante.
 
-**Educadores Ativos** — variação mensal:
-- Quem entrou no quadro ativo (primeiro relatório do mês)
-- Quem saiu (sem relatório no mês após estar ativo)
-- Top 3 mais produtivos do mês
+Se a tabela não existir / estiver vazia, ignorar silenciosamente.
 
-### Comportamento
+### 4. Correção visual no drawer
 
-- **Card → Sheet**: KPI vira `<button>` com hover ring; abre `Sheet side="left"` (520px desktop, fullscreen mobile).
-- **Janela temporal**: respeita filtro mês/ano da página. Se "todos os períodos" → últimos 60 dias (Participantes) ou 12 meses (demais). Se mês específico → detalhe diário daquele mês.
-- **Gráfico**: LineChart Recharts (200px) com área sombreada, marcos de eventos relevantes anotados (`<ReferenceDot>`).
-- **Resumo estatístico**: linha com Min/Máx/Média/Mediana abaixo do gráfico.
-- **Histórico**: lista cronológica reversa, paginada (mostra 20, botão "Ver mais"). Cada item é um card com título destacado, badge de delta (+/− e cor), e bloco de contexto técnico em texto estruturado.
-- **Links acionáveis**: nomes de participantes/turmas/relatórios viram links para suas páginas internas.
-- **Filtro dentro do drawer**: dropdown para filtrar por tipo de evento (matrícula | desligamento | transferência | todos).
-- **Exportação**: botão "Exportar histórico (CSV)" no rodapé do drawer.
-- **Loading**: skeleton no gráfico + lista enquanto busca; cache 5 min via TanStack.
+- Quando matrículas e desligamentos coexistem, o filtro por tipo já existe — manter, mas garantir que o seletor abra com "Todos" (já é o default).
+- Mostrar contadores no header do histórico: `Matrículas: X · Desligamentos: Y · Transferências: Z` para dar visibilidade imediata.
 
-### Fonte de dados (sem migrações)
+### 5. Validação pós-mudança
 
-Tudo derivado das tabelas existentes — sem snapshot diário no banco, calculado sob demanda:
+Após aplicar backfill + fetcher novo, conferir via SQL:
+- Contagem por dia de matrículas recompostas no período.
+- Pico do gráfico bate com `count(*) where status='ativo' and is_teste=false`.
 
-| Indicador | Tabelas usadas | Como construir contexto técnico |
-|---|---|---|
-| Participantes | `participantes`, `bairros`, `turma_participantes`, `turmas`, `audit_log`, `profiles` | join para nome de turma/bairro/profissional; `audit_log` traz justificativa de desligamento |
-| Frequência | `presencas`, `relatorios_atividade`, `turmas` | agrupa por mês; calcula deltas por turma |
-| Turmas | `turmas`, `profiles` (educador), `turma_participantes` | join para educador e contagem inicial |
-| Relatórios | `relatorios_atividade`, `profiles` (autor), `turmas` | agrega por mês; ranqueia top educadores/turmas |
-| Planejamentos | `planejamentos_atividade`, `profiles` (autor) | metadata do registro |
-| Média ELO | `relatorios_atividade.score_elo`, `profiles` | top/bottom 3 do mês |
-| Média Adesão | `relatorios_atividade.adesao_pct` | extremos do mês |
-| Educadores Ativos | distinct `educador_id` em `relatorios_atividade` por mês | comparar conjunto entre meses |
+## Arquivos
 
-Performance: queries client-side em janela limitada (60 dias / 12 meses) — volume aceitável. Se ficar lento, próxima iteração cria RPC `get_indicador_timeline(_id, _mes, _ano)`.
+- **Migration data-only** (insert tool): `UPDATE participantes SET iniciou_em = created_at::date WHERE iniciou_em IS NULL AND is_teste = false;` + insert em `audit_log`.
+- **Editar**: `src/lib/indicadorTimelineFetchers.ts` — função `fetchParticipantes` reescrita conforme acima.
+- **Editar**: `src/components/dashboard/IndicadorTimelineDrawer.tsx` — adicionar contadores no cabeçalho do histórico.
 
-### Detalhes técnicos
-
-- `src/components/dashboard/IndicadorTimelineDrawer.tsx` (novo) — Sheet shadcn esquerdo, recebe `{ indicadorId, mes, ano, onClose }`; renderiza header (label + valor atual + delta), gráfico, stats, filtro de tipo, lista de eventos com `EventoTecnicoCard`.
-- `src/components/dashboard/EventoTecnicoCard.tsx` (novo) — card individual estruturado: título destacado, delta colorido, bloco de contexto, links.
-- `src/hooks/useIndicadorTimeline.ts` (novo) — `switch (indicadorId)` despacha para fetcher dedicado de cada indicador. Cada fetcher retorna:
-  ```ts
-  {
-    pontos: { label: string; value: number; date: string }[];
-    eventos: {
-      data: string; // ISO
-      tipo: string; // matricula | desligamento | ...
-      delta: number;
-      valorApos: number;
-      titulo: string; // "MATRÍCULA"
-      contexto: { campo: string; valor: string; link?: string }[];
-      autor?: string;
-    }[];
-    stats: { min: number; max: number; media: number; mediana: number };
-  }
-  ```
-- `KPICard` ganha props `interactive?: boolean` e `onClick?: () => void`; quando interativo, vira `<button>` com `cursor-pointer`, ring focus visível e `aria-label`.
-- `IndicadoresTab` adiciona `selectedIndicator` state e renderiza `<IndicadorTimelineDrawer>` quando há seleção. Cada KPI passa seu id (`'participantes'`, `'frequencia'`, etc.).
-- Helper `src/lib/indicadorTimelineFetchers.ts` (novo) — funções puras por indicador, isoladas para teste.
-
-### Arquivos afetados
-
-- `src/pages/dashboard/DashboardPage.tsx` — KPI clicáveis + estado + drawer.
-- `src/components/dashboard/IndicadorTimelineDrawer.tsx` (novo).
-- `src/components/dashboard/EventoTecnicoCard.tsx` (novo).
-- `src/hooks/useIndicadorTimeline.ts` (novo).
-- `src/lib/indicadorTimelineFetchers.ts` (novo).
-
-Sem alterações em banco, RLS ou edge functions.
+Sem mudanças de schema, RLS ou edge functions.
