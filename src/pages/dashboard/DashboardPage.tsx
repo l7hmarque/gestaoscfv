@@ -510,6 +510,11 @@ function IndicadoresTab() {
           )}
         </ChartCard>
       </div>
+
+      <IndicadorTimelineDrawer
+        indicadorId={selectedIndicator}
+        onClose={() => setSelectedIndicator(null)}
+      />
     </div>
   );
 }
