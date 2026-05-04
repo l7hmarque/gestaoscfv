@@ -232,7 +232,8 @@ async function fetchParticipantes(): Promise<TimelineResult> {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const key = ymd(d);
-    pontos.unshift({ label: key.slice(5), value: valor, date: key });
+    const [, mm, dd] = key.split("-");
+    pontos.unshift({ label: `${dd}/${mm}`, value: valor, date: key });
     valor -= deltaPorDia.get(key) ?? 0;
   }
 
