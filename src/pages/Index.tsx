@@ -73,48 +73,48 @@ const Index = () => {
   const tipoEmoji: Record<string, string> = { aviso: "📌", lembrete: "🔔", informativo: "💬" };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Bem-vindo ao SysCFV</h1>
-        <p className="text-sm text-muted-foreground mt-1">Sistema de Gestão do Serviço de Convivência e Fortalecimento de Vínculos</p>
+    <div className="space-y-6 sm:space-y-7">
+      <div className="rounded-lg border bg-gradient-header p-4 sm:p-6 shadow-xs">
+        <h1 className="page-title">Bem-vindo ao SysCFV</h1>
+        <p className="page-subtitle">Sistema de Gestão do Serviço de Convivência e Fortalecimento de Vínculos</p>
       </div>
 
       {/* Alertas rápidos */}
       {(pendentesCount > 0 || recadosCount > 0) && (
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-2 sm:gap-3">
           {pendentesCount > 0 && (
             <Link to="/participantes?status=pendente">
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm hover:bg-amber-100 transition-colors">
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
-                <span className="text-amber-800 font-medium">{pendentesCount} matrícula{pendentesCount > 1 ? "s" : ""} pendente{pendentesCount > 1 ? "s" : ""}</span>
+              <div className="flex items-center gap-2 bg-[hsl(var(--warning)/0.12)] border border-[hsl(var(--warning)/0.35)] rounded-md px-3 py-2 text-sm hover:bg-[hsl(var(--warning)/0.2)] transition-colors">
+                <AlertTriangle className="h-4 w-4 text-[hsl(var(--warning))]" />
+                <span className="font-medium text-foreground">{pendentesCount} matrícula{pendentesCount > 1 ? "s" : ""} pendente{pendentesCount > 1 ? "s" : ""}</span>
               </div>
             </Link>
           )}
           {recadosCount > 0 && (
-            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm">
-              <Bell className="h-4 w-4 text-blue-600" />
-              <span className="text-blue-800 font-medium">{recadosCount} recado{recadosCount > 1 ? "s" : ""} não lido{recadosCount > 1 ? "s" : ""}</span>
+            <div className="flex items-center gap-2 bg-[hsl(var(--info)/0.12)] border border-[hsl(var(--info)/0.35)] rounded-md px-3 py-2 text-sm">
+              <Bell className="h-4 w-4 text-[hsl(var(--info))]" />
+              <span className="font-medium text-foreground">{recadosCount} recado{recadosCount > 1 ? "s" : ""} não lido{recadosCount > 1 ? "s" : ""}</span>
             </div>
           )}
         </div>
       )}
 
       {/* Atalhos por categoria */}
-      <div className="space-y-5">
+      <div className="space-y-6">
         {shortcutGroups.map((group) => (
           <div key={group.label}>
-            <h2 className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-2">
-              {group.label}
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <h2 className="section-title mb-2.5">{group.label}</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
               {group.items.map((item) => (
-                <Link key={item.title} to={item.url}>
-                  <Card className={`hover:shadow-md transition-shadow cursor-pointer border-l-4 ${item.border}`}>
-                    <CardContent className="flex items-center gap-3 p-3">
-                      <item.icon className="h-5 w-5 text-muted-foreground shrink-0" />
-                      <div>
-                        <h3 className="text-sm font-medium text-foreground">{item.title}</h3>
-                        <p className="text-[10px] text-muted-foreground">{item.description}</p>
+                <Link key={item.title} to={item.url} className="group">
+                  <Card className={`h-full hover:shadow-elevated hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer border-l-4 ${item.border} bg-card`}>
+                    <CardContent className="flex items-start gap-3 p-3 sm:p-3.5">
+                      <div className="rounded-md bg-muted/60 p-2 group-hover:bg-primary/10 transition-colors shrink-0">
+                        <item.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold text-foreground leading-tight">{item.title}</h3>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{item.description}</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -129,14 +129,14 @@ const Index = () => {
       {pinnedPosts.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <Pin className="h-4 w-4 text-amber-600" />
+            <Pin className="h-4 w-4 text-[hsl(var(--warning))]" />
             <h2 className="text-sm font-semibold text-foreground">Avisos Fixados</h2>
             <Link to="/mural" className="text-xs text-primary hover:underline ml-auto">Ver mural →</Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {pinnedPosts.map((post) => (
               <Link key={post.id} to="/mural">
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 hover:shadow-md transition-shadow">
+                <div className="bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.3)] rounded-md p-3 hover:shadow-soft transition-shadow">
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className="text-sm">{tipoEmoji[post.tipo] || "💬"}</span>
                     <h3 className="text-xs font-semibold text-foreground truncate">{post.titulo}</h3>
