@@ -16,6 +16,11 @@ function formatDate(iso: string) {
 export function EventoTecnicoCard({ ev, unidade }: { ev: EventoTecnico; unidade?: string }) {
   const positive = (ev.delta ?? 0) > 0;
   const negative = (ev.delta ?? 0) < 0;
+  const linkClass = positive
+    ? "text-emerald-700 hover:underline font-medium"
+    : negative
+    ? "text-red-700 hover:underline font-medium"
+    : "text-primary hover:underline";
   return (
     <div className="border border-border rounded-md p-3 bg-card hover:shadow-sm transition-shadow">
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -53,7 +58,7 @@ export function EventoTecnicoCard({ ev, unidade }: { ev: EventoTecnico; unidade?
             <dt className="text-muted-foreground shrink-0 min-w-[110px]">{c.campo}</dt>
             <dd className="text-foreground break-words min-w-0 flex-1">
               {c.link ? (
-                <Link to={c.link} className="text-primary hover:underline">
+                <Link to={c.link} className={linkClass}>
                   {c.valor}
                 </Link>
               ) : (

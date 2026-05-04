@@ -35,7 +35,8 @@ export function IndicadorTimelineDrawer({
 
   const eventosFiltrados = useMemo(() => {
     if (!data) return [];
-    return tipoFiltro === "todos" ? data.eventos : data.eventos.filter((e) => e.tipo === tipoFiltro);
+    const lista = tipoFiltro === "todos" ? data.eventos : data.eventos.filter((e) => e.tipo === tipoFiltro);
+    return [...lista].sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0));
   }, [data, tipoFiltro]);
 
   const exportarCSV = () => {
