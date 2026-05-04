@@ -21,6 +21,8 @@ import DashboardRelatorioMensalTab from "./DashboardRelatorioMensalTab";
 import { PendenciasIntegridadeBanner } from "@/components/PendenciasIntegridadeBanner";
 import { PageHeader } from "@/components/PageHeader";
 import { LayoutDashboard } from "lucide-react";
+import { IndicadorTimelineDrawer } from "@/components/dashboard/IndicadorTimelineDrawer";
+import type { IndicadorId } from "@/lib/indicadorTimelineFetchers";
 
 const COLORS = [
   "hsl(0,58%,56%)", "hsl(210,22%,49%)", "hsl(142,50%,40%)",
@@ -42,15 +44,22 @@ const quickShortcuts = [
 ];
 
 /* ── KPI Card ── */
-function KPICard({ icon: Icon, label, value, sub, color, delta, deltaLabel, tooltip }: {
+function KPICard({ icon: Icon, label, value, sub, color, delta, deltaLabel, tooltip, onClick }: {
   icon: any; label: string; value: string | number; sub?: string; color: string;
-  delta?: number; deltaLabel?: string; tooltip?: string;
+  delta?: number; deltaLabel?: string; tooltip?: string; onClick?: () => void;
 }) {
+  const interactive = !!onClick;
   return (
     <Card
-      className="hover:shadow-md transition-shadow border-l-4"
+      className={`hover:shadow-md transition-shadow border-l-4 ${
+        interactive ? "cursor-pointer hover:ring-2 hover:ring-primary/30 focus-within:ring-2 focus-within:ring-primary/40" : ""
+      }`}
       style={{ borderLeftColor: color }}
-      title={tooltip}
+      title={tooltip ?? (interactive ? "Clique para ver evolução e histórico técnico" : undefined)}
+      onClick={onClick}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={interactive ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick?.(); } } : undefined}
     >
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-start justify-between">
@@ -205,6 +214,7 @@ function AlertaCard({ count }: { count: number }) {
 function IndicadoresTab() {
   const [mes, setMes] = useState<number | null>(null);
   const [ano, setAno] = useState<number | null>(null);
+  const [selectedIndicator, setSelectedIndicator] = useState<IndicadorId | null>(null);
   const { data, loading } = useDashboardData(mes, ano);
   const navigate = useNavigate();
 
@@ -247,9 +257,10 @@ function IndicadoresTab() {
           deltaLabel="vs 30 dias atrás"
           tooltip="Comparação de cadastros ativos hoje vs há 30 dias (baseado em iniciou_em / data_desligamento)"
           color="hsl(210,60%,50%)"
+          onClick={() => setSelectedIndicator("participantes")}
         />
-        <KPICard icon={TrendingUp} label="Frequência Geral" value={`${data.taxaFrequenciaGeral}%`} color="hsl(142,50%,40%)" />
-        <KPICard icon={GraduationCap} label="Turmas Ativas" value={data.totalTurmasAtivas} color="hsl(262,50%,55%)" />
+        <KPICard icon={TrendingUp} label="Frequência Geral" value={`${data.taxaFrequenciaGeral}%`} color="hsl(142,50%,40%)" onClick={() => setSelectedIndicator("frequencia")} />
+        <KPICard icon={GraduationCap} label="Turmas Ativas" value={data.totalTurmasAtivas} color="hsl(262,50%,55%)" onClick={() => setSelectedIndicator("turmas")} />
         <KPICard
           icon={FileText}
           label="Relatórios"
@@ -257,18 +268,20 @@ function IndicadoresTab() {
           sub={data.totalConsolidadosChamada > 0 ? `+${data.totalConsolidadosChamada} consolidados` : undefined}
           tooltip="Relatórios pedagógicos reais (exclui consolidados de chamada física importada)"
           color="hsl(0,58%,56%)"
+          onClick={() => setSelectedIndicator("relatorios")}
         />
       </div>
 
       {/* Second row KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KPICard icon={BookOpen} label="Planejamentos" value={data.totalPlanejamentos} color="hsl(30,70%,55%)" />
+        <KPICard icon={BookOpen} label="Planejamentos" value={data.totalPlanejamentos} color="hsl(30,70%,55%)" onClick={() => setSelectedIndicator("planejamentos")} />
         <KPICard
           icon={TrendingUp}
           label="Média ELO"
           value={data.mediaELO.toFixed(2)}
           sub={`n=${data.mediaELON} relatórios`}
           color="hsl(0,58%,56%)"
+          onClick={() => setSelectedIndicator("elo")}
         />
         <KPICard
           icon={Percent}
@@ -277,8 +290,9 @@ function IndicadoresTab() {
           sub={data.mediaAdesaoConsolidada > 0 ? `consol.: ${data.mediaAdesaoConsolidada.toFixed(0)}%` : undefined}
           tooltip="Média de adesão calculada apenas sobre relatórios pedagógicos reais"
           color="hsl(210,22%,49%)"
+          onClick={() => setSelectedIndicator("adesao")}
         />
-        <KPICard icon={Activity} label="Educadores Ativos" value={data.topEducadores.length} sub="com relatórios" color="hsl(142,50%,40%)" />
+        <KPICard icon={Activity} label="Educadores Ativos" value={data.topEducadores.length} sub="com relatórios" color="hsl(142,50%,40%)" onClick={() => setSelectedIndicator("educadores")} />
       </div>
 
       {/* Alerta */}
@@ -496,6 +510,11 @@ function IndicadoresTab() {
           )}
         </ChartCard>
       </div>
+
+      <IndicadorTimelineDrawer
+        indicadorId={selectedIndicator}
+        onClose={() => setSelectedIndicator(null)}
+      />
     </div>
   );
 }
