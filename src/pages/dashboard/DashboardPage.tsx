@@ -214,6 +214,7 @@ function AlertaCard({ count }: { count: number }) {
 function IndicadoresTab() {
   const [mes, setMes] = useState<number | null>(null);
   const [ano, setAno] = useState<number | null>(null);
+  const [selectedIndicator, setSelectedIndicator] = useState<IndicadorId | null>(null);
   const { data, loading } = useDashboardData(mes, ano);
   const navigate = useNavigate();
 
@@ -256,9 +257,10 @@ function IndicadoresTab() {
           deltaLabel="vs 30 dias atrás"
           tooltip="Comparação de cadastros ativos hoje vs há 30 dias (baseado em iniciou_em / data_desligamento)"
           color="hsl(210,60%,50%)"
+          onClick={() => setSelectedIndicator("participantes")}
         />
-        <KPICard icon={TrendingUp} label="Frequência Geral" value={`${data.taxaFrequenciaGeral}%`} color="hsl(142,50%,40%)" />
-        <KPICard icon={GraduationCap} label="Turmas Ativas" value={data.totalTurmasAtivas} color="hsl(262,50%,55%)" />
+        <KPICard icon={TrendingUp} label="Frequência Geral" value={`${data.taxaFrequenciaGeral}%`} color="hsl(142,50%,40%)" onClick={() => setSelectedIndicator("frequencia")} />
+        <KPICard icon={GraduationCap} label="Turmas Ativas" value={data.totalTurmasAtivas} color="hsl(262,50%,55%)" onClick={() => setSelectedIndicator("turmas")} />
         <KPICard
           icon={FileText}
           label="Relatórios"
@@ -266,18 +268,20 @@ function IndicadoresTab() {
           sub={data.totalConsolidadosChamada > 0 ? `+${data.totalConsolidadosChamada} consolidados` : undefined}
           tooltip="Relatórios pedagógicos reais (exclui consolidados de chamada física importada)"
           color="hsl(0,58%,56%)"
+          onClick={() => setSelectedIndicator("relatorios")}
         />
       </div>
 
       {/* Second row KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KPICard icon={BookOpen} label="Planejamentos" value={data.totalPlanejamentos} color="hsl(30,70%,55%)" />
+        <KPICard icon={BookOpen} label="Planejamentos" value={data.totalPlanejamentos} color="hsl(30,70%,55%)" onClick={() => setSelectedIndicator("planejamentos")} />
         <KPICard
           icon={TrendingUp}
           label="Média ELO"
           value={data.mediaELO.toFixed(2)}
           sub={`n=${data.mediaELON} relatórios`}
           color="hsl(0,58%,56%)"
+          onClick={() => setSelectedIndicator("elo")}
         />
         <KPICard
           icon={Percent}
@@ -286,8 +290,9 @@ function IndicadoresTab() {
           sub={data.mediaAdesaoConsolidada > 0 ? `consol.: ${data.mediaAdesaoConsolidada.toFixed(0)}%` : undefined}
           tooltip="Média de adesão calculada apenas sobre relatórios pedagógicos reais"
           color="hsl(210,22%,49%)"
+          onClick={() => setSelectedIndicator("adesao")}
         />
-        <KPICard icon={Activity} label="Educadores Ativos" value={data.topEducadores.length} sub="com relatórios" color="hsl(142,50%,40%)" />
+        <KPICard icon={Activity} label="Educadores Ativos" value={data.topEducadores.length} sub="com relatórios" color="hsl(142,50%,40%)" onClick={() => setSelectedIndicator("educadores")} />
       </div>
 
       {/* Alerta */}
