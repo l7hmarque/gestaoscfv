@@ -26,6 +26,13 @@ export function IndicadorTimelineDrawer({
     return Array.from(new Set(data.eventos.map((e) => e.tipo)));
   }, [data]);
 
+  const contagemPorTipo = useMemo(() => {
+    if (!data) return new Map<string, number>();
+    const m = new Map<string, number>();
+    data.eventos.forEach((e) => m.set(e.tipo, (m.get(e.tipo) ?? 0) + 1));
+    return m;
+  }, [data]);
+
   const eventosFiltrados = useMemo(() => {
     if (!data) return [];
     return tipoFiltro === "todos" ? data.eventos : data.eventos.filter((e) => e.tipo === tipoFiltro);
@@ -137,9 +144,18 @@ export function IndicadorTimelineDrawer({
             {/* Histórico */}
             <div className="px-5 py-4">
               <div className="flex items-center justify-between mb-3 gap-2">
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
-                  Histórico técnico
-                </p>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+                    Histórico técnico
+                  </p>
+                  {contagemPorTipo.size > 0 && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {Array.from(contagemPorTipo.entries())
+                        .map(([t, c]) => `${t}: ${c}`)
+                        .join(" · ")}
+                    </p>
+                  )}
+                </div>
                 {tiposDisponiveis.length > 1 && (
                   <Select value={tipoFiltro} onValueChange={setTipoFiltro}>
                     <SelectTrigger className="w-[160px] h-7 text-xs">
