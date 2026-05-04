@@ -1,96 +1,80 @@
-## Objetivo
+## Cadastro múltiplo de participantes (irmãos) no mesmo formulário
 
-Criar um participante "fantasma" **com cadastro completo** (bairro, ponto de transporte, responsáveis, escola, etc.) chamado **LEONARDO**, nascido em **11/02/2020**, para testar o **Painel da Família** sem que ele afete dashboards, KPIs, listas operacionais, exportações, busca ativa, transporte real ou prestação de contas.
+Permitir registrar **vários participantes de uma só vez** quando compartilham endereço, responsáveis e dados de família — comum em irmãos vindos do mesmo lar.
 
-## Abordagem (mais segura)
+### Modelo conceitual
 
-Adicionar uma **flag `is_teste boolean`** na tabela `participantes` e propagar o filtro em todos os pontos de agregação. Mais seguro que criar um novo valor de status (que quebraria triggers e switches espalhados pelo frontend).
+Dividir o formulário atual em dois blocos lógicos:
 
-### Por que essa é a opção mais segura
-- **Não mexe no enum `status_participante`**: o fantasma fica com `status='ativo'` (necessário para o login no `/familia` funcionar) e o filtro `is_teste=false` esconde ele dos demais lugares.
-- **Default `false`**: nenhum participante existente é afetado.
-- **Reversível**: `DELETE FROM participantes WHERE is_teste=true;` remove tudo.
+**Dados da Família (compartilhados — preenchidos 1x)**
+- Endereço completo (rua, número, bairro texto, UF, situação de moradia)
+- Responsáveis 1 e 2 (nome, vínculo, WhatsApp, CPF do responsável quando aplicável)
+- Origem/encaminhamento, responsável técnico
+- Categoria de vulnerabilidade
+- Restrição alimentar (familiar)
+- Bairro do CAIA + Ponto de transporte (geralmente o mesmo para irmãos, mas editável por participante)
 
-## Cadastro completo do fantasma
+**Dados Individuais (1 ficha por participante)**
+- Nome completo *
+- Data de nascimento, gênero, cor/raça
+- CPF do participante
+- Escola, série
+- Período (manhã/tarde/integral) — pode variar entre irmãos
+- Bairro CAIA / Ponto transporte (herdam do bloco família, mas editáveis)
+- Início no SCFV
+- Foto de perfil
+- Laudo, remédio contínuo, outras condições de saúde
+- Documentos categorizados (RG, certidão, etc.) — cada criança tem os seus
 
-| Campo | Valor |
-|---|---|
-| `nome_completo` | **LEONARDO** |
-| `data_nascimento` | **2020-02-11** (5 anos — válido pela regra de matrícula 5–99) |
-| `genero` | masculino |
-| `cor_raca` | parda |
-| `status` | ativo |
-| `is_teste` | **true** |
-| `periodo` | tarde |
-| `escola` | EMEF TESTE |
-| `serie` | Educação Infantil |
-| `endereco_rua` | Rua de Teste |
-| `endereco_numero` | 123 |
-| `endereco_bairro` | (nome do bairro escolhido) |
-| `bairro_id` | 1º bairro existente (ex.: JARDIM IRENE) |
-| `ponto_transporte_id` | 1º ponto vinculado ao bairro escolhido |
-| `responsavel1_nome` | RESPONSÁVEL TESTE |
-| `responsavel1_whatsapp` | 11999990000 |
-| `vinculo_resp1` | mae |
-| `responsavel2_nome` | RESPONSÁVEL TESTE 2 |
-| `responsavel2_whatsapp` | 11988880000 |
-| `vinculo_resp2` | pai |
-| `restricao_alimentar` | Lactose (teste) |
-| `outras_condicoes` | Cadastro de teste — ignorar |
-| `iniciou_em` | data atual |
-| `foto_url` | placeholder padrão |
+### Layout da tela
 
-A migration vai resolver `bairro_id` e `ponto_transporte_id` dinamicamente via subquery (`SELECT id FROM bairros LIMIT 1` etc.) para não quebrar caso configurações mudem.
-
-## Mudanças no banco (1 migration)
-
-1. `ALTER TABLE participantes ADD COLUMN is_teste boolean NOT NULL DEFAULT false;`
-2. Índice parcial `WHERE is_teste = true`.
-3. Atualizar RPCs para excluir `is_teste=true`:
-   - `get_dashboard_stats` (KPIs públicos: ativos, faixa, gênero, bairro, período, alertas, delta).
-   - `get_coordenacao_stats` (cobertura territorial).
-   - `get_pendencias_integridade` + `get_pendencias_integridade_detalhes`.
-   - `recalcular_busca_ativa` (não promove fantasma).
-   - `recalcular_vinculos_turmas` (não vincula a turma real).
-   - `find_similar_participants` e `find_fuzzy_participant` (não sugere como duplicata na matrícula pública).
-   - `get_restricoes_alimentares` (cozinha não vê).
-4. INSERT do LEONARDO com cadastro completo.
-
-## Mudanças nas Edge Functions
-
-- `public-indicadores` (contagem do site público) → filtra `is_teste=false`.
-- `public-matricula` (deduplicação) → filtra `is_teste=false`.
-- `public-pontos` → filtra ao listar participantes por ponto.
-- `public-familia-auth` → **mantém aceitando** (é o que permite o login do fantasma).
-
-## Mudanças no Frontend
-
-Helper único `src/lib/participantesFilter.ts` para padronizar o filtro. Aplicar em:
-
-- `ParticipantesPage` — listagem principal
-- `PainelDesligamentoPage`
-- `DashboardTransporteTab` — embarque
-- `PresencaPage` — chamada do dia
-- `TurmaDetalhePage` / `TurmaNovaPage` — vínculos de turma
-- Hooks: `useBackupExport`, `useBulkRelatorioExport`, `useDashboardData`, `useCozinhaData`, `useCoordenacaoData`, `useRelatorioGestao`
-
-## Acesso ao Portal da Família
-
-Após a migration, acesse `/familia` com:
-- **Nome:** `LEONARDO`
-- **Data:** `11/02/2020`
-
-Tudo aparecerá preenchido — bairro, ponto de transporte com horários, escola, responsáveis, restrição alimentar, status do ônibus, etc.
-
-## Reversão
-
-```sql
-DELETE FROM participantes WHERE is_teste = true;
+```text
+┌─────────────────────────────────────────────────┐
+│ [<] Novo Participante                            │
+├─────────────────────────────────────────────────┤
+│ DADOS DA FAMÍLIA (compartilhados)                │
+│  Endereço │ Responsáveis │ Vulnerabilidade...   │
+├─────────────────────────────────────────────────┤
+│ PARTICIPANTES                                    │
+│ ┌─ Participante 1 ──────────────── [remover] ─┐ │
+│ │ Foto │ Nome │ Nasc │ CPF │ Escola │ Docs... │ │
+│ └─────────────────────────────────────────────┘ │
+│ ┌─ Participante 2 ──────────────── [remover] ─┐ │
+│ │ ...                                          │ │
+│ └─────────────────────────────────────────────┘ │
+│ [+ Adicionar outro participante (irmão)]         │
+├─────────────────────────────────────────────────┤
+│              [Cancelar]  [Salvar todos]          │
+└─────────────────────────────────────────────────┘
 ```
 
-## Resumo
+Cada card de participante é colapsável; apenas o último fica expandido por padrão. Topo do card mostra "Participante 2 — Maria Silva (10 anos)" para navegar fácil.
 
-- 1 migration (coluna + índice + 8 funções + INSERT completo do LEONARDO 11/02/2020)
-- 3 edge functions atualizadas
-- 1 helper novo + ~10 telas com filtro
-- 0 quebras esperadas (default `false`, status continua `ativo`)
+### Comportamento
+
+- **Estado**: `familia` (objeto compartilhado) + `participantes: ParticipanteIndividual[]` (array, mínimo 1).
+- **Adicionar**: botão "+ Adicionar outro participante" cria nova ficha vazia (foto/docs próprios).
+- **Remover**: ícone X em cada card (desabilitado quando só há 1).
+- **Herança de bairro/ponto**: ao mudar bairro CAIA/ponto na família, atualiza por padrão todos os participantes que ainda não tiveram esses campos editados manualmente. Cada ficha pode sobrescrever.
+- **Validação**: ao salvar, valida nome + data início de **cada** participante. Erros mostrados no card respectivo, com scroll automático para o primeiro inválido.
+- **Salvamento sequencial**: para cada participante, faz upload de foto → INSERT em `participantes` (mesclando dados família + individuais) → upload de documentos → auto-vínculo a turmas compatíveis. Exibe progresso "Salvando 2 de 3...".
+- **Resiliência**: se o 2º falhar mas 1º e 3º passarem, mostra toast com sucesso parcial e mantém na tela só os que falharam para nova tentativa.
+- **Após sucesso total**: toast "3 participantes cadastrados" e redireciona para `/participantes`.
+- **Modo edição**: continua sendo 1 participante (ParticipanteEditarPage não muda).
+
+### Detalhes técnicos
+
+- Refatorar `ParticipanteNovoPage.tsx` separando o estado em `familia` e `participantes[]`.
+- Criar componente interno `<ParticipanteIndividualCard>` que recebe `index`, `data`, `onChange`, `onRemove`, e isola foto + documentos + scanner por ficha (cada card tem seu próprio `pendingDocs` e instância de `useDocumentScanner`).
+- No submit: `for (const p of participantes) { ...mesma lógica atual... }` reutilizando o pipeline existente (upload foto, INSERT, upload docs, auto-vincular turmas). Sem mudanças de schema, sem migração SQL.
+- Detecção de "campo individual editado manualmente" via flag `_overridesBairro`/`_overridesPonto` no item para evitar sobrescrita ao alterar a família.
+- O CPF do **participante** continua individual (campo já é por ficha hoje, apenas mal-rotulado como `responsavel1_cpf`).
+- Manter checkbox "Estrangeiro/Sem CPF" por ficha individual.
+- Verificação de duplicatas (RPC `find_similar_participants` se existir no fluxo atual) executada por participante antes de inserir, com confirmação agregada caso múltiplos batam.
+
+### Arquivos afetados
+
+- `src/pages/participantes/ParticipanteNovoPage.tsx` — refatoração principal.
+- (Opcional) extrair `src/pages/participantes/components/ParticipanteIndividualCard.tsx` para legibilidade.
+
+Sem alterações em banco, hooks globais, RLS ou outras páginas.
