@@ -4,10 +4,17 @@ import { useDashboardData } from "@/hooks/useDashboardData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import type { DateRange } from "react-day-picker";
 import {
   Users, GraduationCap, FileText, BookOpen, TrendingUp, Percent,
   Activity, ArrowUpRight, ArrowDownRight, CalendarDays, Newspaper,
-  ClipboardCheck, AlertTriangle, Clock, ChevronRight,
+  ClipboardCheck, AlertTriangle, Clock, ChevronRight, CalendarIcon, X,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -34,6 +41,42 @@ const MONTH_NAMES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
+
+const MES_ABREV = [
+  "jan", "fev", "mar", "abr", "mai", "jun",
+  "jul", "ago", "set", "out", "nov", "dez",
+];
+
+/** Converte rótulo "mai/26" ou "Maio" em uma data aproximada (primeiro dia do mês). */
+function parseMesLabel(mes: string): Date | null {
+  if (!mes) return null;
+  const m = mes.toLowerCase().trim();
+  // formato "mmm/yy" ou "mmm/yyyy"
+  const slash = m.match(/^([a-zç]{3,})[\/\s\-]+(\d{2,4})$/i);
+  if (slash) {
+    const idx = MES_ABREV.findIndex((x) => slash[1].startsWith(x));
+    if (idx >= 0) {
+      let yy = Number(slash[2]);
+      if (yy < 100) yy += 2000;
+      return new Date(yy, idx, 1);
+    }
+  }
+  // só o nome do mês — assume ano corrente
+  const idx = MES_ABREV.findIndex((x) => m.startsWith(x));
+  if (idx >= 0) return new Date(new Date().getFullYear(), idx, 1);
+  return null;
+}
+
+function dentroIntervalo(d: Date | null, range?: DateRange): boolean {
+  if (!range?.from) return true;
+  if (!d) return false;
+  const from = new Date(range.from.getFullYear(), range.from.getMonth(), range.from.getDate());
+  const to = range.to
+    ? new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate(), 23, 59, 59)
+    : new Date(from.getFullYear(), from.getMonth(), from.getDate(), 23, 59, 59);
+  // para séries mensais, considera o mês inteiro
+  return d >= new Date(from.getFullYear(), from.getMonth(), 1) && d <= to;
+}
 
 const quickShortcuts = [
   { title: "Relatórios", icon: FileText, url: "/relatorios", color: "hsl(0,58%,56%)" },
@@ -113,12 +156,20 @@ function ChartCard({ title, subtitle, children, className }: {
 }
 
 /* ── Period Filter ── */
-function PeriodFilter({ mes, ano, onChange }: {
+function PeriodFilter({ mes, ano, onChange, range, onRangeChange }: {
   mes: number | null; ano: number | null;
   onChange: (m: number | null, a: number | null) => void;
+  range: DateRange | undefined;
+  onRangeChange: (r: DateRange | undefined) => void;
 }) {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+
+  const rangeLabel = range?.from
+    ? range.to
+      ? `${format(range.from, "dd/MM/yy", { locale: ptBR })} – ${format(range.to, "dd/MM/yy", { locale: ptBR })}`
+      : format(range.from, "dd/MM/yy", { locale: ptBR })
+    : "Intervalo de datas";
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -149,6 +200,45 @@ function PeriodFilter({ mes, ano, onChange }: {
           ))}
         </SelectContent>
       </Select>
+
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-8 px-2.5 text-xs font-normal gap-1.5",
+              !range?.from && "text-muted-foreground",
+            )}
+          >
+            <CalendarIcon size={12} />
+            {rangeLabel}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="end">
+          <Calendar
+            mode="range"
+            selected={range}
+            onSelect={onRangeChange}
+            numberOfMonths={2}
+            locale={ptBR}
+            initialFocus
+            className={cn("p-3 pointer-events-auto")}
+          />
+        </PopoverContent>
+      </Popover>
+
+      {range?.from && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2 text-xs text-muted-foreground"
+          onClick={() => onRangeChange(undefined)}
+          title="Limpar intervalo"
+        >
+          <X size={12} />
+        </Button>
+      )}
     </div>
   );
 }
@@ -156,7 +246,21 @@ function PeriodFilter({ mes, ano, onChange }: {
 /* ── Atividades Recentes ── */
 function AtividadesRecentes({ data }: { data: any }) {
   const navigate = useNavigate();
-  if (!data?.atividadesRecentes?.length) return null;
+  if (!data?.atividadesRecentes?.length) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Clock size={14} className="text-muted-foreground" />
+            Atividades Recentes
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          <p className="text-xs text-muted-foreground py-4 text-center">Sem atividades no período</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -214,13 +318,33 @@ function AlertaCard({ count }: { count: number }) {
 function IndicadoresTab() {
   const [mes, setMes] = useState<number | null>(null);
   const [ano, setAno] = useState<number | null>(null);
+  const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [selectedIndicator, setSelectedIndicator] = useState<IndicadorId | null>(null);
-  const { data, loading } = useDashboardData(mes, ano);
+  const { data: rawData, loading } = useDashboardData(mes, ano);
   const navigate = useNavigate();
 
-  if (loading || !data) return <div className="p-6 text-sm text-muted-foreground">Carregando indicadores...</div>;
+  if (loading || !rawData) return <div className="p-6 text-sm text-muted-foreground">Carregando indicadores...</div>;
 
-  const periodLabel = mes ? `${MONTH_NAMES[mes - 1]} ${ano}` : "Todos os períodos";
+  const periodLabel = range?.from
+    ? range.to
+      ? `${format(range.from, "dd/MM/yyyy", { locale: ptBR })} até ${format(range.to, "dd/MM/yyyy", { locale: ptBR })}`
+      : format(range.from, "dd/MM/yyyy", { locale: ptBR })
+    : mes ? `${MONTH_NAMES[mes - 1]} ${ano}` : "Todos os períodos";
+
+  // Filtragem client-side por intervalo de datas (apenas séries temporais e atividades recentes)
+  const data = (() => {
+    if (!range?.from) return rawData;
+    return {
+      ...rawData,
+      presencaMensal: rawData.presencaMensal.filter((m) => dentroIntervalo(parseMesLabel(m.mes), range)),
+      eloMensal: rawData.eloMensal.filter((m) => dentroIntervalo(parseMesLabel(m.mes), range)),
+      adesaoMensal: rawData.adesaoMensal.filter((m) => dentroIntervalo(parseMesLabel(m.mes), range)),
+      atividadesRecentes: rawData.atividadesRecentes.filter((a) => {
+        const d = a.data ? new Date(a.data + "T12:00:00") : null;
+        return dentroIntervalo(d, range);
+      }),
+    };
+  })();
 
   return (
     <div className="space-y-5">
@@ -228,8 +352,19 @@ function IndicadoresTab() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <p className="text-xs text-muted-foreground">{periodLabel}</p>
+          {range?.from && (
+            <p className="text-[10px] text-muted-foreground/80 mt-0.5">
+              Intervalo aplicado às séries mensais e atividades recentes
+            </p>
+          )}
         </div>
-        <PeriodFilter mes={mes} ano={ano} onChange={(m, a) => { setMes(m); setAno(a); }} />
+        <PeriodFilter
+          mes={mes}
+          ano={ano}
+          onChange={(m, a) => { setMes(m); setAno(a); }}
+          range={range}
+          onRangeChange={setRange}
+        />
       </div>
 
       {/* Quick shortcuts */}
