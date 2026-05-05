@@ -3870,6 +3870,7 @@ export type Database = {
       recalcular_vinculos_turmas: { Args: never; Returns: Json }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      title_case_pt: { Args: { txt: string }; Returns: string }
     }
     Enums: {
       app_role:
