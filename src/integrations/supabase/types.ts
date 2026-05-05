@@ -3769,10 +3769,17 @@ export type Database = {
         Returns: Json
       }
       get_cozinha_stats: { Args: never; Returns: Json }
-      get_dashboard_stats: {
-        Args: { _ano?: number; _mes?: number }
-        Returns: Json
-      }
+      get_dashboard_stats:
+        | { Args: { _ano?: number; _mes?: number }; Returns: Json }
+        | {
+            Args: {
+              _ano?: number
+              _data_fim?: string
+              _data_inicio?: string
+              _mes?: number
+            }
+            Returns: Json
+          }
       get_pendencias_integridade: { Args: never; Returns: Json }
       get_pendencias_integridade_detalhes: { Args: never; Returns: Json }
       get_profile_full: {
