@@ -47,35 +47,9 @@ const MES_ABREV = [
   "jul", "ago", "set", "out", "nov", "dez",
 ];
 
-/** Converte rótulo "mai/26" ou "Maio" em uma data aproximada (primeiro dia do mês). */
-function parseMesLabel(mes: string): Date | null {
-  if (!mes) return null;
-  const m = mes.toLowerCase().trim();
-  // formato "mmm/yy" ou "mmm/yyyy"
-  const slash = m.match(/^([a-zç]{3,})[\/\s\-]+(\d{2,4})$/i);
-  if (slash) {
-    const idx = MES_ABREV.findIndex((x) => slash[1].startsWith(x));
-    if (idx >= 0) {
-      let yy = Number(slash[2]);
-      if (yy < 100) yy += 2000;
-      return new Date(yy, idx, 1);
-    }
-  }
-  // só o nome do mês — assume ano corrente
-  const idx = MES_ABREV.findIndex((x) => m.startsWith(x));
-  if (idx >= 0) return new Date(new Date().getFullYear(), idx, 1);
-  return null;
-}
-
-function dentroIntervalo(d: Date | null, range?: DateRange): boolean {
-  if (!range?.from) return true;
-  if (!d) return false;
-  const from = new Date(range.from.getFullYear(), range.from.getMonth(), range.from.getDate());
-  const to = range.to
-    ? new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate(), 23, 59, 59)
-    : new Date(from.getFullYear(), from.getMonth(), from.getDate(), 23, 59, 59);
-  // para séries mensais, considera o mês inteiro
-  return d >= new Date(from.getFullYear(), from.getMonth(), 1) && d <= to;
+function toIso(d?: Date | null): string | null {
+  if (!d) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 const quickShortcuts = [
@@ -164,6 +138,7 @@ function PeriodFilter({ mes, ano, onChange, range, onRangeChange }: {
 }) {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+  const intervaloAtivo = !!range?.from;
 
   const rangeLabel = range?.from
     ? range.to
@@ -176,6 +151,7 @@ function PeriodFilter({ mes, ano, onChange, range, onRangeChange }: {
       <Select
         value={mes !== null ? String(mes) : "all"}
         onValueChange={(v) => onChange(v === "all" ? null : Number(v), ano ?? currentYear)}
+        disabled={intervaloAtivo}
       >
         <SelectTrigger className="w-[130px] h-8 text-xs">
           <SelectValue placeholder="Mês" />
@@ -190,6 +166,7 @@ function PeriodFilter({ mes, ano, onChange, range, onRangeChange }: {
       <Select
         value={ano !== null ? String(ano) : String(currentYear)}
         onValueChange={(v) => onChange(mes, Number(v))}
+        disabled={intervaloAtivo}
       >
         <SelectTrigger className="w-[90px] h-8 text-xs">
           <SelectValue />
@@ -320,31 +297,18 @@ function IndicadoresTab() {
   const [ano, setAno] = useState<number | null>(null);
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [selectedIndicator, setSelectedIndicator] = useState<IndicadorId | null>(null);
-  const { data: rawData, loading } = useDashboardData(mes, ano);
+  const dataInicio = range?.from ? toIso(range.from) : null;
+  const dataFim = range?.from ? toIso(range.to ?? range.from) : null;
+  const { data, loading } = useDashboardData(mes, ano, dataInicio, dataFim);
   const navigate = useNavigate();
 
-  if (loading || !rawData) return <div className="p-6 text-sm text-muted-foreground">Carregando indicadores...</div>;
+  if (loading || !data) return <div className="p-6 text-sm text-muted-foreground">Carregando indicadores...</div>;
 
   const periodLabel = range?.from
     ? range.to
       ? `${format(range.from, "dd/MM/yyyy", { locale: ptBR })} até ${format(range.to, "dd/MM/yyyy", { locale: ptBR })}`
       : format(range.from, "dd/MM/yyyy", { locale: ptBR })
     : mes ? `${MONTH_NAMES[mes - 1]} ${ano}` : "Todos os períodos";
-
-  // Filtragem client-side por intervalo de datas (apenas séries temporais e atividades recentes)
-  const data = (() => {
-    if (!range?.from) return rawData;
-    return {
-      ...rawData,
-      presencaMensal: rawData.presencaMensal.filter((m) => dentroIntervalo(parseMesLabel(m.mes), range)),
-      eloMensal: rawData.eloMensal.filter((m) => dentroIntervalo(parseMesLabel(m.mes), range)),
-      adesaoMensal: rawData.adesaoMensal.filter((m) => dentroIntervalo(parseMesLabel(m.mes), range)),
-      atividadesRecentes: rawData.atividadesRecentes.filter((a) => {
-        const d = a.data ? new Date(a.data + "T12:00:00") : null;
-        return dentroIntervalo(d, range);
-      }),
-    };
-  })();
 
   return (
     <div className="space-y-5">
@@ -354,7 +318,7 @@ function IndicadoresTab() {
           <p className="text-xs text-muted-foreground">{periodLabel}</p>
           {range?.from && (
             <p className="text-[10px] text-muted-foreground/80 mt-0.5">
-              Intervalo aplicado às séries mensais e atividades recentes
+              Intervalo aplicado a todos os indicadores (substitui filtro de mês/ano)
             </p>
           )}
         </div>

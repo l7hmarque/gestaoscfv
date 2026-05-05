@@ -3769,10 +3769,17 @@ export type Database = {
         Returns: Json
       }
       get_cozinha_stats: { Args: never; Returns: Json }
-      get_dashboard_stats: {
-        Args: { _ano?: number; _mes?: number }
-        Returns: Json
-      }
+      get_dashboard_stats:
+        | { Args: { _ano?: number; _mes?: number }; Returns: Json }
+        | {
+            Args: {
+              _ano?: number
+              _data_fim?: string
+              _data_inicio?: string
+              _mes?: number
+            }
+            Returns: Json
+          }
       get_pendencias_integridade: { Args: never; Returns: Json }
       get_pendencias_integridade_detalhes: { Args: never; Returns: Json }
       get_profile_full: {
@@ -3870,6 +3877,7 @@ export type Database = {
       recalcular_vinculos_turmas: { Args: never; Returns: Json }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      title_case_pt: { Args: { txt: string }; Returns: string }
     }
     Enums: {
       app_role:
