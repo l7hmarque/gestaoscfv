@@ -44,13 +44,15 @@ const COMPETENCIA_LABELS: Record<string, string> = {
   respeito_mutuo: "Respeito Mútuo",
 };
 
-export function useDashboardData(mes?: number | null, ano?: number | null) {
+export function useDashboardData(mes?: number | null, ano?: number | null, dataInicio?: string | null, dataFim?: string | null) {
   const { data, isLoading: loading } = useQuery({
-    queryKey: ["dashboard-data", mes, ano],
+    queryKey: ["dashboard-data", mes, ano, dataInicio, dataFim],
     queryFn: async (): Promise<DashboardData> => {
       const { data: raw, error } = await supabase.rpc("get_dashboard_stats", {
         _mes: mes ?? null,
         _ano: ano ?? null,
+        _data_inicio: dataInicio ?? null,
+        _data_fim: dataFim ?? null,
       } as any);
       if (error) throw error;
 
