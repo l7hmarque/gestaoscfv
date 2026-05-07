@@ -1,70 +1,101 @@
-## Plano de ajustes
 
-### 1. Filtro de intervalo de datas no Dashboard (corrigir)
-**Problema:** o filtro só atua em séries mensais e atividades recentes, e não recarrega os KPIs nem desabilita o filtro de mês/ano — o usuário sente que "não funciona".
+# Integração Google Drive — SysCFV
 
-**Correção em `src/pages/dashboard/DashboardPage.tsx`:**
-- Quando `range.from` está definido, **desabilitar visualmente** os selects de Mês/Ano e exibir badge "Intervalo ativo".
-- Passar o `range` para `useDashboardData` como parâmetros novos `dataInicio` / `dataFim` (ISO `yyyy-mm-dd`), e replicar para a RPC `get_dashboard_stats` via dois novos parâmetros opcionais.
-- **Migration**: estender a função `get_dashboard_stats(_mes, _ano, _data_inicio date default null, _data_fim date default null)` para que, quando o intervalo vier preenchido, ele substitua o filtro por mês/ano em todos os blocos (presença, ELO, adesão, atividades recentes, KPIs derivados de relatórios).
-- Atualizar `useDashboardData(mes, ano, dataInicio?, dataFim?)` e a chave do React Query.
-- Remover a filtragem client-side redundante (já feita no servidor).
+Sincronização automática de planejamentos, relatórios e fotos para uma conta Google institucional única, com pastas organizadas por profissional e marca d'água de veracidade nas fotos.
 
-### 2. Página dedicada de Transporte com 2 abas + edição rápida de ponto/período
-A rota `/transporte` já existe (`src/pages/transporte/TransportePage.tsx`) renderizando o tab antigo do dashboard. Vou:
+## Arquitetura
 
-- Reestruturar `TransportePage.tsx` com `Tabs` controlado:
-  - **Aba "Embarques"** — bloco "Embarques de hoje" + seletor de outras datas (date-picker) e período (manhã/tarde) para revisar embarques históricos.
-  - **Aba "Pontos & Configurações"** — listagem de pontos por bairro, edição inline, seleção em massa, novo ponto, ordenação (todo o conteúdo administrativo atual).
-- Quebrar `DashboardTransporteTab.tsx` em dois componentes: `EmbarquesTab` e `PontosConfigTab`, mantendo um único `useTransporteOffline`.
-- **Edição rápida participante → ponto/período:** em cada participante listado nos embarques, adicionar dois pequenos selects inline (Ponto e Período) com `supabase.from("participantes").update({ ponto_transporte_id, periodo })` e toast. Disponível para `coordenacao` e `motorista` (mesma checagem já existente).
+```text
+Conta Google da OSC (1 conexão Lovable Cloud)
+└── SysCFV/
+    ├── Profissionais/
+    │   └── {Nome do Educador}/
+    │       ├── Planejamentos/   → Google Docs nativos
+    │       └── Relatórios/      → Google Docs nativos
+    └── Registros Fotográficos/
+        └── {YYYY-MM mês}/       → JPG com marca d'água
+```
 
-### 3. Idade em anos, meses e dias no perfil do participante
-Em `src/lib/constants.ts`: nova função `displayAgeDetalhada(dob)` que retorna ex.: `"9 anos, 4 meses e 12 dias"` usando `differenceInYears/Months/Days` do `date-fns`.
+**Fluxo:** salvar relatório/planejamento → trigger no banco enfileira job → Edge Function processa em background → cria/atualiza Google Doc + envia fotos com watermark → grava `drive_file_id` e `drive_url` na linha original.
 
-Em `src/pages/participantes/ParticipantePerfilPage.tsx` — seção de visualização (perto de "Data de Nascimento"): adicionar `<InfoField label="Idade" value={displayAgeDetalhada(participante.data_nascimento)} />`.
+## Etapa 1 — Conexão Google Drive + Google Docs
 
-### 4. Página da turma: transferir alunos + abrir card no clique do nome
-Em `src/pages/turmas/TurmaDetalhePage.tsx`:
+- Conectar os connectors `google_drive` e `google_docs` (1 conta institucional única).
+- Secrets ficam disponíveis automaticamente nas Edge Functions via gateway Lovable.
+- Não há OAuth por usuário — toda escrita usa a conta da OSC.
 
-- **Botão "Transferir" por linha** da tabela de membros, que abre um Dialog para escolher turma de destino (combobox de turmas ativas com mesmo bairro/faixa OU livre escolha). Ao confirmar:
-  - `delete from turma_participantes` da turma origem
-  - `insert into turma_participantes` na destino
-  - `insert into participante_transferencias (participante_id, turma_origem_id, turma_destino_id, motivo)`
-  - Audit log + toast.
-- **Botão "Transferir em lote"** no header da tabela, com seleção via checkbox e mesmo Dialog (loop nas seleções).
-- **Clique no nome do participante:** trocar o `<Link to="/participantes/:id">` por um trigger de `Sheet` lateral (novo `ParticipanteQuickCard`) com foto, idade detalhada, status, contatos, último relatório e botão "Abrir perfil completo" no rodapé. Reaproveita queries já feitas em `participantesData`.
+## Etapa 2 — Schema de sincronização
 
-### 5. Padronizar nomes maiúsculos já existentes no banco
-Verifiquei: 264 dos 275 participantes têm `nome_completo` em CAIXA ALTA (legado da migração). O `toTitleCase` só roda ao **editar e salvar**.
+Nova tabela `drive_sync_queue`:
+- `id`, `tipo` (`planejamento` | `relatorio` | `foto`), `origem_id`, `status` (`pendente`|`processando`|`sincronizado`|`erro`), `drive_file_id`, `drive_url`, `tentativas`, `ultimo_erro`, `created_at`, `synced_at`.
 
-**Migration de dados (única vez):** SQL `update participantes set nome_completo = initcap(lower(nome_completo))` aplicando exceções para conectores (de, da, do, etc.) via expressão regex. Vou rodar via tool de insert/SQL com justificativa de auditoria. Também aplico em `responsavel1_nome`, `responsavel2_nome`, `escola`.
+Colunas adicionadas:
+- `planejamentos.drive_file_id`, `planejamentos.drive_url`
+- `relatorios_atividade.drive_file_id`, `relatorios_atividade.drive_url`
+- `relatorio_fotos.drive_file_id`, `relatorio_fotos.drive_url`, `relatorio_fotos.veracidade_hash`, `relatorio_fotos.exif_metadata` (jsonb)
 
-Adicionalmente: criar trigger `before insert or update on participantes` que normaliza esses campos no servidor — assim qualquer caminho (matrícula pública, importação) fica consistente sem depender do front.
+Triggers: ao `INSERT/UPDATE` em planejamentos/relatórios/fotos → enfileira em `drive_sync_queue`.
 
-### 6. Inserir "segunda-feira" (`seg`) nas turmas do Jardim Irene
-Confirmei via SQL — 7 turmas no bairro JARDIM IRENE. 4 já têm `seg`, mas as turmas de Karatê e as turmas 9-11 e 6-8 (manhã/tarde) precisam de ajuste:
+Cache de pastas — tabela `drive_folder_cache` (`profile_id`, `tipo`, `folder_id`) para evitar recriar pastas.
 
-| Turma | dias_semana atual | ação |
-|---|---|---|
-| KARATE - TERÇA — 9-11 — JD. IRENE | {ter} | adicionar `seg` |
-| JARDIM IRENE — 9-11 — Tarde | {ter,qua,qui} | adicionar `seg` |
-| JARDIM IRENE — 9-11 — Manhã | {ter,qua,qui} | adicionar `seg` |
-| JARDIM IRENE — 6-8 — Tarde | {ter,qua,qui} | adicionar `seg` |
-| (demais já têm `seg`) | — | nenhuma |
+## Etapa 3 — Edge Function `drive-sync-worker`
 
-`update turmas set dias_semana = array(select distinct unnest(dias_semana || array['seg'])) where bairro_id = (select id from bairros where nome ilike 'JARDIM IRENE')`.
+Processa fila em background. Para cada job:
 
----
+1. Resolve hierarquia de pastas (cria sob demanda, com cache):
+   - `SysCFV/Profissionais/{Nome}/Planejamentos|Relatórios/`
+   - `SysCFV/Registros Fotográficos/{YYYY-MM}/`
+2. **Planejamento/Relatório → Google Doc nativo:**
+   - Cria doc via `POST /documents` (Google Docs API).
+   - Move para a pasta correta via Drive API (`addParents`).
+   - Insere conteúdo com `batchUpdate`: título, metadados (educador, turma, data), seções (tema, objetivos, roteiro, materiais, presença, fotos como links, etc).
+   - Update incremental: se já existe `drive_file_id`, faz `deleteContentRange` + reinserção.
+3. **Foto → upload com watermark** (ver Etapa 4).
+4. Grava `drive_file_id`/`drive_url` no registro original e marca job como `sincronizado`.
 
-### Arquivos afetados
-- `src/pages/dashboard/DashboardPage.tsx`
-- `src/hooks/useDashboardData.ts`
-- migration SQL: `get_dashboard_stats` (novos parâmetros) + trigger nome Title Case + UPDATE retroativo de nomes + UPDATE dias_semana Jardim Irene
-- `src/pages/transporte/TransportePage.tsx` (refatorar com 2 abas)
-- `src/pages/dashboard/DashboardTransporteTab.tsx` (quebrar em `EmbarquesTab` + `PontosConfigTab`) — manter export para retrocompatibilidade
-- `src/lib/constants.ts` (`displayAgeDetalhada`)
-- `src/pages/participantes/ParticipantePerfilPage.tsx` (mostrar idade detalhada)
-- `src/pages/turmas/TurmaDetalhePage.tsx` (botões Transferir + Sheet de card rápido)
-- novo: `src/pages/turmas/components/ParticipanteQuickCard.tsx`
-- novo: `src/pages/turmas/components/TransferirAlunoDialog.tsx`
+Nomes padronizados:
+- Doc: `SysCFV_Relatorio_{YYYY-MM-DD}_{Titulo}_{Educador}`
+- Foto: `SysCFV_Foto_{YYYY-MM-DD}_{Educador}_{Turma}_{HHmmss}_{hash8}.jpg`
+
+Acionamento: trigger HTTP via `pg_net` quando há novos jobs + botão manual "Sincronizar agora" no detalhe.
+
+## Etapa 4 — Marca d'água de veracidade nas fotos
+
+Edge Function `process-foto-watermark` (chamada pelo worker):
+
+1. Baixa a foto do Supabase Storage.
+2. Extrai EXIF com `npm:exifr` — captura GPS (lat/long), data/hora original, modelo da câmera. Persiste em `relatorio_fotos.exif_metadata`.
+3. Resolve **Local da foto**: reverse geocoding via Nominatim/OpenStreetMap (sem API key). Fallback: bairro do relatório.
+4. Gera **código de veracidade** = SHA-256 dos bytes originais + educador_id + relatorio_id + timestamp → hash de 16 chars. Salvo em `veracidade_hash`.
+5. Aplica watermark sutil com `npm:@napi-rs/canvas` (suportado em Deno):
+   - Faixa semitransparente no rodapé (preto 40% opacidade, ~6% da altura).
+   - Texto branco pequeno: `📍 {Local} • {DD/MM/YYYY HH:mm} • {lat,long se houver} • #{hash}`.
+   - Discreto, não polui a foto.
+6. Faz upload ao Drive na pasta `Registros Fotográficos/{YYYY-MM}/`.
+
+Tela pública futura `/verificar/{hash}` (fora deste plano) poderá confirmar autoria.
+
+**Fallback**: foto sem EXIF/GPS → usa só data do relatório + bairro da turma + hash. Watermark sempre é aplicada.
+
+## Etapa 5 — UI
+
+- **Detalhe de Relatório/Planejamento:** badge "📄 Aberto no Drive" (link) ou "⏳ Sincronizando..." ou "⚠️ Erro" (com retry).
+- **Botão "Abrir no Google Docs"** ao lado de "Imprimir" / "Exportar".
+- **Galeria de fotos:** ícone Drive em cada foto + tooltip com hash de veracidade.
+- **Configurações → Integrações → Google Drive:** mostra status da conexão, contador de fila pendente, botão "Reprocessar erros".
+
+## Detalhes Técnicos
+
+- **Conversão Doc:** mapeia conteúdo institucional direto para `batchUpdate` (sem passar por HTML). Mantém estilo grayscale do SysCFV via `updateTextStyle`/`updateParagraphStyle` (negrito títulos, headings H1/H2).
+- **Idempotência:** worker usa `drive_file_id` existente; nunca duplica.
+- **Rate limiting:** processa máx. 10 jobs/invocação, com backoff (`tentativas` até 5).
+- **Background:** worker invocado via `EdgeRuntime.waitUntil` para não bloquear UI; trigger pg via `pg_net.http_post`.
+- **Apenas conta institucional:** RLS impede usuários comuns de ver `drive_sync_queue` (só coordenação/dev).
+- **Sem OAuth por usuário:** sem login Google adicional para educadores.
+
+## Limitações conhecidas
+
+- Reverse geocoding gratuito (Nominatim) tem rate limit ~1 req/s — adicionamos pequeno delay no worker.
+- Fotos sem GPS no EXIF (comum em WhatsApp) ficam sem coordenadas; watermark mostra apenas data/local da turma + hash.
+- Quota Google Drive API: 1 bilhão de requisições/dia/projeto — não é limite real para o uso institucional.
+- Conta única significa que se o token Google for revogado, toda sincronização para até reconectar.
