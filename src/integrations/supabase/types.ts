@@ -20,6 +20,8 @@ export type Database = {
           created_at: string
           data_atendimento: string
           descricao: string
+          drive_file_id: string | null
+          drive_url: string | null
           encaminhamento: string | null
           id: string
           participante_id: string
@@ -34,6 +36,8 @@ export type Database = {
           created_at?: string
           data_atendimento?: string
           descricao?: string
+          drive_file_id?: string | null
+          drive_url?: string | null
           encaminhamento?: string | null
           id?: string
           participante_id: string
@@ -48,6 +52,8 @@ export type Database = {
           created_at?: string
           data_atendimento?: string
           descricao?: string
+          drive_file_id?: string | null
+          drive_url?: string | null
           encaminhamento?: string | null
           id?: string
           participante_id?: string
@@ -1032,6 +1038,8 @@ export type Database = {
           categoria: string
           created_at: string | null
           descricao: string | null
+          drive_file_id: string | null
+          drive_url: string | null
           id: string
           nome_arquivo: string
           titulo: string
@@ -1045,6 +1053,8 @@ export type Database = {
           categoria: string
           created_at?: string | null
           descricao?: string | null
+          drive_file_id?: string | null
+          drive_url?: string | null
           id?: string
           nome_arquivo: string
           titulo: string
@@ -1058,6 +1068,8 @@ export type Database = {
           categoria?: string
           created_at?: string | null
           descricao?: string | null
+          drive_file_id?: string | null
+          drive_url?: string | null
           id?: string
           nome_arquivo?: string
           titulo?: string
@@ -1089,6 +1101,36 @@ export type Database = {
         }
         Relationships: []
       }
+      drive_planilhas_mensais: {
+        Row: {
+          ano_mes: string
+          created_at: string
+          drive_file_id: string | null
+          drive_url: string | null
+          id: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          ano_mes: string
+          created_at?: string
+          drive_file_id?: string | null
+          drive_url?: string | null
+          id?: string
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          ano_mes?: string
+          created_at?: string
+          drive_file_id?: string | null
+          drive_url?: string | null
+          id?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       drive_sync_queue: {
         Row: {
           created_at: string
@@ -1096,6 +1138,7 @@ export type Database = {
           drive_url: string | null
           id: string
           origem_id: string
+          payload: Json | null
           status: string
           synced_at: string | null
           tentativas: number
@@ -1109,6 +1152,7 @@ export type Database = {
           drive_url?: string | null
           id?: string
           origem_id: string
+          payload?: Json | null
           status?: string
           synced_at?: string | null
           tentativas?: number
@@ -1122,6 +1166,7 @@ export type Database = {
           drive_url?: string | null
           id?: string
           origem_id?: string
+          payload?: Json | null
           status?: string
           synced_at?: string | null
           tentativas?: number
@@ -1703,6 +1748,8 @@ export type Database = {
           cnpj_vencedor: string | null
           created_at: string | null
           data_aprovacao: string | null
+          drive_file_id: string | null
+          drive_url: string | null
           fornecedor_vencedor: string | null
           id: string
           mes_referencia: string
@@ -1716,6 +1763,8 @@ export type Database = {
           cnpj_vencedor?: string | null
           created_at?: string | null
           data_aprovacao?: string | null
+          drive_file_id?: string | null
+          drive_url?: string | null
           fornecedor_vencedor?: string | null
           id?: string
           mes_referencia: string
@@ -1729,6 +1778,8 @@ export type Database = {
           cnpj_vencedor?: string | null
           created_at?: string | null
           data_aprovacao?: string | null
+          drive_file_id?: string | null
+          drive_url?: string | null
           fornecedor_vencedor?: string | null
           id?: string
           mes_referencia?: string
@@ -3290,6 +3341,8 @@ export type Database = {
           created_at: string
           criado_por: string | null
           data_visita: string
+          drive_file_id: string | null
+          drive_url: string | null
           horario_saida: string | null
           id: string
           observacoes: string | null
@@ -3304,6 +3357,8 @@ export type Database = {
           created_at?: string
           criado_por?: string | null
           data_visita: string
+          drive_file_id?: string | null
+          drive_url?: string | null
           horario_saida?: string | null
           id?: string
           observacoes?: string | null
@@ -3318,6 +3373,8 @@ export type Database = {
           created_at?: string
           criado_por?: string | null
           data_visita?: string
+          drive_file_id?: string | null
+          drive_url?: string | null
           horario_saida?: string | null
           id?: string
           observacoes?: string | null
@@ -3854,6 +3911,10 @@ export type Database = {
           status1: string
           status2: string
         }[]
+      }
+      fn_enqueue_drive_sync: {
+        Args: { _origem_id: string; _tipo: string }
+        Returns: undefined
       }
       get_coordenacao_stats: {
         Args: { _periodo_dias?: number; _user_id?: string }
