@@ -1101,6 +1101,42 @@ export type Database = {
         }
         Relationships: []
       }
+      drive_modelos: {
+        Row: {
+          copia_doc_id: string | null
+          copia_renovada_em: string | null
+          copia_url: string | null
+          created_at: string
+          template_doc_id: string
+          template_url: string | null
+          tipo: string
+          ultima_atualizacao_origem: string | null
+          updated_at: string
+        }
+        Insert: {
+          copia_doc_id?: string | null
+          copia_renovada_em?: string | null
+          copia_url?: string | null
+          created_at?: string
+          template_doc_id: string
+          template_url?: string | null
+          tipo: string
+          ultima_atualizacao_origem?: string | null
+          updated_at?: string
+        }
+        Update: {
+          copia_doc_id?: string | null
+          copia_renovada_em?: string | null
+          copia_url?: string | null
+          created_at?: string
+          template_doc_id?: string
+          template_url?: string | null
+          tipo?: string
+          ultima_atualizacao_origem?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       drive_planilhas_mensais: {
         Row: {
           ano_mes: string

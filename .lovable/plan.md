@@ -1,146 +1,110 @@
 
-# Integração Google Workspace — Camada Espelho de Documentos
+# Templates Google como base oficial dos documentos SysCFV
 
-Adicionar uma camada de "espelho no Google" sobre todas as exportações existentes (XLSX, DOCX, PDF), **sem remover** o que já funciona. Cada documento gerado também passa a existir como Google Docs / Sheets na conta institucional, com botão de acesso direto. Ao final, geramos um exemplo de cada tipo e devolvemos os links para você revisar/anotar dentro do próprio Google.
+Você enviou 4 modelos no Google (Relatório, Planejamento, Frequência web, Chamada física) com comentários ricos descrevendo cada placeholder e regra visual. A ideia é parar de "construir do zero" via batchUpdate (que não reproduz fielmente o layout) e passar a usar **copy-from-template + substituição de placeholders**, garantindo que tudo o que você ajustou nos modelos (espaçamento, bordas, tabela de fotos A4, checkboxes, cores Likert, posição de assinatura) seja preservado pixel a pixel.
 
-## Princípio geral
+Para os demais documentos (REO, RCA, Roteiro de Visita, Atendimento Equipe Técnica, Orçamento/Mapa, Prestação de Contas, Cardápio, Movimentações, Transporte, Relatório Mensal) **mantemos o layout PDF atual**, apenas convertido para Docs/Sheets nativo — sem mudar a aparência.
 
-- **Não remover nada.** Os botões atuais de Exportar (XLSX/DOCX/PDF) continuam.
-- Cada tela ganha um botão extra **"Abrir no Google"** (Docs ou Sheets, conforme o caso) e, nas listagens, um botão **"Abrir pasta no Drive"**.
-- A geração no Google é **assíncrona via worker** (já existe `drive-sync-worker`) — o usuário não espera; o badge mostra o estado.
-- **Layout institucional** é replicado nativamente em Google Docs/Sheets via `batchUpdate` (sem converter de DOCX/XLSX), preservando estética cinza/vermelha do SysCFV: cabeçalho com título, metadados, headings H1/H2, tabelas com bordas, células mescladas, presença marcada com `■`.
+## 1. Pasta de Modelos no Drive
 
-## Como reproduzir o layout institucional no Google
+Criar `SysCFV / Modelos de Documentos / Relatorios` e popular com cópias renomeadas dos seus 4 originais:
 
-**Google Docs (Relatórios, Planejamentos, REO, RCA, Roteiros de Visita, Atendimentos da Equipe Técnica, Documentos de Prestação):**
-- Centralizamos o "tema visual" em `supabase/functions/_shared/gdocsTemplate.ts`:
-  - Helpers `insertHeader(title, subtitulo)`, `insertMetaBlock([{label,value}])`, `insertSectionHeading(text)`, `insertParagraph(text, style?)`, `insertTable(rows, opts)`, `insertImageInline(driveFileId, opts)`, `insertFooterHash(hash)`.
-  - Aplicam `updateTextStyle` (negrito, tamanhos), `updateParagraphStyle` (HEADING_1/2, alinhamento), `createParagraphBullets` e `updateTableCellStyle` (bordas grayscale 0.5pt).
-- Cada tipo de documento tem um builder dedicado que chama esses helpers na ordem correta. Mesma fonte de verdade para conteúdo institucional, mesmo "skin" cinza/preto.
+- `MODELO — Relatório de Atividade — atualizado em DD/MM/AAAA`
+- `MODELO — Planejamento de Atividade — atualizado em DD/MM/AAAA`
+- `MODELO — Lista de Frequência (Web) — atualizado em DD/MM/AAAA`
+- `MODELO — Lista de Chamada (Física) — atualizado em DD/MM/AAAA`
 
-**Google Sheets (Listas de chamada/frequência, Cardápio, Movimentações cozinha, Orçamentos/Mapas, Transporte, Backup):**
-- `_shared/gsheetsTemplate.ts` com helpers `applyInstitutionalHeader(sheetId, title, periodo, territorio)`, `applyHeaderRow(sheetId, headers)`, `applyGridBorders(range)`, `applyAutoFit(sheet)`, `freezeRows(n)`, `mergeCells(range)`.
-- Reaproveitamos a lógica já existente em `xlsxInstHeader.ts` / `xlsxAutoFit.ts` traduzindo para `spreadsheets.batchUpdate` (mesmas larguras, mesmas cores HSL convertidas para RGB).
+A "última data de alteração" no nome é atualizada automaticamente sempre que detectarmos `modifiedTime` diferente no original (job `refresh_modelos` rodando 1×/dia, idempotente). Os IDs originais ficam guardados em uma tabela `drive_modelos` (`tipo`, `template_doc_id`, `copia_doc_id`, `ultima_atualizacao`) para a worker resolver "qual template copiar" sem hardcode.
 
-**Fotos dentro do Doc (Relatório de Atividade):**
-- Após upload das fotos com watermark à pasta `Registros Fotográficos/{YYYY-MM}/`, o builder do relatório insere uma seção **"Registros Fotográficos"** no final do Doc com `insertInlineImage` apontando para a `contentUri` de cada foto, em grid 2 colunas via tabela invisível, com legenda "Educador • Turma • DD/MM HH:mm • #hash".
+## 2. Engine de geração: copy + replace placeholders
 
-## Estrutura de pastas no Drive (extensão da atual)
+Substitui o builder atual (`relatorioToBlocks`/`planejamentoToBlocks`) por um motor genérico:
 
 ```text
-SysCFV/
-├── Profissionais/
-│   └── {Nome}/
-│       ├── Planejamentos/        Google Docs
-│       ├── Relatórios/           Google Docs (com fotos embutidas)
-│       ├── Atendimentos/         Google Docs (Equipe Técnica)
-│       └── Roteiros de Visita/   Google Docs
-├── Listas de Chamada/
-│   └── {YYYY-MM}/                Google Sheets — 1 planilha/mês com 1 aba por turma
-├── Listas de Frequência/
-│   └── {YYYY-MM}/                Google Sheets idem
-├── Financeiro/
-│   ├── Orçamentos/               Google Sheets (mapa comparativo)
-│   ├── Prestação de Contas/      Google Docs
-│   └── SIT/                      Drive (mantém formato .txt original — não há equivalente nativo)
-├── Cozinha/
-│   ├── Cardápios/                Google Sheets
-│   └── Movimentações/            Google Sheets
-├── Transporte/                   Google Sheets diário
-├── Relatórios Gerenciais/
-│   ├── REO/                      Google Docs (anexa Sheets de indicadores)
-│   ├── RCA/                      Google Docs
-│   └── Mensal/                   Google Sheets
-└── Registros Fotográficos/
-    └── {YYYY-MM}/                JPG com watermark
+1. Drive.files.copy(template_id, parents=[pasta_destino], name=título_final)
+2. Para Docs:    Docs.batchUpdate com replaceAllText para cada {PLACEHOLDER}
+                 + replaceAllText especial para checkboxes (■/□)
+                 + insertInlineImage para fotos do ANEXO I
+                 + insertTableRow + insertText para linhas dinâmicas (presença, competências)
+3. Para Sheets:  Sheets.batchUpdate copyPaste do template para cada turma (nova aba)
+                 + values.update preenchendo nomes, datas e marcadores P/A/D
+                 + adjusta dimensões de linhas/colunas conforme dados
 ```
 
-## Mudanças por módulo (cada item ganha botão "Abrir no Google" + a pasta correspondente ganha botão "Abrir pasta")
+### Mapa de placeholders — Relatório (Doc)
+Direto dos seus comentários:
 
-| Módulo | Documento | Tipo Google | Trigger |
-|---|---|---|---|
-| Relatórios de Atividade | 1 doc por relatório, com fotos embutidas | Docs | ao salvar |
-| Planejamentos | 1 doc por planejamento | Docs | ao salvar |
-| Listas de Chamada (presença) | 1 planilha/mês, 1 aba por turma | Sheets | ao gerar lote |
-| Listas de Frequência preenchidas | idem | Sheets | ao exportar |
-| Equipe Técnica — Roteiros de Visita | 1 doc por roteiro | Docs | ao salvar |
-| Equipe Técnica — Atendimentos/Relatos | 1 doc por atendimento | Docs | ao salvar |
-| Financeiro — Orçamentos/Mapa Comparativo | 1 planilha por orçamento | Sheets | ao finalizar mapa |
-| Financeiro — Prestação de Contas | 1 doc por mês de prestação | Docs | ao consolidar |
-| Financeiro — SIT (.txt) | mantém .txt, só faz upload ao Drive | Drive raw | ao exportar |
-| Cozinha — Cardápio | 1 planilha/mês | Sheets | ao publicar |
-| Cozinha — Movimentações de Estoque | 1 planilha/mês | Sheets | ao registrar |
-| Transporte — Relatório diário | 1 planilha/dia | Sheets | ao gerar |
-| REO | 1 doc + 1 sheet linkado | Docs+Sheets | ao gerar |
-| RCA | 1 doc | Docs | ao gerar |
-| Relatório Mensal/Gerencial | 1 sheet | Sheets | ao gerar |
+| Placeholder | Origem |
+|---|---|
+| `{TITULO}` | `nome_atividade` |
+| `{DATA}` `{EDUCADOR}` `{TURMAS}` `{PERIODO}` `{TIPO}` | header |
+| `{OBJ_1..3}` checkbox preto | `objetivo_alcancado` |
+| `{ENG_1..4}` checkbox preto | `engajamento[]` |
+| `{SIT_1..5}` checkbox preto | `situacoes_relevantes[]` |
+| `{ATIVIDADES_REALIZADAS}` `{OBSERVACOES}` `{INTERVENCOES}` `{RESULTADOS_ALCANCADOS}` | textos |
+| `{INICIATIVA}` `{AUTONOMIA}` `{COLABORACAO}` `{COMUNICACAO}` `{RESPEITO_MUTUO}` `{SCORE_ELO}` | competências; cor de fundo da célula aplicada via `updateTableCellStyle` conforme legenda 1–5 |
+| `{PCT_ADESAO}` `{NUM_PARTICIPANTES}` `{NUM_MATRICULADOS}` | indicadores |
+| ANEXO I — `{foto1}..{foto5}` | substitui cada token por `insertInlineImage` apontando para `contentUri` da foto já no Drive (com watermark); placeholders sem foto ficam em branco |
+| ANEXO II — tabela de presença | a tabela já existe no template com 1 linha exemplo; o motor faz `insertTableRow` por participante e preenche nº, nome, P/A, justificativa |
 
-## Etapas de implementação
+### Mapa de placeholders — Planejamento (Doc)
+`{TITULO}` `{EDUCADOR}` `{TURMAS}` `{TEMA}` `{QUESTAO_GERADORA}` `{ROTEIRO}` `{MATERIAIS}` `{APOIO_TECNICO}` `{OBJETIVOS}` `{FORMA_AVALIACAO}` (bullets) + EIXOS ESTRUTURANTES (mantém os 3 checkboxes vazios por enquanto, conforme seu comentário "ainda não tem no relatório do site").
 
-### Etapa 1 — Conector Google Sheets + helpers compartilhados
-- Conectar `google_sheets` (Docs e Drive já estão).
-- Criar `supabase/functions/_shared/gdocsTemplate.ts` e `_shared/gsheetsTemplate.ts` com os helpers acima.
-- Criar `_shared/driveFolders.ts` centralizando a resolução/cache de pastas (estende `drive_folder_cache`).
+### Modelo Lista de Frequência (Web) e Chamada (Física) — Sheets
+- **1 planilha por turma por mês** (não mais 1 workbook com várias abas — seus modelos têm 1 aba só, mais simples e fiel).
+  - Pasta: `Listas de Frequência / {YYYY-MM} /` e `Listas de Chamada / {YYYY-MM} /`.
+- Workflow: `copy(template)` → renomeia → preenche cabeçalho (`Educador`, `Mês`, `Turma | Bairro | Período | Faixa | Oficina`) via `values.update` em ranges nomeados (`HEADER_EDUCADOR`, `HEADER_TURMA`, `HEADER_MES`).
+- Bloco de participantes: insere linhas via `insertDimension`, preenche nomes (com sufixo `(D DD/MM)` se desligado no mês) e para cada coluna de data marca:
+  - `P` em célula com fundo preto e texto branco
+  - `A` em célula com fundo branco e texto preto
+  - `D` em célula com fundo cinza claro (a partir da próxima data pós-desligamento até o fim do mês)
+- Última linha = `Assinatura do Educador: _______________________`. **Não inserir nenhuma linha abaixo dela** (regra explícita do seu comentário).
+- Auto-fit de altura de linhas conforme conteúdo (já comentado nos modelos).
 
-### Etapa 2 — Schema
-- Adicionar colunas `drive_file_id` / `drive_url` em: `roteiros_visita`, `equipe_tecnica_atendimentos` (ou tabela equivalente), `orcamentos`, `prestacao_contas`, `cardapios`, `movimentacoes_estoque`, `transporte_relatorios_diarios`, `relatorios_mensais`, `reo_documentos`, `rca_documentos`.
-- Nova tabela `drive_planilhas_mensais` (`tipo`, `ano_mes`, `drive_file_id`, `drive_url`) — chave para listas de chamada/frequência (1 planilha por mês com várias abas).
-- Estender enum `tipo` em `drive_sync_queue`: `roteiro_visita`, `atendimento_tecnico`, `orcamento`, `prestacao_contas`, `cardapio`, `movimentacao_cozinha`, `transporte_diario`, `relatorio_mensal`, `reo`, `rca`, `lista_chamada_lote`, `lista_frequencia_lote`, `arquivo_sit`.
-- Triggers de enfileiramento ao `INSERT/UPDATE` nas respectivas tabelas (com filtro para evitar loops em campos `drive_*`).
+## 3. Botão "Abrir no Google" + queue
 
-### Etapa 3 — Edge Function `drive-sync-worker` (extensão)
-- Adicionar handler para cada novo `tipo`. Cada handler:
-  1. Resolve pasta destino.
-  2. Busca dados completos via `service_role`.
-  3. Chama o builder Docs/Sheets correspondente.
-  4. Faz `batchUpdate` e grava `drive_file_id` / `drive_url`.
-- **Listas em lote (chamada/frequência):** quando `tipo='lista_chamada_lote'` com `payload={ano_mes, turma_ids[]}`, o worker:
-  1. Pega ou cria a planilha mensal em `drive_planilhas_mensais`.
-  2. Para cada turma: cria/atualiza uma aba com nome = nome da turma; preenche cabeçalho institucional + grade.
-  3. Retorna o link único da planilha.
-- **Idempotência mantida** via `drive_file_id` existente.
+Sem alterar UI atual. Os botões já existem (DriveSyncBadge); o que muda é o que a worker faz por baixo. Quando o tipo for um dos 4 cobertos pelos modelos, ela usa `copyFromTemplate(tipo)`; senão, mantém o builder atual (REO, RCA, etc.).
 
-### Etapa 4 — UI
+## 4. Demais documentos (mantém layout PDF)
 
-**Botões "Abrir no Google" (mantém Exportar):**
-- `RelatorioDetalhePage`, `PlanejamentoDetalhePage` — já têm `DriveSyncBadge`; adicionar botão `Abrir no Google Docs` ao lado de Exportar Tudo.
-- Para cada novo módulo (roteiro, atendimento, orçamento, etc.), adicionar o mesmo padrão `<DriveSyncBadge />` + botão de abrir.
+Para cada um (Roteiro de Visita, Atendimento, Orçamento, Prestação de Contas, Cardápio, Movimentação, Transporte, REO, RCA, Relatório Mensal): **gerar PDF com o builder atual, fazer upload ao Drive e converter para Docs/Sheets nativo** via `files.copy` com `mimeType: application/vnd.google-apps.document` (ou `.spreadsheet`). Isso preserva 100% o layout PDF atual mas dá um arquivo Google editável/comentável. Sem reconstruir templates para esses agora.
 
-**Botões "Abrir pasta no Drive" nas listagens:**
-- `RelatoriosPage`, `PlanejamentosPage`, `RoteirosTab`, `OrcamentosTab`, `DocumentosPrestacaoTab`, `CardapioTab`, `MovimentacoesTab`, `TransportePage`, `PresencaExportarPage`, `ExportarRelatoriosPage`, `ArquivosFinanceirosPage`, `EquipeTecnicaPage`.
-- Helper `useDriveFolderUrl(tipo, contexto?)` — chama RPC que devolve a URL da pasta do usuário/módulo (cria se não existir, em background).
+## 5. Testes — 1 exemplo real de cada
 
-**Listas de chamada/frequência em lote:**
-- Em `PresencaExportarPage` e onde existe a geração em lote: novo botão **"Gerar no Google Sheets (lote)"** que enfileira `lista_chamada_lote` com as turmas selecionadas e mostra o link único quando pronto.
+Vou enfileirar e processar pelo menos 1 exemplo de cada tipo, escolhendo o registro com **maior volume de informação** (e fotos quando aplicável):
 
-### Etapa 5 — Teste end-to-end e entrega de exemplos
+| # | Documento | Critério de escolha |
+|---|---|---|
+| 1 | Relatório de Atividade | maior nº de fotos + presença + observações longas |
+| 2 | Planejamento | mais campos preenchidos |
+| 3 | Lista de Frequência (Web) | turma com mais participantes do mês corrente |
+| 4 | Lista de Chamada (Física) | mesma turma para comparação |
+| 5 | Roteiro de Visita | mais recente |
+| 6 | Atendimento Equipe Técnica | mais recente |
+| 7 | Orçamento / Mapa | com 3 fornecedores |
+| 8 | Prestação de Contas | mês com mais despesas |
+| 9 | REO | último gerado |
+| 10 | RCA | último gerado |
+| 11 | Relatório Mensal | último gerado |
+| 12 | Cardápio + Movimentação Cozinha | mês corrente |
+| 13 | Transporte diário | dia mais recente |
 
-Vou enfileirar e processar **um exemplo de cada tipo**, depois te enviar a tabela de links:
-
-1. Relatório de Atividade (com fotos embutidas)
-2. Planejamento
-3. Lista de Chamada (lote — 1 planilha com 3 abas)
-4. Lista de Frequência preenchida
-5. Roteiro de Visita
-6. Atendimento Equipe Técnica
-7. Orçamento / Mapa Comparativo
-8. Prestação de Contas
-9. Cardápio + Movimentação Cozinha
-10. Transporte diário
-11. REO + RCA + Relatório Mensal
-
-Como você sugeriu, **comentários do Google Docs/Sheets** podem ser deixados diretamente nos arquivos — eu leio via API (`comments.list`) e ajusto layout/conteúdo conforme suas anotações na próxima rodada.
+Devolvo a tabela de links Docs/Sheets para você abrir, comentar dentro do próprio Google e na próxima rodada eu leio via `comments.list` e ajusto os modelos.
 
 ## Detalhes técnicos
 
-- **Sem quebrar nada:** todas as adições são aditivas. Nenhum builder XLSX/DOCX/PDF existente é removido. Os novos botões aparecem ao lado dos atuais.
-- **Background-first:** triggers no banco enfileiram; a UI nunca espera o Google. Badges mostram `pendente / sincronizando / pronto / erro` (já existe componente).
-- **Conta única OSC:** continua usando os connectors `google_drive`, `google_docs` + agora `google_sheets` ligados à conta do Leonardo. Sem OAuth por usuário.
-- **Rate limit / quotas:** worker processa até 10 jobs por invocação, com backoff até 5 tentativas; pg_cron a cada 1 min.
-- **SIT (.txt):** não tem equivalente nativo no Google — fica como arquivo bruto no Drive (somente upload), mantendo a exportação atual.
-- **Permissões:** RLS em `drive_planilhas_mensais` e novas colunas seguindo o padrão de `drive_sync_queue` (somente coordenação/dev veem a fila; usuários veem o link no detalhe do próprio registro).
+- **Schema novo**: `drive_modelos(tipo PK, template_doc_id, ultima_atualizacao_origem, copia_doc_id, copia_modificada_em)`.
+- **Cron `refresh-modelos`** (1×/dia): para cada `template_doc_id` chama `Drive.files.get(fields=modifiedTime)`, se mudou recopia para a pasta de Modelos com nome atualizado (`atualizado em DD/MM/AAAA`).
+- **Worker — novo helper `cloneFromTemplate(tipo, destFolderId, title)`**: faz `Drive.files.copy` do `template_doc_id` → retorna novo `documentId`/`spreadsheetId`.
+- **Helper `replacePlaceholders(docId, map)`**: gera `replaceAllText` requests para cada par `{KEY}` → `valor`.
+- **Helper `replaceCheckboxes(docId, key, marcado)`**: substitui `{OBJ_1}` por `■` ou `□` (caractere unicode, mantém a mesma fonte do template).
+- **Helper `insertImageAtPlaceholder(docId, placeholder, driveFileId)`**: 1) busca o índice do placeholder; 2) `deleteContentRange` do placeholder; 3) `insertInlineImage` com `uri` apontando para `https://drive.google.com/uc?id={fileId}` (foto já está pública no Drive interno, ou geramos token temporário via `files.get?fields=webContentLink`).
+- **Cores Likert nas células de competências**: `updateTableCellStyle` com `backgroundColor` mapeado: 1=#C0392B, 2=#E67E22, 3=#F1C40F, 4=#27AE60, 5=#16A085 (ajustaremos exato após você comentar).
+- **Idempotência**: se `drive_file_id` já existe no registro, em vez de copiar de novo, atualiza o existente com `deleteContentRange` + recopia o body do template (clonando seu conteúdo). Isso evita acumular cópias.
+- **Não quebra nada**: exportadores PDF/DOCX/XLSX atuais permanecem; apenas a parte "espelho no Google" muda de "construído do zero" para "copiado do template".
 
-## O que NÃO está nesta etapa
+## Não está nesta etapa
 
-- Substituir/remover os exportadores XLSX/DOCX/PDF — fica para depois, após sua validação dos exemplos.
-- Edição bidirecional (alterar no Google e refletir no SysCFV). Por ora a sincronização é unidirecional (SysCFV → Google), com comentários do Google lidos para ajustes manuais de template.
+- Substituir/remover os exportadores PDF/DOCX/XLSX atuais.
+- Construir templates Google para REO/RCA/Roteiro/Atendimento/Orçamento/Prestação/Cardápio/Movimentação/Transporte/Mensal — esses ficam como cópia do PDF convertida para nativo até você decidir desenhar templates específicos.
+- Sincronização bidirecional (editar no Google → refletir no SysCFV).
