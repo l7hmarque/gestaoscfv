@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, Users, Download, Trash2, CheckSquare, RefreshCw } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Plus, Users, Download, Trash2, CheckSquare, RefreshCw, Search, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ interface TurmaRow {
   faixas_etarias?: string[] | null; bairro_ids?: string[] | null;
   profiles?: { nome: string } | null; bairros?: { nome: string } | null;
   participante_count: number;
+  participante_nomes?: string[];
 }
 
 const TurmasPage = () => {
@@ -40,6 +41,12 @@ const TurmasPage = () => {
   const [deleteJustificativa, setDeleteJustificativa] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [isCoordenacao, setIsCoordenacao] = useState(false);
+
+  // Filters
+  const [search, setSearch] = useState("");
+  const [filtroPeriodo, setFiltroPeriodo] = useState<string>("todos");
+  const [filtroFaixa, setFiltroFaixa] = useState<string>("todas");
+  const [filtroAtiva, setFiltroAtiva] = useState<string>("todas");
 
   // Batch selection
   const [batchMode, setBatchMode] = useState(false);
@@ -68,12 +75,24 @@ const TurmasPage = () => {
     setLoading(true);
     const [{ data }, { data: tpData }] = await Promise.all([
       supabase.from("turmas").select("*, profiles(nome), bairros(nome)").order("nome"),
-      supabase.from("turma_participantes").select("turma_id"),
+      supabase.from("turma_participantes").select("turma_id, participantes(nome_completo)"),
     ]);
     if (data) {
       const countMap: Record<string, number> = {};
-      (tpData || []).forEach((tp: any) => { countMap[tp.turma_id] = (countMap[tp.turma_id] || 0) + 1; });
-      setTurmas(data.map((t) => ({ ...t, participante_count: countMap[t.id] || 0 } as TurmaRow)));
+      const nomesMap: Record<string, string[]> = {};
+      (tpData || []).forEach((tp: any) => {
+        countMap[tp.turma_id] = (countMap[tp.turma_id] || 0) + 1;
+        const nome = tp.participantes?.nome_completo;
+        if (nome) {
+          if (!nomesMap[tp.turma_id]) nomesMap[tp.turma_id] = [];
+          nomesMap[tp.turma_id].push(nome);
+        }
+      });
+      setTurmas(data.map((t) => ({
+        ...t,
+        participante_count: countMap[t.id] || 0,
+        participante_nomes: nomesMap[t.id] || [],
+      } as TurmaRow)));
     }
     setLoading(false);
   };
@@ -168,6 +187,43 @@ const TurmasPage = () => {
     setSelectedIds(new Set());
   };
 
+  const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  const filteredTurmas = useMemo(() => {
+    const q = normalize(search.trim());
+    return turmas.filter((t) => {
+      if (filtroPeriodo !== "todos" && t.periodo !== filtroPeriodo) return false;
+      if (filtroFaixa !== "todas") {
+        const faixas = t.faixas_etarias && t.faixas_etarias.length > 0
+          ? t.faixas_etarias
+          : t.faixa_etaria ? [t.faixa_etaria] : [];
+        if (!faixas.includes(filtroFaixa)) return false;
+      }
+      if (filtroAtiva === "ativas" && !t.ativa) return false;
+      if (filtroAtiva === "inativas" && t.ativa) return false;
+      if (q) {
+        const nomeMatch = normalize(t.nome).includes(q);
+        const participanteMatch = (t.participante_nomes || []).some(n => normalize(n).includes(q));
+        if (!nomeMatch && !participanteMatch) return false;
+      }
+      return true;
+    });
+  }, [turmas, search, filtroPeriodo, filtroFaixa, filtroAtiva]);
+
+  const matchedParticipants = useMemo(() => {
+    const q = normalize(search.trim());
+    if (!q) return {} as Record<string, string[]>;
+    const map: Record<string, string[]> = {};
+    filteredTurmas.forEach(t => {
+      const matches = (t.participante_nomes || []).filter(n => normalize(n).includes(q));
+      if (matches.length) map[t.id] = matches.slice(0, 3);
+    });
+    return map;
+  }, [filteredTurmas, search]);
+
+  const hasFilters = search.trim() !== "" || filtroPeriodo !== "todos" || filtroFaixa !== "todas" || filtroAtiva !== "todas";
+  const clearFilters = () => { setSearch(""); setFiltroPeriodo("todos"); setFiltroFaixa("todas"); setFiltroAtiva("todas"); };
+
   const exportAllListas = async () => {
     setExporting(true);
     try {
@@ -221,7 +277,9 @@ const TurmasPage = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Turmas</h1>
-          <p className="text-sm text-muted-foreground">{turmas.length} turma{turmas.length !== 1 ? "s" : ""}</p>
+          <p className="text-sm text-muted-foreground">
+            {hasFilters ? `${filteredTurmas.length} de ${turmas.length}` : turmas.length} turma{turmas.length !== 1 ? "s" : ""}
+          </p>
         </div>
         <div className="flex gap-2">
           {batchMode ? (
@@ -263,6 +321,56 @@ const TurmasPage = () => {
             </>
           )}
         </div>
+      </div>
+
+      {/* Search + filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por turma ou participante..."
+            className="h-9 pl-7 pr-7 text-sm"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <Select value={filtroPeriodo} onValueChange={setFiltroPeriodo}>
+          <SelectTrigger className="w-32 h-9 text-xs"><SelectValue placeholder="Período" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos períodos</SelectItem>
+            <SelectItem value="manha">Manhã</SelectItem>
+            <SelectItem value="tarde">Tarde</SelectItem>
+            <SelectItem value="integral">Integral</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filtroFaixa} onValueChange={setFiltroFaixa}>
+          <SelectTrigger className="w-36 h-9 text-xs"><SelectValue placeholder="Faixa etária" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas faixas</SelectItem>
+            <SelectItem value="6-8">6-8 anos</SelectItem>
+            <SelectItem value="9-11">9-11 anos</SelectItem>
+            <SelectItem value="12-17">12-17 anos</SelectItem>
+            <SelectItem value="idosos">Idosos</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filtroAtiva} onValueChange={setFiltroAtiva}>
+          <SelectTrigger className="w-32 h-9 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas</SelectItem>
+            <SelectItem value="ativas">Ativas</SelectItem>
+            <SelectItem value="inativas">Inativas</SelectItem>
+          </SelectContent>
+        </Select>
+        {hasFilters && (
+          <Button size="sm" variant="ghost" onClick={clearFilters} className="h-9 text-xs">
+            <X className="h-3.5 w-3.5 mr-1" />Limpar
+          </Button>
+        )}
       </div>
 
       {/* Recalcular vínculos dialog */}
@@ -378,9 +486,11 @@ const TurmasPage = () => {
         <div className="flex justify-center py-12"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
       ) : turmas.length === 0 ? (
         <div className="text-sm text-muted-foreground border border-dashed rounded-lg p-8 text-center">Nenhuma turma cadastrada.</div>
+      ) : filteredTurmas.length === 0 ? (
+        <div className="text-sm text-muted-foreground border border-dashed rounded-lg p-8 text-center">Nenhuma turma encontrada com os filtros aplicados.</div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {turmas.map((t) => (
+          {filteredTurmas.map((t) => (
             <Card key={t.id} className={`hover:shadow-md transition-shadow h-full relative group ${batchMode && selectedIds.has(t.id) ? "ring-2 ring-destructive/50" : ""}`}>
               {batchMode ? (
                 <div className="cursor-pointer" onClick={() => toggleSelect(t.id)}>
@@ -433,6 +543,11 @@ const TurmasPage = () => {
                         </div>
                         {t.profiles?.nome && <span className="text-xs text-muted-foreground truncate max-w-[120px]">{t.profiles.nome}</span>}
                       </div>
+                    {matchedParticipants[t.id] && (
+                      <div className="text-[10px] text-primary border-t pt-1.5 mt-1.5">
+                        Match: {matchedParticipants[t.id].join(", ")}
+                      </div>
+                    )}
                     </CardContent>
                   </Link>
                   <Button
