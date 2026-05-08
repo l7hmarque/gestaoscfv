@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { exportPlanejamentoDocx, exportPlanejamentoPdf } from "@/hooks/useDocumentExport";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { TIPOS_ATIVIDADE, tipoAtividadeLabels } from "@/lib/constants";
+import { DriveSyncBadge } from "@/components/DriveSyncBadge";
 
 const PlanejamentoDetalhePage = () => {
   const { id } = useParams();
@@ -140,6 +141,7 @@ const PlanejamentoDetalhePage = () => {
         {item.data_aplicacao && <span>📅 {format(new Date(item.data_aplicacao + "T12:00:00"), "dd/MM/yyyy")}</span>}
         {item.profiles?.nome && <span>👤 {item.profiles.nome}</span>}
         {turmaNames.map(n => <Badge key={n} variant="secondary" className="text-[10px]">{n}</Badge>)}
+        <div className="ml-auto"><DriveSyncBadge tipo="planejamento" origemId={item.id} driveUrl={item.drive_url} /></div>
       </div>
 
       <Card>
