@@ -930,6 +930,12 @@ async function processQueue(): Promise<{ processed: number; errors: number }> {
       if (job.tipo === "relatorio") result = await processRelatorio(job.origem_id);
       else if (job.tipo === "planejamento") result = await processPlanejamento(job.origem_id);
       else if (job.tipo === "foto") result = await processFoto(job.origem_id);
+      else if (job.tipo === "roteiro_visita") result = await processRoteiroVisita(job.origem_id);
+      else if (job.tipo === "atendimento") result = await processAtendimento(job.origem_id);
+      else if (job.tipo === "orcamento") result = await processOrcamento(job.origem_id);
+      else if (job.tipo === "prestacao_contas") result = await processPrestacaoContas(job.origem_id);
+      else if (job.tipo === "lista_chamada_lote") result = await processListaChamadaLote(job.payload || {});
+      else if (job.tipo === "lista_frequencia_lote") result = await processListaFrequenciaLote(job.payload || {});
       else throw new Error(`tipo invalido: ${job.tipo}`);
 
       await supabase.from("drive_sync_queue").update({
