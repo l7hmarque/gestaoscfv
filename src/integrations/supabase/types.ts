@@ -1068,6 +1068,69 @@ export type Database = {
         }
         Relationships: []
       }
+      drive_folder_cache: {
+        Row: {
+          chave: string
+          created_at: string
+          folder_id: string
+          id: string
+        }
+        Insert: {
+          chave: string
+          created_at?: string
+          folder_id: string
+          id?: string
+        }
+        Update: {
+          chave?: string
+          created_at?: string
+          folder_id?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      drive_sync_queue: {
+        Row: {
+          created_at: string
+          drive_file_id: string | null
+          drive_url: string | null
+          id: string
+          origem_id: string
+          status: string
+          synced_at: string | null
+          tentativas: number
+          tipo: string
+          ultimo_erro: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          drive_file_id?: string | null
+          drive_url?: string | null
+          id?: string
+          origem_id: string
+          status?: string
+          synced_at?: string | null
+          tentativas?: number
+          tipo: string
+          ultimo_erro?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          drive_file_id?: string | null
+          drive_url?: string | null
+          id?: string
+          origem_id?: string
+          status?: string
+          synced_at?: string | null
+          tentativas?: number
+          tipo?: string
+          ultimo_erro?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       encaminhamentos_externos: {
         Row: {
           atendimento_id: string | null
@@ -2053,6 +2116,8 @@ export type Database = {
           apoio_tecnico: string | null
           created_at: string | null
           data_aplicacao: string | null
+          drive_file_id: string | null
+          drive_url: string | null
           educador_id: string | null
           forma_avaliacao: string[] | null
           id: string
@@ -2070,6 +2135,8 @@ export type Database = {
           apoio_tecnico?: string | null
           created_at?: string | null
           data_aplicacao?: string | null
+          drive_file_id?: string | null
+          drive_url?: string | null
           educador_id?: string | null
           forma_avaliacao?: string[] | null
           id?: string
@@ -2087,6 +2154,8 @@ export type Database = {
           apoio_tecnico?: string | null
           created_at?: string | null
           data_aplicacao?: string | null
+          drive_file_id?: string | null
+          drive_url?: string | null
           educador_id?: string | null
           forma_avaliacao?: string[] | null
           id?: string
@@ -2910,22 +2979,34 @@ export type Database = {
       }
       relatorio_fotos: {
         Row: {
+          drive_file_id: string | null
+          drive_url: string | null
+          exif_metadata: Json | null
           foto_url: string
           id: string
           ordem: number | null
           relatorio_id: string
+          veracidade_hash: string | null
         }
         Insert: {
+          drive_file_id?: string | null
+          drive_url?: string | null
+          exif_metadata?: Json | null
           foto_url: string
           id?: string
           ordem?: number | null
           relatorio_id: string
+          veracidade_hash?: string | null
         }
         Update: {
+          drive_file_id?: string | null
+          drive_url?: string | null
+          exif_metadata?: Json | null
           foto_url?: string
           id?: string
           ordem?: number | null
           relatorio_id?: string
+          veracidade_hash?: string | null
         }
         Relationships: [
           {
@@ -3021,6 +3102,8 @@ export type Database = {
           created_at: string | null
           data: string
           dia_semana: string | null
+          drive_file_id: string | null
+          drive_url: string | null
           educador_apoio_id: string | null
           educador_id: string | null
           engajamento: string[] | null
@@ -3052,6 +3135,8 @@ export type Database = {
           created_at?: string | null
           data: string
           dia_semana?: string | null
+          drive_file_id?: string | null
+          drive_url?: string | null
           educador_apoio_id?: string | null
           educador_id?: string | null
           engajamento?: string[] | null
@@ -3083,6 +3168,8 @@ export type Database = {
           created_at?: string | null
           data?: string
           dia_semana?: string | null
+          drive_file_id?: string | null
+          drive_url?: string | null
           educador_apoio_id?: string | null
           educador_id?: string | null
           engajamento?: string[] | null
@@ -3742,6 +3829,10 @@ export type Database = {
       enqueue_biblioteca_doc: {
         Args: { _origem_id: string; _tipo: string }
         Returns: string
+      }
+      enqueue_drive_sync: {
+        Args: { _origem_id: string; _tipo: string }
+        Returns: undefined
       }
       find_fuzzy_participant: {
         Args: { _data_nascimento: string; _nome: string }
