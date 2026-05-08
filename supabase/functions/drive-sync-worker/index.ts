@@ -13,10 +13,12 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const GOOGLE_DRIVE_API_KEY = Deno.env.get("GOOGLE_DRIVE_API_KEY")!;
 const GOOGLE_DOCS_API_KEY = Deno.env.get("GOOGLE_DOCS_API_KEY")!;
+const GOOGLE_SHEETS_API_KEY = Deno.env.get("GOOGLE_SHEETS_API_KEY")!;
 
 const DRIVE_GW = "https://connector-gateway.lovable.dev/google_drive/drive/v3";
 const DRIVE_UPLOAD_GW = "https://connector-gateway.lovable.dev/google_drive/upload/drive/v3";
 const DOCS_GW = "https://connector-gateway.lovable.dev/google_docs/v1";
+const SHEETS_GW = "https://connector-gateway.lovable.dev/google_sheets/v4";
 
 const MAX_JOBS_PER_RUN = 8;
 const MAX_TENTATIVAS = 5;
@@ -31,6 +33,13 @@ function docsHeaders() {
   return {
     Authorization: `Bearer ${LOVABLE_API_KEY}`,
     "X-Connection-Api-Key": GOOGLE_DOCS_API_KEY,
+    "Content-Type": "application/json",
+  };
+}
+function sheetsHeaders() {
+  return {
+    Authorization: `Bearer ${LOVABLE_API_KEY}`,
+    "X-Connection-Api-Key": GOOGLE_SHEETS_API_KEY,
     "Content-Type": "application/json",
   };
 }
@@ -116,6 +125,396 @@ async function ensureProfissionalSubfolder(profileId: string, nome: string, sub:
 async function ensureFotoMonthFolder(yyyymm: string): Promise<string> {
   const root = await ensureFotosFolder();
   return ensureFolder(yyyymm, root, `fotos:${yyyymm}`);
+}
+
+// Pastas adicionais para os novos módulos
+async function ensureProfissionalSubfolderGeneric(profileId: string, nome: string, sub: string): Promise<string> {
+  const profsRoot = await ensureProfissionaisFolder();
+  const eduSafe = safe(nome) || `educador_${profileId.slice(0, 8)}`;
+  const eduFolder = await ensureFolder(eduSafe, profsRoot, `prof:${profileId}`);
+  return ensureFolder(sub, eduFolder, `prof:${profileId}:${safe(sub).toLowerCase()}`);
+}
+async function ensureModuleFolder(modulo: string, sub?: string): Promise<string> {
+  const root = await ensureRootFolder();
+  const m = await ensureFolder(modulo, root, `mod:${safe(modulo).toLowerCase()}`);
+  if (!sub) return m;
+  return ensureFolder(sub, m, `mod:${safe(modulo).toLowerCase()}:${safe(sub).toLowerCase()}`);
+}
+
+// -----------------------------------------------------------------------------
+// Google Sheets
+// -----------------------------------------------------------------------------
+async function createGoogleSheet(title: string, parentFolderId: string): Promise<string> {
+  const create = await fetch(`${SHEETS_GW}/spreadsheets`, {
+    method: "POST",
+    headers: sheetsHeaders(),
+    body: JSON.stringify({ properties: { title } }),
+  });
+  if (!create.ok) throw new Error(`createSheet ${create.status}: ${await create.text()}`);
+  const sh = await create.json();
+  const ssId = sh.spreadsheetId;
+  const mv = await fetch(`${DRIVE_GW}/files/${ssId}?addParents=${parentFolderId}&removeParents=root&fields=id,parents`, {
+    method: "PATCH",
+    headers: { ...driveHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!mv.ok) console.warn("move sheet failed", mv.status, await mv.text());
+  return ssId;
+}
+
+async function getSheetTabs(ssId: string): Promise<{ sheetId: number; title: string }[]> {
+  const res = await fetch(`${SHEETS_GW}/spreadsheets/${ssId}?fields=sheets(properties(sheetId,title))`, { headers: sheetsHeaders() });
+  if (!res.ok) throw new Error(`getSheet ${res.status}: ${await res.text()}`);
+  const j = await res.json();
+  return (j.sheets || []).map((s: any) => ({ sheetId: s.properties.sheetId, title: s.properties.title }));
+}
+
+async function sheetsBatchUpdate(ssId: string, requests: any[]): Promise<any> {
+  if (!requests.length) return null;
+  const res = await fetch(`${SHEETS_GW}/spreadsheets/${ssId}:batchUpdate`, {
+    method: "POST",
+    headers: sheetsHeaders(),
+    body: JSON.stringify({ requests }),
+  });
+  if (!res.ok) throw new Error(`sheetsBatch ${res.status}: ${await res.text()}`);
+  return await res.json();
+}
+
+async function sheetsValuesUpdate(ssId: string, range: string, values: any[][]) {
+  const res = await fetch(`${SHEETS_GW}/spreadsheets/${ssId}/values/${range}?valueInputOption=USER_ENTERED`, {
+    method: "PUT",
+    headers: sheetsHeaders(),
+    body: JSON.stringify({ values }),
+  });
+  if (!res.ok) throw new Error(`valuesUpdate ${res.status}: ${await res.text()}`);
+}
+
+// Cabeçalho institucional + grade básica em um sheet (sheetId numérico)
+function buildInstitutionalSheetRequests(sheetId: number, titulo: string, subtitulo: string, headerCols: number) {
+  return [
+    // Mesclar A1:H1 (linha do título)
+    { mergeCells: { range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: headerCols }, mergeType: "MERGE_ALL" } },
+    { mergeCells: { range: { sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: headerCols }, mergeType: "MERGE_ALL" } },
+    // Estilizar título
+    { repeatCell: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+        cell: { userEnteredFormat: {
+          backgroundColor: { red: 0.15, green: 0.15, blue: 0.15 },
+          horizontalAlignment: "CENTER",
+          textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true, fontSize: 14 },
+        } },
+        fields: "userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)",
+      } },
+    { repeatCell: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: 2 },
+        cell: { userEnteredFormat: {
+          backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 },
+          horizontalAlignment: "CENTER",
+          textFormat: { italic: true, fontSize: 10 },
+        } },
+        fields: "userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)",
+      } },
+    // Header row (linha 3)
+    { repeatCell: {
+        range: { sheetId, startRowIndex: 2, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: headerCols },
+        cell: { userEnteredFormat: {
+          backgroundColor: { red: 0.3, green: 0.3, blue: 0.3 },
+          textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true },
+          horizontalAlignment: "CENTER",
+          borders: {
+            top: { style: "SOLID" }, bottom: { style: "SOLID" }, left: { style: "SOLID" }, right: { style: "SOLID" },
+          },
+        } },
+        fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,borders)",
+      } },
+    // Congelar 3 primeiras linhas
+    { updateSheetProperties: { properties: { sheetId, gridProperties: { frozenRowCount: 3 } }, fields: "gridProperties.frozenRowCount" } },
+  ];
+}
+
+// -----------------------------------------------------------------------------
+// Planilha mensal compartilhada (lista_chamada_lote / lista_frequencia_lote)
+// -----------------------------------------------------------------------------
+async function ensureMonthlySpreadsheet(tipo: string, anoMes: string, folderName: string, titulo: string): Promise<{ ssId: string; url: string }> {
+  const { data: existing } = await supabase
+    .from("drive_planilhas_mensais").select("*").eq("tipo", tipo).eq("ano_mes", anoMes).maybeSingle();
+  if (existing?.drive_file_id) return { ssId: existing.drive_file_id, url: existing.drive_url };
+
+  const folderId = await ensureModuleFolder(folderName, anoMes);
+  const ssId = await createGoogleSheet(titulo, folderId);
+  const url = `https://docs.google.com/spreadsheets/d/${ssId}/edit`;
+  await supabase.from("drive_planilhas_mensais").upsert({ tipo, ano_mes: anoMes, drive_file_id: ssId, drive_url: url }, { onConflict: "tipo,ano_mes" });
+  return { ssId, url };
+}
+
+async function ensureSheetTab(ssId: string, tabTitle: string): Promise<number> {
+  const tabs = await getSheetTabs(ssId);
+  const existing = tabs.find((t) => t.title === tabTitle);
+  if (existing) {
+    // limpar conteúdo existente para reescrever
+    await sheetsBatchUpdate(ssId, [{ updateCells: { range: { sheetId: existing.sheetId }, fields: "userEnteredValue,userEnteredFormat" } }]);
+    return existing.sheetId;
+  }
+  const res = await sheetsBatchUpdate(ssId, [{ addSheet: { properties: { title: tabTitle.slice(0, 99) } } }]);
+  return res.replies[0].addSheet.properties.sheetId;
+}
+
+async function processListaChamadaLote(payload: any): Promise<{ drive_file_id: string; drive_url: string }> {
+  const anoMes: string = payload.ano_mes;
+  const turmaIds: string[] = payload.turma_ids || [];
+  if (!anoMes || !turmaIds.length) throw new Error("payload invalido");
+
+  const titulo = `SysCFV_ListaChamada_${anoMes}`;
+  const { ssId, url } = await ensureMonthlySpreadsheet("lista_chamada", anoMes, "Listas de Chamada", titulo);
+
+  for (const turmaId of turmaIds) {
+    const { data: turma } = await supabase.from("turmas").select("nome, periodo").eq("id", turmaId).maybeSingle();
+    if (!turma) continue;
+    const { data: parts } = await supabase
+      .from("turma_participantes")
+      .select("participantes(id, nome_completo, status)")
+      .eq("turma_id", turmaId);
+    const tabName = safe(turma.nome).replace(/_/g, " ").slice(0, 99) || `Turma_${turmaId.slice(0, 6)}`;
+    const sheetId = await ensureSheetTab(ssId, tabName);
+
+    // dias do mês
+    const [y, m] = anoMes.split("-").map((x) => parseInt(x, 10));
+    const lastDay = new Date(y, m, 0).getDate();
+    const dias = Array.from({ length: lastDay }, (_, i) => i + 1);
+
+    const headers = ["#", "Participante", ...dias.map((d) => String(d).padStart(2, "0")), "Presenças", "%"];
+    const rows = (parts || [])
+      .map((p: any) => p.participantes)
+      .filter((p: any) => p && p.status === "ativo")
+      .sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo))
+      .map((p: any, i: number) => {
+        const blanks = dias.map(() => "");
+        return [String(i + 1), p.nome_completo, ...blanks, "", ""];
+      });
+
+    const totalCols = headers.length;
+    const all = [
+      [titulo + " — " + tabName],
+      [`Turma: ${turma.nome} • Período: ${turma.periodo} • ${anoMes}`],
+      headers,
+      ...rows,
+    ];
+    await sheetsValuesUpdate(ssId, `'${tabName}'!A1`, all);
+    await sheetsBatchUpdate(ssId, buildInstitutionalSheetRequests(sheetId, titulo, `Turma: ${turma.nome}`, totalCols));
+  }
+  return { drive_file_id: ssId, drive_url: url };
+}
+
+async function processListaFrequenciaLote(payload: any): Promise<{ drive_file_id: string; drive_url: string }> {
+  const anoMes: string = payload.ano_mes;
+  const turmaIds: string[] = payload.turma_ids || [];
+  if (!anoMes || !turmaIds.length) throw new Error("payload invalido");
+  const titulo = `SysCFV_Frequencia_${anoMes}`;
+  const { ssId, url } = await ensureMonthlySpreadsheet("lista_frequencia", anoMes, "Listas de Frequencia", titulo);
+
+  const [y, m] = anoMes.split("-").map((x) => parseInt(x, 10));
+  const startDate = `${y}-${String(m).padStart(2, "0")}-01`;
+  const endDate = `${y}-${String(m).padStart(2, "0")}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
+
+  for (const turmaId of turmaIds) {
+    const { data: turma } = await supabase.from("turmas").select("nome, periodo").eq("id", turmaId).maybeSingle();
+    if (!turma) continue;
+
+    const { data: parts } = await supabase
+      .from("turma_participantes").select("participantes(id, nome_completo, status)").eq("turma_id", turmaId);
+    const ativos = (parts || []).map((p: any) => p.participantes).filter((p: any) => p && p.status === "ativo");
+
+    // presenças do mês para essa turma
+    const { data: rels } = await supabase
+      .from("relatorios_atividade")
+      .select("id, data, relatorio_turmas!inner(turma_id), relatorio_presenca(participante_id, presente)")
+      .gte("data", startDate).lte("data", endDate)
+      .eq("relatorio_turmas.turma_id", turmaId);
+
+    const datas = Array.from(new Set((rels || []).map((r: any) => r.data))).sort();
+    const presencaMap = new Map<string, boolean>(); // `${pid}|${data}` => presente
+    for (const r of (rels || []) as any[]) {
+      for (const p of r.relatorio_presenca || []) {
+        if (p.participante_id) presencaMap.set(`${p.participante_id}|${r.data}`, p.presente);
+      }
+    }
+
+    const tabName = safe(turma.nome).replace(/_/g, " ").slice(0, 99);
+    const sheetId = await ensureSheetTab(ssId, tabName);
+    const headers = ["#", "Participante", ...datas.map((d) => d.slice(8) + "/" + d.slice(5, 7)), "Presenças", "Total"];
+    const rows = ativos.sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo)).map((p: any, i: number) => {
+      const cells = datas.map((d) => {
+        const v = presencaMap.get(`${p.id}|${d}`);
+        if (v === undefined) return "";
+        return v ? "■" : "—";
+      });
+      const presentes = cells.filter((c) => c === "■").length;
+      return [String(i + 1), p.nome_completo, ...cells, String(presentes), String(datas.length)];
+    });
+    const all = [
+      [titulo + " — " + tabName],
+      [`Turma: ${turma.nome} • Período: ${turma.periodo} • ${anoMes}`],
+      headers,
+      ...rows,
+    ];
+    await sheetsValuesUpdate(ssId, `'${tabName}'!A1`, all);
+    await sheetsBatchUpdate(ssId, buildInstitutionalSheetRequests(sheetId, titulo, `Turma: ${turma.nome}`, headers.length));
+  }
+  return { drive_file_id: ssId, drive_url: url };
+}
+
+// -----------------------------------------------------------------------------
+// Roteiros de Visita / Atendimentos (Equipe Técnica)
+// -----------------------------------------------------------------------------
+async function processRoteiroVisita(origemId: string): Promise<{ drive_file_id: string; drive_url: string }> {
+  const { data: rt, error } = await supabase
+    .from("roteiros_visita").select("*").eq("id", origemId).maybeSingle();
+  if (error || !rt) throw new Error("roteiro nao encontrado");
+
+  const { data: pts } = await supabase
+    .from("roteiro_visitas")
+    .select("*, participantes(nome_completo, bairros(nome))")
+    .eq("roteiro_id", origemId);
+
+  const profileId = rt.criado_por || "sem-criador";
+  const { data: prof } = await supabase.from("profiles").select("nome").eq("user_id", profileId).maybeSingle();
+  const nome = prof?.nome || "Equipe Técnica";
+
+  const folderId = await ensureProfissionalSubfolderGeneric(profileId, nome, "Roteiros de Visita");
+  const titulo = `SysCFV_Roteiro_${fmtDate(rt.data_visita)}_${safe(rt.titulo || "visita")}`;
+
+  let docId = rt.drive_file_id as string | null;
+  if (!docId) docId = await createGoogleDoc(titulo, folderId);
+
+  const blocks: DocBlock[] = [
+    { type: "h1", text: rt.titulo || "Roteiro de Visita" },
+    { type: "kv", key: "Data", value: fmtDate(rt.data_visita) },
+    ...(rt.horario_saida ? [{ type: "kv" as const, key: "Saída", value: rt.horario_saida }] : []),
+    ...(rt.veiculo ? [{ type: "kv" as const, key: "Veículo", value: rt.veiculo }] : []),
+    ...(rt.responsaveis?.length ? [{ type: "kv" as const, key: "Responsáveis", value: rt.responsaveis.join(", ") }] : []),
+    { type: "kv", key: "Status", value: rt.status || "pendente" },
+  ];
+  if (rt.observacoes) { blocks.push({ type: "h2", text: "Observações" }); blocks.push({ type: "p", text: rt.observacoes }); }
+  if (pts?.length) {
+    blocks.push({ type: "h2", text: "Visitas planejadas" });
+    for (const p of pts as any[]) {
+      const bairro = p.participantes?.bairros?.nome ? ` — ${p.participantes.bairros.nome}` : "";
+      blocks.push({ type: "p", text: `• ${p.participantes?.nome_completo || "Sem nome"}${bairro}${p.observacao ? ` — ${p.observacao}` : ""}` });
+    }
+  }
+  await writeDoc(docId, blocks);
+  const url = `https://docs.google.com/document/d/${docId}/edit`;
+  await supabase.from("roteiros_visita").update({ drive_file_id: docId, drive_url: url }).eq("id", origemId);
+  return { drive_file_id: docId, drive_url: url };
+}
+
+async function processAtendimento(origemId: string): Promise<{ drive_file_id: string; drive_url: string }> {
+  const { data: at, error } = await supabase
+    .from("atendimentos")
+    .select("*, participantes(nome_completo)")
+    .eq("id", origemId).maybeSingle();
+  if (error || !at) throw new Error("atendimento nao encontrado");
+
+  const { data: prof } = await supabase.from("profiles").select("id, user_id, nome").eq("id", at.profissional_id).maybeSingle();
+  const profileId = prof?.id || at.profissional_id;
+  const nome = prof?.nome || "Equipe Técnica";
+
+  const folderId = await ensureProfissionalSubfolderGeneric(profileId, nome, "Atendimentos");
+  const titulo = `SysCFV_Atendimento_${fmtDate(at.data_atendimento)}_${safe((at as any).participantes?.nome_completo || "")}_${safe(at.tipo || "geral")}`;
+
+  let docId = at.drive_file_id as string | null;
+  if (!docId) docId = await createGoogleDoc(titulo, folderId);
+
+  const blocks: DocBlock[] = [
+    { type: "h1", text: "Atendimento — Equipe Técnica" },
+    { type: "kv", key: "Data", value: fmtDate(at.data_atendimento) },
+    { type: "kv", key: "Profissional", value: nome },
+    { type: "kv", key: "Participante", value: (at as any).participantes?.nome_completo || "—" },
+    { type: "kv", key: "Tipo", value: at.tipo || "—" },
+    ...(at.sigiloso ? [{ type: "kv" as const, key: "Sigiloso", value: "Sim — acesso restrito" }] : []),
+  ];
+  if (at.descricao) { blocks.push({ type: "h2", text: "Descrição" }); blocks.push({ type: "p", text: at.descricao }); }
+  if (at.encaminhamento) { blocks.push({ type: "h2", text: "Encaminhamento" }); blocks.push({ type: "p", text: at.encaminhamento }); }
+  await writeDoc(docId, blocks);
+  const url = `https://docs.google.com/document/d/${docId}/edit`;
+  await supabase.from("atendimentos").update({ drive_file_id: docId, drive_url: url }).eq("id", origemId);
+  return { drive_file_id: docId, drive_url: url };
+}
+
+// -----------------------------------------------------------------------------
+// Orçamentos (Sheets — mapa comparativo) e Prestação de Contas (Docs)
+// -----------------------------------------------------------------------------
+async function processOrcamento(origemId: string): Promise<{ drive_file_id: string; drive_url: string }> {
+  const { data: orc, error } = await supabase.from("orcamentos").select("*").eq("id", origemId).maybeSingle();
+  if (error || !orc) throw new Error("orcamento nao encontrado");
+
+  const { data: itens } = await supabase
+    .from("orcamento_itens").select("id, descricao, unidade, quantidade").eq("orcamento_id", origemId).order("created_at");
+  const { data: cotacoes } = await supabase
+    .from("orcamento_cotacoes").select("id, fornecedor, cnpj").eq("orcamento_id", origemId).order("created_at");
+  const { data: precos } = await supabase
+    .from("orcamento_precos").select("item_id, cotacao_id, preco_unitario").in("cotacao_id", (cotacoes || []).map((c: any) => c.id));
+
+  const folderId = await ensureModuleFolder("Financeiro", "Orcamentos");
+  const titulo = `SysCFV_Orcamento_${fmtDate(orc.created_at)}_${safe(orc.titulo || "orcamento")}`;
+
+  let ssId = orc.drive_file_id as string | null;
+  if (!ssId) ssId = await createGoogleSheet(titulo, folderId);
+
+  const tabs = await getSheetTabs(ssId);
+  const sheetId = tabs[0].sheetId;
+  await sheetsBatchUpdate(ssId, [{ updateCells: { range: { sheetId }, fields: "userEnteredValue,userEnteredFormat" } }]);
+
+  const headers = ["#", "Descrição", "Un.", "Qtd.", ...(cotacoes || []).map((c: any) => `${c.fornecedor}${c.cnpj ? ` (${c.cnpj})` : ""}`), "Menor preço"];
+  const priceMap = new Map<string, number>();
+  for (const p of (precos || []) as any[]) priceMap.set(`${p.item_id}|${p.cotacao_id}`, Number(p.preco_unitario));
+  const rows = (itens || []).map((it: any, i: number) => {
+    const cells = (cotacoes || []).map((c: any) => {
+      const v = priceMap.get(`${it.id}|${c.id}`);
+      return v != null ? v * Number(it.quantidade || 1) : "";
+    });
+    const numericVals = cells.filter((c) => typeof c === "number") as number[];
+    const min = numericVals.length ? Math.min(...numericVals) : "";
+    return [i + 1, it.descricao, it.unidade || "—", Number(it.quantidade || 1), ...cells, min];
+  });
+  const all = [
+    [titulo],
+    [`Objeto: ${orc.objeto || "—"} • Mês: ${orc.mes_referencia || "—"} • Status: ${orc.status || "—"}`],
+    headers,
+    ...rows,
+  ];
+  await sheetsValuesUpdate(ssId, `A1`, all);
+  await sheetsBatchUpdate(ssId, buildInstitutionalSheetRequests(sheetId, titulo, orc.titulo || "", headers.length));
+
+  const url = `https://docs.google.com/spreadsheets/d/${ssId}/edit`;
+  await supabase.from("orcamentos").update({ drive_file_id: ssId, drive_url: url }).eq("id", origemId);
+  return { drive_file_id: ssId, drive_url: url };
+}
+
+async function processPrestacaoContas(origemId: string): Promise<{ drive_file_id: string; drive_url: string }> {
+  const { data: pc, error } = await supabase
+    .from("documentos_prestacao_contas").select("*").eq("id", origemId).maybeSingle();
+  if (error || !pc) throw new Error("prestacao nao encontrada");
+
+  const folderId = await ensureModuleFolder("Financeiro", "Prestacao de Contas");
+  const titulo = `SysCFV_Prestacao_${fmtDate(pc.created_at)}_${safe(pc.titulo || "documento")}`;
+
+  let docId = pc.drive_file_id as string | null;
+  if (!docId) docId = await createGoogleDoc(titulo, folderId);
+
+  const blocks: DocBlock[] = [
+    { type: "h1", text: pc.titulo || "Documento de Prestação" },
+    { type: "kv", key: "Categoria", value: pc.categoria || "—" },
+    ...(pc.versao ? [{ type: "kv" as const, key: "Versão", value: String(pc.versao) }] : []),
+    ...(pc.vigencia_inicio ? [{ type: "kv" as const, key: "Vigência Início", value: fmtDate(pc.vigencia_inicio) }] : []),
+    ...(pc.vigencia_fim ? [{ type: "kv" as const, key: "Vigência Fim", value: fmtDate(pc.vigencia_fim) }] : []),
+  ];
+  if (pc.descricao) { blocks.push({ type: "h2", text: "Descrição" }); blocks.push({ type: "p", text: pc.descricao }); }
+  if (pc.arquivo_url) { blocks.push({ type: "h2", text: "Arquivo Original" }); blocks.push({ type: "p", text: pc.arquivo_url }); }
+  await writeDoc(docId, blocks);
+  const url = `https://docs.google.com/document/d/${docId}/edit`;
+  await supabase.from("documentos_prestacao_contas").update({ drive_file_id: docId, drive_url: url }).eq("id", origemId);
+  return { drive_file_id: docId, drive_url: url };
 }
 
 // -----------------------------------------------------------------------------
@@ -531,6 +930,12 @@ async function processQueue(): Promise<{ processed: number; errors: number }> {
       if (job.tipo === "relatorio") result = await processRelatorio(job.origem_id);
       else if (job.tipo === "planejamento") result = await processPlanejamento(job.origem_id);
       else if (job.tipo === "foto") result = await processFoto(job.origem_id);
+      else if (job.tipo === "roteiro_visita") result = await processRoteiroVisita(job.origem_id);
+      else if (job.tipo === "atendimento") result = await processAtendimento(job.origem_id);
+      else if (job.tipo === "orcamento") result = await processOrcamento(job.origem_id);
+      else if (job.tipo === "prestacao_contas") result = await processPrestacaoContas(job.origem_id);
+      else if (job.tipo === "lista_chamada_lote") result = await processListaChamadaLote(job.payload || {});
+      else if (job.tipo === "lista_frequencia_lote") result = await processListaFrequenciaLote(job.payload || {});
       else throw new Error(`tipo invalido: ${job.tipo}`);
 
       await supabase.from("drive_sync_queue").update({

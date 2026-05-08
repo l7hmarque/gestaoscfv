@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface Props {
-  tipo: "relatorio" | "planejamento";
+  tipo: "relatorio" | "planejamento" | "roteiro_visita" | "atendimento" | "orcamento" | "prestacao_contas" | "lista_chamada_lote" | "lista_frequencia_lote";
   origemId: string;
   driveUrl?: string | null;
 }
