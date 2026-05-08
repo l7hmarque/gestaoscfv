@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { AlertTriangle } from "lucide-react";
 import { ArrowLeft, Printer, Instagram, Copy, Share2, Download, X, Trash2, Plus, Search, Link2, Pencil, Check, Users, ChevronsUpDown, FileText } from "lucide-react";
+import { DriveSyncBadge } from "@/components/DriveSyncBadge";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -892,6 +893,7 @@ const RelatorioDetalhePage = () => {
       <div className="flex gap-2 flex-wrap text-xs text-muted-foreground">
         <span>📅 {format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy")}</span>
         {item.dia_semana && <span>({item.dia_semana})</span>}
+        <div className="ml-auto"><DriveSyncBadge tipo="relatorio" origemId={item.id} driveUrl={(item as any).drive_url} /></div>
         {(item as any).periodo_atividade && (
           <Badge variant="outline" className="text-[10px]">
             {(item as any).periodo_atividade === "manha" ? "Manhã" : (item as any).periodo_atividade === "tarde" ? "Tarde" : "Integral"}
