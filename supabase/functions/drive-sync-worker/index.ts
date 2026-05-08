@@ -13,10 +13,12 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const GOOGLE_DRIVE_API_KEY = Deno.env.get("GOOGLE_DRIVE_API_KEY")!;
 const GOOGLE_DOCS_API_KEY = Deno.env.get("GOOGLE_DOCS_API_KEY")!;
+const GOOGLE_SHEETS_API_KEY = Deno.env.get("GOOGLE_SHEETS_API_KEY")!;
 
 const DRIVE_GW = "https://connector-gateway.lovable.dev/google_drive/drive/v3";
 const DRIVE_UPLOAD_GW = "https://connector-gateway.lovable.dev/google_drive/upload/drive/v3";
 const DOCS_GW = "https://connector-gateway.lovable.dev/google_docs/v1";
+const SHEETS_GW = "https://connector-gateway.lovable.dev/google_sheets/v4";
 
 const MAX_JOBS_PER_RUN = 8;
 const MAX_TENTATIVAS = 5;
@@ -31,6 +33,13 @@ function docsHeaders() {
   return {
     Authorization: `Bearer ${LOVABLE_API_KEY}`,
     "X-Connection-Api-Key": GOOGLE_DOCS_API_KEY,
+    "Content-Type": "application/json",
+  };
+}
+function sheetsHeaders() {
+  return {
+    Authorization: `Bearer ${LOVABLE_API_KEY}`,
+    "X-Connection-Api-Key": GOOGLE_SHEETS_API_KEY,
     "Content-Type": "application/json",
   };
 }
