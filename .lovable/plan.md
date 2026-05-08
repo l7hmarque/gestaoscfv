@@ -1,101 +1,146 @@
 
-# Integração Google Drive — SysCFV
+# Integração Google Workspace — Camada Espelho de Documentos
 
-Sincronização automática de planejamentos, relatórios e fotos para uma conta Google institucional única, com pastas organizadas por profissional e marca d'água de veracidade nas fotos.
+Adicionar uma camada de "espelho no Google" sobre todas as exportações existentes (XLSX, DOCX, PDF), **sem remover** o que já funciona. Cada documento gerado também passa a existir como Google Docs / Sheets na conta institucional, com botão de acesso direto. Ao final, geramos um exemplo de cada tipo e devolvemos os links para você revisar/anotar dentro do próprio Google.
 
-## Arquitetura
+## Princípio geral
+
+- **Não remover nada.** Os botões atuais de Exportar (XLSX/DOCX/PDF) continuam.
+- Cada tela ganha um botão extra **"Abrir no Google"** (Docs ou Sheets, conforme o caso) e, nas listagens, um botão **"Abrir pasta no Drive"**.
+- A geração no Google é **assíncrona via worker** (já existe `drive-sync-worker`) — o usuário não espera; o badge mostra o estado.
+- **Layout institucional** é replicado nativamente em Google Docs/Sheets via `batchUpdate` (sem converter de DOCX/XLSX), preservando estética cinza/vermelha do SysCFV: cabeçalho com título, metadados, headings H1/H2, tabelas com bordas, células mescladas, presença marcada com `■`.
+
+## Como reproduzir o layout institucional no Google
+
+**Google Docs (Relatórios, Planejamentos, REO, RCA, Roteiros de Visita, Atendimentos da Equipe Técnica, Documentos de Prestação):**
+- Centralizamos o "tema visual" em `supabase/functions/_shared/gdocsTemplate.ts`:
+  - Helpers `insertHeader(title, subtitulo)`, `insertMetaBlock([{label,value}])`, `insertSectionHeading(text)`, `insertParagraph(text, style?)`, `insertTable(rows, opts)`, `insertImageInline(driveFileId, opts)`, `insertFooterHash(hash)`.
+  - Aplicam `updateTextStyle` (negrito, tamanhos), `updateParagraphStyle` (HEADING_1/2, alinhamento), `createParagraphBullets` e `updateTableCellStyle` (bordas grayscale 0.5pt).
+- Cada tipo de documento tem um builder dedicado que chama esses helpers na ordem correta. Mesma fonte de verdade para conteúdo institucional, mesmo "skin" cinza/preto.
+
+**Google Sheets (Listas de chamada/frequência, Cardápio, Movimentações cozinha, Orçamentos/Mapas, Transporte, Backup):**
+- `_shared/gsheetsTemplate.ts` com helpers `applyInstitutionalHeader(sheetId, title, periodo, territorio)`, `applyHeaderRow(sheetId, headers)`, `applyGridBorders(range)`, `applyAutoFit(sheet)`, `freezeRows(n)`, `mergeCells(range)`.
+- Reaproveitamos a lógica já existente em `xlsxInstHeader.ts` / `xlsxAutoFit.ts` traduzindo para `spreadsheets.batchUpdate` (mesmas larguras, mesmas cores HSL convertidas para RGB).
+
+**Fotos dentro do Doc (Relatório de Atividade):**
+- Após upload das fotos com watermark à pasta `Registros Fotográficos/{YYYY-MM}/`, o builder do relatório insere uma seção **"Registros Fotográficos"** no final do Doc com `insertInlineImage` apontando para a `contentUri` de cada foto, em grid 2 colunas via tabela invisível, com legenda "Educador • Turma • DD/MM HH:mm • #hash".
+
+## Estrutura de pastas no Drive (extensão da atual)
 
 ```text
-Conta Google da OSC (1 conexão Lovable Cloud)
-└── SysCFV/
-    ├── Profissionais/
-    │   └── {Nome do Educador}/
-    │       ├── Planejamentos/   → Google Docs nativos
-    │       └── Relatórios/      → Google Docs nativos
-    └── Registros Fotográficos/
-        └── {YYYY-MM mês}/       → JPG com marca d'água
+SysCFV/
+├── Profissionais/
+│   └── {Nome}/
+│       ├── Planejamentos/        Google Docs
+│       ├── Relatórios/           Google Docs (com fotos embutidas)
+│       ├── Atendimentos/         Google Docs (Equipe Técnica)
+│       └── Roteiros de Visita/   Google Docs
+├── Listas de Chamada/
+│   └── {YYYY-MM}/                Google Sheets — 1 planilha/mês com 1 aba por turma
+├── Listas de Frequência/
+│   └── {YYYY-MM}/                Google Sheets idem
+├── Financeiro/
+│   ├── Orçamentos/               Google Sheets (mapa comparativo)
+│   ├── Prestação de Contas/      Google Docs
+│   └── SIT/                      Drive (mantém formato .txt original — não há equivalente nativo)
+├── Cozinha/
+│   ├── Cardápios/                Google Sheets
+│   └── Movimentações/            Google Sheets
+├── Transporte/                   Google Sheets diário
+├── Relatórios Gerenciais/
+│   ├── REO/                      Google Docs (anexa Sheets de indicadores)
+│   ├── RCA/                      Google Docs
+│   └── Mensal/                   Google Sheets
+└── Registros Fotográficos/
+    └── {YYYY-MM}/                JPG com watermark
 ```
 
-**Fluxo:** salvar relatório/planejamento → trigger no banco enfileira job → Edge Function processa em background → cria/atualiza Google Doc + envia fotos com watermark → grava `drive_file_id` e `drive_url` na linha original.
+## Mudanças por módulo (cada item ganha botão "Abrir no Google" + a pasta correspondente ganha botão "Abrir pasta")
 
-## Etapa 1 — Conexão Google Drive + Google Docs
+| Módulo | Documento | Tipo Google | Trigger |
+|---|---|---|---|
+| Relatórios de Atividade | 1 doc por relatório, com fotos embutidas | Docs | ao salvar |
+| Planejamentos | 1 doc por planejamento | Docs | ao salvar |
+| Listas de Chamada (presença) | 1 planilha/mês, 1 aba por turma | Sheets | ao gerar lote |
+| Listas de Frequência preenchidas | idem | Sheets | ao exportar |
+| Equipe Técnica — Roteiros de Visita | 1 doc por roteiro | Docs | ao salvar |
+| Equipe Técnica — Atendimentos/Relatos | 1 doc por atendimento | Docs | ao salvar |
+| Financeiro — Orçamentos/Mapa Comparativo | 1 planilha por orçamento | Sheets | ao finalizar mapa |
+| Financeiro — Prestação de Contas | 1 doc por mês de prestação | Docs | ao consolidar |
+| Financeiro — SIT (.txt) | mantém .txt, só faz upload ao Drive | Drive raw | ao exportar |
+| Cozinha — Cardápio | 1 planilha/mês | Sheets | ao publicar |
+| Cozinha — Movimentações de Estoque | 1 planilha/mês | Sheets | ao registrar |
+| Transporte — Relatório diário | 1 planilha/dia | Sheets | ao gerar |
+| REO | 1 doc + 1 sheet linkado | Docs+Sheets | ao gerar |
+| RCA | 1 doc | Docs | ao gerar |
+| Relatório Mensal/Gerencial | 1 sheet | Sheets | ao gerar |
 
-- Conectar os connectors `google_drive` e `google_docs` (1 conta institucional única).
-- Secrets ficam disponíveis automaticamente nas Edge Functions via gateway Lovable.
-- Não há OAuth por usuário — toda escrita usa a conta da OSC.
+## Etapas de implementação
 
-## Etapa 2 — Schema de sincronização
+### Etapa 1 — Conector Google Sheets + helpers compartilhados
+- Conectar `google_sheets` (Docs e Drive já estão).
+- Criar `supabase/functions/_shared/gdocsTemplate.ts` e `_shared/gsheetsTemplate.ts` com os helpers acima.
+- Criar `_shared/driveFolders.ts` centralizando a resolução/cache de pastas (estende `drive_folder_cache`).
 
-Nova tabela `drive_sync_queue`:
-- `id`, `tipo` (`planejamento` | `relatorio` | `foto`), `origem_id`, `status` (`pendente`|`processando`|`sincronizado`|`erro`), `drive_file_id`, `drive_url`, `tentativas`, `ultimo_erro`, `created_at`, `synced_at`.
+### Etapa 2 — Schema
+- Adicionar colunas `drive_file_id` / `drive_url` em: `roteiros_visita`, `equipe_tecnica_atendimentos` (ou tabela equivalente), `orcamentos`, `prestacao_contas`, `cardapios`, `movimentacoes_estoque`, `transporte_relatorios_diarios`, `relatorios_mensais`, `reo_documentos`, `rca_documentos`.
+- Nova tabela `drive_planilhas_mensais` (`tipo`, `ano_mes`, `drive_file_id`, `drive_url`) — chave para listas de chamada/frequência (1 planilha por mês com várias abas).
+- Estender enum `tipo` em `drive_sync_queue`: `roteiro_visita`, `atendimento_tecnico`, `orcamento`, `prestacao_contas`, `cardapio`, `movimentacao_cozinha`, `transporte_diario`, `relatorio_mensal`, `reo`, `rca`, `lista_chamada_lote`, `lista_frequencia_lote`, `arquivo_sit`.
+- Triggers de enfileiramento ao `INSERT/UPDATE` nas respectivas tabelas (com filtro para evitar loops em campos `drive_*`).
 
-Colunas adicionadas:
-- `planejamentos.drive_file_id`, `planejamentos.drive_url`
-- `relatorios_atividade.drive_file_id`, `relatorios_atividade.drive_url`
-- `relatorio_fotos.drive_file_id`, `relatorio_fotos.drive_url`, `relatorio_fotos.veracidade_hash`, `relatorio_fotos.exif_metadata` (jsonb)
+### Etapa 3 — Edge Function `drive-sync-worker` (extensão)
+- Adicionar handler para cada novo `tipo`. Cada handler:
+  1. Resolve pasta destino.
+  2. Busca dados completos via `service_role`.
+  3. Chama o builder Docs/Sheets correspondente.
+  4. Faz `batchUpdate` e grava `drive_file_id` / `drive_url`.
+- **Listas em lote (chamada/frequência):** quando `tipo='lista_chamada_lote'` com `payload={ano_mes, turma_ids[]}`, o worker:
+  1. Pega ou cria a planilha mensal em `drive_planilhas_mensais`.
+  2. Para cada turma: cria/atualiza uma aba com nome = nome da turma; preenche cabeçalho institucional + grade.
+  3. Retorna o link único da planilha.
+- **Idempotência mantida** via `drive_file_id` existente.
 
-Triggers: ao `INSERT/UPDATE` em planejamentos/relatórios/fotos → enfileira em `drive_sync_queue`.
+### Etapa 4 — UI
 
-Cache de pastas — tabela `drive_folder_cache` (`profile_id`, `tipo`, `folder_id`) para evitar recriar pastas.
+**Botões "Abrir no Google" (mantém Exportar):**
+- `RelatorioDetalhePage`, `PlanejamentoDetalhePage` — já têm `DriveSyncBadge`; adicionar botão `Abrir no Google Docs` ao lado de Exportar Tudo.
+- Para cada novo módulo (roteiro, atendimento, orçamento, etc.), adicionar o mesmo padrão `<DriveSyncBadge />` + botão de abrir.
 
-## Etapa 3 — Edge Function `drive-sync-worker`
+**Botões "Abrir pasta no Drive" nas listagens:**
+- `RelatoriosPage`, `PlanejamentosPage`, `RoteirosTab`, `OrcamentosTab`, `DocumentosPrestacaoTab`, `CardapioTab`, `MovimentacoesTab`, `TransportePage`, `PresencaExportarPage`, `ExportarRelatoriosPage`, `ArquivosFinanceirosPage`, `EquipeTecnicaPage`.
+- Helper `useDriveFolderUrl(tipo, contexto?)` — chama RPC que devolve a URL da pasta do usuário/módulo (cria se não existir, em background).
 
-Processa fila em background. Para cada job:
+**Listas de chamada/frequência em lote:**
+- Em `PresencaExportarPage` e onde existe a geração em lote: novo botão **"Gerar no Google Sheets (lote)"** que enfileira `lista_chamada_lote` com as turmas selecionadas e mostra o link único quando pronto.
 
-1. Resolve hierarquia de pastas (cria sob demanda, com cache):
-   - `SysCFV/Profissionais/{Nome}/Planejamentos|Relatórios/`
-   - `SysCFV/Registros Fotográficos/{YYYY-MM}/`
-2. **Planejamento/Relatório → Google Doc nativo:**
-   - Cria doc via `POST /documents` (Google Docs API).
-   - Move para a pasta correta via Drive API (`addParents`).
-   - Insere conteúdo com `batchUpdate`: título, metadados (educador, turma, data), seções (tema, objetivos, roteiro, materiais, presença, fotos como links, etc).
-   - Update incremental: se já existe `drive_file_id`, faz `deleteContentRange` + reinserção.
-3. **Foto → upload com watermark** (ver Etapa 4).
-4. Grava `drive_file_id`/`drive_url` no registro original e marca job como `sincronizado`.
+### Etapa 5 — Teste end-to-end e entrega de exemplos
 
-Nomes padronizados:
-- Doc: `SysCFV_Relatorio_{YYYY-MM-DD}_{Titulo}_{Educador}`
-- Foto: `SysCFV_Foto_{YYYY-MM-DD}_{Educador}_{Turma}_{HHmmss}_{hash8}.jpg`
+Vou enfileirar e processar **um exemplo de cada tipo**, depois te enviar a tabela de links:
 
-Acionamento: trigger HTTP via `pg_net` quando há novos jobs + botão manual "Sincronizar agora" no detalhe.
+1. Relatório de Atividade (com fotos embutidas)
+2. Planejamento
+3. Lista de Chamada (lote — 1 planilha com 3 abas)
+4. Lista de Frequência preenchida
+5. Roteiro de Visita
+6. Atendimento Equipe Técnica
+7. Orçamento / Mapa Comparativo
+8. Prestação de Contas
+9. Cardápio + Movimentação Cozinha
+10. Transporte diário
+11. REO + RCA + Relatório Mensal
 
-## Etapa 4 — Marca d'água de veracidade nas fotos
+Como você sugeriu, **comentários do Google Docs/Sheets** podem ser deixados diretamente nos arquivos — eu leio via API (`comments.list`) e ajusto layout/conteúdo conforme suas anotações na próxima rodada.
 
-Edge Function `process-foto-watermark` (chamada pelo worker):
+## Detalhes técnicos
 
-1. Baixa a foto do Supabase Storage.
-2. Extrai EXIF com `npm:exifr` — captura GPS (lat/long), data/hora original, modelo da câmera. Persiste em `relatorio_fotos.exif_metadata`.
-3. Resolve **Local da foto**: reverse geocoding via Nominatim/OpenStreetMap (sem API key). Fallback: bairro do relatório.
-4. Gera **código de veracidade** = SHA-256 dos bytes originais + educador_id + relatorio_id + timestamp → hash de 16 chars. Salvo em `veracidade_hash`.
-5. Aplica watermark sutil com `npm:@napi-rs/canvas` (suportado em Deno):
-   - Faixa semitransparente no rodapé (preto 40% opacidade, ~6% da altura).
-   - Texto branco pequeno: `📍 {Local} • {DD/MM/YYYY HH:mm} • {lat,long se houver} • #{hash}`.
-   - Discreto, não polui a foto.
-6. Faz upload ao Drive na pasta `Registros Fotográficos/{YYYY-MM}/`.
+- **Sem quebrar nada:** todas as adições são aditivas. Nenhum builder XLSX/DOCX/PDF existente é removido. Os novos botões aparecem ao lado dos atuais.
+- **Background-first:** triggers no banco enfileiram; a UI nunca espera o Google. Badges mostram `pendente / sincronizando / pronto / erro` (já existe componente).
+- **Conta única OSC:** continua usando os connectors `google_drive`, `google_docs` + agora `google_sheets` ligados à conta do Leonardo. Sem OAuth por usuário.
+- **Rate limit / quotas:** worker processa até 10 jobs por invocação, com backoff até 5 tentativas; pg_cron a cada 1 min.
+- **SIT (.txt):** não tem equivalente nativo no Google — fica como arquivo bruto no Drive (somente upload), mantendo a exportação atual.
+- **Permissões:** RLS em `drive_planilhas_mensais` e novas colunas seguindo o padrão de `drive_sync_queue` (somente coordenação/dev veem a fila; usuários veem o link no detalhe do próprio registro).
 
-Tela pública futura `/verificar/{hash}` (fora deste plano) poderá confirmar autoria.
+## O que NÃO está nesta etapa
 
-**Fallback**: foto sem EXIF/GPS → usa só data do relatório + bairro da turma + hash. Watermark sempre é aplicada.
-
-## Etapa 5 — UI
-
-- **Detalhe de Relatório/Planejamento:** badge "📄 Aberto no Drive" (link) ou "⏳ Sincronizando..." ou "⚠️ Erro" (com retry).
-- **Botão "Abrir no Google Docs"** ao lado de "Imprimir" / "Exportar".
-- **Galeria de fotos:** ícone Drive em cada foto + tooltip com hash de veracidade.
-- **Configurações → Integrações → Google Drive:** mostra status da conexão, contador de fila pendente, botão "Reprocessar erros".
-
-## Detalhes Técnicos
-
-- **Conversão Doc:** mapeia conteúdo institucional direto para `batchUpdate` (sem passar por HTML). Mantém estilo grayscale do SysCFV via `updateTextStyle`/`updateParagraphStyle` (negrito títulos, headings H1/H2).
-- **Idempotência:** worker usa `drive_file_id` existente; nunca duplica.
-- **Rate limiting:** processa máx. 10 jobs/invocação, com backoff (`tentativas` até 5).
-- **Background:** worker invocado via `EdgeRuntime.waitUntil` para não bloquear UI; trigger pg via `pg_net.http_post`.
-- **Apenas conta institucional:** RLS impede usuários comuns de ver `drive_sync_queue` (só coordenação/dev).
-- **Sem OAuth por usuário:** sem login Google adicional para educadores.
-
-## Limitações conhecidas
-
-- Reverse geocoding gratuito (Nominatim) tem rate limit ~1 req/s — adicionamos pequeno delay no worker.
-- Fotos sem GPS no EXIF (comum em WhatsApp) ficam sem coordenadas; watermark mostra apenas data/local da turma + hash.
-- Quota Google Drive API: 1 bilhão de requisições/dia/projeto — não é limite real para o uso institucional.
-- Conta única significa que se o token Google for revogado, toda sincronização para até reconectar.
+- Substituir/remover os exportadores XLSX/DOCX/PDF — fica para depois, após sua validação dos exemplos.
+- Edição bidirecional (alterar no Google e refletir no SysCFV). Por ora a sincronização é unidirecional (SysCFV → Google), com comentários do Google lidos para ajustes manuais de template.
