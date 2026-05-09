@@ -1101,8 +1101,9 @@ async function processRelatorio(origemId: string): Promise<{ drive_file_id: stri
   const educadorId = rel.profiles?.id || rel.educador_id || "sem-educador";
 
   const { data: turmasJoin } = await supabase
-    .from("relatorio_turmas").select("turmas(nome)").eq("relatorio_id", origemId);
+    .from("relatorio_turmas").select("turmas(nome, bairros(nome))").eq("relatorio_id", origemId);
   const turmas = (turmasJoin || []).map((t: any) => t.turmas?.nome).filter(Boolean);
+  const bairros = Array.from(new Set((turmasJoin || []).map((t: any) => t.turmas?.bairros?.nome).filter(Boolean))) as string[];
 
   const { data: presenca } = await supabase
     .from("relatorio_presenca")
@@ -1110,18 +1111,27 @@ async function processRelatorio(origemId: string): Promise<{ drive_file_id: stri
     .eq("relatorio_id", origemId);
 
   const { data: fotos } = await supabase
-    .from("relatorio_fotos").select("drive_url").eq("relatorio_id", origemId);
+    .from("relatorio_fotos").select("drive_url, drive_file_id").eq("relatorio_id", origemId);
 
   const folderId = await ensureProfissionalSubfolder(educadorId, educadorNome, "Relatorios");
   const titulo = `SysCFV_Relatorio_${fmtDate(rel.data)}_${safe(rel.nome_atividade || "atividade")}_${safe(educadorNome)}`;
 
   let docId = rel.drive_file_id as string | null;
   if (!docId) {
-    docId = await createGoogleDoc(titulo, folderId);
+    // Cópia do template — preserva layout (legenda, fotos, ANEXO I/II, competências)
+    docId = await cloneFromTemplate("relatorio", folderId, titulo);
+  } else {
+    // Reuso: limpa e recria a partir do template (drop + clone novo)
+    await fetch(`${DRIVE_GW}/files/${docId}`, { method: "DELETE", headers: driveHeaders() }).catch(() => {});
+    docId = await cloneFromTemplate("relatorio", folderId, titulo);
   }
-  await writeDoc(docId, relatorioToBlocks(
-    { ...rel, educador_nome: educadorNome }, turmas, presenca || [], fotos || [],
-  ));
+  await fillRelatorioTemplate(docId, {
+    rel: { ...rel, educador_nome: educadorNome },
+    turmas,
+    presenca: presenca || [],
+    fotos: fotos || [],
+    bairros,
+  });
   const url = `https://docs.google.com/document/d/${docId}/edit`;
   await supabase.from("relatorios_atividade").update({ drive_file_id: docId, drive_url: url }).eq("id", origemId);
   return { drive_file_id: docId, drive_url: url };
