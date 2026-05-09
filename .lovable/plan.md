@@ -1,110 +1,86 @@
 
-# Templates Google como base oficial dos documentos SysCFV
+# Próxima etapa: ajustes dos comentários + engine de template real + 13 exemplos
 
-Você enviou 4 modelos no Google (Relatório, Planejamento, Frequência web, Chamada física) com comentários ricos descrevendo cada placeholder e regra visual. A ideia é parar de "construir do zero" via batchUpdate (que não reproduz fielmente o layout) e passar a usar **copy-from-template + substituição de placeholders**, garantindo que tudo o que você ajustou nos modelos (espaçamento, bordas, tabela de fotos A4, checkboxes, cores Likert, posição de assinatura) seja preservado pixel a pixel.
+Os 2 docs de teste foram gerados por um protótipo one-off da rodada anterior — o worker `drive-sync-worker` ainda usa o caminho antigo "constrói do zero" (`relatorioToBlocks`/`writeDoc`), e a tabela `drive_modelos` está populada mas nunca é consultada. Os comentários que você deixou expõem exatamente os 4 pontos que precisam ser resolvidos antes de escalar para os outros documentos.
 
-Para os demais documentos (REO, RCA, Roteiro de Visita, Atendimento Equipe Técnica, Orçamento/Mapa, Prestação de Contas, Cardápio, Movimentações, Transporte, Relatório Mensal) **mantemos o layout PDF atual**, apenas convertido para Docs/Sheets nativo — sem mudar a aparência.
+## Comentários recebidos e correções
 
-## 1. Pasta de Modelos no Drive
+**Relatório de Atividade**
+1. *"Conforme a legenda deveria estar com cor de destaque verde, olhe o [4] da legenda"* → pintar a célula da competência com a cor da nota. Mapa: 1=#C0392B, 2=#E67E22, 3=#F1C40F, 4=#27AE60, 5=#16A085 (e SCORE_ELO usa o arredondado).
+2. *"Essa é a legenda"* → manter intacta (não substituir nada nela).
+3. *"As fotos ficaram todas uma em cima da outra, precisam ficar bem distribuídas"* → cada `{foto1..5}` é substituído por `insertInlineImage` com largura fixa (≈ 16cm = 460pt) e quebra de parágrafo entre elas; placeholders sem foto viram parágrafo vazio (não ficam pendurados). Fotos extras (>5) entram em parágrafos novos abaixo do `{foto5}`.
+4. *"Cadê o nome das crianças presentes na atividade?"* → ANEXO II ganha tabela inserida programaticamente (3 colunas: Nº, Nome, P/A) — uma linha por participante presente, ordenada alfabeticamente, e abaixo um bloco "Ausentes com justificativa".
 
-Criar `SysCFV / Modelos de Documentos / Relatorios` e popular com cópias renomeadas dos seus 4 originais:
+**Planejamento de Atividade**
+1. *"Aqui era pra ser o título MATERIAIS NECESSARIOS e não a lista de materiais"* → bug é o `replaceAllText("MATERIAIS", ...)` casando com "Materiais necessários:" (case-insensitive). Correção em **2 frentes**: (a) renomear todos os tokens nos templates para a forma `{TOKEN}` (já fiz para relatório, vou fazer para planejamento); (b) no worker forçar `matchCase: true` em todos os `replaceAllText`. Tokens livres em CAIXA-ALTA tipo `EDUCADOR`, `TURMAS`, `MATERIAIS`, `ROTEIRO`, etc. serão renomeados nos templates para `{EDUCADOR}`, `{TURMAS}`, `{MATERIAIS}`, `{ROTEIRO}`...
 
-- `MODELO — Relatório de Atividade — atualizado em DD/MM/AAAA`
-- `MODELO — Planejamento de Atividade — atualizado em DD/MM/AAAA`
-- `MODELO — Lista de Frequência (Web) — atualizado em DD/MM/AAAA`
-- `MODELO — Lista de Chamada (Física) — atualizado em DD/MM/AAAA`
+## O que muda no código
 
-A "última data de alteração" no nome é atualizada automaticamente sempre que detectarmos `modifiedTime` diferente no original (job `refresh_modelos` rodando 1×/dia, idempotente). Os IDs originais ficam guardados em uma tabela `drive_modelos` (`tipo`, `template_doc_id`, `copia_doc_id`, `ultima_atualizacao`) para a worker resolver "qual template copiar" sem hardcode.
+### Templates (Drive)
+- Renomear placeholders soltos nos modelos para a forma `{TOKEN}` exclusivamente. Atualizo via `documents.batchUpdate` com `replaceAllText` em cada modelo:
+  - Relatório: `DATA: 00/00/0000` → `{DATA}`, `BAIRRO; BAIRRO2 ; BAIRRO 3.` → `{BAIRROS}`, `PERÍODO` → `{PERIODO}`, `TURMAS` → `{TURMAS}`, `EDUCADOR` → `{EDUCADOR}`, `NOME ATIVIDADE` → `{NOME_ATIVIDADE}`, `TIPO ATIVIDADE` → `{TIPO_ATIVIDADE}`, `NUM PRESENTES` → `{NUM_PRESENTES}`, `NUM MATRICULADOS` → `{NUM_MATRICULADOS}`, `{ATIVIDADES REALIZADAS}` → `{ATIVIDADES_REALIZADAS}` (sem espaço), `{OBSERVAÇÕES}` → `{OBSERVACOES}`, `PCT_ADESAO` → `{PCT_ADESAO}`, mantém `{ENG_*}`, `{SIT_*}`, `{OBJ_1}` (já corretos), `{INICIATIVA}` etc.
+  - Planejamento: `EDUCADOR` → `{EDUCADOR}`, `TURMAS` → `{TURMAS}`, `TITULO` → `{TITULO}`, `TEMA` → `{TEMA}`, `QUESTAO_GERADORA` → `{QUESTAO_GERADORA}`, `OBJETIVOS` → `{OBJETIVOS}`, `FORMA AVALIACAO` → `{FORMA_AVALIACAO}`, `ROTEIRO` → `{ROTEIRO}`, `MATERIAIS` → `{MATERIAIS}`, `APOIO_TECNICO` → `{APOIO_TECNICO}`. Os 3 ☐ dos eixos viram `{EIXO_1}` `{EIXO_2}` `{EIXO_3}`.
+- Inserir uma tabela esqueleto vazia logo após o título "ANEXO II - REGISTROS DE PRESENÇA" no relatório (1 linha de cabeçalho), para o engine apenas anexar linhas com `insertTableRow`.
+- Atualizar `drive_modelos.ultima_atualizacao_origem` e renomear as cópias com a nova data.
 
-## 2. Engine de geração: copy + replace placeholders
-
-Substitui o builder atual (`relatorioToBlocks`/`planejamentoToBlocks`) por um motor genérico:
+### Worker — substituir o ramo "construir do zero" pelo engine de template
+Novo módulo no `drive-sync-worker/index.ts`:
 
 ```text
-1. Drive.files.copy(template_id, parents=[pasta_destino], name=título_final)
-2. Para Docs:    Docs.batchUpdate com replaceAllText para cada {PLACEHOLDER}
-                 + replaceAllText especial para checkboxes (■/□)
-                 + insertInlineImage para fotos do ANEXO I
-                 + insertTableRow + insertText para linhas dinâmicas (presença, competências)
-3. Para Sheets:  Sheets.batchUpdate copyPaste do template para cada turma (nova aba)
-                 + values.update preenchendo nomes, datas e marcadores P/A/D
-                 + adjusta dimensões de linhas/colunas conforme dados
+cloneFromTemplate(tipo, destFolderId, title)
+  → Drive.files.copy(template_doc_id, parents=[destFolderId], name=title)
+
+replacePlaceholders(docId, map)              // matchCase: true sempre
+replaceCheckboxesGroup(docId, base, indexMarcado)   // {OBJ_1} pode aparecer 3x; marca o n-ésimo
+insertImageAtPlaceholder(docId, token, driveFileId, widthPt=460)
+colorCompetenciaCell(docId, token, nota)     // localiza célula que contém token, aplica updateTableCellStyle
+appendPresencaRows(docId, anexoTitle, rows)  // localiza tabela após "ANEXO II", insertTableRow + insertText
+fillTipoAtividade(docId)                     // {TIPO_ATIVIDADE} renderiza lista compacta
 ```
 
-### Mapa de placeholders — Relatório (Doc)
-Direto dos seus comentários:
+Pseudo do `processRelatorio` novo:
+1. `cloneFromTemplate('relatorio', folderEducador, titulo)` se `drive_file_id` é null; senão reusa.
+2. Constroi `map` com todos os tokens preenchidos (`{DATA}`, `{EDUCADOR}`, `{TURMAS}`, `{NOME_ATIVIDADE}`, `{TIPO_ATIVIDADE}`, `{PERIODO}`, `{NUM_PRESENTES}`, `{NUM_MATRICULADOS}`, `{ATIVIDADES_REALIZADAS}`, `{OBSERVACOES}`, `{PCT_ADESAO}`, `{INICIATIVA}`..`{SCORE_ELO}` com nota 1-5).
+3. Para `{ENG_*}`/`{SIT_*}`: substitui por ■ se selecionado, □ caso contrário. Para `{OBJ_1}`: usa `replaceAllText` sequenciais (controla por índice do texto retornado por `documents.get`).
+4. `colorCompetenciaCell` para cada uma das 6 células de competência.
+5. Para cada `{foto1..5}`: se há foto correspondente, `insertImageAtPlaceholder`; senão substitui por string vazia.
+6. `appendPresencaRows` no ANEXO II com participantes presentes (depois ausentes).
 
-| Placeholder | Origem |
-|---|---|
-| `{TITULO}` | `nome_atividade` |
-| `{DATA}` `{EDUCADOR}` `{TURMAS}` `{PERIODO}` `{TIPO}` | header |
-| `{OBJ_1..3}` checkbox preto | `objetivo_alcancado` |
-| `{ENG_1..4}` checkbox preto | `engajamento[]` |
-| `{SIT_1..5}` checkbox preto | `situacoes_relevantes[]` |
-| `{ATIVIDADES_REALIZADAS}` `{OBSERVACOES}` `{INTERVENCOES}` `{RESULTADOS_ALCANCADOS}` | textos |
-| `{INICIATIVA}` `{AUTONOMIA}` `{COLABORACAO}` `{COMUNICACAO}` `{RESPEITO_MUTUO}` `{SCORE_ELO}` | competências; cor de fundo da célula aplicada via `updateTableCellStyle` conforme legenda 1–5 |
-| `{PCT_ADESAO}` `{NUM_PARTICIPANTES}` `{NUM_MATRICULADOS}` | indicadores |
-| ANEXO I — `{foto1}..{foto5}` | substitui cada token por `insertInlineImage` apontando para `contentUri` da foto já no Drive (com watermark); placeholders sem foto ficam em branco |
-| ANEXO II — tabela de presença | a tabela já existe no template com 1 linha exemplo; o motor faz `insertTableRow` por participante e preenche nº, nome, P/A, justificativa |
+Pseudo do `processPlanejamento` novo: igual mas só `replacePlaceholders` + checkboxes dos 3 eixos.
 
-### Mapa de placeholders — Planejamento (Doc)
-`{TITULO}` `{EDUCADOR}` `{TURMAS}` `{TEMA}` `{QUESTAO_GERADORA}` `{ROTEIRO}` `{MATERIAIS}` `{APOIO_TECNICO}` `{OBJETIVOS}` `{FORMA_AVALIACAO}` (bullets) + EIXOS ESTRUTURANTES (mantém os 3 checkboxes vazios por enquanto, conforme seu comentário "ainda não tem no relatório do site").
+### Listas (Sheets) — chamada e frequência
+- `cloneFromTemplate` da `lista_chamada` ou `lista_frequencia` (1 spreadsheet por turma×mês), mover para pasta `Listas de {Chamada|Frequência}/{YYYY-MM}/`.
+- `values.update` no header (`Educador`, `Turma`, `Mês`, `Bairro`, `Período`, `Faixa`, `Oficina`).
+- `insertDimension` para criar N linhas de participantes; `values.update` com nomes (sufixo `(D DD/MM)` se desligado).
+- `repeatCell` por célula de data: `P` = bg preto/texto branco, `A` = bg branco/texto preto, `D` = bg #D9D9D9. Última linha = "Assinatura do Educador: ____" (sem nada abaixo).
 
-### Modelo Lista de Frequência (Web) e Chamada (Física) — Sheets
-- **1 planilha por turma por mês** (não mais 1 workbook com várias abas — seus modelos têm 1 aba só, mais simples e fiel).
-  - Pasta: `Listas de Frequência / {YYYY-MM} /` e `Listas de Chamada / {YYYY-MM} /`.
-- Workflow: `copy(template)` → renomeia → preenche cabeçalho (`Educador`, `Mês`, `Turma | Bairro | Período | Faixa | Oficina`) via `values.update` em ranges nomeados (`HEADER_EDUCADOR`, `HEADER_TURMA`, `HEADER_MES`).
-- Bloco de participantes: insere linhas via `insertDimension`, preenche nomes (com sufixo `(D DD/MM)` se desligado no mês) e para cada coluna de data marca:
-  - `P` em célula com fundo preto e texto branco
-  - `A` em célula com fundo branco e texto preto
-  - `D` em célula com fundo cinza claro (a partir da próxima data pós-desligamento até o fim do mês)
-- Última linha = `Assinatura do Educador: _______________________`. **Não inserir nenhuma linha abaixo dela** (regra explícita do seu comentário).
-- Auto-fit de altura de linhas conforme conteúdo (já comentado nos modelos).
+### Demais 9 documentos (PDF → Docs/Sheets nativo)
+Para Roteiro de Visita, Atendimento, Orçamento/Mapa, Prestação de Contas, REO, RCA, Relatório Mensal, Cardápio + Movimentação, Transporte: gera o PDF/XLSX com o exporter já existente, faz `Drive.files.upload` com `?convert=true`/ ou `files.copy` com `mimeType: application/vnd.google-apps.document` (PDF→Docs) ou `.spreadsheet` (XLSX→Sheets). **Nenhum builder novo nesta etapa.**
 
-## 3. Botão "Abrir no Google" + queue
+## Tabela final entregue para você comentar
 
-Sem alterar UI atual. Os botões já existem (DriveSyncBadge); o que muda é o que a worker faz por baixo. Quando o tipo for um dos 4 cobertos pelos modelos, ela usa `copyFromTemplate(tipo)`; senão, mantém o builder atual (REO, RCA, etc.).
+Vou enfileirar 1 exemplo real de cada tipo (escolhendo o registro com mais informação/fotos) e responder com a tabela:
 
-## 4. Demais documentos (mantém layout PDF)
+| # | Documento | Critério | Link Docs/Sheets |
+|---|---|---|---|
+| 1 | Relatório de Atividade | mais fotos + presença + observações longas | … |
+| 2 | Planejamento | mais campos preenchidos | … |
+| 3 | Lista de Frequência (Web) | turma com mais participantes | … |
+| 4 | Lista de Chamada (Física) | mesma turma | … |
+| 5 | Roteiro de Visita | mais recente | … |
+| 6 | Atendimento Equipe Técnica | mais recente | … |
+| 7 | Orçamento / Mapa | 3 fornecedores | … |
+| 8 | Prestação de Contas | mês com mais despesas | … |
+| 9 | REO | último gerado | … |
+| 10 | RCA | último gerado | … |
+| 11 | Relatório Mensal | último gerado | … |
+| 12 | Cardápio + Movimentação | mês corrente | … |
+| 13 | Transporte | dia mais recente | … |
 
-Para cada um (Roteiro de Visita, Atendimento, Orçamento, Prestação de Contas, Cardápio, Movimentação, Transporte, REO, RCA, Relatório Mensal): **gerar PDF com o builder atual, fazer upload ao Drive e converter para Docs/Sheets nativo** via `files.copy` com `mimeType: application/vnd.google-apps.document` (ou `.spreadsheet`). Isso preserva 100% o layout PDF atual mas dá um arquivo Google editável/comentável. Sem reconstruir templates para esses agora.
-
-## 5. Testes — 1 exemplo real de cada
-
-Vou enfileirar e processar pelo menos 1 exemplo de cada tipo, escolhendo o registro com **maior volume de informação** (e fotos quando aplicável):
-
-| # | Documento | Critério de escolha |
-|---|---|---|
-| 1 | Relatório de Atividade | maior nº de fotos + presença + observações longas |
-| 2 | Planejamento | mais campos preenchidos |
-| 3 | Lista de Frequência (Web) | turma com mais participantes do mês corrente |
-| 4 | Lista de Chamada (Física) | mesma turma para comparação |
-| 5 | Roteiro de Visita | mais recente |
-| 6 | Atendimento Equipe Técnica | mais recente |
-| 7 | Orçamento / Mapa | com 3 fornecedores |
-| 8 | Prestação de Contas | mês com mais despesas |
-| 9 | REO | último gerado |
-| 10 | RCA | último gerado |
-| 11 | Relatório Mensal | último gerado |
-| 12 | Cardápio + Movimentação Cozinha | mês corrente |
-| 13 | Transporte diário | dia mais recente |
-
-Devolvo a tabela de links Docs/Sheets para você abrir, comentar dentro do próprio Google e na próxima rodada eu leio via `comments.list` e ajusto os modelos.
-
-## Detalhes técnicos
-
-- **Schema novo**: `drive_modelos(tipo PK, template_doc_id, ultima_atualizacao_origem, copia_doc_id, copia_modificada_em)`.
-- **Cron `refresh-modelos`** (1×/dia): para cada `template_doc_id` chama `Drive.files.get(fields=modifiedTime)`, se mudou recopia para a pasta de Modelos com nome atualizado (`atualizado em DD/MM/AAAA`).
-- **Worker — novo helper `cloneFromTemplate(tipo, destFolderId, title)`**: faz `Drive.files.copy` do `template_doc_id` → retorna novo `documentId`/`spreadsheetId`.
-- **Helper `replacePlaceholders(docId, map)`**: gera `replaceAllText` requests para cada par `{KEY}` → `valor`.
-- **Helper `replaceCheckboxes(docId, key, marcado)`**: substitui `{OBJ_1}` por `■` ou `□` (caractere unicode, mantém a mesma fonte do template).
-- **Helper `insertImageAtPlaceholder(docId, placeholder, driveFileId)`**: 1) busca o índice do placeholder; 2) `deleteContentRange` do placeholder; 3) `insertInlineImage` com `uri` apontando para `https://drive.google.com/uc?id={fileId}` (foto já está pública no Drive interno, ou geramos token temporário via `files.get?fields=webContentLink`).
-- **Cores Likert nas células de competências**: `updateTableCellStyle` com `backgroundColor` mapeado: 1=#C0392B, 2=#E67E22, 3=#F1C40F, 4=#27AE60, 5=#16A085 (ajustaremos exato após você comentar).
-- **Idempotência**: se `drive_file_id` já existe no registro, em vez de copiar de novo, atualiza o existente com `deleteContentRange` + recopia o body do template (clonando seu conteúdo). Isso evita acumular cópias.
-- **Não quebra nada**: exportadores PDF/DOCX/XLSX atuais permanecem; apenas a parte "espelho no Google" muda de "construído do zero" para "copiado do template".
+Você comenta dentro do próprio Google e na próxima rodada eu releio via `comments.list` e itero.
 
 ## Não está nesta etapa
 
-- Substituir/remover os exportadores PDF/DOCX/XLSX atuais.
-- Construir templates Google para REO/RCA/Roteiro/Atendimento/Orçamento/Prestação/Cardápio/Movimentação/Transporte/Mensal — esses ficam como cópia do PDF convertida para nativo até você decidir desenhar templates específicos.
-- Sincronização bidirecional (editar no Google → refletir no SysCFV).
+- Substituir os exportadores PDF/DOCX/XLSX atuais (continuam servindo de fonte para os 9 docs convertidos).
+- Sincronização bidirecional (Google → SysCFV).
+- Templates Google novos para os 9 documentos secundários (mantém PDF/XLSX → conversão nativa).
