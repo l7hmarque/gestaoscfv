@@ -23,6 +23,327 @@ const SHEETS_GW = "https://connector-gateway.lovable.dev/google_sheets/v4";
 const MAX_JOBS_PER_RUN = 8;
 const MAX_TENTATIVAS = 5;
 
+// =============================================================================
+// Template Engine (clone-from-template + replace placeholders)
+// =============================================================================
+const LIKERT_RGB: Record<number, { red: number; green: number; blue: number }> = {
+  1: { red: 0.753, green: 0.224, blue: 0.169 }, // #C0392B
+  2: { red: 0.902, green: 0.494, blue: 0.133 }, // #E67E22
+  3: { red: 0.945, green: 0.769, blue: 0.059 }, // #F1C40F
+  4: { red: 0.153, green: 0.682, blue: 0.376 }, // #27AE60
+  5: { red: 0.086, green: 0.627, blue: 0.522 }, // #16A085
+};
+
+async function getTemplateId(tipo: string): Promise<string> {
+  const { data } = await supabase.from("drive_modelos").select("template_doc_id").eq("tipo", tipo).maybeSingle();
+  if (!data?.template_doc_id) throw new Error(`Modelo '${tipo}' nao configurado em drive_modelos`);
+  return data.template_doc_id as string;
+}
+
+async function cloneFromTemplate(tipo: string, parentFolderId: string, title: string): Promise<string> {
+  const tplId = await getTemplateId(tipo);
+  const r = await fetch(`${DRIVE_GW}/files/${tplId}/copy?fields=id,supportsAllDrives=true`, {
+    method: "POST",
+    headers: { ...driveHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ name: title, parents: [parentFolderId] }),
+  });
+  if (!r.ok) throw new Error(`cloneTemplate ${tipo} ${r.status}: ${await r.text()}`);
+  return (await r.json()).id;
+}
+
+async function docsBatch(docId: string, requests: any[]): Promise<any> {
+  if (!requests.length) return null;
+  const r = await fetch(`${DOCS_GW}/documents/${docId}:batchUpdate`, {
+    method: "POST",
+    headers: docsHeaders(),
+    body: JSON.stringify({ requests }),
+  });
+  if (!r.ok) throw new Error(`docsBatch ${r.status}: ${await r.text()}`);
+  return await r.json();
+}
+
+async function getDocFull(docId: string): Promise<any> {
+  const r = await fetch(`${DOCS_GW}/documents/${docId}`, { headers: docsHeaders() });
+  if (!r.ok) throw new Error(`getDoc ${r.status}`);
+  return await r.json();
+}
+
+type WalkRun = { startIndex: number; endIndex: number; content: string; tableStartLocation?: number; rowIndex?: number; columnIndex?: number };
+function* walkRuns(els: any[]): Generator<WalkRun> {
+  for (const el of els || []) {
+    if (el.paragraph) {
+      for (const e of el.paragraph.elements || []) {
+        if (e.textRun) yield { startIndex: e.startIndex, endIndex: e.endIndex, content: e.textRun.content || "" };
+      }
+    }
+    if (el.table) {
+      const ts = el.startIndex;
+      for (let r = 0; r < el.table.tableRows.length; r++) {
+        for (let c = 0; c < el.table.tableRows[r].tableCells.length; c++) {
+          const cell = el.table.tableRows[r].tableCells[c];
+          for (const sub of walkRuns(cell.content)) {
+            yield { ...sub, tableStartLocation: ts, rowIndex: r, columnIndex: c };
+          }
+        }
+      }
+    }
+  }
+}
+
+async function replacePlaceholders(docId: string, map: Record<string, string>) {
+  const reqs: any[] = [];
+  for (const [k, v] of Object.entries(map)) {
+    reqs.push({ replaceAllText: { containsText: { text: k, matchCase: true }, replaceText: String(v ?? "") } });
+  }
+  // Docs API limita ~100 requests/call; chunkar por segurança
+  for (let i = 0; i < reqs.length; i += 80) {
+    await docsBatch(docId, reqs.slice(i, i + 80));
+  }
+}
+
+async function colorCellByToken(docId: string, token: string, nota: number) {
+  const n = Math.max(1, Math.min(5, Math.round(nota)));
+  const color = LIKERT_RGB[n];
+  if (!color) return;
+  const doc = await getDocFull(docId);
+  for (const r of walkRuns(doc.body.content)) {
+    if (r.tableStartLocation !== undefined && r.content.includes(token)) {
+      await docsBatch(docId, [{
+        updateTableCellStyle: {
+          tableCellStyle: { backgroundColor: { color: { rgbColor: color } } },
+          fields: "backgroundColor",
+          tableRange: {
+            tableCellLocation: { tableStartLocation: { index: r.tableStartLocation }, rowIndex: r.rowIndex, columnIndex: r.columnIndex },
+            rowSpan: 1,
+            columnSpan: 1,
+          },
+        },
+      }]).catch((e) => console.warn("colorCell", token, e.message));
+      return;
+    }
+  }
+}
+
+async function makeFilePublic(fileId: string) {
+  await fetch(`${DRIVE_GW}/files/${fileId}/permissions`, {
+    method: "POST",
+    headers: { ...driveHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "anyone", role: "reader" }),
+  }).catch(() => {});
+}
+
+async function insertImageAtToken(docId: string, token: string, driveFileId: string, widthPt = 460): Promise<boolean> {
+  await makeFilePublic(driveFileId);
+  const doc = await getDocFull(docId);
+  for (const r of walkRuns(doc.body.content)) {
+    const pos = r.content.indexOf(token);
+    if (pos < 0) continue;
+    const idx = r.startIndex + pos;
+    try {
+      await docsBatch(docId, [
+        { deleteContentRange: { range: { startIndex: idx, endIndex: idx + token.length } } },
+        { insertInlineImage: {
+          location: { index: idx },
+          uri: `https://drive.google.com/uc?export=view&id=${driveFileId}`,
+          objectSize: { width: { magnitude: widthPt, unit: "PT" }, height: { magnitude: widthPt * 0.75, unit: "PT" } },
+        } },
+      ]);
+      return true;
+    } catch (e) {
+      console.warn("insertImage", token, (e as Error).message);
+      // limpa o token mesmo sem imagem para não deixar lixo
+      await replacePlaceholders(docId, { [token]: "[imagem indisponível]" });
+      return false;
+    }
+  }
+  return false;
+}
+
+// Localiza posição imediatamente APÓS um anchor de texto e insere uma tabela com cabeçalho + linhas
+async function insertTableAfterAnchor(docId: string, anchor: string, header: string[], rows: string[][]) {
+  if (!rows.length && !header.length) return;
+  const doc = await getDocFull(docId);
+  let insertIdx = -1;
+  for (const el of doc.body.content || []) {
+    if (!el.paragraph) continue;
+    const txt = (el.paragraph.elements || []).map((e: any) => e.textRun?.content || "").join("");
+    if (txt.includes(anchor)) {
+      // achar índice DEPOIS do anchor: usar endIndex do parágrafo + 1 espaço de buffer
+      // mas precisamos de um parágrafo vazio depois para inserir a tabela; usar parágrafo seguinte
+      insertIdx = el.endIndex; // posição imediatamente após o "\n" do parágrafo
+      break;
+    }
+  }
+  if (insertIdx < 0) {
+    // anchor não encontrado: ignora
+    return;
+  }
+  const cols = (header.length || rows[0]?.length || 1);
+  const totalRows = (header.length ? 1 : 0) + rows.length;
+  if (totalRows < 1 || cols < 1) return;
+  await docsBatch(docId, [{ insertTable: { rows: totalRows, columns: cols, location: { index: insertIdx } } }]);
+
+  // re-busca a tabela recém-criada (primeira tabela cuja startIndex >= insertIdx)
+  const doc2 = await getDocFull(docId);
+  let tbl: any = null;
+  for (const el of doc2.body.content || []) {
+    if (el.table && el.startIndex >= insertIdx) { tbl = el; break; }
+  }
+  if (!tbl) return;
+
+  const filled = header.length ? [header, ...rows] : rows;
+  // inserir em ordem reversa para preservar índices
+  const reqs: any[] = [];
+  for (let r = filled.length - 1; r >= 0; r--) {
+    const row = tbl.table.tableRows[r];
+    if (!row) continue;
+    for (let c = filled[r].length - 1; c >= 0; c--) {
+      const cell = row.tableCells[c];
+      if (!cell) continue;
+      // inserir no índice do parágrafo da célula (cell.startIndex + 1 = dentro do primeiro parágrafo)
+      const insIdx = cell.startIndex + 1;
+      const text = String(filled[r][c] ?? "");
+      if (text) reqs.push({ insertText: { location: { index: insIdx }, text } });
+    }
+  }
+  if (reqs.length) await docsBatch(docId, reqs);
+
+  // negrito no cabeçalho
+  if (header.length) {
+    const doc3 = await getDocFull(docId);
+    let tbl3: any = null;
+    for (const el of doc3.body.content || []) {
+      if (el.table && el.startIndex >= insertIdx) { tbl3 = el; break; }
+    }
+    if (tbl3) {
+      const headerRow = tbl3.table.tableRows[0];
+      const styleReqs: any[] = [];
+      for (const cell of headerRow.tableCells) {
+        styleReqs.push({
+          updateTextStyle: {
+            range: { startIndex: cell.startIndex, endIndex: cell.endIndex - 1 },
+            textStyle: { bold: true },
+            fields: "bold",
+          },
+        });
+      }
+      if (styleReqs.length) await docsBatch(docId, styleReqs);
+    }
+  }
+}
+
+// =============================================================================
+// Template fillers
+// =============================================================================
+function fmtDateBR(d: any): string {
+  if (!d) return "";
+  const dt = typeof d === "string" ? new Date(d.length <= 10 ? d + "T12:00:00" : d) : d;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(dt.getDate())}/${p(dt.getMonth() + 1)}/${dt.getFullYear()}`;
+}
+
+async function fillRelatorioTemplate(docId: string, ctx: {
+  rel: any; turmas: string[]; presenca: any[]; fotos: any[]; bairros: string[];
+}) {
+  const { rel, turmas, presenca, fotos, bairros } = ctx;
+
+  // Mapas de checkboxes (engajamento[], situacoes_relevantes[])
+  const eng: string[] = rel.engajamento || [];
+  const sit: string[] = rel.situacoes_relevantes || [];
+  const ENG_KEYS = ["participativo", "disperso", "boa_interacao", "intervencao"]; // 1..4
+  const SIT_KEYS = ["nenhuma", "conflito", "vulnerabilidade", "encaminhamento", "comunicacao_familia"]; // 1..5
+  const obj = rel.objetivo_alcancado || ""; // "alcancado"|"parcialmente"|"nao_alcancado"
+
+  const map: Record<string, string> = {
+    "{DATA}": fmtDateBR(rel.data),
+    "{BAIRROS}": bairros.join(", ") || "—",
+    "{PERIODO}": rel.periodo_atividade || "—",
+    "{TURMAS}": turmas.join(", ") || "—",
+    "{EDUCADOR}": rel.educador_nome || "—",
+    "{NOME_ATIVIDADE}": rel.nome_atividade || "—",
+    "{TIPO_ATIVIDADE}": (rel.tipo_atividade || []).join(", ") || "—",
+    "{NUM_PRESENTES}": String(rel.num_participantes ?? presenca.filter((p) => p.presente).length),
+    "{NUM_MATRICULADOS}": String(rel.num_matriculados ?? presenca.length),
+    "{ATIVIDADES_REALIZADAS}": rel.atividades_realizadas || rel.descricao || "—",
+    "{OBSERVACOES}": rel.observacoes || "—",
+    "{PCT_ADESAO}": rel.pct_adesao != null ? `${rel.pct_adesao}%` : "—",
+    "{INICIATIVA}": rel.iniciativa != null ? String(rel.iniciativa) : "—",
+    "{AUTONOMIA}": rel.autonomia != null ? String(rel.autonomia) : "—",
+    "{COLABORACAO}": rel.colaboracao != null ? String(rel.colaboracao) : "—",
+    "{COMUNICACAO}": rel.comunicacao != null ? String(rel.comunicacao) : "—",
+    "{RESPEITO_MUTUO}": rel.respeito_mutuo != null ? String(rel.respeito_mutuo) : "—",
+    "{SCORE_ELO}": rel.score_elo != null ? String(rel.score_elo) : "—",
+    "{ENG_1}": eng.includes(ENG_KEYS[0]) ? "■ " : "□ ",
+    "{ENG_2}": eng.includes(ENG_KEYS[1]) ? "■ " : "□ ",
+    "{ENG_3}": eng.includes(ENG_KEYS[2]) ? "■ " : "□ ",
+    "{ENG_4}": eng.includes(ENG_KEYS[3]) ? "■ " : "□ ",
+    "{SIT_1}": sit.includes(SIT_KEYS[0]) ? "■ " : "□ ",
+    "{SIT_2}": sit.includes(SIT_KEYS[1]) ? "■ " : "□ ",
+    "{SIT_3}": sit.includes(SIT_KEYS[2]) ? "■ " : "□ ",
+    "{SIT_4}": sit.includes(SIT_KEYS[3]) ? "■ " : "□ ",
+    "{SIT_5}": sit.includes(SIT_KEYS[4]) ? "■ " : "□ ",
+    "{OBJ_ALC}": obj === "alcancado" ? "■ " : "□ ",
+    "{OBJ_PAR}": obj === "parcialmente" ? "■ " : "□ ",
+    "{OBJ_NAO}": obj === "nao_alcancado" ? "■ " : "□ ",
+  };
+
+  await replacePlaceholders(docId, map);
+
+  // Cores nas células de competência
+  const compTokens: [string, number | null][] = [
+    ["INICIATIVA", rel.iniciativa],
+    ["AUTONOMIA", rel.autonomia],
+    ["COLABORAÇÃO", rel.colaboracao],
+    ["COMUNICAÇÃO", rel.comunicacao],
+    ["RESPEITO MÚTUO", rel.respeito_mutuo],
+    ["SCORE ELO", rel.score_elo],
+  ];
+  for (const [tok, val] of compTokens) {
+    if (val != null) await colorCellByToken(docId, tok, Number(val));
+  }
+
+  // Fotos (até 5 placeholders)
+  for (let i = 0; i < 5; i++) {
+    const tok = `{foto${i + 1}}`;
+    const fileId = fotos[i]?.drive_file_id;
+    if (fileId) {
+      await insertImageAtToken(docId, tok, fileId, 460);
+    } else {
+      await replacePlaceholders(docId, { [tok]: "" });
+    }
+  }
+
+  // ANEXO II - tabela de presença
+  const presOrdered = [...presenca].sort((a, b) =>
+    (a.participantes?.nome_completo || "").localeCompare(b.participantes?.nome_completo || "")
+  );
+  const rows = presOrdered.map((p, i) => [
+    String(i + 1),
+    p.participantes?.nome_completo || "—",
+    p.presente ? "Presente" : (p.justificativa ? `Ausente: ${p.justificativa}` : "Ausente"),
+  ]);
+  if (rows.length) {
+    await insertTableAfterAnchor(docId, "ANEXO II", ["Nº", "Participante", "Status"], rows);
+  }
+}
+
+async function fillPlanejamentoTemplate(docId: string, ctx: { pl: any; turmas: string[] }) {
+  const { pl, turmas } = ctx;
+  const map: Record<string, string> = {
+    "{EDUCADOR}": pl.educador_nome || "—",
+    "{TURMAS}": turmas.join(", ") || "—",
+    "{TITULO}": pl.titulo || "—",
+    "{TEMA}": pl.tema || "—",
+    "{QUESTAO_GERADORA}": pl.questao_geradora || "—",
+    "{OBJETIVOS}": pl.objetivos || "—",
+    "{FORMA_AVALIACAO}": (pl.forma_avaliacao || []).join(", ") || "—",
+    "{ROTEIRO}": pl.roteiro || "—",
+    "{MATERIAIS}": pl.materiais || "—",
+    "{APOIO_TECNICO}": pl.apoio_tecnico || "—",
+  };
+  await replacePlaceholders(docId, map);
+}
+
 function driveHeaders() {
   return {
     Authorization: `Bearer ${LOVABLE_API_KEY}`,
