@@ -42,7 +42,7 @@ async function getTemplateId(tipo: string): Promise<string> {
 
 async function cloneFromTemplate(tipo: string, parentFolderId: string, title: string): Promise<string> {
   const tplId = await getTemplateId(tipo);
-  const r = await fetch(`${DRIVE_GW}/files/${tplId}/copy?fields=id,supportsAllDrives=true`, {
+  const r = await fetch(`${DRIVE_GW}/files/${tplId}/copy?fields=id&supportsAllDrives=true`, {
     method: "POST",
     headers: { ...driveHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({ name: title, parents: [parentFolderId] }),
