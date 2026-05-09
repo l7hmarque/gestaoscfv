@@ -1156,8 +1156,13 @@ async function processPlanejamento(origemId: string): Promise<{ drive_file_id: s
   const titulo = `SysCFV_Planejamento_${fmtDate(dataRef)}_${safe(pl.titulo || "planejamento")}_${safe(educadorNome)}`;
 
   let docId = pl.drive_file_id as string | null;
-  if (!docId) docId = await createGoogleDoc(titulo, folderId);
-  await writeDoc(docId, planejamentoToBlocks({ ...pl, educador_nome: educadorNome }, turmas));
+  if (!docId) {
+    docId = await cloneFromTemplate("planejamento", folderId, titulo);
+  } else {
+    await fetch(`${DRIVE_GW}/files/${docId}`, { method: "DELETE", headers: driveHeaders() }).catch(() => {});
+    docId = await cloneFromTemplate("planejamento", folderId, titulo);
+  }
+  await fillPlanejamentoTemplate(docId, { pl: { ...pl, educador_nome: educadorNome }, turmas });
   const url = `https://docs.google.com/document/d/${docId}/edit`;
   await supabase.from("planejamentos").update({ drive_file_id: docId, drive_url: url }).eq("id", origemId);
   return { drive_file_id: docId, drive_url: url };
