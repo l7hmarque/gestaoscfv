@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Users, GraduationCap, BookOpen, FileText, Pin, Bell, AlertTriangle, CalendarDays, Newspaper, ClipboardCheck, LayoutDashboard, FileDown, FolderOpen, HeartHandshake, Bus, DollarSign, Receipt } from "lucide-react";
+import { Users, GraduationCap, BookOpen, FileText, Pin, Bell, AlertTriangle, CalendarDays, Newspaper, ClipboardCheck, LayoutDashboard, FileDown, HeartHandshake, Bus, DollarSign, MessageSquare } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,14 +23,15 @@ const shortcutGroups = [
     items: [
       { title: "Planejamento", description: "Planos pedagógicos", icon: BookOpen, url: "/planejamentos", border: "border-l-primary" },
       { title: "Relatórios", description: "Registrar atividades", icon: FileText, url: "/relatorios", border: "border-l-primary" },
-      { title: "Exportar Relatórios", description: "Lote e formatos", icon: FileDown, url: "/relatorios/exportar", border: "border-l-secondary" },
-      { title: "Biblioteca .docx", description: "Modelos e arquivos", icon: FolderOpen, url: "/biblioteca", border: "border-l-[hsl(45,80%,55%)]" },
+      { title: "Exportar Relatórios em Lote", description: "Lote e formatos", icon: FileDown, url: "/relatorios/exportar", border: "border-l-secondary" },
+      { title: "Exportar Chamada", description: "Lista física por turma", icon: FileDown, url: "/presenca/exportar", border: "border-l-[hsl(280,40%,55%)]" },
     ],
   },
   {
     label: "Comunicação",
     items: [
-      { title: "Feed / Mural", description: "Novidades da equipe", icon: Newspaper, url: "/feed", border: "border-l-[hsl(150,45%,45%)]" },
+      { title: "Feed", description: "Novidades da equipe", icon: Newspaper, url: "/feed", border: "border-l-[hsl(150,45%,45%)]" },
+      { title: "Mural", description: "Avisos fixados", icon: MessageSquare, url: "/mural", border: "border-l-[hsl(150,45%,45%)]" },
     ],
   },
   {
@@ -40,7 +41,6 @@ const shortcutGroups = [
       { title: "Cronograma", description: "Agenda semanal", icon: CalendarDays, url: "/cronograma", border: "border-l-secondary" },
       { title: "Transporte", description: "Embarques e rotas", icon: Bus, url: "/transporte", border: "border-l-primary" },
       { title: "Financeiro", description: "Orçamentos e despesas", icon: DollarSign, url: "/financeiro", border: "border-l-[hsl(150,45%,45%)]" },
-      { title: "Arquivos Financeiros", description: "Documentos e SIT", icon: Receipt, url: "/financeiro/arquivos", border: "border-l-[hsl(45,80%,55%)]" },
     ],
   },
 ];

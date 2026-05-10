@@ -44,7 +44,6 @@ const RoteiroNovoPage = lazy(() => import("./pages/equipe-tecnica/roteiros/Rotei
 const RoteiroDetalhePage = lazy(() => import("./pages/equipe-tecnica/roteiros/RoteiroDetalhePage"));
 const FinanceiroPage = lazy(() => import("./pages/financeiro/FinanceiroPage"));
 const ArquivosFinanceirosPage = lazy(() => import("./pages/financeiro/ArquivosFinanceirosPage"));
-const BibliotecaPage = lazy(() => import("./pages/biblioteca/BibliotecaPage"));
 const SiteLayout = lazy(() => import("./components/SiteLayout"));
 const SiteHomePage = lazy(() => import("./pages/site/SiteHomePage"));
 const SiteIndicadoresPage = lazy(() => import("./pages/site/SiteIndicadoresPage"));
@@ -126,7 +125,6 @@ const App = () => (
                   <Route path="/equipe-tecnica/roteiros/:id" element={<RoteiroDetalhePage />} />
                   <Route path="/financeiro" element={<FinanceiroPage />} />
                   <Route path="/financeiro/arquivos" element={<ArquivosFinanceirosPage />} />
-                  <Route path="/biblioteca" element={<BibliotecaPage />} />
                   <Route path="/site-admin" element={<SiteAdminPage />} />
                   <Route path="/configuracoes" element={<ConfiguracoesPage />} />
                   <Route path="/desligamento-admin" element={<PainelDesligamentoPage />} />
