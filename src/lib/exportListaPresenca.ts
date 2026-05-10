@@ -107,7 +107,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   // Row 3: blank separator
   rows.push([""]);
   // Row 4: Title
-  rows.push([`LISTA DE FREQUÊNCIA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`]);
+  rows.push([`LISTA DE CHAMADA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`]);
   // Row 5: Turma name (large and bold)
   rows.push([`${turma.nome}`]);
   // Row 6: Info line
@@ -117,7 +117,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   const bairroInfo = turma.bairros?.nome || "";
   const infoParts = [
     periodoInfo && `Período: ${periodoInfo}`,
-    faixaInfo && `Faixa: ${faixaInfo}`,
+    faixaInfo && `Faixa Etária: ${faixaInfo}`,
     educadorInfo && `Educador(a): ${educadorInfo}`,
     bairroInfo && `Bairro: ${bairroInfo}`,
   ].filter(Boolean).join("  ·  ");
