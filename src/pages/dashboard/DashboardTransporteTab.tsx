@@ -347,17 +347,32 @@ export default function DashboardTransporteTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-lg font-semibold text-foreground">Transporte — Pontos</h2>
+        <h2 className="text-lg font-semibold text-foreground">Transporte</h2>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => { setBulkMode(!bulkMode); setSelected(new Set()); }}>
-            {bulkMode ? "Sair seleção" : "Seleção em massa"}
-          </Button>
-          <Button size="sm" onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" /> Novo Ponto</Button>
+          {subTab === "pontos" && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => { setBulkMode(!bulkMode); setSelected(new Set()); }}>
+                {bulkMode ? "Sair seleção" : "Seleção em massa"}
+              </Button>
+              <Button size="sm" onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" /> Novo Ponto</Button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Embarques de hoje (motorista + coordenação) */}
-      {isMotoristaOuCoord && (
+      <Tabs value={subTab} onValueChange={(v) => setSubTab(v as any)} className="w-full">
+        <TabsList className="grid grid-cols-2 w-full sm:w-auto sm:inline-grid">
+          <TabsTrigger value="embarques">Embarques de Hoje</TabsTrigger>
+          <TabsTrigger value="pontos">Pontos & Rotas</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="embarques" className="space-y-4 mt-4">
+          {!isMotoristaOuCoord && (
+            <p className="text-sm text-muted-foreground italic p-4 border rounded-md">
+              Somente motoristas e coordenação visualizam os embarques diários.
+            </p>
+          )}
+          {isMotoristaOuCoord && (
         <Card className="border-l-4 border-l-blue-600">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2">
