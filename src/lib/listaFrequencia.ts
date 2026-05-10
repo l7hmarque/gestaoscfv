@@ -100,13 +100,14 @@ function rotularNome(p: ListaParticipante): string {
 /** Carrega vínculos turma↔participante e presenças, montando a estrutura
  * esperada pelos builders existentes. */
 async function carregarDadosTurma(turma: ListaTurma, mes: number, ano: number) {
+  const startDate = `${ano}-${String(mes).padStart(2, "0")}-01`;
   const endDate =
     mes === 12 ? `${ano + 1}-01-01` : `${ano}-${String(mes + 1).padStart(2, "0")}-01`;
 
   const { data: tpData } = await supabase
     .from("turma_participantes")
     .select(
-      "participante_id, participantes(nome_completo, status, data_desligamento, created_at)"
+      "participante_id, data_entrada, data_saida, participantes(nome_completo, status, data_desligamento, created_at)"
     )
     .eq("turma_id", turma.id);
 
@@ -121,7 +122,10 @@ async function carregarDadosTurma(turma: ListaTurma, mes: number, ano: number) {
   const datas = Array.from(datasSet).sort();
 
   const participantesRaw: ListaParticipante[] = (tpData || [])
-    .filter((tp: any) => !tp.participantes?.created_at || tp.participantes.created_at < endDate)
+    .filter((tp: any) =>
+      (!tp.data_entrada || tp.data_entrada < endDate) &&
+      (!tp.data_saida || tp.data_saida >= startDate)
+    )
     .map((tp: any) => ({
       participante_id: tp.participante_id,
       nome: tp.participantes?.nome_completo || "",
