@@ -244,6 +244,15 @@ function fmtDateBR(d: any): string {
   return `${p(dt.getDate())}/${p(dt.getMonth() + 1)}/${dt.getFullYear()}`;
 }
 
+// snake_case / SNAKE_CASE → "Title Case" (preserva acentos)
+function humanize(s: string): string {
+  if (!s) return "";
+  return String(s)
+    .replace(/[_-]+/g, " ")
+    .toLowerCase()
+    .replace(/\b([a-zà-ÿ])/g, (_m, c) => c.toUpperCase());
+}
+
 async function fillRelatorioTemplate(docId: string, ctx: {
   rel: any; turmas: string[]; presenca: any[]; fotos: any[]; bairros: string[];
 }) {
@@ -331,6 +340,8 @@ async function fillRelatorioTemplate(docId: string, ctx: {
 
 async function fillPlanejamentoTemplate(docId: string, ctx: { pl: any; turmas: string[] }) {
   const { pl, turmas } = ctx;
+  const eixos: string[] = pl.eixos || [];
+  const EIXO_KEYS = ["convivencia_social", "direito_de_ser", "participacao_social"];
   const map: Record<string, string> = {
     "{EDUCADOR}": pl.educador_nome || "—",
     "{TURMAS}": turmas.join(", ") || "—",
@@ -342,6 +353,9 @@ async function fillPlanejamentoTemplate(docId: string, ctx: { pl: any; turmas: s
     "{ROTEIRO}": pl.roteiro || "—",
     "{MATERIAIS}": pl.materiais || "—",
     "{APOIO_TECNICO}": pl.apoio_tecnico || "—",
+    "{EIXO_1}": eixos.includes(EIXO_KEYS[0]) ? "■" : "☐",
+    "{EIXO_2}": eixos.includes(EIXO_KEYS[1]) ? "■" : "☐",
+    "{EIXO_3}": eixos.includes(EIXO_KEYS[2]) ? "■" : "☐",
   };
   await replacePlaceholders(docId, map);
 }
