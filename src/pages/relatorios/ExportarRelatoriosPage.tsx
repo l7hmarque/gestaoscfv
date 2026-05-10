@@ -418,7 +418,9 @@ export default function ExportarRelatoriosPage() {
         });
 
         const turmaInfoLine = `Turma: ${t.nome} | Bairro: ${bairroNome} | Período: ${t.periodo || "N/I"}`;
-        const subInfoLine = `Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}`;
+        const subInfoLine =
+          `Mês: ${MESES_NOMES[mesNum - 1]} / ${ano}  ·  ` +
+          `Legenda: ■ presente · vazio = ausente · cinza = fora do vínculo (não matriculado / já saiu) · D = desligado · BA = busca ativa`;
         const { data: sheetData, dataStartOffset: matOffset } = addInstitutionalHeader(
           [colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]],
           "MATRIZ DE FREQUÊNCIA", turmaInfoLine, subInfoLine,
