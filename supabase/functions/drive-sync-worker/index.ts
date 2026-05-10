@@ -1394,6 +1394,36 @@ Deno.serve(async (req) => {
         });
       }
     }
+    if (action === "process_planejamento_now") {
+      const body = await req.clone().json().catch(() => ({}));
+      const origemId: string | undefined = body?.origem_id || body?.planejamento_id;
+      if (!origemId) {
+        return new Response(JSON.stringify({ ok: false, error: "origem_id obrigatório" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      try {
+        const out = await processPlanejamento(origemId);
+        await supabase.from("drive_sync_queue").upsert({
+          tipo: "planejamento",
+          origem_id: origemId,
+          status: "sincronizado",
+          drive_file_id: out.drive_file_id,
+          drive_url: out.drive_url,
+          synced_at: new Date().toISOString(),
+          ultimo_erro: null,
+        }, { onConflict: "tipo,origem_id" });
+        return new Response(JSON.stringify({ ok: true, ...out }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (e: any) {
+        return new Response(JSON.stringify({ ok: false, error: String(e?.message || e) }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
     const result = await processQueue();
     return new Response(JSON.stringify({ ok: true, ...result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
