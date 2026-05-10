@@ -19,7 +19,7 @@ export default function DashboardAdminTab() {
   const [syncMes, setSyncMes] = useState<number>(hoje.getMonth() + 1);
   const [syncAno, setSyncAno] = useState<number>(hoje.getFullYear());
   const [syncTipos, setSyncTipos] = useState<Record<string, boolean>>({
-    mensal: true, listas: true, relatorios: true, planejamentos: true, equipe_tecnica: true,
+    mensal: true, listas: true, relatorios: true, planejamentos: true, equipe_tecnica: true, reo: true,
   });
   const toggleTipo = (k: string) => setSyncTipos((s) => ({ ...s, [k]: !s[k] }));
 
@@ -123,11 +123,12 @@ export default function DashboardAdminTab() {
 
           <div className="grid sm:grid-cols-2 gap-2 border rounded-md p-3">
             {[
-              { k: "mensal", label: "Relatório Mensal (XLSX)" },
+              { k: "mensal", label: "Relatório Mensal (Google Sheets)" },
               { k: "listas", label: "Listas de Presença por turma" },
               { k: "relatorios", label: "Relatórios de Atividade do mês" },
               { k: "planejamentos", label: "Planejamentos do mês" },
               { k: "equipe_tecnica", label: "Equipe Técnica (atendimentos + relatos)" },
+              { k: "reo", label: "REO — Relatório de Execução do Objeto" },
             ].map((opt) => (
               <label key={opt.k} className="flex items-center gap-2 text-xs cursor-pointer">
                 <Checkbox checked={!!syncTipos[opt.k]} onCheckedChange={() => toggleTipo(opt.k)} />
