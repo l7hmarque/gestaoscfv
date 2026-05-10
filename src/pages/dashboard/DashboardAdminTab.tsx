@@ -19,7 +19,7 @@ export default function DashboardAdminTab() {
   const [syncMes, setSyncMes] = useState<number>(hoje.getMonth() + 1);
   const [syncAno, setSyncAno] = useState<number>(hoje.getFullYear());
   const [syncTipos, setSyncTipos] = useState<Record<string, boolean>>({
-    mensal: true, listas: true, relatorios: true, equipe_tecnica: true,
+    mensal: true, listas: true, relatorios: true, planejamentos: true, equipe_tecnica: true,
   });
   const toggleTipo = (k: string) => setSyncTipos((s) => ({ ...s, [k]: !s[k] }));
 
@@ -94,8 +94,8 @@ export default function DashboardAdminTab() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Sincroniza os documentos institucionais do mês selecionado para a pasta <code>SysCFV_Workspace</code> no
-            Google Drive (versões antigas mantidas como <code>_v2</code>, <code>_v3</code>...).
+            Sincroniza os documentos institucionais do mês selecionado para <code>SYSCFV / {`{MÊS} - {ANO}`}</code> no
+            Google Drive, usando os templates cadastrados em <strong>drive_modelos</strong>. Versões antigas viram <code>_v2</code>, <code>_v3</code>...
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -126,6 +126,7 @@ export default function DashboardAdminTab() {
               { k: "mensal", label: "Relatório Mensal (XLSX)" },
               { k: "listas", label: "Listas de Presença por turma" },
               { k: "relatorios", label: "Relatórios de Atividade do mês" },
+              { k: "planejamentos", label: "Planejamentos do mês" },
               { k: "equipe_tecnica", label: "Equipe Técnica (atendimentos + relatos)" },
             ].map((opt) => (
               <label key={opt.k} className="flex items-center gap-2 text-xs cursor-pointer">
@@ -160,6 +161,9 @@ export default function DashboardAdminTab() {
               )}
               {driveResult.sincronizados.relatorios?.length > 0 && (
                 <p>📝 Relatórios de Atividade: <span className="text-muted-foreground">{driveResult.sincronizados.relatorios.length} arquivo(s)</span></p>
+              )}
+              {driveResult.sincronizados.planejamentos?.length > 0 && (
+                <p>🗒 Planejamentos: <span className="text-muted-foreground">{driveResult.sincronizados.planejamentos.length} arquivo(s)</span></p>
               )}
               {driveResult.sincronizados.equipe_tecnica && (
                 <p>👥 Equipe Técnica: <span className="text-muted-foreground">{driveResult.sincronizados.equipe_tecnica.nome}{driveResult.sincronizados.equipe_tecnica.skipped ? " (pulado)" : ` · ${driveResult.sincronizados.equipe_tecnica.atendimentos || 0} atendimentos, ${driveResult.sincronizados.equipe_tecnica.relatos || 0} relatos`}</span></p>
