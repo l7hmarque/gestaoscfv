@@ -446,6 +446,20 @@ export async function exportRelatorioDocx(item: any, turmaNames: string[], prese
 }
 
 /**
+ * Gera (ou reutiliza) o Google Doc do relatório de atividade a partir
+ * do template institucional timbrado e abre o link em nova aba.
+ */
+export async function abrirRelatorioNoGoogleDocs(relatorioId: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke("generate-relatorio-gdoc", {
+    body: { relatorioId },
+  });
+  if (error) throw new Error(error.message || "Falha ao gerar Google Doc");
+  const url = (data as any)?.url;
+  if (!url) throw new Error("URL do Google Doc não retornada");
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/**
  * Versão "blob-only" usada pela Biblioteca de Documentos.
  * Não chama saveAs — retorna o Blob para upload/zip.
  */

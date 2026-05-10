@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
-import { exportRelatorioDocx, exportRelatorioPdf, ensurePresencaForExport } from "@/hooks/useDocumentExport";
+import { exportRelatorioPdf, ensurePresencaForExport, abrirRelatorioNoGoogleDocs } from "@/hooks/useDocumentExport";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { TIPOS_ATIVIDADE } from "@/lib/constants";
@@ -614,17 +614,17 @@ const RelatorioDetalhePage = () => {
           </Button>
           <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={async () => {
             try {
-              toast.info("Gerando DOCX...");
-              const presencaExport = await ensurePresencaForExport(item.id, presenca);
-              await exportRelatorioDocx(item, turmaNames, presencaExport, fotos);
-              toast.success("DOCX gerado!");
+              toast.info("Abrindo no Google Docs...");
+              await ensurePresencaForExport(item.id, presenca);
+              await abrirRelatorioNoGoogleDocs(item.id);
+              toast.success("Google Doc pronto!");
             } catch (e) {
-              console.error("Erro ao gerar DOCX:", e);
+              console.error("Erro ao abrir Google Doc:", e);
               const msg = e instanceof Error ? e.message : String(e);
-              toast.error(`Erro ao gerar DOCX: ${msg.slice(0, 200)}`);
+              toast.error(`Erro: ${msg.slice(0, 200)}`);
             }
           }}>
-            <Download className="h-3.5 w-3.5" />Exportar DOCX
+            <FileText className="h-3.5 w-3.5" />Abrir no Google Docs
           </Button>
           <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={async () => {
             try {
