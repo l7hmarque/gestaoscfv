@@ -24,7 +24,7 @@ const SUBFOLDERS = [
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
-type Tipo = "mensal" | "listas" | "relatorios" | "planejamentos" | "equipe_tecnica";
+type Tipo = "mensal" | "listas" | "relatorios" | "planejamentos" | "equipe_tecnica" | "reo";
 type Modo = "versionar" | "sobrescrever" | "pular";
 
 interface DriveFile {
@@ -108,19 +108,30 @@ async function trashFile(fileId: string): Promise<void> {
   });
 }
 
-/** Upload binário (multipart) para o Drive na pasta indicada, com nome final dado. */
-async function uploadBytes(name: string, mimeType: string, bytes: Uint8Array, parentId: string): Promise<string> {
+/** Upload binário (multipart) para o Drive na pasta indicada, com nome final dado.
+ *  Se `targetMimeType` for um Google Apps mimeType (ex: spreadsheet/document),
+ *  o Drive converte automaticamente o arquivo na importação (XLSX → Sheets, DOCX → Docs).
+ */
+async function uploadBytes(
+  name: string,
+  sourceMimeType: string,
+  bytes: Uint8Array,
+  parentId: string,
+  targetMimeType?: string,
+): Promise<string> {
   const boundary = "----LovableBoundary" + crypto.randomUUID().replace(/-/g, "");
-  const meta = JSON.stringify({ name, parents: [parentId], mimeType });
+  const metaObj: any = { name, parents: [parentId] };
+  if (targetMimeType) metaObj.mimeType = targetMimeType;
+  const meta = JSON.stringify(metaObj);
   const enc = new TextEncoder();
   const head = enc.encode(
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
-    `--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`
+    `--${boundary}\r\nContent-Type: ${sourceMimeType}\r\n\r\n`
   );
   const tail = enc.encode(`\r\n--${boundary}--\r\n`);
   const body = new Uint8Array(head.length + bytes.length + tail.length);
   body.set(head, 0); body.set(bytes, head.length); body.set(tail, head.length + bytes.length);
-  const res = await fetch(`${DRIVE_UPLOAD}?uploadType=multipart&fields=id,name`, {
+  const res = await fetch(`${DRIVE_UPLOAD}?uploadType=multipart&fields=id,name&supportsAllDrives=true`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": `multipart/related; boundary=${boundary}` }),
     body,
