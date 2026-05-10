@@ -25,7 +25,6 @@ const MOTIVOS = [
   "Desistência",
   "Completou a faixa etária",
   "Transferência para outro serviço",
-  "Faltas consecutivas",
   "Nunca frequentou",
   "Outro",
 ];
