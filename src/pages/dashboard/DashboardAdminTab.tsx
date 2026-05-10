@@ -10,11 +10,25 @@ import { RotateCcw, Percent, TrendingUp, ExternalLink, FolderSync, Loader2 } fro
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
+const mergeDriveResult = (prev: any, next: any) => ({
+  ...next,
+  erros: [...(prev?.erros || []), ...(next?.erros || [])],
+  sincronizados: {
+    mensal: prev?.sincronizados?.mensal || next?.sincronizados?.mensal,
+    listas: [...(prev?.sincronizados?.listas || []), ...(next?.sincronizados?.listas || [])],
+    relatorios: [...(prev?.sincronizados?.relatorios || []), ...(next?.sincronizados?.relatorios || [])],
+    planejamentos: [...(prev?.sincronizados?.planejamentos || []), ...(next?.sincronizados?.planejamentos || [])],
+    equipe_tecnica: prev?.sincronizados?.equipe_tecnica || next?.sincronizados?.equipe_tecnica,
+    reo: { ...(prev?.sincronizados?.reo || {}), ...(next?.sincronizados?.reo || {}) },
+  },
+});
+
 export default function DashboardAdminTab() {
   const [resettingElo, setResettingElo] = useState(false);
   const [resettingFreq, setResettingFreq] = useState(false);
   const [syncingDrive, setSyncingDrive] = useState(false);
   const [driveResult, setDriveResult] = useState<any>(null);
+  const [driveProgress, setDriveProgress] = useState<string | null>(null);
   const [driveRootUrl, setDriveRootUrl] = useState<string | null>(null);
   const hoje = new Date();
   const [syncMes, setSyncMes] = useState<number>(hoje.getMonth() + 1);
@@ -39,24 +53,36 @@ export default function DashboardAdminTab() {
   const sincronizarDrive = async () => {
     setSyncingDrive(true);
     setDriveResult(null);
+    setDriveProgress(null);
     try {
       const tipos = Object.entries(syncTipos).filter(([, v]) => v).map(([k]) => k);
       if (tipos.length === 0) { toast.error("Selecione ao menos um tipo de documento"); setSyncingDrive(false); return; }
-      const { data, error } = await supabase.functions.invoke("sync-drive-modelos", {
-        body: { mes: syncMes, ano: syncAno, tipos, modo: "versionar" },
-      });
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "Falha ao sincronizar");
-      setDriveResult(data);
-      if (data.async) {
-        toast.success("Sincronização iniciada em segundo plano. A pasta no Drive vai ser preenchida em alguns minutos.");
-      } else {
-        const totErr = (data.erros || []).length;
-        if (totErr > 0) toast.warning(`Sincronizado com ${totErr} aviso(s) — verifique o resultado abaixo.`);
-        else toast.success("Documentos enviados ao Google Drive");
-      }
+      let cursor: any = null;
+      let acumulado: any = null;
+      let rodada = 0;
+      do {
+        rodada += 1;
+        setDriveProgress(`Processando lote ${rodada}...`);
+        const { data, error } = await supabase.functions.invoke("sync-drive-modelos", {
+          body: { mes: syncMes, ano: syncAno, tipos, modo: "versionar", cursor, batchSize: 1 },
+        });
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || "Falha ao sincronizar");
+        acumulado = mergeDriveResult(acumulado, data);
+        setDriveResult(acumulado);
+        const atual = data.batch?.currentTipo ? String(data.batch.currentTipo).replace(/_/g, " ") : "Drive";
+        const total = data.batch?.total ? ` (${Math.min((data.batch.offset || 0) + (data.batch.processed || 0), data.batch.total)}/${data.batch.total})` : "";
+        setDriveProgress(`Sincronizando ${atual}${total}`);
+        cursor = data.hasMore ? data.cursor : null;
+      } while (cursor);
+
+      const totErr = (acumulado?.erros || []).length;
+      if (totErr > 0) toast.warning(`Sincronizado com ${totErr} aviso(s) — verifique o resultado abaixo.`);
+      else toast.success("Documentos enviados ao Google Drive");
+      setDriveProgress(null);
     } catch (e: any) {
       toast.error("Erro ao sincronizar Drive: " + (e.message || e));
+      setDriveProgress(null);
     } finally {
       setSyncingDrive(false);
     }
@@ -165,8 +191,9 @@ export default function DashboardAdminTab() {
           <div className="flex flex-wrap gap-2 items-center">
             <Button size="sm" onClick={sincronizarDrive} disabled={syncingDrive}>
               {syncingDrive ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FolderSync className="h-3.5 w-3.5 mr-1" />}
-              Sincronizar mês ao Drive
+              {syncingDrive ? "Sincronizando..." : "Sincronizar mês ao Drive"}
             </Button>
+            {driveProgress && <span className="text-[11px] text-muted-foreground">{driveProgress}</span>}
             {driveResult?.root?.url && (
               <Button asChild size="sm" variant="outline">
                 <a href={driveResult.root.url} target="_blank" rel="noreferrer">
@@ -193,6 +220,9 @@ export default function DashboardAdminTab() {
               )}
               {driveResult.sincronizados.equipe_tecnica && (
                 <p>👥 Equipe Técnica: <span className="text-muted-foreground">{driveResult.sincronizados.equipe_tecnica.nome}{driveResult.sincronizados.equipe_tecnica.skipped ? " (pulado)" : ` · ${driveResult.sincronizados.equipe_tecnica.atendimentos || 0} atendimentos, ${driveResult.sincronizados.equipe_tecnica.relatos || 0} relatos`}</span></p>
+              )}
+              {(driveResult.sincronizados.reo?.doc || driveResult.sincronizados.reo?.sheet) && (
+                <p>📑 REO: <span className="text-muted-foreground">{[driveResult.sincronizados.reo?.doc?.nome, driveResult.sincronizados.reo?.sheet?.nome].filter(Boolean).join(" + ")}</span></p>
               )}
               {driveResult.erros?.length > 0 && (
                 <details className="mt-1">
