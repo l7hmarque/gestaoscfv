@@ -1315,6 +1315,17 @@ Deno.serve(async (req) => {
     if (!LOVABLE_API_KEY || !GOOGLE_DRIVE_API_KEY || !GOOGLE_DOCS_API_KEY) {
       throw new Error("Credenciais Lovable/Google nao configuradas");
     }
+    let action: string | null = null;
+    try {
+      const body = await req.clone().json();
+      action = body?.action || null;
+    } catch { /* sem body */ }
+    if (action === "fix_template_fotos") {
+      const out = await fixTemplateFotos();
+      return new Response(JSON.stringify({ ok: true, ...out }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const result = await processQueue();
     return new Response(JSON.stringify({ ok: true, ...result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
