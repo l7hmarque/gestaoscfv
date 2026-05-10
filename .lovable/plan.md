@@ -1,85 +1,110 @@
-## Objetivo
-
-Trocar o fluxo "Exportar DOCX" do relatório de atividade por "Abrir no Google Docs":
-1. Cada relatório vira uma cópia do template institucional `1in9wpXN6kScnZ048pnxvboaWiqKEWzxaB_m8hr-eG2I` (que já contém cabeçalho/rodapé timbrado).
-2. O conteúdo do relatório é inserido no corpo via batchUpdate, **sem tocar em header/footer** (preservando a folha timbrada).
-3. O doc é compartilhado como "qualquer pessoa com o link pode visualizar".
-4. O link `webViewLink` abre em nova aba.
+A solicitação tem **duas frentes**: (1) gerar um relatório de análise comparando a lista física de Abril/2026 da educadora Larissa com o que está no sistema; (2) aplicar as correções pedidas nos comentários da planilha exportada (Relatório Mensal). Trato as duas em paralelo.
 
 ---
 
-## Arquitetura
+## Frente A — Relatório de análise (PDF × Sistema)
 
-**Conector**: Google Docs + Google Drive (mesma conta institucional, via gateway Lovable). Os 2 já compartilham OAuth — uma única ligação atende.
+### Escopo do PDF físico
 
-**Edge Function nova**: `supabase/functions/generate-relatorio-gdoc/index.ts`
-- Input: `{ relatorioId: string }`
-- Fluxo:
-  1. Valida JWT do usuário.
-  2. Carrega relatório + turmas + presença + fotos do Supabase (mesma query de `bibliotecaDocx.ts`).
-  3. **Copia o template** via Drive API: `POST /drive/v3/files/{TEMPLATE_ID}/copy` com `{ name: "SysCFV_Relatorio_<data>_<titulo>.gdoc" }` em pasta institucional (configurável por secret `GDOCS_RELATORIOS_FOLDER_ID`, opcional).
-  4. **Limpa o body** do doc copiado (deleteContentRange 1..endIndex-1) — header/footer permanecem intactos pois vivem em `documentStyle.defaultHeaderId/FooterId`.
-  5. **Insere conteúdo** via `documents:batchUpdate` na ordem do modelo já alinhado em `useDocumentExport.ts`:
-     - Faixa "RELATÓRIO DE ATIVIDADE" (parágrafo com fundo vermelho via `updateParagraphStyle.shading`)
-     - Tabela "Dados da Atividade" (6 linhas)
-     - Engajamento (4 opções com ■/☐)
-     - Tabela Competências (5x3) + linha "Score ELO: X.XX"
-     - Tabela Resumo (1x3 Presentes/Ausentes/% Adesão)
-     - Objetivo, Atividades Realizadas, Observações
-     - Faixa cinza "ANEXO I — LISTA DE FREQUÊNCIA" + tabela Nº/Nome/Presença
-     - Faixa cinza "ANEXO II — REGISTROS FOTOGRÁFICOS" + imagens (insertInlineImage com URLs públicas do Storage)
-  6. **Compartilha**: `POST /drive/v3/files/{newId}/permissions` com `{ role: "reader", type: "anyone" }`.
-  7. **Persiste** o `gdoc_id` e `gdoc_url` (webViewLink) numa nova coluna em `relatorios_atividade` para evitar regerar — se já existe, retorna o link existente.
-  8. Retorna `{ url, fileId }`.
+3 páginas / 3 turmas (Educadora Larissa, Abril/2026):
 
-**Migration**: adicionar colunas `gdoc_id text` e `gdoc_url text` em `relatorios_atividade`.
+- **Pág 1** — PARQUE INDEPENDENCIA · 6-8 · Manhã (11 participantes)
+- **Pág 2** — PARQUE INDEPENDENCIA · 9-11 · Manhã (9 participantes)
+- **Pág 3** — PARQUE INDEPENDENCIA · 6-8 · Tarde (6 participantes)
 
----
+Datas usadas no PDF: 02, 07, 09, 14, 16, 21 (riscada — feriado/sem aula), 23, 28, 30 de abril.
 
-## Frontend
+### Divergências já identificadas (preview)
 
-**Arquivos a editar**:
-- `src/hooks/useDocumentExport.ts`: adicionar `abrirRelatorioNoGoogleDocs(relatorioId)` que chama a edge function e faz `window.open(url, "_blank")`. Manter `buildRelatorioDocxBlob` como **fallback interno** apenas para a Biblioteca de Documentos (que precisa de Blob para upload em Storage), mas remover dos botões de UI.
-- `src/pages/relatorios/RelatorioDetalhePage.tsx`: trocar botão "Exportar DOCX" por "Abrir no Google Docs" (ícone `FileText` + `ExternalLink`).
-- `src/pages/relatorios/RelatoriosPage.tsx` (lista): no menu de ações, mesmo swap.
-- `src/hooks/useBulkRelatorioExport.ts`: para exportação em lote, gerar N Google Docs em paralelo (Promise.allSettled, 3 simultâneos) e abrir uma página intermediária (ou toast com lista de links) — **sem auto-abrir N abas** que o navegador bloqueia.
-- `src/pages/biblioteca/BibliotecaPage.tsx`: substituir download DOCX por link Google Docs (usa `gdoc_url` se presente, senão dispara geração).
+**1. Cobertura de chamada (sistema subnotifica)**
 
-**Sem alteração**:
-- PDF (`exportRelatorioPdf`) permanece.
-- XLSX, REO, Relatório Mensal (não são relatórios de atividade individuais).
-- Planejamentos (continuam DOCX por enquanto, só relatórios mudam).
+- PI 6-8 Manhã: PDF tem 11 nomes; sistema só tem 4 com lançamento de presença em abril (Gabrielli, Larissa, Maria Pietra, Nicolly).
+- PI 9-11 Manhã: PDF tem 9 nomes; sistema tem 2 (Thabata, Antonio Marcos — esse último nem está no PDF).
+- PI 6-8 Tarde: PDF tem 6 nomes; sistema tem 5 lançados.
 
----
+**2. Datas registradas no sistema não batem com as do PDF**
 
-## Conector
+- Sistema tem `01/04` (não consta no PDF) e `27/04` (não consta no PDF).
+- PDF tem `02, 07, 09, 21, 28, 30` que não aparecem no sistema para várias turmas.
+- Sugere que a chamada física não foi digitada ou foi digitada em datas erradas.
 
-Disparar `standard_connectors--connect` para `google_docs` e `google_drive` (mesma conta). Validar via `verify_credentials`. Secrets esperados: `GOOGLE_DOCS_API_KEY`, `GOOGLE_DRIVE_API_KEY`, `LOVABLE_API_KEY`.
+**3. Participantes do PDF sem cadastro/vínculo no sistema**
 
-Secret extra opcional (via `add_secret`): `GDOCS_RELATORIOS_TEMPLATE_ID` (default `1in9wpXN6kScnZ048pnxvboaWiqKEWzxaB_m8hr-eG2I`) e `GDOCS_RELATORIOS_FOLDER_ID` (opcional, para organizar por mês).
+- PI 6-8 Manhã: Ana Heloisa Pistilhi, Anthony Abraao, Lara Gabriely, Maria Fernanda Pistilhi, Nayeli Silguero, Paloma Amaro, "Jece Pandese" (manual), "Maria B. Cardozo" (manual, anotação "para inserção, já levou ficha p/ casa").
+- PI 9-11 Manhã: Ana Julia Mackievicz, Daniel Amaro, Davi Fernandes, Kauan Yuri, Laura Beatriz, Sofia Fonseca, Ygor Miguel.
+- PI 6-8 Tarde: Adriani Isabelly, "Vitória" (sem sobrenome — provavelmente Vitoria Mendez Gecse já cadastrada).
 
----
+**4. Anotações manuais a tratar**
 
-## Cuidados com a folha timbrada
+- "Yasmin Vitoria Taborda Flores" marcada como **ADOLESCENTE** na pág 2 → precisa migrar para turma 12-17.
+- Gabrielli (PI 6-8 Manhã): "está de atestado" + FJ a partir de 16/04 → não está marcada como falta justificada no sistema.
+- Ygor Miguel (PI 9-11 Manhã): só comparece 02, 07, 09 → candidato a busca ativa.
+- "Convivam com equipe técnica busca ativa desta turma" → ação para a equipe técnica.
 
-- **Nunca** editar `headers`/`footers` do doc copiado — o template já os possui e a cópia preserva.
-- Definir margens via `documents:batchUpdate updateDocumentStyle` somente se necessário (top/bottom maiores para não invadir timbre — ler do template original primeiro e replicar).
-- Inserir tudo entre `body.content[0].endIndex` e final, garantindo que o conteúdo fique no corpo, não no header.
-- Imagens do Anexo II: URL pública do Supabase Storage (já temos), inseridas via `insertInlineImage` com `objectSize` capada em ~450pt para não estourar margens.
+### Entregável
+
+Arquivo único em `/mnt/documents/Relatorio_Divergencias_Lista_Abril_Larissa.pdf` (e `.md` espelho) contendo:
+
+- Resumo executivo (n.º de divergências por turma, taxa de subnotificação).
+- 1 seção por turma: tabela "Participante × Data" com 3 colunas por dia (PDF, Sistema, Status) destacando inconsistências.
+- Lista de participantes do PDF não vinculados → ação: cadastrar/matricular.
+- Lista de presenças do sistema sem confirmação física → ação: revisar.
+- Datas divergentes (sistema × PDF).
+- Anotações manuais e ações recomendadas (busca ativa, atestado, transferência de turma).
+- APLICAR CORRECOES NO SISTEMA.
 
 ---
 
-## Validação
+## Frente B — Correções no exportador de Relatório Mensal
 
-1. Gerar Google Doc do relatório atual (`/relatorios/5b477c4d-...`) e abrir no Drive: confirmar timbre presente em todas as páginas, nenhum texto sobreposto.
-2. Confirmar permissão "anyone with link can view" (testar em janela anônima).
-3. Testar lote (3+ relatórios) — toast com lista de links.
-4. Confirmar que segunda chamada do mesmo relatório retorna o mesmo `gdoc_url` (idempotência).
+Os comentários da planilha apontam ajustes em **abas de Resumo/Atividades/Metas/Monitor** e nas **abas de Lista de Frequência**. Conforme instrução, comentários nas linhas 1–5 da aba "PARQUE INDEPENDENCIA — 6-8 - Tarde" valem para **todas as abas de frequência**.
+
+### B.1 — Cabeçalho institucional (todas as abas)
+
+- Linha do título: trocar "RELATÓRIO MENSAL — SysCFV SCFV" por **"RELATÓRIO MENSAL CONSOLIDADO | Sociedade Civil Nossa Senhora Aparecida"**, fonte Arial 12, **fundo preto** com **texto branco em negrito**.
+- Linha 2: inserir **"Centro de Atenção Integral ao Adolescente | Serviço de Convivência e Fortalecimento de Vínculos"**.
+- Linha "Mês: Abril / 2026" → **"MÊS: ABRIL / 2026"** em **negrito**, MAIÚSCULO (vale para Resumo, Ativ, Metas, Monitor, Atend e abas de frequência).
+
+### B.2 — Abas de Lista de Frequência (regra geral)
+
+- Linha 3 ("Turma: ... | Bairro: ... | Faixa: ... | Período: ..."):
+  - **"Turma:"**, **"Bairro:"**, **"Faixa Etária:"**, **"Período:"** em negrito.
+  - Renomear `Faixa` → `Faixa Etária`.
+  - Valor do período: `tarde`/`manha` → **TARDE / MANHA** (MAIÚSCULO).
+- Faixa cinza (fora do vínculo) precisa pintar de fato as células das datas anteriores ao ingresso/posteriores à saída (ex.: Angela Noemi C9:J9 deveria estar cinza no PDF; participante "não estava inserida no mês de abril" deveria sair da lista ou ficar 100 % cinza).
+- Datas tipo `2026-04-30` → formatar como **DD/MM/AA**.
+- Bordas pretas 0,5 pt em todas as células com informação.
+
+### B.3 — Aba "Resumo"
+
+- Títulos de seção em **negrito**: ATENDIDOS NO MÊS, POR BAIRRO, POR FAIXA ETÁRIA, POR PERÍODO, NOVAS INSERÇÕES NO MÊS, TOTAL GERAL.
+- Nomes de bairro em negrito: ALVORADA, PARQUE INDEPENDENCIA, JARDIM IRENE.
+- Coluna `Quant.` → atualizar para puxar números corretos.
+- Valores `tarde`/`manha` → `Tarde` / `Manha`.
+
+### B.4 — Aba "Ativ" (Atividades Propostas × Desenvolvidas)
+
+- Título "ATIVIDADES PROPOSTAS x DESENVOLVIDAS" em **negrito**.
+- Coluna **"Resultados Alcançados"**: corrigir alinhamento e bordas.
+- "Mês: Abril / 2026" → MAIÚSCULO.
+
+### B.5 — Aba "Metas"
+
+- Título "METAS PROPOSTAS — ACOMPANHAMENTO MENSAL" em **negrito**.
+- "Mês: Abril / 2026" → MAIÚSCULO.
+- Coluna "Resultados Alcançados": ajuste de dados e bordas.
+- Inserir bordas 0,5 pt pretas em todas as linhas com informação.
+
+### Onde aplicar (técnico)
+
+- Edge function `supabase/functions/generate-relatorio-mensal/index.ts` (geradora da planilha). Toda a estilização (fontes, fills, bordas, formato de data, MAIÚSCULAS, negritos) é montada lá com `xlsx-js-style`.
+- Para a faixa cinza "fora do vínculo": revisar a montagem da matriz nas abas por turma (mesma função) — usar `data_entrada`/`data_saida` de `turma_participantes` para pintar o range corretamente, e excluir participantes sem vínculo no mês.
 
 ---
 
-## Fora de escopo
+## Sequência sugerida
 
-- Sincronizar edições feitas no Google Docs de volta para o Supabase.
-- Aplicar mesmo fluxo a Planejamentos e REO (pode virar próxima iteração).
-- Per-user OAuth (todos os docs ficam na conta institucional).
+1. **Frente A primeiro** (apenas leitura + geração de PDF em `/mnt/documents/`) — entrega imediata, não toca em código.
+2. **Frente B depois** — alterações na edge function + redeploy + nova exportação de teste para validar o layout.
+
+Posso iniciar pela Frente A (relatório) e na sequência aplicar a Frente B (correções do exportador), ou inverter a ordem se preferir.
