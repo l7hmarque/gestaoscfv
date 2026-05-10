@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, UserPlus, Trash2, Pencil, Save, AlertTriangle, FileText, TrendingUp, Users, BarChart3, ClipboardList, Calendar as CalendarIcon, FileSpreadsheet, Download } from "lucide-react";
+import { ArrowLeft, UserPlus, Trash2, Pencil, Save, AlertTriangle, FileText, TrendingUp, Users, BarChart3, ClipboardList, Calendar as CalendarIcon, FileSpreadsheet, Download, ExternalLink, Loader2 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,7 @@ const TurmaDetalhePage = () => {
   const [listaOpen, setListaOpen] = useState(false);
   const [listaMes, setListaMes] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
   const [listaAno, setListaAno] = useState(String(new Date().getFullYear()));
+  const [gsheetLoading, setGsheetLoading] = useState(false);
   const [dashboard, setDashboard] = useState<TurmaDashboard>({ taxaAdesao: 0, totalPresencas: 0, totalRegistros: 0, medianElo: 0, stdElo: 0, eloCount: 0 });
   const [linkedPlans, setLinkedPlans] = useState<LinkedPlan[]>([]);
   const [linkedReports, setLinkedReports] = useState<LinkedReport[]>([]);
@@ -269,8 +270,28 @@ const TurmaDetalhePage = () => {
     };
     const ok = exportSingleListaPresenca(turmaInfo, mems, mesNum, anoNum);
     if (!ok) { toast.error("Nenhuma data de atividade para este mês"); return; }
-    toast.success("Lista de presença exportada!");
+    toast.success("Lista de chamada exportada!");
     setListaOpen(false);
+  };
+
+  const abrirListaNoGoogleSheets = async () => {
+    if (!turma) return;
+    setGsheetLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-lista-chamada-gsheet", {
+        body: { turma_id: turma.id, mes: parseInt(listaMes), ano: parseInt(listaAno) },
+      });
+      if (error) throw error;
+      const url = (data as any)?.url;
+      if (!url) throw new Error("URL não retornada");
+      window.open(url, "_blank", "noopener,noreferrer");
+      toast.success("Lista de chamada gerada no Google Sheets!");
+      setListaOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao gerar no Google Sheets");
+    } finally {
+      setGsheetLoading(false);
+    }
   };
 
   const memberIds = new Set(members.map((m) => m.participante_id));
@@ -318,11 +339,11 @@ const TurmaDetalhePage = () => {
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1 text-xs">
                 <FileSpreadsheet className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Lista Presença</span>
+                <span className="hidden sm:inline">Lista de Chamada</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-sm">
-              <DialogHeader><DialogTitle>Gerar Lista de Presença</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>Gerar Lista de Chamada</DialogTitle></DialogHeader>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div><Label className="text-xs">Mês</Label>
@@ -337,9 +358,16 @@ const TurmaDetalhePage = () => {
                     <Input value={listaAno} onChange={e => setListaAno(e.target.value)} />
                   </div>
                 </div>
-                <Button onClick={exportListaPresencaXlsx} className="w-full gap-1">
-                  <Download className="h-4 w-4" />Gerar XLSX
+                <Button onClick={abrirListaNoGoogleSheets} disabled={gsheetLoading} className="w-full gap-1">
+                  {gsheetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                  Abrir no Google Sheets
                 </Button>
+                <Button onClick={exportListaPresencaXlsx} variant="outline" className="w-full gap-1">
+                  <Download className="h-4 w-4" />Baixar XLSX
+                </Button>
+                <p className="text-[10px] text-muted-foreground text-center">
+                  Documento institucional para impressão e marcação manual.
+                </p>
               </div>
             </DialogContent>
           </Dialog>

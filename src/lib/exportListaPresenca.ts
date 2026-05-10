@@ -90,8 +90,8 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   const cellStrikeStyle = { border: borders, alignment: { vertical: "center" as const }, font: { sz: 8, strike: true, color: { rgb: "000000" } } };
   const cellCenterStyle = { border: borders, alignment: { horizontal: "center" as const, vertical: "center" as const }, font: { sz: 8 } };
   const signStyle = {
-    font: { sz: 9, italic: true },
-    alignment: { horizontal: "center" as const, vertical: "center" as const },
+    font: { sz: 9, italic: true, bold: true },
+    alignment: { horizontal: "left" as const, vertical: "center" as const },
     border: borders,
   };
 
@@ -99,15 +99,15 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   const rows: any[][] = [];
 
   // Row 0: Institution
-  rows.push(["Sociedade Civil Nossa Senhora Aparecida"]);
+  rows.push(["SOCIEDADE CIVIL NOSSA SENHORA APARECIDA"]);
   // Row 1: CAIA
-  rows.push(["Centro de Atenção Integral ao Adolescente"]);
+  rows.push(["CENTRO DE ATENÇÃO INTEGRAL AO ADOLESCENTE"]);
   // Row 2: Termo
-  rows.push(["SCFV CAIA - Termo de Colaboração 001/2022"]);
+  rows.push(["SCFV CAIA - TERMO DE COLABORAÇÃO 001/2022"]);
   // Row 3: blank separator
   rows.push([""]);
   // Row 4: Title
-  rows.push([`LISTA DE FREQUÊNCIA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`]);
+  rows.push([`LISTA DE CHAMADA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`]);
   // Row 5: Turma name (large and bold)
   rows.push([`${turma.nome}`]);
   // Row 6: Info line
@@ -117,7 +117,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   const bairroInfo = turma.bairros?.nome || "";
   const infoParts = [
     periodoInfo && `Período: ${periodoInfo}`,
-    faixaInfo && `Faixa: ${faixaInfo}`,
+    faixaInfo && `Faixa Etária: ${faixaInfo}`,
     educadorInfo && `Educador(a): ${educadorInfo}`,
     bairroInfo && `Bairro: ${bairroInfo}`,
   ].filter(Boolean).join("  ·  ");
@@ -252,7 +252,7 @@ export function exportSingleListaPresenca(turma: TurmaInfo, members: MemberInfo[
   const sheetTitle = sanitizeSheetName(`${turma.nome} - ${MESES_NOMES[mesNum - 1]} ${anoNum}`, []);
   XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf], { type: "application/octet-stream" }), sysCfvFileName("ListaPresenca", "xlsx", `${turma.nome}_${anoNum}-${String(mesNum).padStart(2, "0")}`));
+  saveAs(new Blob([buf], { type: "application/octet-stream" }), sysCfvFileName("ListaChamada", "xlsx", `${turma.nome}_${anoNum}-${String(mesNum).padStart(2, "0")}`));
   return true;
 }
 
@@ -279,6 +279,6 @@ export function exportAllListasPresenca(
   if (sheetsAdded === 0) return { success: false, sheetsAdded: 0 };
 
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  saveAs(new Blob([buf], { type: "application/octet-stream" }), sysCfvFileName("ListasPresenca", "xlsx", `${MESES_NOMES[mesNum - 1]}_${anoNum}`));
+  saveAs(new Blob([buf], { type: "application/octet-stream" }), sysCfvFileName("ListasChamada", "xlsx", `${MESES_NOMES[mesNum - 1]}_${anoNum}`));
   return { success: true, sheetsAdded };
 }
