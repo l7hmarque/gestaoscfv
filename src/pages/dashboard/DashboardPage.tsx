@@ -32,6 +32,7 @@ import type { IndicadorId } from "@/lib/indicadorTimelineFetchers";
 import { formatMesLabel, formatMesExtenso } from "@/lib/dateLabels";
 import { eloColor } from "@/lib/eloColors";
 import { RichTooltip } from "@/components/dashboard/RichTooltip";
+import { chartColors, gridProps } from "@/lib/chartTheme";
 
 const COLORS = [
   "hsl(0,58%,56%)", "hsl(210,22%,49%)", "hsl(142,50%,40%)",
@@ -297,8 +298,8 @@ function IndicadoresTab() {
           label="Participantes Ativos"
           value={data.totalParticipantesAtivos}
           delta={data.deltaParticipantes}
-          deltaLabel="vs 30 dias atrás"
-          tooltip="Comparação de cadastros ativos hoje vs há 30 dias (baseado em iniciou_em / data_desligamento)"
+          deltaLabel="vs mês anterior"
+          tooltip={`Δ baseado em participantes com presença registrada no mês — Mês anterior: ${data.participantesAtivosMesAnterior} · Mês atual: ${data.participantesAtivosMesAtual}. Não é afetado por desligamentos retroativos.`}
           color="hsl(210,60%,50%)"
           onClick={() => setSelectedIndicator("participantes")}
         />
@@ -331,7 +332,7 @@ function IndicadoresTab() {
           label="Média Adesão"
           value={`${data.mediaAdesao.toFixed(0)}%`}
           sub={data.mediaAdesaoConsolidada > 0 ? `consol.: ${data.mediaAdesaoConsolidada.toFixed(0)}%` : undefined}
-          tooltip="Média de adesão calculada apenas sobre relatórios pedagógicos reais"
+          tooltip="% de adesão é congelada na data do lançamento de cada relatório (presentes / esperados naquele dia). Não é afetada por desligamentos retroativos."
           color="hsl(210,22%,49%)"
           onClick={() => setSelectedIndicator("adesao")}
         />
@@ -348,8 +349,8 @@ function IndicadoresTab() {
               icon={CalendarRange}
               label={`Frequência Atual · ${formatMesExtenso(atual.mes)}${atual.parcial ? " (parcial)" : ""}`}
               value={`${atual.pct}%`}
-              sub={`${atual.presentes} presenças / ${atual.total} esperadas`}
-              tooltip="Inclui relatórios pedagógicos reais e consolidados de chamada física do mês corrente."
+              sub={`${atual.presentes} presenças em ${atual.total} registros lançados`}
+              tooltip="Cada relatório gera 1 registro por participante esperado. O total cresce conforme novas atividades são lançadas — não é a frequência esperada do mês."
               color="hsl(142,50%,40%)"
               onClick={() => setSelectedIndicator("frequencia")}
             />
@@ -382,7 +383,7 @@ function IndicadoresTab() {
           )}
         </ChartCard>
 
-        <ChartCard title="Frequência Mensal — Comparativo" subtitle="Mês atual × mês anterior">
+        <ChartCard title="Frequência Mensal — Comparativo" subtitle="Registros lançados × presenças confirmadas">
           {(ref) => {
             const ult = data.presencaMensal.slice(-2);
             return (
@@ -395,7 +396,7 @@ function IndicadoresTab() {
                       <YAxis tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} width={35} allowDecimals={false} />
                       <Tooltip content={<RichTooltip labelFormatter={(l) => l.endsWith("*") ? `${l.replace("*","")} (parcial)` : l} />} />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Bar dataKey="total" name="Esperadas" fill={chartColors.graySecondary} radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="total" name="Registros" fill={chartColors.graySecondary} radius={[3, 3, 0, 0]} />
                       <Bar dataKey="presentes" name="Presenças" fill="hsl(0,58%,56%)" radius={[3, 3, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
