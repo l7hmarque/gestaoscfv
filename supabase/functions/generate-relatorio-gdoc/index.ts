@@ -26,10 +26,36 @@ const tipoLabels: Record<string, string> = {
 };
 
 const ENGAJAMENTO_OPCOES = [
-  "Participação ativa e engajada",
-  "Participação parcial",
-  "Pouca participação",
-  "Resistência / dispersão",
+  "Grupo participativo",
+  "Grupo disperso",
+  "Boa interação entre participantes",
+  "Necessitou intervenção do educador",
+];
+
+const SITUACOES_OPCOES = [
+  "Nenhuma ocorrência",
+  "Conflito entre participantes",
+  "Situação de vulnerabilidade identificada",
+  "Encaminhamento necessário",
+  "Comunicação com família/responsável",
+];
+
+const OBJETIVO_LABEL: Record<string, string> = {
+  alcancado: "Alcançado",
+  parcial: "Parcialmente alcançado",
+  nao_alcancado: "Não alcançado",
+};
+
+const LIKERT_LABEL: Record<number, string> = {
+  1: "Muito Baixo", 2: "Baixo", 3: "Moderado", 4: "Alto", 5: "Excepcional",
+};
+
+const COMPETENCIAS_DEF: { campo: string; label: string }[] = [
+  { campo: "iniciativa", label: "Iniciativa" },
+  { campo: "autonomia", label: "Autonomia" },
+  { campo: "colaboracao", label: "Colaboração" },
+  { campo: "comunicacao", label: "Comunicação" },
+  { campo: "respeito_mutuo", label: "Respeito mútuo" },
 ];
 
 function fmtDate(d: string | null | undefined): string {
@@ -141,7 +167,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (relErr || !rel) throw new Error(relErr?.message || "Relatório não encontrado");
 
-    // Idempotência: se já existe gdoc, devolver
+    // Idempotência: se já existe gdoc, devolver (a menos que force=true)
     if (rel.gdoc_url && !force) {
       return new Response(
         JSON.stringify({ url: rel.gdoc_url, fileId: rel.gdoc_id, cached: true }),
@@ -157,25 +183,33 @@ Deno.serve(async (req) => {
 
     const { data: pres } = await svc
       .from("relatorio_presenca")
-      .select("presente, justificativa, participantes(nome_completo)")
-      .eq("relatorio_id", relatorioId);
-
-    const presentes = (pres || []).filter((p: any) => p.presente);
-    const ausentes = (pres || []).filter((p: any) => !p.presente);
-    const total = (pres || []).length;
-    const adesao = total ? Math.round((presentes.length / total) * 100) : 0;
+      .select("presente, justificativa, participantes(nome_completo, status)")
+      .eq("relatorio_id", relatorioId)
+      .order("participantes(nome_completo)", { ascending: true });
 
     const educadorNome = (rel as any).profiles?.nome || "—";
-    const dataStr = fmtDate(rel.data_atividade);
-    const dia = diaSemana(rel.data_atividade);
-    const tipoStr = tipoLabels[rel.tipo_atividade] || rel.tipo_atividade || "—";
+    const dataField = rel.data || rel.data_atividade;
+    const dataStr = fmtDate(dataField);
+    const dia = rel.dia_semana || diaSemana(dataField);
+    const tipoArr: string[] = Array.isArray(rel.tipo_atividade)
+      ? rel.tipo_atividade
+      : (rel.tipo_atividade ? [rel.tipo_atividade] : []);
+    const tipoStr = tipoArr.length
+      ? tipoArr.map((t: string) => tipoLabels[t] || t).join(", ") + (rel.tipo_atividade_detalhe ? ` (${rel.tipo_atividade_detalhe})` : "")
+      : "—";
     const turmasStr = turmaNames.length ? turmaNames.join(", ") : "—";
     const engajList = Array.isArray(rel.engajamento) ? rel.engajamento : [];
-    const compMap: Record<string, number> = (rel.competencias as any) || {};
+    const sitList = Array.isArray(rel.situacoes_relevantes) ? rel.situacoes_relevantes : [];
     const score = rel.score_elo != null ? Number(rel.score_elo).toFixed(2) : "—";
+    const totalPres = (pres || []).length;
+    const numPres = (pres || []).filter((p: any) => p.presente).length;
+    const numAus = totalPres - numPres;
+    const adesaoStr = rel.pct_adesao != null
+      ? `${Number(rel.pct_adesao).toFixed(0)}%`
+      : (totalPres ? `${Math.round((numPres / totalPres) * 100)}%` : "—");
 
     const tituloSafe = safeFilename(rel.nome_atividade || "Relatorio");
-    const dateNum = (rel.data_atividade || "").replace(/-/g, "");
+    const dateNum = (dataField || "").toString().replace(/-/g, "");
     const fileName = `SysCFV_Relatorio_${dateNum}_${tituloSafe}`;
 
     // 2. Copiar template (Drive)
@@ -200,14 +234,17 @@ Deno.serve(async (req) => {
     const lastEnd = bodyContent.length
       ? bodyContent[bodyContent.length - 1].endIndex
       : 1;
-    // O último \n do body não pode ser apagado — limpamos do índice 1 até lastEnd-1.
 
-    // 4. Construir texto do corpo
-    const lines: { text: string; bold?: boolean; heading?: boolean; banner?: "red" | "gray" }[] = [];
+    // 4. Construir texto do corpo (modelo institucional)
+    type Line = { text: string; bold?: boolean; section?: boolean; banner?: "black" | "white" };
+    const lines: Line[] = [];
 
-    lines.push({ text: "RELATÓRIO DE ATIVIDADE", banner: "red" });
+    // Banner principal
+    lines.push({ text: "RELATÓRIO DE ATIVIDADE", banner: "black" });
     lines.push({ text: "" });
-    lines.push({ text: "DADOS DA ATIVIDADE", bold: true });
+
+    // 1. DADOS DA ATIVIDADE
+    lines.push({ text: "DADOS DA ATIVIDADE", section: true });
     lines.push({ text: `Data: ${dataStr}` });
     lines.push({ text: `Dia da Semana: ${dia}` });
     lines.push({ text: `Educador(a): ${educadorNome}` });
@@ -216,62 +253,89 @@ Deno.serve(async (req) => {
     lines.push({ text: `Nome da Atividade: ${rel.nome_atividade || "—"}` });
     lines.push({ text: "" });
 
-    lines.push({ text: "ENGAJAMENTO", bold: true });
-    const engLine = ENGAJAMENTO_OPCOES.map(
-      (op) => `${engajList.includes(op) ? "■" : "☐"} ${op}`,
-    ).join("    ");
-    lines.push({ text: engLine });
+    // 2. ENGAJAMENTO
+    lines.push({ text: "ENGAJAMENTO", section: true });
+    ENGAJAMENTO_OPCOES.forEach((op) => {
+      lines.push({ text: `${engajList.includes(op) ? "■" : "☐"} ${op}` });
+    });
     lines.push({ text: "" });
 
-    lines.push({ text: "COMPETÊNCIAS TRABALHADAS", bold: true });
-    const compEntries = Object.entries(compMap);
-    if (compEntries.length) {
-      for (const [k, v] of compEntries) {
-        const nivel =
-          v >= 5 ? "Avançado" : v >= 4 ? "Bom" : v >= 3 ? "Moderado" : v >= 2 ? "Inicial" : "Não trabalhado";
-        lines.push({ text: `• ${k}: ${v} — ${nivel}` });
-      }
-    } else {
-      lines.push({ text: "não há" });
+    // 3. COMPETÊNCIAS TRABALHADAS
+    lines.push({ text: "COMPETÊNCIAS TRABALHADAS", section: true });
+    let temCompetencia = false;
+    for (const c of COMPETENCIAS_DEF) {
+      const v = (rel as any)[c.campo];
+      if (v == null) continue;
+      const n = Number(v);
+      const label = LIKERT_LABEL[n] || "—";
+      lines.push({ text: `• ${c.label}: ${n} — ${label}` });
+      temCompetencia = true;
     }
+    if (!temCompetencia) lines.push({ text: "não há" });
     lines.push({ text: `Score ELO: ${score}`, bold: true });
     lines.push({ text: "" });
 
-    lines.push({ text: "RESUMO DE FREQUÊNCIA", bold: true });
-    lines.push({ text: `Presentes: ${presentes.length}    Ausentes: ${ausentes.length}    Adesão: ${adesao}%` });
+    // 4. RESUMO DE FREQUÊNCIA
+    lines.push({ text: "RESUMO DE FREQUÊNCIA", section: true });
+    lines.push({ text: `Presentes: ${numPres}    Ausentes: ${numAus}    Total: ${totalPres}    Adesão: ${adesaoStr}` });
     lines.push({ text: "" });
 
-    lines.push({ text: "OBJETIVO", bold: true });
-    lines.push({ text: rel.objetivo_alcancado ? "Alcançado" : "Parcialmente alcançado / Não alcançado" });
+    // 5. OBJETIVO
+    lines.push({ text: "OBJETIVO", section: true });
+    lines.push({ text: rel.objetivo_alcancado ? (OBJETIVO_LABEL[rel.objetivo_alcancado] || rel.objetivo_alcancado) : "—" });
     lines.push({ text: "" });
 
-    lines.push({ text: "ATIVIDADES REALIZADAS", bold: true });
-    lines.push({ text: rel.atividades_realizadas || "não há" });
+    // 6. ATIVIDADES REALIZADAS
+    lines.push({ text: "ATIVIDADES REALIZADAS", section: true });
+    lines.push({ text: rel.atividades_realizadas || rel.intervencoes || "não há" });
     lines.push({ text: "" });
 
-    lines.push({ text: "OBSERVAÇÕES", bold: true });
+    // 7. OBSERVAÇÕES
+    lines.push({ text: "OBSERVAÇÕES", section: true });
     lines.push({ text: rel.observacoes || "não há" });
     lines.push({ text: "" });
 
-    // ANEXO I
-    lines.push({ text: "ANEXO I — LISTA DE FREQUÊNCIA", banner: "gray" });
+    // 8. INTERVENÇÕES (se distinta)
+    if (rel.intervencoes && rel.intervencoes !== rel.atividades_realizadas) {
+      lines.push({ text: "INTERVENÇÕES", section: true });
+      lines.push({ text: rel.intervencoes });
+      lines.push({ text: "" });
+    }
+
+    // 9. SITUAÇÕES RELEVANTES
+    lines.push({ text: "SITUAÇÕES RELEVANTES", section: true });
+    SITUACOES_OPCOES.forEach((op) => {
+      lines.push({ text: `${sitList.includes(op) ? "■" : "☐"} ${op}` });
+    });
+    lines.push({ text: "" });
+
+    // 10. RESULTADOS ALCANÇADOS (Análise IA)
+    if (rel.analise_ia) {
+      lines.push({ text: "RESULTADOS ALCANÇADOS", section: true });
+      lines.push({ text: rel.analise_ia });
+      lines.push({ text: "" });
+    }
+
+    // ANEXO I — LISTA DE FREQUÊNCIA
+    lines.push({ text: "ANEXO I — LISTA DE FREQUÊNCIA", banner: "white" });
+    lines.push({ text: "" });
     lines.push({ text: `Atividade: ${rel.nome_atividade || "—"}    Data: ${dataStr}    Turma(s): ${turmasStr}` });
     lines.push({ text: `Educador(a): ${educadorNome}` });
     lines.push({ text: "" });
     (pres || []).forEach((p: any, i: number) => {
       const marca = p.presente ? "■" : "☐";
-      const nome = p?.participantes?.nome_completo || "—";
-      const just = !p.presente && p.justificativa ? `  (${p.justificativa})` : "";
-      lines.push({ text: `${String(i + 1).padStart(2, "0")}. ${marca} ${nome}${just}` });
+      const nomeBase = p?.participantes?.nome_completo || "—";
+      const baSuffix = p?.participantes?.status === "busca_ativa" ? " (BA)" : "";
+      const just = !p.presente && p.justificativa ? `  — ${p.justificativa}` : "";
+      lines.push({ text: `${String(i + 1).padStart(2, "0")}. ${marca} ${nomeBase}${baSuffix}${just}` });
     });
     if (!(pres || []).length) lines.push({ text: "Nenhum participante registrado." });
+    lines.push({ text: "" });
     lines.push({ text: "" });
     lines.push({ text: "_______________________________________" });
     lines.push({ text: `Assinatura: ${educadorNome}` });
 
     // 5. Construir batchUpdate requests
-    // Estratégia: 1) limpar body, 2) inserir tudo como um único insertText na posição 1
-    // (depois aplicar styles por intervalo).
     const requests: any[] = [];
     if (lastEnd > 2) {
       requests.push({
@@ -281,7 +345,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Construir texto consolidado e mapa de estilos
     let cursor = 1;
     const styleOps: any[] = [];
     const insertChunks: { text: string; index: number }[] = [];
@@ -289,12 +352,12 @@ Deno.serve(async (req) => {
     for (const ln of lines) {
       const text = (ln.text || "") + "\n";
       const start = cursor;
-      const end = cursor + text.length - 1; // exclui o \n no range visual
+      const end = cursor + text.length - 1; // exclui o \n no range
       insertChunks.push({ text, index: cursor });
       cursor += text.length;
 
       if (ln.text) {
-        if (ln.banner === "red") {
+        if (ln.banner === "black") {
           styleOps.push({
             updateTextStyle: {
               range: { startIndex: start, endIndex: end },
@@ -311,12 +374,12 @@ Deno.serve(async (req) => {
               range: { startIndex: start, endIndex: end },
               paragraphStyle: {
                 alignment: "CENTER",
-                shading: { backgroundColor: { color: { rgbColor: { red: 0.7, green: 0.1, blue: 0.1 } } } },
+                shading: { backgroundColor: { color: { rgbColor: { red: 0, green: 0, blue: 0 } } } },
               },
               fields: "alignment,shading",
             },
           });
-        } else if (ln.banner === "gray") {
+        } else if (ln.banner === "white") {
           styleOps.push({
             updateTextStyle: {
               range: { startIndex: start, endIndex: end },
@@ -327,11 +390,16 @@ Deno.serve(async (req) => {
           styleOps.push({
             updateParagraphStyle: {
               range: { startIndex: start, endIndex: end },
-              paragraphStyle: {
-                alignment: "CENTER",
-                shading: { backgroundColor: { color: { rgbColor: { red: 0.85, green: 0.85, blue: 0.85 } } } },
-              },
-              fields: "alignment,shading",
+              paragraphStyle: { alignment: "CENTER" },
+              fields: "alignment",
+            },
+          });
+        } else if (ln.section) {
+          styleOps.push({
+            updateTextStyle: {
+              range: { startIndex: start, endIndex: end },
+              textStyle: { bold: true, fontSize: { magnitude: 12, unit: "PT" } },
+              fields: "bold,fontSize",
             },
           });
         } else if (ln.bold) {
@@ -351,8 +419,6 @@ Deno.serve(async (req) => {
     for (const c of reversed) {
       requests.push({ insertText: { location: { index: 1 }, text: c.text } });
     }
-    // Os styleOps usam índices baseados em texto inserido a partir de 1, na ordem original.
-    // Como inserimos tudo a partir de index=1 sequencialmente, os índices finais batem.
     requests.push(...styleOps);
 
     // 6. Aplicar batchUpdate

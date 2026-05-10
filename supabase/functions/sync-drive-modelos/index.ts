@@ -266,7 +266,7 @@ Deno.serve(async (req) => {
         const target = subs["02_Relatorios_Atividade"].id;
         for (const rel of rels || []) {
           try {
-            const r = await invokeFn("generate-relatorio-gdoc", { relatorioId: rel.id }, authHeader);
+            const r = await invokeFn("generate-relatorio-gdoc", { relatorioId: rel.id, force: true }, authHeader);
             const fileId = r?.fileId || r?.documentId;
             if (!fileId) continue;
             const base = `SysCFV_Relatorio_${rel.data}_${safeName(rel.nome_atividade || "Atividade")}`;
