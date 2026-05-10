@@ -1,51 +1,95 @@
-## Diagnóstico
+## Diagnóstico atual
 
-Hoje existem **dois caminhos diferentes** para gerar o Google Doc do Relatório de Atividade — e eles produzem resultados distintos:
+Hoje os geradores estão divididos:
 
-### Caminho A — Botão "Abrir no Drive" do relatório (`/relatorios/:id`) ✅ correto
 
-`DriveSyncBadge` lê `drive_sync_queue.drive_url`, que é populado pela edge function `**drive-sync-worker → processRelatorio()**`. Esse processo:
+| Documento                           | Função                                       | Usa template `drive_modelos`? |
+| ----------------------------------- | -------------------------------------------- | ----------------------------- |
+| Relatório de Atividade (Google Doc) | `drive-sync-worker → processRelatorio`       | ✅ `relatorio`                 |
+| Planejamento (Google Doc)           | `drive-sync-worker → processPlanejamento`    | ✅ `planejamento`              |
+| Lista de Chamada (Google Sheet)     | `generate-lista-chamada-gsheet`              | ❌ monta do zero               |
+| Relatório Mensal Consolidado        | `generate-relatorio-mensal`                  | ❌ XLSX cru                    |
+| REO                                 | `generate-reo`                               | ❌ DOCX/XLSX cru               |
+| Lista de Frequência mensal (matriz) | `drive-sync-worker → processListaFrequencia` | ✅ `lista_frequencia`          |
 
-1. **Clona o template** cadastrado em `drive_modelos.template_doc_id` (tipo `relatorio`) — preserva timbre, cabeçalho, rodapé, tabelas formatadas, células coloridas das competências, ANEXO I/II, etc.
-2. **Substitui placeholders** (`{DATA}`, `{EDUCADOR}`, `{NOME_ATIVIDADE}`, `{ENG_1..4}`, `{SIT_1..5}`, `{OBJ_*}`, `{INICIATIVA}`...`{SCORE_ELO}`) via `fillRelatorioTemplate()`.
-3. Aplica **cores nas células de competência**, insere até 5 fotos nos placeholders `{foto1..5}` e a **tabela de presença** após o âncora "ANEXO II".
-4. Salva no Drive na pasta do educador.
 
-### Caminho B — "Sincronizar mês ao Drive" (Dashboard → Admin) ❌ produz layout errado
+A pasta de destino do botão "Sincronizar mês ao Drive" é `SysCFV_Workspace/...` fixa, sem mensalização.
 
-`DashboardAdminTab.sincronizarDrive()` chama `**sync-drive-modelos**` que, para cada relatório do mês, invoca `**generate-relatorio-gdoc**`. Essa função:
+## Fase 1 — Sincronização institucional única para Abril/2026
 
-1. Clona um template **hardcoded** (`GDOCS_RELATORIOS_TEMPLATE_ID = "1in9wpXN6kS..."`), diferente do que está em `drive_modelos`.
-2. **Apaga o conteúdo do template** (`deleteContentRange`) e reescreve tudo via `insertText`/`updateTextStyle` — perde toda a formatação institucional, tabelas, células coloridas e placeholders de fotos.
-3. Move o arquivo para `SysCFV_Workspace/02_Relatorios_Atividade`.
+### 1.1 Pasta-alvo mensal
 
-É por isso que a pasta `02` no Drive aparece "fora do padrão" mesmo o botão individual estando correto.
+Em `sync-drive-modelos`:
 
-## O que mudar
+- Trocar `ensureFolder("SysCFV_Workspace")` por `ensureFolder` parametrizado: `SYSCFV - {MES_UPPER} - {ANO}` (ex.: `SYSCFV - ABRIL - 2026`), criada na raiz do Drive da OSC.
+- Manter as 8 subpastas já existentes (`01_Modelos_Institucionais` … `08_Cronogramas`).
+- A função aceita opcionalmente `{ rootName }` no body para sobrescrever o padrão.
 
-Fazer a sincronização mensal usar **o mesmo motor do `drive-sync-worker**` (clone do template em `drive_modelos` + `fillRelatorioTemplate`), em vez de `generate-relatorio-gdoc`.
+### 1.2 Lista de Chamada — passar a clonar o template institucional
 
-### Passos
+Refatorar `generate-lista-chamada-gsheet`:
 
-1. **Edge function `drive-sync-worker**` — adicionar uma ação síncrona expondo `processRelatorio` para um único id, retornando `{ drive_file_id, drive_url }`. (Hoje essa função roda processando a fila inteira; precisamos de um modo "processa este id agora e responde".)
-  - Adicionar handler: `if (action === "process_relatorio_now") { return await processRelatorio(origem_id) }`.
-  - Mantém todo o comportamento atual (cache de pasta, idempotência por `drive_file_id`, fotos, ANEXO II).
-2. **Edge function `sync-drive-modelos**` — no bloco `if (tipos.includes("relatorios"))`:
-  - Substituir a chamada `invokeFn("generate-relatorio-gdoc", ...)` por `invokeFn("drive-sync-worker", { action: "process_relatorio_now", origem_id: rel.id })`.
-  - Receber `drive_file_id` retornado e, em seguida:
-    - **Copiar** (`POST /files/{id}/copy`) para a pasta `SysCFV_Workspace/02_Relatorios_Atividade` com o nome institucional `SysCFV_Relatorio_{YYYY-MM-DD}_{NomeAtividade}` (mantendo a cópia original na pasta do educador, que continua sendo o que o botão "Abrir no Drive" abre).
-    - Aplicar `resolveNome` + `trashFile` da versão antiga (mesma lógica de versionar já existente).
-  - Manter a coleta de erros e o `result.sincronizados.relatorios`.
-3. **Sem mudanças** em `generate-relatorio-gdoc` (mantém compatibilidade com qualquer outro consumidor); pode ficar como fallback ou ser depreciado num passo posterior se você confirmar que não é usado em outro lugar.
-4. **Frontend** — nenhuma mudança visual. O botão "Sincronizar mês ao Drive" continua igual; apenas o conteúdo gerado passa a respeitar o template institucional.
+- Em vez de construir o sheet do zero, **copiar** `drive_modelos.lista_chamada.template_doc_id` (`1zbEPL21HRu0AblNiGbEMHkdIEsgnE8oGEfYi8Vw-3PU`) via Drive API e preencher placeholders/intervalos do template (título, dias, nomes, marcadores).
+- Mantém todos os comentários/correções que você já aplicou no template (título, marcadores `(BA)/(D)/(T)`, símbolo `■`, etc.).
 
-## Resultado esperado
+### 1.3 Relatório Mensal e REO — converter para Google Sheets nativos via templates
 
-Após a mudança:
+- Criar 2 novos tipos em `drive_modelos` (caso ainda não existam): `relatorio_mensal` e `reo`. Você cadastra os IDs dos seus Google Sheets institucionais já comentados.
+- Refatorar `generate-relatorio-mensal` e `generate-reo` para:
+  1. Clonar o template via Drive API (`/files/{id}/copy`).
+  2. Preencher abas e intervalos via `spreadsheets.values:batchUpdate` (Google Sheets API).
+  3. Retornar `drive_file_id` + `drive_url` em vez de XLSX bruto.
+- O XLSX/DOCX legado fica como fallback opcional até a Fase 2.
 
-- `02_Relatorios_Atividade` no Drive passa a conter Google Docs **idênticos** ao que o botão "Abrir no Drive" do relatório individual gera (mesmo timbre, cabeçalho, ANEXO I/II, células coloridas, fotos).
-- O botão "Abrir no Drive" do `/relatorios/:id` continua funcionando exatamente como hoje (a sincronização mensal agora usa o mesmo motor por baixo).
+### 1.4 Regras de filtro aplicadas em todos os geradores
 
-## Confirmação
+Em **todos** os pontos que listam participantes (`generate-lista-chamada-gsheet`, `generate-relatorio-mensal`, `generate-reo`, `drive-sync-worker → processListaFrequencia`):
 
-Antes de implementar, só preciso confirmar uma coisa: você quer que a sincronização mensal **copie** o doc do educador para `02_Relatorios_Atividade` (mantendo os dois locais), ou prefere que apenas adicione a pasta `02_...` como **segundo pai** do mesmo arquivo (sem duplicação física)? Vou seguir com **cópia** por padrão se não houver objeção. Mantem os dois locais.
+- **Excluir desligados**: ignorar quando `status = 'desligado'` **e** `data_desligamento < dataIni do mês`. Quem desligou dentro do próprio mês continua aparecendo, com marcador `(D)` (já existe).
+- **Marcar entrantes do mês**: anexar marcador `**(N)**` (Novo) ao nome do participante quando `iniciou_em >= 2026-04-01 AND iniciou_em < 2026-05-01`. Centralizar a lógica num helper compartilhado.
+
+### 1.5 Endpoint orquestrador "Exportar mês completo"
+
+Em `sync-drive-modelos`, adicionar `tipos: "all"` (ou já passar todos os tipos) e incluir o tipo novo `**planejamentos**`:
+
+- Itera todos os planejamentos com `data_aplicacao` no mês → `drive-sync-worker → process_planejamento_now` → cópia para `03_Planejamentos`.
+
+Resultado: uma única chamada gera Relatórios (02), Planejamentos (03), Listas de Chamada (04), Relatório Mensal (05), REO (06), Equipe Técnica (07) — tudo dentro de `SYSCFV - ABRIL - 2026/`.
+
+### 1.6 UI — botão único na aba Admin do Dashboard
+
+Em `DashboardAdminTab`, simplificar para um botão "Exportar mês completo ao Drive" que chama `sync-drive-modelos` com todos os tipos e mostra os links das subpastas geradas no toast/log.
+
+### 1.7 Verificação
+
+Após o deploy, eu rodo a sincronização para Abril/2026 e te devolvo:
+
+- Link da pasta `SYSCFV - ABRIL - 2026/`
+- Links de cada subpasta
+- Lista de arquivos gerados com link direto
+
+Você confere e aprova antes da Fase 2.
+
+## Fase 2 — Substituir XLSX/DOCX por Google Docs/Sheets em todo o app
+
+**Só inicio depois da sua aprovação visual da Fase 1.** Escopo:
+
+- Em cada página com botão "Exportar XLSX/DOCX/PDF" (Relatórios, Planejamentos, Lista de Chamada, Mensal, REO, Hub `/relatorios/exportar`, Dashboard, Detalhe de Turma, etc.):
+  - Remover os botões `Download XLSX/DOCX/PDF` e o hook correspondente.
+  - Substituir por **"Abrir no Drive"** (já existe via `DriveSyncBadge`) que dispara o gerador apropriado e abre o Google Doc/Sheet em nova aba.
+  - Manter o cache de `drive_url` em `drive_sync_queue` para evitar reprocessamento.
+- Remover gradualmente os hooks `useDocumentExport`, `useBulkRelatorioExport`, `useDataExport`, `useOrcamentoExport` e funções `generate-*-gdoc`/`-pdf` que ficarem órfãs.
+- Atualizar memória (`mem://constraints/nomenclatura-arquivos`) para refletir que o sistema agora padroniza tudo no Drive.
+
+## Detalhes técnicos importantes
+
+- **Templates como source of truth**: nenhum gerador novo monta documento do zero — todos clonam o ID em `drive_modelos` e fazem `batchUpdate` (Sheets) ou substituição de placeholders (Docs).
+- **Idempotência**: usar `resolveNome` + `trashFile` já existentes em `sync-drive-modelos` para versionar (`_v2`, `_v3`) ou sobrescrever conforme `modo`.
+- **Performance**: paralelizar com `Promise.allSettled` por tipo, mantendo limite de ~5 chamadas simultâneas para evitar 429 do Drive.
+- **Helper compartilhado** `marcadorParticipante(p, dataIniMes)` colocado em `supabase/functions/_shared/participanteMarcadores.ts` para uniformizar `(D)/(T)/(N)`.
+
+## Confirmações necessárias antes de implementar
+
+1. **Marcador para entrantes do mês**: confirma `(N)` ou prefere outro símbolo (★, *, (E))? confirma.
+2. **Templates `relatorio_mensal` e `reo**`: você já tem os Google Sheets institucionais comentados? Se sim, me passa os links que eu cadastro em `drive_modelos`. Se não, posso usar o XLSX atual como base e converter — mas aí não terá o layout que você comentou. ainda nao tenho, deixar pra depois.
+3. **Pasta única vs por mês**: confirmo que o padrão será `SYSCFV - {MES} - {ANO}` (uma pasta nova a cada mês). Mantenho ou prefere uma raiz `SYSCFV/` com subpastas mensais dentro? subpastas dentro organizadas por mes.
