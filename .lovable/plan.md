@@ -1,85 +1,102 @@
-## Leitura dos 78 comentários do Sheets
+## Objetivo
 
-Consegui extrair todos via Drive Comments API. Eles caem em **5 grupos** distintos. Boa parte do grupo 4 (vínculos duplicados / participantes ausentes do mês) **já foi resolvida** pela migração anterior (`data_entrada`/`data_saida` + higienização dos 78 duplicados). Falta resolver o resto.
-
----
-
-### Grupo 1 — Aba **Atividades** (2 colunas com lógica errada)
-
-- **"Atividades Propostas"**: hoje está vazia/parcial. Deve listar **todos** os planejamentos do mês (`planejamentos` com `data_planejada` no mês, independentemente de terem virado relatório).
-- **"Atividades Desenvolvidas"**: hoje só traz o **título** do relatório. Deve trazer **descrição breve até 250 caracteres** (campo `descricao_atividade` ou equivalente do `relatorios_atividades`).
-- Total **364/440** ao final precisa recálculo após corrigir as duas colunas acima.
-
-### Grupo 2 — Aba **Metas** (3 células com **43%**)
-
-- Os 3 valores de "% atingido" estão errados — provavelmente usando denominador anual em vez do **mensal** (ou vice-versa). Revisar fórmula em `generate-relatorio-mensal/index.ts` na seção Metas.
-
-### Grupo 3 — Aba **Monitoramento** (3 valores de "Atendidos por bairro")
-
-- 113 / 125 / 126 hoje contam **registros de presença**. Devem contar **participantes únicos com ≥1 presença no mês** (`COUNT(DISTINCT participante_id) WHERE presente=true AND mês`).
-
-### Grupo 4 — Listas de frequência por turma (~65 comentários)
-
-Padrões observados:
-
-
-| Padrão do comentário                                                      | Causa raiz                                                                           | Status                                                                                                    |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| "nenhuma presença antes do dia 09/04?" (≈25x)                             | participante entrou na turma no meio do mês, mas a matriz não diferencia visualmente | **falta fix visual**                                                                                      |
-| "participante repetido em 2 turmas" (4x)                                  | vínculos duplicados                                                                  | **resolvido** (78 higienizados)                                                                           |
-| "verifique se já estava inserido em abril" (≈20x)                         | sem `data_entrada` antes da migração                                                 | **resolvido** retroativamente, mas precisa **relatório de auditoria** para a coordenação validar os casos |
-| "preencher células anteriores ao dia X/04 em cinza claro" (3x explícitos) | pedido visual recorrente                                                             | **falta implementar**                                                                                     |
-| Aba inteira sem nenhuma presença                                          | turma sem chamadas no mês                                                            | **falta marcar visualmente** ("Sem chamadas no período")                                                  |
-| "tenho certeza que veio mas não tem presença" (≈5x)                       | falha de lançamento de chamada — não é bug de software                               | gerar **lista de auditoria** para coordenação                                                             |
-
-
-**Fix visual proposto** (uma única regra que resolve a maioria dos comentários do grupo):
-
-- Para cada participante na matriz, pintar de **cinza claro** (`#E5E7EB`) toda célula cuja **data da chamada < `data_entrada**` ou **> `data_saida`/`data_desligamento**`.
-- Acrescentar legenda no topo: "■ presente · vazio = ausente · cinza = ainda não estava matriculado / já desligado · — sem aula" ; BA = Busca Ativa; D = Desligado"
-- Quando a turma não tem **nenhuma** presença no mês, render um aviso "Sem chamadas registradas no período" no topo da aba (em vez de matriz totalmente vazia).
-
-### Grupo 5 — Auditoria operacional (saída)
-
-Como suporte aos comentários "verifique X", gerar um **anexo XLSX de auditoria** dentro do mesmo arquivo (nova aba **"Auditoria — Pendências"**) listando automaticamente:
-
-1. Participantes com `data_entrada` no mês corrente (entradas novas).
-2. Participantes com `data_saida` no mês corrente (saídas/transferências/higienizações).
-3. Participantes com **0 presenças** no mês mas vínculo ativo o mês todo (candidatos a busca ativa / desligamento não registrado).
-4. Turmas com **0 chamadas** no mês.
-5. Participantes ainda com nome aparecendo em >1 aba do mês (sanidade pós-higienização — espera-se 0).
-
-Isso entrega um diagnóstico objetivo para a coordenação revisar caso a caso, em vez de o documento ficar com ambiguidade visual.
+1. Trazer **todo** o DOCX de Relatório de Atividade ao formato do modelo `1BSf2Gz...UJUg` (Google Doc), em todos os pontos do sistema que exportam relatório de atividade.
+2. Ler do Sheets `1J1Qr5...arjk` as **edições manuais** que você fez em Abril/2026 (presenças marcadas a mão, desligamentos com "D" tachado, datas em cinza para entradas no meio do mês) e refletir no banco.
+3. Regerar o **Relatório Mensal de Abril/2026** já com tudo isso aplicado e com as células cinza para vínculos fora da janela do mês.
 
 ---
 
-## Implementação
+## Parte 1 — DOCX do Relatório de Atividade (alinhar ao modelo)
 
-### 1. `supabase/functions/generate-relatorio-mensal/index.ts`
+### Diferenças entre o gerado hoje e o modelo
 
-- **Atividades** — query nova: `planejamentos` do mês para coluna "Propostas"; `relatorios_atividades.descricao_atividade` truncada a 250 chars para "Desenvolvidas".
-- **Metas** — corrigir denominador (usar meta mensal, não anual) e recálculo do total `364/440`.
-- **Monitoramento** — `COUNT(DISTINCT participante_id)` filtrado por `presente=true` e mês.
-- **Matrizes de frequência por turma**:
-  - manter o filtro já implementado (`data_entrada < endDate && (!data_saida || data_saida >= startDate)`);
-  - **adicionar coloração cinza** nas células fora da janela de vínculo (usar `xlsx-js-style` `fill: { fgColor: { rgb: "E5E7EB" } }`);
-  - se `datasComChamadas.length === 0`, renderizar 1 linha com "Sem chamadas registradas neste mês" e pular a matriz;
-  - atualizar a legenda no topo da aba.
-- **Nova aba "Auditoria — Pendências"** com as 5 listas do Grupo 5.
+| Bloco | Hoje | Modelo (alvo) |
+|---|---|---|
+| Cabeçalho institucional | 3 linhas + faixa vermelha "RELATÓRIO DE ATIVIDADE" | Igual, manter |
+| Tabela "Dados da Atividade" | 6 linhas (Data, Dia, Educador, Turmas, Tipo, Nome) — OK | Mesma estrutura |
+| Engajamento | Render só se houver opção marcada | **Sempre renderizar** as 4 opções com ■/☐ inline na mesma linha |
+| Competências | Tabela 5x3 + linha "Score ELO: X.XX" à direita | Igual, **sem coluna colorida**, célula central só com nº (3) e label ("Moderado") |
+| Resumo | Tabela 1x3 "Presentes / Ausentes / % Adesão" | Igual |
+| Objetivo | Render como bloco com label | "Objetivo: Alcançado" inline |
+| Atividades Realizadas | Texto puro | Texto puro (mantém) |
+| Observações | "não há" se vazio | **Renderizar sempre**, com "não há" se vazio |
+| Situações Relevantes | Render bloco se houver | **Remover** do DOCX (não está no modelo) |
+| Score ELO destacado | Linha à direita em vermelho | Linha à direita, **preto bold** (sem cor de marca) |
+| Anexo I — Lista de Frequência | Página nova, título "LISTA DE FREQUÊNCIA" + meta-linha | **Faixa "ANEXO I - LISTA DE FREQUÊNCIA"** (tabela 1x1 cinza claro) seguida de meta-linha "Atividade: ... | Data: ... | Turma(s): ...", "Educador(a): ...", e tabela Nº/Nome/Presença |
+| Linha "Educador" | Está no corpo | Manter no anexo + assinatura ao final |
+| Anexo II — Fotos | Bloco de fotos sem faixa | **Faixa "ANEXO II - REGISTROS FOTOGRÁFICOS"** (tabela 1x1) antes das fotos |
 
-### 2. `src/lib/listaFrequencia.ts` e `supabase/functions/generate-reo/index.ts`
+### Onde aplicar
 
-Aplicar a mesma coloração cinza nas matrizes geradas por estes dois caminhos (DOCX/PDF/XLSX), para consistência com o REO e listas avulsas.
+A função `buildRelatorioDocxBlob` em `src/hooks/useDocumentExport.ts` já é a única superfície usada por:
+- Botão "Exportar DOCX" em `RelatorioDetalhePage`
+- Hub de exportação em massa (`useBulkRelatorioExport`)
+- Biblioteca de Documentos (`bibliotecaDocx.ts` → `gerarDocxRelatorioBlob`)
+- Exportação por lote em `RelatoriosPage`
 
-### 3. Validação
+Logo, **todas as origens** ganham o novo formato com uma única edição.
 
-- Re-exportar Abril/2026 e conferir contra os 78 comentários originais (espera-se que ≥90% se resolvam visualmente ou apareçam na nova aba de Auditoria).
-- Comparar totais de Metas e Monitoramento com o `monthly_dashboard_metrics` da coordenação.
+> Observação: o template `relatorio.docx` carregado por `loadTemplate()` será desabilitado para esse fluxo — o caminho "from scratch" passa a ser o oficial, garantindo paridade exata com o modelo. Mantenho o template como fallback inerte para não quebrar a Biblioteca de Tags.
 
 ---
 
-## O que **não** vou fazer
+## Parte 2 — Extração das edições manuais do Sheets de Abril
 
-- Marcar manualmente cada um dos ~50 participantes citados — a higienização já foi feita; o que falta é a coordenação revisar a aba de Auditoria.
-- Mudar a cor padrão do "presente" (■) ou a tipografia institucional.
-- Tocar em cores/temas globais — o cinza E5E7EB já está alinhado com a paleta cold gray do sistema.
+A planilha tem 21 abas (3 institucionais + 18 turmas). Vou rodar um script único (executado fora do build, no sandbox) que para cada aba de turma:
+
+1. Lê a matriz de presença (linhas = participantes, colunas = datas) via Sheets API.
+2. Detecta **células marcadas manualmente como "■"** que não existem na tabela `presenca` do banco e prepara `INSERT` (presente=true, com flag `origem='auditoria_abril_manual'` em coluna `observacao` ou similar para rastreabilidade).
+3. Detecta **linhas com strikethrough no nome** (formatação `textFormatRuns[].format.strikethrough=true`) — gera lista CSV "Participantes a desligar manualmente" para sua revisão (não mexe em cadastros agora).
+4. Para o **regerar do relatório**: aplica esses desligamentos como `data_saida` retroativa (último dia em que aparecem no Sheets) **somente em memória dentro da edge function**, via uma tabela auxiliar `auditoria_abril_desligamentos` que a função consulta ao montar matrizes — assim você revisa caso a caso depois sem perder o vínculo real.
+
+**Entregáveis desta parte (em /mnt/documents/):**
+- `auditoria_abril_presencas_inseridas.csv` — log do que foi inserido em `presenca`.
+- `auditoria_abril_desligamentos_pendentes.csv` — nomes/datas com "D" tachado, para sua revisão.
+- Migration criando `auditoria_abril_desligamentos` (id, participante_id, data_saida_efetiva, motivo, revisado_em).
+
+> Não vou desligar de fato no `participantes`/`turma_participantes` até você revisar o CSV.
+
+---
+
+## Parte 3 — Células cinza para datas anteriores ao `data_entrada`
+
+Já implementado parcialmente no último loop. **Faltava**:
+
+- Aplicar a regra também para participantes com `data_saida` no meio do mês → cinza após a saída.
+- Para os "desligados manualmente" da Parte 2, ler `auditoria_abril_desligamentos.data_saida_efetiva` e pintar cinza a partir desse ponto.
+- Verificar consistência entre as 3 superfícies de matriz: `generate-relatorio-mensal/index.ts`, `ExportarRelatoriosPage.tsx` e `generate-reo/index.ts`.
+
+---
+
+## Parte 4 — Regerar Relatório Mensal Abril/2026
+
+1. Aplicar Parte 2 (inserts de presença) no banco.
+2. Aplicar Parte 3 (cinza fora-da-janela em todas as matrizes).
+3. Disparar `generate-relatorio-mensal` para Abril/2026 a partir da UI atual (`/relatorios/exportar`).
+4. Comparar XLSX gerado contra o Sheets anotado e listar discrepâncias residuais na aba **Auditoria — Pendências**.
+
+---
+
+## Detalhes técnicos
+
+**Arquivos editados**
+- `src/hooks/useDocumentExport.ts` — reescrever `buildRelatorioDocxBlob` para casar com o modelo (remover Situações, sempre renderizar Engajamento e Observações, faixas "ANEXO I/II", trocar cor do Score ELO para preto, ajustar tabela de competências sem coluna colorida).
+- `supabase/functions/generate-relatorio-mensal/index.ts` — consumir `auditoria_abril_desligamentos` ao montar matrizes; pintar cinza pós-`data_saida` além do pré-`data_entrada`.
+- `src/pages/relatorios/ExportarRelatoriosPage.tsx` e `supabase/functions/generate-reo/index.ts` — paridade de regra cinza.
+
+**Migrations**
+- `auditoria_abril_desligamentos` (sem RLS aberta — só coordenação lê/escreve).
+
+**Scripts one-off (sandbox, não vão para o repo)**
+- `extract_april_manual_edits.py` — Sheets API → CSVs + INSERTs em `presenca`.
+
+**Validação**
+- Re-exportar Abril/2026 e validar contra os 78 comentários originais.
+- Exportar 1 relatório de atividade qualquer e abrir em Word para comparar com o modelo (faixas Anexo I/II presentes; Engajamento sempre visível; sem bloco Situações; Score ELO em preto).
+
+---
+
+## Fora de escopo (confirmar se quer adicionar)
+
+- Replicar o mesmo modelo para o **PDF** do relatório de atividade (`exportRelatorioPdf`) — hoje ele tem layout próprio. Posso alinhar também, mas dobra o trabalho.
+- Migrar a Biblioteca de Documentos para gerar via Google Docs API em vez de DOCX local — você mencionou "agora em google docs" no doc; se for isso, vira projeto à parte (precisa OAuth por usuário, não cabe aqui).
