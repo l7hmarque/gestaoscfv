@@ -24,7 +24,7 @@ const SUBFOLDERS = [
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
-type Tipo = "mensal" | "listas" | "relatorios" | "equipe_tecnica";
+type Tipo = "mensal" | "listas" | "relatorios" | "planejamentos" | "equipe_tecnica";
 type Modo = "versionar" | "sobrescrever" | "pular";
 
 interface DriveFile {
@@ -182,8 +182,11 @@ Deno.serve(async (req) => {
     const modo: Modo = body?.modo === "sobrescrever" || body?.modo === "pular" ? body.modo : "versionar";
     const authHeader = req.headers.get("Authorization");
 
-    // 1. Estrutura de pastas
-    const root = await ensureFolder("SysCFV_Workspace");
+    // 1. Estrutura de pastas: SYSCFV / {MES_UPPER} - {ANO} / <subpastas>
+    const sysCfvRoot = await ensureFolder("SYSCFV");
+    const mesUpper = mes ? MESES[mes - 1].toUpperCase() : null;
+    const monthFolderName = mes && ano ? `${mesUpper} - ${ano}` : "GERAL";
+    const root = await ensureFolder(monthFolderName, sysCfvRoot.id);
     const subs: Record<string, { id: string; url: string }> = {};
     for (const sub of SUBFOLDERS) {
       const f = await ensureFolder(sub, root.id);
@@ -192,9 +195,11 @@ Deno.serve(async (req) => {
 
     const result: any = {
       success: true,
+      sysCfvRoot: { id: sysCfvRoot.id, url: `https://drive.google.com/drive/folders/${sysCfvRoot.id}` },
       root: { id: root.id, url: `https://drive.google.com/drive/folders/${root.id}` },
+      mesPasta: monthFolderName,
       subfolders: subs,
-      sincronizados: { mensal: null, listas: [], relatorios: [], equipe_tecnica: null },
+      sincronizados: { mensal: null, listas: [], relatorios: [], planejamentos: [], equipe_tecnica: null },
       erros: [] as { tipo: string; msg: string }[],
     };
 
@@ -240,16 +245,17 @@ Deno.serve(async (req) => {
         const target = subs["04_Listas_Presenca"].id;
         for (const turmaId of turmasIds) {
           try {
-            const r = await invokeFn("generate-lista-chamada-gsheet", { turmaId, mes, ano }, authHeader);
-            if (r?.fileId) {
+            const r = await invokeFn("generate-lista-chamada-gsheet", { turma_id: turmaId, mes, ano }, authHeader);
+            const fileIdRet = r?.fileId || r?.drive_file_id;
+            if (fileIdRet) {
               const { data: turma } = await sb.from("turmas").select("nome").eq("id", turmaId).maybeSingle();
               const base = `SysCFV_ListaChamada_${safeName(turma?.nome || "Turma")}_${periodoLabel}`;
               const { nome, skip, toTrash } = await resolveNome(base, "gsheet", target, modo);
-              if (skip) { await trashFile(r.fileId); result.sincronizados.listas.push({ turmaId, nome, skipped: true }); continue; }
+              if (skip) { await trashFile(fileIdRet); result.sincronizados.listas.push({ turmaId, nome, skipped: true }); continue; }
               for (const id of toTrash) await trashFile(id);
-              await renameFile(r.fileId, nome.replace(/\.gsheet$/, ""));
-              await moveFileToFolder(r.fileId, target);
-              result.sincronizados.listas.push({ turmaId, fileId: r.fileId, nome });
+              await renameFile(fileIdRet, nome.replace(/\.gsheet$/, ""));
+              await moveFileToFolder(fileIdRet, target);
+              result.sincronizados.listas.push({ turmaId, fileId: fileIdRet, nome, url: `https://docs.google.com/spreadsheets/d/${fileIdRet}/edit` });
             }
           } catch (e: any) { result.erros.push({ tipo: `lista:${turmaId}`, msg: e.message }); }
         }
@@ -295,10 +301,46 @@ Deno.serve(async (req) => {
             const fileId = copyJson.id;
             // copy nem sempre respeita parents — garante movimento para a subpasta
             await moveFileToFolder(fileId, target);
-            result.sincronizados.relatorios.push({ relId: rel.id, fileId, nome });
+            result.sincronizados.relatorios.push({ relId: rel.id, fileId, nome, url: `https://docs.google.com/document/d/${fileId}/edit` });
           } catch (e: any) { result.erros.push({ tipo: `relatorio:${rel.id}`, msg: e.message }); }
         }
       } catch (e: any) { result.erros.push({ tipo: "relatorios", msg: e.message }); }
+    }
+
+    // ===== TIPO: planejamentos (Google Docs via drive_modelos.planejamento) =====
+    if (tipos.includes("planejamentos")) {
+      try {
+        const { data: pls } = await sb.from("planejamentos")
+          .select("id, data_aplicacao, titulo")
+          .gte("data_aplicacao", dataIni).lte("data_aplicacao", dataFimStr)
+          .order("data_aplicacao");
+        const target = subs["03_Planejamentos"].id;
+        for (const pl of pls || []) {
+          try {
+            const r = await invokeFn(
+              "drive-sync-worker",
+              { action: "process_planejamento_now", origem_id: pl.id },
+              authHeader,
+            );
+            const sourceFileId: string | undefined = r?.drive_file_id;
+            if (!sourceFileId) continue;
+            const base = `SysCFV_Planejamento_${pl.data_aplicacao}_${safeName(pl.titulo || "Planejamento")}`;
+            const { nome, skip, toTrash } = await resolveNome(base, "gdoc", target, modo);
+            if (skip) { result.sincronizados.planejamentos.push({ plId: pl.id, nome, skipped: true }); continue; }
+            for (const id of toTrash) await trashFile(id);
+            const copyName = nome.replace(/\.gdoc$/, "");
+            const copyRes = await fetch(
+              `${GATEWAY_URL}/files/${sourceFileId}/copy?supportsAllDrives=true&fields=id,name`,
+              { method: "POST", headers: authHeaders(), body: JSON.stringify({ name: copyName, parents: [target] }) },
+            );
+            if (!copyRes.ok) throw new Error(`copy falhou [${copyRes.status}]: ${await copyRes.text()}`);
+            const copyJson = await copyRes.json();
+            const fileId = copyJson.id;
+            await moveFileToFolder(fileId, target);
+            result.sincronizados.planejamentos.push({ plId: pl.id, fileId, nome, url: `https://docs.google.com/document/d/${fileId}/edit` });
+          } catch (e: any) { result.erros.push({ tipo: `planejamento:${pl.id}`, msg: e.message }); }
+        }
+      } catch (e: any) { result.erros.push({ tipo: "planejamentos", msg: e.message }); }
     }
 
     // ===== TIPO: equipe_tecnica (XLSX consolidado de atendimentos + relatos) =====
