@@ -318,7 +318,7 @@ async function fillRelatorioTemplate(docId: string, ctx: {
     const tok = `{foto${i + 1}}`;
     const fileId = fotos[i]?.drive_file_id;
     if (fileId) {
-      await insertImageAtToken(docId, tok, fileId, 340);
+      await insertImageAtToken(docId, tok, fileId, 460);
     } else {
       await replacePlaceholders(docId, { [tok]: "" });
     }
