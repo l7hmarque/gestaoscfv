@@ -266,12 +266,24 @@ export default function ExportarRelatoriosPage() {
       applyInstStyle(wsResumo);
       XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
 
-      // Atividades
+      // Atividades — Propostas = TODOS planejamentos do mês; Desenvolvidas = relatórios (descrição até 250 chars)
       const atividadesRows: any[][] = [];
+      const usedPlanIds = new Set<string>();
+      const trunc = (s: string, n: number) => (s || "").length > n ? (s || "").slice(0, n - 1) + "…" : (s || "");
+      // 1) Linhas para cada relatório executado, casando o planejamento quando houver
       filteredRelatorios.forEach((r: any) => {
         const plan = r.planejamento_id ? planMap.get(r.planejamento_id) : null;
+        if (plan) usedPlanIds.add(plan.id);
         const proposta = plan ? (plan.titulo + (plan.tema ? ` — ${plan.tema}` : "")) : "Não planejada";
-        atividadesRows.push([proposta, r.nome_atividade || "", r.analise_ia || "", ""]);
+        const desenvDesc = trunc(r.observacoes || r.intervencoes || r.nome_atividade || "", 250);
+        const titulo = r.nome_atividade ? `${r.nome_atividade}\n${desenvDesc}` : desenvDesc;
+        atividadesRows.push([proposta, titulo, trunc(r.analise_ia || "", 250), ""]);
+      });
+      // 2) Planejamentos do mês que NÃO viraram relatório → linhas só com "Proposta"
+      filteredPlanejamentos.forEach((plan: any) => {
+        if (usedPlanIds.has(plan.id)) return;
+        const proposta = plan.titulo + (plan.tema ? ` — ${plan.tema}` : "");
+        atividadesRows.push([proposta, "— Não executada —", "", ""]);
       });
       if (!atividadesRows.length) atividadesRows.push(["Nenhuma atividade registrada", "", "", ""]);
       const { data: ativData, offset: ativOff } = addInstHeader([
@@ -357,8 +369,22 @@ export default function ExportarRelatoriosPage() {
 
       for (const turma of turmasAtivas) {
         const t = turma as any;
-        const tpIds = turmaParticipantes.filter((tp: any) => tp.turma_id === t.id).map((tp: any) => tp.participante_id);
-        const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean).filter((p: any) => !p.created_at || p.created_at < endDate) as any[];
+        // Vínculos da turma respeitando data_entrada/data_saida (janela do mês)
+        const tpRecords = turmaParticipantes.filter(
+          (tp: any) =>
+            tp.turma_id === t.id &&
+            (!tp.data_entrada || tp.data_entrada < endDate) &&
+            (!tp.data_saida || tp.data_saida >= startDate)
+        );
+        // Mapa participante_id → janela de vínculo (para colorir cinza fora dela)
+        const windowByPart = new Map<string, { entrada: string | null; saida: string | null }>();
+        tpRecords.forEach((tp: any) => {
+          windowByPart.set(tp.participante_id, {
+            entrada: tp.data_entrada || null,
+            saida: tp.data_saida || null,
+          });
+        });
+        const tParts = tpRecords.map((tp: any) => partMap.get(tp.participante_id)).filter(Boolean) as any[];
         const tPresencas = presencas.filter((p: any) => p.turma_id === t.id);
         const relIdsForTurma = relatorioTurmas.filter((rt: any) => rt.turma_id === t.id).map((rt: any) => rt.relatorio_id);
         const relsForTurma = filteredRelatorios.filter((r: any) => relIdsForTurma.includes(r.id));
@@ -398,6 +424,7 @@ export default function ExportarRelatoriosPage() {
           "MATRIZ DE FREQUÊNCIA", turmaInfoLine, subInfoLine,
         );
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
+        const grayFill = { fgColor: { rgb: "E5E7EB" } };
         ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...datas.map(() => ({ wch: 6 }))];
         autoFitColumns(ws, { max: 55 });
         applyInstitutionalStyle(ws, colHeaders.length, { hasTurmaInfo: true, hasSubInfo: true });
@@ -405,12 +432,19 @@ export default function ExportarRelatoriosPage() {
         const dataStartRow = matOffset + 1;
         tParts.forEach((p: any, pIdx: number) => {
           const excelRow = dataStartRow + pIdx;
+          const win = windowByPart.get(p.id) || { entrada: null, saida: null };
           datas.forEach((d, dIdx) => {
             const col = 2 + dIdx;
             const addr = XLSX.utils.encode_cell({ r: excelRow, c: col });
             if (!ws[addr]) ws[addr] = { v: "", t: "s" };
             const isDesligado = p.status === "desligado" && p.data_desligamento && d > p.data_desligamento;
-            if (isDesligado) {
+            const foraDaJanela =
+              (win.entrada && d < win.entrada) ||
+              (win.saida && d >= win.saida);
+            if (foraDaJanela) {
+              // Cinza claro: ainda não estava matriculado / já saiu
+              ws[addr].s = { fill: grayFill, border: borderObj };
+            } else if (isDesligado) {
               ws[addr].v = "D";
               ws[addr].s = { fill: { fgColor: { rgb: "FFFFFF" } }, font: { color: { rgb: "000000" } }, border: borderObj };
             } else {
@@ -425,6 +459,17 @@ export default function ExportarRelatoriosPage() {
             }
           });
         });
+        // Se a turma não teve nenhuma chamada no mês, escreve aviso na primeira linha de data
+        const houveChamada = tPresencas.length > 0 || relPresFallback.length > 0;
+        if (!houveChamada && datas.length) {
+          const noteRow = dataStartRow + tParts.length + 1;
+          const addr = XLSX.utils.encode_cell({ r: noteRow, c: 0 });
+          ws[addr] = { v: "Sem chamadas registradas neste mês", t: "s", s: { font: { italic: true, color: { rgb: "7F1D1D" } } } };
+          // estende !ref para incluir essa nota
+          const refRange = XLSX.utils.decode_range(ws["!ref"] || "A1");
+          refRange.e.r = Math.max(refRange.e.r, noteRow);
+          ws["!ref"] = XLSX.utils.encode_range(refRange);
+        }
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
       }
 
