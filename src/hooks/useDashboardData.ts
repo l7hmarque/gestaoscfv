@@ -32,6 +32,9 @@ export interface DashboardData {
   totalParticipantesAlerta: number;
   presencaMensal: { mes: string; presentes: number; total: number; pct: number; parcial?: boolean }[];
   deltaParticipantes: number;
+  participantesAtivosMesAtual: number;
+  participantesAtivosMesAnterior: number;
+  deltaParticipantesBase: string | null;
   atividadesRecentes: AtividadeRecente[];
   dataInicioOperacional: string | null;
 }
@@ -90,6 +93,9 @@ export function useDashboardData(mes?: number | null, ano?: number | null, dataI
           parcial: Boolean(x.parcial),
         })),
         deltaParticipantes: Number(d.deltaParticipantes ?? 0),
+        participantesAtivosMesAtual: Number(d.participantesAtivosMesAtual ?? 0),
+        participantesAtivosMesAnterior: Number(d.participantesAtivosMesAnterior ?? 0),
+        deltaParticipantesBase: d.deltaParticipantesBase ?? null,
         atividadesRecentes: (d.atividadesRecentes || []).map((x: any) => ({
           id: x.id,
           nome_atividade: x.nome_atividade || "Atividade",
