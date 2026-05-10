@@ -191,6 +191,11 @@ Deno.serve(async (req) => {
     const ano: number | null = body?.ano ? Number(body.ano) : null;
     const tipos: Tipo[] = Array.isArray(body?.tipos) ? body.tipos : [];
     const modo: Modo = body?.modo === "sobrescrever" || body?.modo === "pular" ? body.modo : "versionar";
+    const batchSize = Math.min(Math.max(Number(body?.batchSize || 3), 1), 5);
+    const cursorIn = body?.cursor && typeof body.cursor === "object" ? body.cursor : { tipoIndex: 0, offset: 0, part: 0 };
+    const tipoIndex = Math.max(Number(cursorIn.tipoIndex || 0), 0);
+    const offset = Math.max(Number(cursorIn.offset || 0), 0);
+    const part = Math.max(Number(cursorIn.part || 0), 0);
     const authHeader = req.headers.get("Authorization");
 
     // 1. Estrutura de pastas: SYSCFV / {MES_UPPER} - {ANO} / <subpastas>
@@ -212,11 +217,27 @@ Deno.serve(async (req) => {
       subfolders: subs,
       sincronizados: { mensal: null, listas: [], relatorios: [], planejamentos: [], equipe_tecnica: null, reo: null },
       erros: [] as { tipo: string; msg: string }[],
+      batch: { currentTipo: tipos[tipoIndex] || null, tipoIndex, offset, part, batchSize, processed: 0 },
+      hasMore: false,
+      cursor: null as null | { tipoIndex: number; offset: number; part?: number },
     };
 
-    if (!mes || !ano || tipos.length === 0) {
+    const respond = (next?: { tipoIndex: number; offset: number; part?: number } | null) => {
+      result.hasMore = !!next && next.tipoIndex < tipos.length;
+      result.cursor = result.hasMore ? next : null;
+      result.batch.currentTipo = tipos[tipoIndex] || null;
+      return new Response(JSON.stringify({ ...result, async: false }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    };
+
+    const nextCategory = () => ({ tipoIndex: tipoIndex + 1, offset: 0, part: 0 });
+    const currentTipo = tipos[tipoIndex];
+
+    if (!mes || !ano || tipos.length === 0 || !currentTipo) {
       // Apenas garantir pastas
-      return new Response(JSON.stringify(result), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return respond(null);
     }
 
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -227,7 +248,7 @@ Deno.serve(async (req) => {
     const periodoLabel = `${MESES[mes - 1]}_${ano}`;
 
     // ===== TIPO: mensal (XLSX) =====
-    if (tipos.includes("mensal")) {
+    if (currentTipo === "mensal") {
       try {
         const r = await invokeFn("generate-relatorio-mensal", { mes, ano }, authHeader);
         if (r?.url) {
@@ -251,10 +272,12 @@ Deno.serve(async (req) => {
           }
         }
       } catch (e: any) { result.erros.push({ tipo: "mensal", msg: e.message }); }
+      result.batch.processed = result.sincronizados.mensal ? 1 : 0;
+      return respond(nextCategory());
     }
 
     // ===== TIPO: listas (Google Sheets, uma por turma ativa no mês) =====
-    if (tipos.includes("listas")) {
+    if (currentTipo === "listas") {
       try {
         // Turmas com algum relatório no mês (via relatorio_turmas) +
         // turmas com planejamento no mês (via planejamento_turmas)
@@ -274,8 +297,9 @@ Deno.serve(async (req) => {
           (pt || []).forEach((r: any) => r.turma_id && turmasSet.add(r.turma_id));
         }
         const turmasIds = Array.from(turmasSet);
+        const lote = turmasIds.slice(offset, offset + batchSize);
         const target = subs["04_Listas_Presenca"].id;
-        for (const turmaId of turmasIds) {
+        for (const turmaId of lote) {
           try {
             const r = await invokeFn("generate-lista-chamada-gsheet", { turma_id: turmaId, mes, ano }, authHeader);
             const fileIdRet = r?.fileId || r?.drive_file_id;
@@ -291,18 +315,24 @@ Deno.serve(async (req) => {
             }
           } catch (e: any) { result.erros.push({ tipo: `lista:${turmaId}`, msg: e.message }); }
         }
-      } catch (e: any) { result.erros.push({ tipo: "listas", msg: e.message }); }
+        result.batch.processed = lote.length;
+        result.batch.total = turmasIds.length;
+        const nextOffset = offset + lote.length;
+        return respond(nextOffset < turmasIds.length ? { tipoIndex, offset: nextOffset, part: 0 } : nextCategory());
+      } catch (e: any) { result.erros.push({ tipo: "listas", msg: e.message }); return respond(nextCategory()); }
     }
 
     // ===== TIPO: relatorios (Google Docs) =====
-    if (tipos.includes("relatorios")) {
+    if (currentTipo === "relatorios") {
       try {
         const { data: rels } = await sb.from("relatorios_atividade")
           .select("id, data, nome_atividade")
           .gte("data", dataIni).lte("data", dataFimStr)
           .order("data");
+        const allRels = rels || [];
+        const lote = allRels.slice(offset, offset + batchSize);
         const target = subs["02_Relatorios_Atividade"].id;
-        for (const rel of rels || []) {
+        for (const rel of lote) {
           try {
             // Usa o MESMO motor do botão "Abrir no Drive" do /relatorios/:id —
             // clona o template institucional de drive_modelos e preenche placeholders.
@@ -336,18 +366,24 @@ Deno.serve(async (req) => {
             result.sincronizados.relatorios.push({ relId: rel.id, fileId, nome, url: `https://docs.google.com/document/d/${fileId}/edit` });
           } catch (e: any) { result.erros.push({ tipo: `relatorio:${rel.id}`, msg: e.message }); }
         }
-      } catch (e: any) { result.erros.push({ tipo: "relatorios", msg: e.message }); }
+        result.batch.processed = lote.length;
+        result.batch.total = allRels.length;
+        const nextOffset = offset + lote.length;
+        return respond(nextOffset < allRels.length ? { tipoIndex, offset: nextOffset, part: 0 } : nextCategory());
+      } catch (e: any) { result.erros.push({ tipo: "relatorios", msg: e.message }); return respond(nextCategory()); }
     }
 
     // ===== TIPO: planejamentos (Google Docs via drive_modelos.planejamento) =====
-    if (tipos.includes("planejamentos")) {
+    if (currentTipo === "planejamentos") {
       try {
         const { data: pls } = await sb.from("planejamentos")
           .select("id, data_aplicacao, titulo")
           .gte("data_aplicacao", dataIni).lte("data_aplicacao", dataFimStr)
           .order("data_aplicacao");
+        const allPls = pls || [];
+        const lote = allPls.slice(offset, offset + batchSize);
         const target = subs["03_Planejamentos"].id;
-        for (const pl of pls || []) {
+        for (const pl of lote) {
           try {
             const r = await invokeFn(
               "drive-sync-worker",
@@ -372,11 +408,15 @@ Deno.serve(async (req) => {
             result.sincronizados.planejamentos.push({ plId: pl.id, fileId, nome, url: `https://docs.google.com/document/d/${fileId}/edit` });
           } catch (e: any) { result.erros.push({ tipo: `planejamento:${pl.id}`, msg: e.message }); }
         }
-      } catch (e: any) { result.erros.push({ tipo: "planejamentos", msg: e.message }); }
+        result.batch.processed = lote.length;
+        result.batch.total = allPls.length;
+        const nextOffset = offset + lote.length;
+        return respond(nextOffset < allPls.length ? { tipoIndex, offset: nextOffset, part: 0 } : nextCategory());
+      } catch (e: any) { result.erros.push({ tipo: "planejamentos", msg: e.message }); return respond(nextCategory()); }
     }
 
     // ===== TIPO: equipe_tecnica (XLSX consolidado de atendimentos + relatos) =====
-    if (tipos.includes("equipe_tecnica")) {
+    if (currentTipo === "equipe_tecnica") {
       try {
         const [{ data: atend }, { data: relatos }] = await Promise.all([
           sb.from("atendimentos")
@@ -434,14 +474,16 @@ Deno.serve(async (req) => {
           result.sincronizados.equipe_tecnica = { nome, skipped: true };
         }
       } catch (e: any) { result.erros.push({ tipo: "equipe_tecnica", msg: e.message }); }
+      result.batch.processed = result.sincronizados.equipe_tecnica ? 1 : 0;
+      return respond(nextCategory());
     }
 
     // ===== TIPO: reo (DOCX → Google Doc + XLSX → Google Sheet) =====
-    if (tipos.includes("reo")) {
+    if (currentTipo === "reo") {
       try {
         const target = subs["06_REO"].id;
         // DOCX
-        try {
+        if (part === 0) try {
           const rDoc = await invokeFn("generate-reo", { mes, ano, formato: "docx" }, authHeader);
           if (rDoc?.url) {
             const buf = new Uint8Array(await (await fetch(rDoc.url)).arrayBuffer());
@@ -461,8 +503,13 @@ Deno.serve(async (req) => {
             }
           }
         } catch (e: any) { result.erros.push({ tipo: "reo:docx", msg: e.message }); }
+        if (part === 0) {
+          result.batch.processed = 1;
+          result.batch.total = 2;
+          return respond({ tipoIndex, offset: 0, part: 1 });
+        }
         // XLSX (anexo)
-        try {
+        if (part === 1) try {
           const rXls = await invokeFn("generate-reo", { mes, ano, formato: "xlsx" }, authHeader);
           if (rXls?.url) {
             const buf = new Uint8Array(await (await fetch(rXls.url)).arrayBuffer());
@@ -482,12 +529,12 @@ Deno.serve(async (req) => {
             }
           }
         } catch (e: any) { result.erros.push({ tipo: "reo:xlsx", msg: e.message }); }
-      } catch (e: any) { result.erros.push({ tipo: "reo", msg: e.message }); }
+        result.batch.processed = 1;
+        result.batch.total = 2;
+        return respond(nextCategory());
+      } catch (e: any) { result.erros.push({ tipo: "reo", msg: e.message }); return respond(nextCategory()); }
     }
-    return new Response(
-      JSON.stringify({ ...result, async: false }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return respond(null);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sync-drive-modelos]", msg);
