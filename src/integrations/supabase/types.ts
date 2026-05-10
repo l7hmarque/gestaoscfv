@@ -123,6 +123,57 @@ export type Database = {
         }
         Relationships: []
       }
+      auditoria_abril_desligamentos: {
+        Row: {
+          created_at: string
+          data_saida_efetiva: string
+          id: string
+          motivo: string | null
+          participante_id: string
+          revisado: boolean
+          revisado_em: string | null
+          revisado_por: string | null
+          turma_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          data_saida_efetiva?: string
+          id?: string
+          motivo?: string | null
+          participante_id: string
+          revisado?: boolean
+          revisado_em?: string | null
+          revisado_por?: string | null
+          turma_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          data_saida_efetiva?: string
+          id?: string
+          motivo?: string | null
+          participante_id?: string
+          revisado?: boolean
+          revisado_em?: string | null
+          revisado_por?: string | null
+          turma_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auditoria_abril_desligamentos_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "participantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "auditoria_abril_desligamentos_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       avisos_sistema: {
         Row: {
           ativo: boolean

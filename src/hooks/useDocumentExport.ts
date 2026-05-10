@@ -458,34 +458,32 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
   if (!Array.isArray(item.engajamento)) item.engajamento = item.engajamento ? [item.engajamento] : [];
   if (!Array.isArray(item.situacoes_relevantes)) item.situacoes_relevantes = item.situacoes_relevantes ? [item.situacoes_relevantes] : [];
 
-  const template = await loadTemplate("relatorio.docx");
-  
-  if (template) {
-    try {
-      // Remove PRESENCA from template data so template doesn't render ugly list
-      const baseData = buildRelatorioTemplateData(item, turmaNames, presenca);
-      delete baseData.PRESENCA;
-      baseData.HAS_PRESENCA = false;
-      const tagMappings = await loadTagMappings("relatorio.docx");
-      const data = remapDataWithMappings(baseData, tagMappings, baseData);
-      const blob = fillTemplate(template, data);
-      
-      // If there's presença, we need to append the nice table to the template output
-      if (presenca.length > 0) {
-        // Can't easily append to docxtemplater output, so fall through to full fallback
-        console.info("Template used but presença table generated via fallback code.");
-      } else {
-        return blob;
-      }
-    } catch (e) {
-      console.error("Template fill failed, generating fallback DOCX:", e);
-      toast.error("Modelo institucional com erro. Exportando versão padrão.");
-    }
-  }
+  // Builder oficial — alinhado ao modelo institucional do Google Doc
+  // (MODELO RELATORIO DE ATIVIDADES ATUALIZADO). Sem template externo.
+  const relatorioHeader = (): Paragraph[] => [
+    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "SOCIEDADE CIVIL NOSSA SENHORA APARECIDA", bold: true, size: 20, font: "Arial" })] }),
+    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "CAIA — Centro de Atendimento Integrado ao Adolescente", size: 18, font: "Arial" })] }),
+    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Serviço de Convivência e Fortalecimento de Vínculos — SCFV", size: 16, font: "Arial", italics: true })] }),
+    new Paragraph({ spacing: { after: 200 }, children: [] }),
+  ];
 
-  // Fallback: generate from scratch
+  // Faixa "ANEXO ..." (tabela 1x1 cinza claro)
+  const anexoBanner = (label: string): Table => new Table({
+    width: { size: 9360, type: WidthType.DXA },
+    columnWidths: [9360],
+    rows: [new TableRow({ children: [
+      new TableCell({
+        width: { size: 9360, type: WidthType.DXA }, borders, margins: cellMargins,
+        shading: { fill: "E5E7EB", type: ShadingType.CLEAR },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [
+          new TextRun({ text: label, bold: true, size: 22, font: "Arial" }),
+        ]})],
+      }),
+    ]})],
+  });
+
   const children: any[] = [
-    ...headerParagraphs(),
+    ...relatorioHeader(),
     new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [
       new TextRun({ text: "RELATÓRIO DE ATIVIDADE", bold: true, size: 24, font: "Arial", color: ACCENT_COLOR }),
     ]}),
@@ -522,19 +520,15 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
   children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [2800, 6560], rows }));
   children.push(new Paragraph({ spacing: { after: 200 }, children: [] }));
 
-  if (item.engajamento?.length > 0) {
+  // Engajamento — sempre renderiza as 4 opções
+  {
     const engOptions = ["Grupo participativo", "Grupo disperso", "Boa interação entre participantes", "Necessitou intervenção do educador"];
+    const marcadas: string[] = Array.isArray(item.engajamento) ? item.engajamento : [];
     children.push(new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: "Engajamento:", bold: true, size: 20, font: "Arial" })] }));
-    children.push(new Paragraph({ spacing: { after: 200 }, children: engOptions.flatMap(opt => checkbox(item.engajamento.includes(opt), opt)) }));
+    children.push(new Paragraph({ spacing: { after: 200 }, children: engOptions.flatMap(opt => checkbox(marcadas.includes(opt), opt)) }));
   }
 
-  if (item.situacoes_relevantes?.length > 0) {
-    const sitOptions = ["Nenhuma ocorrência", "Conflito entre participantes", "Situação de vulnerabilidade identificada", "Encaminhamento necessário", "Comunicação com família/responsável"];
-    children.push(new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: "Situações Relevantes:", bold: true, size: 20, font: "Arial" })] }));
-    children.push(new Paragraph({ spacing: { after: 200 }, children: sitOptions.flatMap(opt => checkbox(item.situacoes_relevantes.includes(opt), opt)) }));
-  }
-
-  children.push(new Paragraph({ spacing: { before: 200, after: 100 }, children: [new TextRun({ text: "Competências — Score ELO", bold: true, size: 22, font: "Arial" })] }));
+  children.push(new Paragraph({ spacing: { before: 100, after: 100 }, children: [new TextRun({ text: "Competências — Escala Likert de Percepção do Grupo pelo Educador", bold: true, size: 20, font: "Arial" })] }));
   const competencias = [
     { label: "Iniciativa", value: item.iniciativa },
     { label: "Autonomia", value: item.autonomia },
@@ -545,12 +539,12 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
   const compRows = competencias.map(c => new TableRow({
     children: [
       new TableCell({ width: { size: 3000, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: c.label, bold: true, size: 18, font: "Arial" })] })] }),
-      new TableCell({ width: { size: 1500, type: WidthType.DXA }, borders, margins: cellMargins, shading: c.value ? { fill: LIKERT_COLORS[c.value] || "FFFFFF", type: ShadingType.CLEAR } : undefined, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: c.value ? String(c.value) : "—", bold: true, size: 20, font: "Arial", color: c.value && c.value >= 3 ? "FFFFFF" : "000000" })] })] }),
+      new TableCell({ width: { size: 1500, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: c.value ? String(c.value) : "—", bold: true, size: 20, font: "Arial" })] })] }),
       new TableCell({ width: { size: 4860, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [new TextRun({ text: c.value ? LIKERT_LABELS[c.value] : "—", size: 18, font: "Arial" })] })] }),
     ],
   }));
   children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [3000, 1500, 4860], rows: compRows }));
-  children.push(new Paragraph({ spacing: { before: 100, after: 200 }, alignment: AlignmentType.RIGHT, children: [new TextRun({ text: `Score ELO: ${item.score_elo?.toFixed(2) || "—"}`, bold: true, size: 22, font: "Arial", color: ACCENT_COLOR })] }));
+  children.push(new Paragraph({ spacing: { before: 100, after: 200 }, alignment: AlignmentType.RIGHT, children: [new TextRun({ text: `Score ELO: ${item.score_elo?.toFixed(2) || "—"}`, bold: true, size: 22, font: "Arial" })] }));
 
   children.push(new Table({
     width: { size: 9360, type: WidthType.DXA }, columnWidths: [3120, 3120, 3120],
@@ -567,23 +561,18 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
     children.push(new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: "Objetivo: ", bold: true, size: 18, font: "Arial" }), new TextRun({ text: objLabels[item.objetivo_alcancado] || item.objetivo_alcancado, size: 18, font: "Arial" })] }));
   }
 
-  if (item.intervencoes) {
-    children.push(new Paragraph({ spacing: { after: 50 }, children: [new TextRun({ text: "Atividades Realizadas:", bold: true, size: 18, font: "Arial" })] }));
-    children.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: item.intervencoes, size: 18, font: "Arial" })] }));
-  }
-  if (item.observacoes) {
-    children.push(new Paragraph({ spacing: { after: 50 }, children: [new TextRun({ text: "Observações:", bold: true, size: 18, font: "Arial" })] }));
-    children.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: item.observacoes, size: 18, font: "Arial" })] }));
-  }
+  // Atividades Realizadas — sempre renderiza
+  children.push(new Paragraph({ spacing: { after: 50 }, children: [new TextRun({ text: "Atividades Realizadas:", bold: true, size: 18, font: "Arial" })] }));
+  children.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: safeStr(item.intervencoes, "não há"), size: 18, font: "Arial" })] }));
+  // Observações — sempre renderiza
+  children.push(new Paragraph({ spacing: { after: 50 }, children: [new TextRun({ text: "Observações:", bold: true, size: 18, font: "Arial" })] }));
+  children.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: safeStr(item.observacoes, "não há"), size: 18, font: "Arial" })] }));
 
   if (presenca.length > 0) {
     children.push(new Paragraph({ children: [new PageBreak()] }));
-    // REO-style attendance table
-    children.push(...headerParagraphs());
-    children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 100 }, children: [
-      new TextRun({ text: "LISTA DE FREQUÊNCIA", bold: true, size: 22, font: "Arial", color: ACCENT_COLOR }),
-    ]}));
-    children.push(new Paragraph({ spacing: { after: 50 }, children: [
+    children.push(...relatorioHeader());
+    children.push(anexoBanner("ANEXO I - LISTA DE FREQUÊNCIA"));
+    children.push(new Paragraph({ spacing: { before: 150, after: 50 }, children: [
       new TextRun({ text: `Atividade: ${safeStr(item.nome_atividade, "")}  |  Data: ${item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy") : ""}  |  Turma(s): ${turmaNames.join(", ")}`, size: 16, font: "Arial" }),
     ]}));
     children.push(new Paragraph({ spacing: { after: 100 }, children: [
@@ -592,15 +581,15 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
 
     const presRows = [
       new TableRow({ children: [
-        new TableCell({ width: { size: 600, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Nº", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 7160, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nome do Participante", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 1600, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: HEADER_COLOR, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Presença", bold: true, size: 14, font: "Arial", color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 600, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: "E5E7EB", type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Nº", bold: true, size: 16, font: "Arial" })] })] }),
+        new TableCell({ width: { size: 7160, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: "E5E7EB", type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "Nome do Participante", bold: true, size: 16, font: "Arial" })] })] }),
+        new TableCell({ width: { size: 1600, type: WidthType.DXA }, borders, margins: cellMargins, shading: { fill: "E5E7EB", type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Presença", bold: true, size: 16, font: "Arial" })] })] }),
       ]}),
       ...presenca.map((p, i) => new TableRow({ children: [
         new TableCell({ width: { size: 600, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(i + 1), size: 14, font: "Arial" })] })] }),
         new TableCell({ width: { size: 7160, type: WidthType.DXA }, borders, margins: cellMargins, children: [new Paragraph({ children: [
           new TextRun({ text: safeStr(p.participantes?.nome_completo, ""), size: 14, font: "Arial" }),
-          ...(p.participantes?.status === "busca_ativa" ? [new TextRun({ text: " (BA)", size: 14, font: "Arial", bold: true, color: SCNSA_RED })] : []),
+          ...(p.participantes?.status === "busca_ativa" ? [new TextRun({ text: " (BA)", size: 14, font: "Arial", bold: true })] : []),
         ] })] }),
         new TableCell({
           width: { size: 1600, type: WidthType.DXA }, borders, margins: cellMargins,
@@ -610,7 +599,7 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
     ];
     children.push(new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [600, 7160, 1600], rows: presRows }));
     // Legend
-    children.push(new Paragraph({ spacing: { before: 100 }, children: [new TextRun({ text: "Legenda: ■ Presente · ☐ Ausente · (BA) Em busca ativa no momento do registro.", size: 14, font: "Arial", italics: true, color: SCNSA_GRAY })] }));
+    children.push(new Paragraph({ spacing: { before: 100 }, children: [new TextRun({ text: "Legenda: ■ Presente · ☐ Ausente · (BA) Em busca ativa no momento do registro.", size: 14, font: "Arial", italics: true })] }));
     children.push(new Paragraph({ spacing: { before: 300 }, children: [] }));
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "________________________________", size: 18, font: "Arial" })] }));
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Assinatura do(a) Educador(a)`, size: 16, font: "Arial", italics: true })] }));
@@ -621,7 +610,25 @@ export async function buildRelatorioDocxBlob(item: any, turmaNames: string[], pr
     const photoCaption = `${item.data ? format(new Date(item.data + "T12:00:00"), "dd/MM/yy") : ""} - ${item.nome_atividade || "Atividade"} - Grupos: ${turmaNames.join(", ")}`;
     const photoBuffers = await fetchPhotosAsBuffers(fotos);
     if (photoBuffers.length > 0) {
-      children.push(...buildPhotoSection(photoBuffers, photoCaption));
+      children.push(new Paragraph({ children: [new PageBreak()] }));
+      children.push(...relatorioHeader());
+      children.push(anexoBanner("ANEXO II - REGISTROS FOTOGRÁFICOS"));
+      children.push(new Paragraph({ spacing: { after: 100 }, children: [] }));
+      for (const photo of photoBuffers) {
+        const maxWidth = 450;
+        const scale = maxWidth / photo.width;
+        const scaledHeight = Math.round(photo.height * scale);
+        children.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 80 },
+          children: [new ImageRun({ type: photo.type, data: photo.buffer, transformation: { width: maxWidth, height: scaledHeight } })],
+        }));
+        children.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+          children: [new TextRun({ text: photoCaption, size: 16, font: "Arial", italics: true })],
+        }));
+      }
     }
   }
 
