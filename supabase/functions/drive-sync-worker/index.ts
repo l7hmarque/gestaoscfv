@@ -147,6 +147,8 @@ async function insertImageAtToken(docId: string, token: string, driveFileId: str
           uri: `https://drive.google.com/uc?export=view&id=${driveFileId}`,
           objectSize: { width: { magnitude: widthPt, unit: "PT" }, height: { magnitude: widthPt * 0.75, unit: "PT" } },
         } },
+        // garante quebra de parágrafo APÓS a imagem para não empilhar/sobrepor
+        { insertText: { location: { index: idx + 1 }, text: "\n" } },
       ]);
       return true;
     } catch (e) {
@@ -261,7 +263,7 @@ async function fillRelatorioTemplate(docId: string, ctx: {
     "{TURMAS}": turmas.join(", ") || "—",
     "{EDUCADOR}": rel.educador_nome || "—",
     "{NOME_ATIVIDADE}": rel.nome_atividade || "—",
-    "{TIPO_ATIVIDADE}": (rel.tipo_atividade || []).join(", ") || "—",
+    "{TIPO_ATIVIDADE}": (rel.tipo_atividade || []).map(humanize).join(", ") || "—",
     "{NUM_PRESENTES}": String(rel.num_participantes ?? presenca.filter((p) => p.presente).length),
     "{NUM_MATRICULADOS}": String(rel.num_matriculados ?? presenca.length),
     "{ATIVIDADES_REALIZADAS}": rel.atividades_realizadas || rel.descricao || "—",
@@ -307,7 +309,7 @@ async function fillRelatorioTemplate(docId: string, ctx: {
     const tok = `{foto${i + 1}}`;
     const fileId = fotos[i]?.drive_file_id;
     if (fileId) {
-      await insertImageAtToken(docId, tok, fileId, 460);
+      await insertImageAtToken(docId, tok, fileId, 340);
     } else {
       await replacePlaceholders(docId, { [tok]: "" });
     }
