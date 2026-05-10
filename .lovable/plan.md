@@ -1,114 +1,153 @@
-## Plano — 4 frentes coordenadas
+## Plano de Execução — Refatoração Dashboard, Transporte, UX Global e Drive
 
-### Frente A · Aplicar ações do Relatório de Divergências (Larissa · Abril/2026)
-
-Execução via migration/insert (com auditoria) sobre `turma_participantes`, `relatorio_presenca`, `participantes`.
-
-**A1. Correção de `data_saida` inconsistente (anterior à `data_entrada`)**
-
-- 6-8 Tarde: Kayo Gabriell Mendez, Millena Sophia Eckardt, Natanael Alcides Taborda Flores → `data_saida = NULL`.
-- 6-8 Manhã: Ana Heloisa Pistilhi (saída 16/04 — confirmar se desligamento real ou erro; manter por ora e só registrar nota de auditoria).
-- Filtro de query do `generate-relatorio-mensal` já protege esses casos; aqui corrigimos a origem.
-
-**A2. Faltas Justificadas — Gabrielli (atestado a partir de 16/04)**
-
-- Inserir registros `relatorio_presenca` (ou criar relatórios "FJ" mínimos) para 16/04, 23/04, 28/04, 30/04 com `presente=false`, `justificativa='Atestado médico'`.
-
-**A3. Lançamento de presenças faltantes (subnotificação ~83%)**
-
-- Relatórios físicos das três turmas para datas: 02, 07, 09, 23, 28, 30/04 (e 16/04 para Joaquim/Kayo da Tarde quando ausente).
-- Estratégia: para cada (turma × data) sem relatório, criar um `relatorios_atividade` simples com título "Chamada física — abril (digitação retroativa)", `educador_id` = Larissa, e popular `relatorio_presenca` conforme o PDF. Marcar no campo `descricao` a origem ("Digitação retroativa a partir da lista física auditada em 10/05/2026").
-- Entregar relatorio de digitacoes reroativas em pdf.
-
-**A4. Migrações de turma**
-
-- Yasmin Vitoria Taborda Flores: 9-11 Manhã → 12-17 (encerrar vínculo atual com `data_saida=02/04/2026` e abrir novo na 12-17 com `data_entrada=02/04/2026`).
-
-**A5. Confirmação de desligamentos pendentes (9-11 Manhã)**
-
-- Ana Julia Rodrigues Mackievicz, Arthur Aloisio Wolf, Gustavo Henrique Wolf: têm `data_saida=31/03` mas seguem na lista física como faltosos.
-- Ação automática: marcar `status='desligado'` em `participantes` se ainda ativo e registrar nota em `audit_log` ("Desligamento confirmado por divergência de chamada física").
-
-**A6. Busca ativa**
-
-- Marcar Ygor Miguel Valansuelo Da Silva como `status='busca_ativa'`.
-
-**A7. Cadastros pendentes (manuscritos no PDF)**
-
-- Criar registros mínimos `participantes` (status `incompleto`) para: Joao Cardoso, Maria B. Cardozo, Lara Gabriely Flores, Nayeli Silguero Barua, Paloma Amaro Do Nascimento — só se ainda não houver match por nome (busca fuzzy via `pg_trgm > 0.5`). Deixar nomes na pagina de integridade para verificacao e criar recado sobre eles para Equipe Tecnica.
-
-**A8. Revisar lançamento divergente**
-
-- Antonio Marcos De Oliveira (9-11 Manhã, 22/04): apenas registrar alerta na `audit_log` para revisão humana — não excluir.
-
-Resultado: PDF "Relatorio_Aplicacao_Divergencias_Abril_Larissa.pdf" salvo em `/mnt/documents/` listando o que foi alterado, antes/depois, e pendências humanas (A8 e A7 quando o match for ambíguo).
+Pacote grande dividido em 6 frentes independentes. Cada frente pode ser revertida isoladamente.
 
 ---
 
-### Frente B · Adicionar /presenca e /presenca/exportar ao menu lateral
+### Frente 1 — Aba "Rel. Mensal" (/dashboard) e Drive
 
-Em `src/components/AppSidebar.tsx`, grupo **Atividades**, inserir:
+**Objetivo:** garantir que os botões da aba usem o pipeline novo (Google Docs / Sheets quando aplicável), não só XLSX local.
 
-- `Presença` → `/presenca` (ícone `ClipboardCheck`, antes de "Planejamento").
-- `Exportar Chamada` → `/presenca/exportar` (ícone `FileDown`, depois de "Exportar Relatórios").
-
-Em `src/pages/Index.tsx` o atalho "Presença" já existe; adicionar também "Exportar Chamada" no grupo Atividades para paridade.
-
----
-
-### Frente C · Auditoria de botões (sidebar + dashboard) — remover desatualizados/redundantes
-
-Diagnóstico:
-
-
-| Item                                            | Local                        | Recomendação                                                             | Motivo                                                       |
-| ----------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------ |
-| `Biblioteca .docx`                              | sidebar (Atividades) e Index | **Remover**                                                              | Substituída pelo Drive (Frente D)                            |
-| `Exportar Relatórios` (`/relatorios/exportar`)  | sidebar e Index              | **Manter** mas renomear para `Exportar Relatorios em Lote`               | Convive com novo "Exportar Chamada"                          |
-| `Arquivos Financeiros` (`/financeiro/arquivos`) | sidebar e Index              | **Mover para sub-rota interna do Financeiro** (remover do sidebar)       | Já acessível dentro de `/financeiro`; ocupa espaço duplicado |
-| `Desligamento` (`/desligamento-admin`)          | sidebar (Gestão)             | **Mover para Coordenação**                                               | Painel administrativo restrito                               |
-| `Banco de Dados` (`/banco-de-dados`)            | sidebar (Gestão)             | **Manter**                                                               | Backup/exportação em massa, único acesso                     |
-| `Site Público` (`/site-admin`)                  | sidebar (Gestão)             | **Manter**                                                               | Único acesso                                                 |
-| `Mural` (`/mural`)                              | só rota, não no sidebar      | **Manter rota; já acessível pelo Feed**                                  | OK                                                           |
-| `Cronograma`, `Transporte`, `Cozinha`           | sidebar (Gestão)             | **Manter**                                                               | Painéis operacionais distintos                               |
-| Atalho `Feed/Mural` no Index                    | Index                        | **Manter** mas separar em "Feed" e "Mural" — hoje aponta só para `/feed` | Confunde usuários                                            |
-
-
-Resultado: sidebar enxuto, sem itens redundantes. Adicionar `Presença` e `Exportar Chamada` (Frente B) e remover `Biblioteca .docx` e `Arquivos Financeiros` (este último vira aba interna).
+- Auditar `generate-relatorio-mensal` e `generate-reo`: hoje retornam XLSX/DOCX em URL temporária. Adicionar opção "Enviar ao Drive" (cria cópia em pasta SysCFV organizada) ao lado de "Baixar".
+- Padronizar nome: `SysCFV_RelMensal_{Mes}_{YYYY}.xlsx` etc.
+- Reaproveitar `generate-relatorio-gdoc` quando o usuário escolher formato Google Docs.
 
 ---
 
-### Frente D · Desativar a página/funcionalidade Biblioteca .docx
+### Frente 2 — Auditoria e Refatoração da aba "Indicadores" (/dashboard)
 
-Justificativa: o fluxo institucional migrou para Google Drive (`generate-relatorio-gdoc`, `generate-lista-chamada-gsheet`), tornando a Biblioteca local obsoleta. Hoje ela mantém 212 documentos no bucket `biblioteca-docx` e cria fila a cada salvamento de relatório/planejamento (custo de Storage + chamadas de Edge).
+**A. Auditoria de números (RPC `get_dashboard_stats`)**
 
-Etapas:
+- Validar cada KPI contra query manual:
+  - `Participantes Ativos` × `participantes WHERE status='ativo' AND is_teste=false`
+  - `Frequência Geral` × média ponderada de `relatorio_presenca` no período
+  - `Relatórios` × `Consolidados de chamada` (separação correta)
+  - `Média ELO` (n=) — confirmar denominador
+  - `Média Adesão` × `consol.` 
+  - `Educadores Ativos` — checar se conta apenas com relatório no período
+- Documentar fórmula de cada indicador num tooltip detalhado (clique no `i`).
+- Corrigir incoerências encontradas (delta participantes, alerta 3+ faltas, etc.).
 
-1. **Remover UI**:
-  - Apagar `src/pages/biblioteca/BibliotecaPage.tsx` e `BibliotecaAccordion.tsx`.
-  - Mover `Accordion`/`AcordeonItem` (usados em `ArquivosFinanceirosPage.tsx`) para `src/components/ui/biblioteca-accordion.tsx` (ou inline) antes da exclusão para não quebrar.
-  - Remover rota `/biblioteca` em `App.tsx`, item do `AppSidebar` e atalho do `Index.tsx`.
-2. **Remover ganchos de enfileiramento**:
-  - Em `RelatorioNovoPage.tsx` e `PlanejamentoNovoPage.tsx` apagar a chamada `enfileirarDocBiblioteca(...)`.
-  - Apagar `src/lib/bibliotecaDocx.ts` (mantendo apenas `buildRelatorioDocxBlob`/`buildPlanejamentoDocxBlob` em `useDocumentExport.ts`, que continuam sendo usados pela exportação direta).
-3. **Limpeza de backend** (migration):
-  - Esvaziar bucket `biblioteca-docx` (loop em script via Edge ou comando), depois `DROP` do bucket.
-  - `DROP TABLE biblioteca_documentos CASCADE` e `DROP FUNCTION enqueue_biblioteca_doc`.
-4. **Confirmação**: como envolve perda de 212 arquivos, executo o backup ZIP do bucket antes de excluir e disponibilizo em `/mnt/documents/biblioteca_backup_2026-05-10.zip`.
+**B. Remover "Atividades Recentes"**
+
+- Excluir componente `AtividadesRecentes`, campo `atividadesRecentes` em `useDashboardData`/RPC e o grid `lg:col-span-2` que o continha.
+- Frequência Mensal passa a ocupar largura total (ou cede espaço para nova "Frequência Atual").
+
+**C. Gráficos — qualidade visual e tooltip**
+
+- Helper único `formatMesLabel(mes: 'YYYY-MM')` → `"Mai/26"`.
+- Aplicar em Frequência Mensal, Evolução de Presença, Score ELO Mensal, % Adesão Mensal.
+- Tooltip enriquecida (componente `RichTooltip`): mês por extenso, valor formatado, comparativo vs mês anterior, n amostral.
+- Fonte: `tabular-nums` + `font-medium`, tamanho 12px, contraste reforçado.
+- Domínio Y dinâmico com `nice ticks` (recharts auto + padding 10%).
+
+**D. Ajustes específicos solicitados**
+
+- "Bairro (top 10)" → renomear para **"Distribuição por Bairros"** (remover "(top 10)").
+- **Competências ELO**: trocar Radar por **BarChart vertical** com cores escalares por valor (vermelho<2, laranja 2–3, amarelo 3–4, verde>4).
+- **Frequência Mensal**: dividir em 2 cards lado a lado:
+  1. *Tendência* — LineChart dos últimos 6 meses.
+  2. *Comparativo* — BarChart vertical mês atual × mês anterior (Total / Presentes).
+- **Frequência Atual** (novo card KPI): % de presença do mês corrente em curso, marcado como "parcial" se mês não fechado. Usa `relatorio_presenca` filtrado por `data` no mês atual.
+
+**E. Drawer ao clicar em "Participantes Ativos"**
+
+- Revisar `IndicadorTimelineDrawer` + fetcher `participantes` em `indicadorTimelineFetchers.ts`:
+  - Eventos: matrículas, desligamentos, transferências, busca ativa.
+  - Validar que delta mostrado bate com KPI.
+  - Rótulos em pt-BR, datas `dd/MM/yyyy`.
+  - Corrigir filtro de tipo e card `EventoTecnicoCard` se necessário.
 
 ---
 
-### Ordem de execução
+### Frente 3 — Aba "Admin" (/dashboard)
 
-1. Frente D etapa 1+2 (remover UI/ganchos) — sem perda de dados.
-2. Frente B + Frente C (sidebar/dashboard) — mesmo PR de UI.
-3. Frente A (correções de dados via migrations + inserts auditados) com PDF de evidência.
-4. Frente D etapas 3+4 (backup + drop bucket/tabela) — última para permitir rollback.
+- Investigar uso real de `Modelos DOCX Institucionais`: hoje os relatórios usam Google Docs/Sheets via Edge Functions e templates próprios. Se nenhum fluxo ativo lê do bucket `templates`, **remover seção e bucket** (com backup ZIP prévio dos arquivos).
+- Manter os blocos de Reset (ELO / Frequência) — são legítimos.
+- Se houver dependências encontradas, listar e manter, mas mover para sub-aba "Avançado".
 
-Ao final: relatório consolidado das alterações + `audit_log` populado.
+---
 
-### Confirmações necessárias antes de implementar
+### Frente 4 — /transporte (DashboardTransporteTab)
 
-- **A7**: criar cadastros `incompleto` automaticamente para os 5 manuscritos, ou apenas listar para revisão humana? criar, inserir para revisao de integridade e gerar recado para equipe tecnica.
-- **D**: confirma exclusão definitiva da Biblioteca após backup ZIP? sim.
-- **C**: tudo bem mover "Arquivos Financeiros" para dentro de `/financeiro` como aba? sim.
+- Quebrar em **Tabs internos**:
+  1. **Embarques de Hoje** — bloco "Embarques de hoje" (motorista/coord), badges online/offline, sincronizar.
+  2. **Pontos por Bairro** — listagem CRUD + ordenação + bulk.
+- Seleção controlada (`useState`), persiste `?tab=` na URL para não resetar ao atualizar.
+
+---
+
+### Frente 5 — UX Global: atualizações sem reload + CTAs sempre visíveis
+
+**A. Eliminar `window.location.reload()` / refetch que recria a página**
+
+- Auditar grep por `location.reload`, `window.location.href = location`, navigate same-route com `replace`.
+- Substituir por:
+  - `queryClient.invalidateQueries(...)` (TanStack Query) onde aplicável.
+  - Atualização otimista no estado local + refetch só do recurso afetado.
+  - `useTransition` para não bloquear scroll/posição.
+- Garantir que listas (Participantes, Relatórios, Planejamentos, Pontos Transporte, Atendimentos) preservem scroll position.
+
+**B. CTAs flutuantes (FAB) sempre visíveis**
+
+- Criar componente `<FloatingActionButton route action />` (canto inferior direito, mobile-first).
+- Aplicar em: Relatórios → "Novo Relatório", Planejamentos → "Novo Planejamento", Atendimentos → "Novo Atendimento", Transporte → "Novo Ponto", Roteiros, Orçamentos.
+- Em desktop: botão também fica na header da página (atual). Em mobile: FAB único.
+
+**C. Tabs em mobile**
+
+- Padronizar `<TabsList>` com:
+  - `overflow-x-auto snap-x` em telas <640px.
+  - Triggers com `whitespace-nowrap` + `flex-shrink-0`.
+  - Barra inferior tipo "swipe indicator".
+- Aplicar em todas as páginas com Tabs (Dashboard, Coordenação, Cozinha, Equipe Técnica, Configurações, Financeiro, Transporte novo, etc.).
+
+---
+
+### Frente 6 — Drive: pasta nova com modelos e dados atualizados
+
+Usando o conector **Google Drive** já vinculado (ou solicitar conexão se ausente):
+
+- Criar Edge Function `sync-drive-modelos` que:
+  1. Cria pasta `SysCFV_Modelos_{YYYY-MM-DD}` na raiz do Drive de trabalho.
+  2. Subpastas: `01_Modelos_Padrao/`, `02_Relatorios_Atualizados/`, `03_Listas_Chamada/`, `04_Planejamentos/`, `05_REO_Mensal/`.
+  3. Para cada categoria, gera os documentos atuais (chamando as Edge Functions existentes — `generate-lista-chamada-gsheet`, `generate-relatorio-gdoc`, `generate-reo`, `generate-relatorio-mensal`) e os move/copia para a subpasta correta.
+  4. Renomeia tudo no padrão `SysCFV_{Categoria}_{Identificador}_{YYYY-MM-DD}.{ext}`.
+- Botão na aba Admin: **"Sincronizar Drive Institucional"** com progress (toast + count).
+
+---
+
+### Detalhes técnicos relevantes
+
+- **RPC `get_dashboard_stats**`: precisará de migration adicionando `frequenciaAtual` (mês corrente parcial) e removendo `atividadesRecentes`. Manter compat: front lê opcional.
+- **Cores de Competências**: helper `eloColor(value)` em `src/lib/eloColors.ts`.
+- **MES_ABREV**: já existe no `DashboardPage.tsx`, criar util compartilhado em `src/lib/dateLabels.ts` (`formatMesLabel`, `formatMesAbrev`).
+- **Tooltip rica**: componente `<DashboardTooltip>` consumido por todos os charts via prop `content`.
+- **FAB**: um único `<FAB>` global em `AppLayout` reagindo à rota atual via map `routeFabActions`.
+- **Tabs URL state**: hook `useTabState(key)` que sincroniza com `searchParams`.
+
+---
+
+### Arquivos previstos
+
+- `src/pages/dashboard/DashboardPage.tsx` (refator pesado)
+- `src/pages/dashboard/DashboardAdminTab.tsx` (remover seção Templates)
+- `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` (botões Drive)
+- `src/pages/dashboard/DashboardTransporteTab.tsx` → split em `EmbarquesHojeTab.tsx` + `PontosTab.tsx`
+- `src/pages/transporte/TransportePage.tsx` (Tabs)
+- `src/components/dashboard/IndicadorTimelineDrawer.tsx` + fetcher
+- `src/hooks/useDashboardData.ts` (frequenciaAtual, sem atividadesRecentes)
+- `src/lib/dateLabels.ts`, `src/lib/eloColors.ts` (novos)
+- `src/components/FloatingActionButton.tsx` (novo) + integração em `AppLayout`
+- `src/components/ui/tabs.tsx` (variant mobile-friendly)
+- `supabase/migrations/...` (RPC atualizada, drop bucket templates se confirmado)
+- `supabase/functions/sync-drive-modelos/index.ts` (novo)
+
+---
+
+### Pontos que peço para confirmar antes de codar
+
+1. **Remover bucket** `templates` **+ seção Modelos DOCX** mesmo? (faço backup ZIP antes). sim
+2. **FAB único global** ou prefere apenas reforçar botões já existentes em cada página? reforcar
+3. **Conector Google Drive** já está vinculado? Se não, peço para conectar antes da Frente 6. acho que sim
+4. **Frequência Atual** deve considerar quais relatórios? (a) só `relatorios_atividade` reais, (b) consolidados de chamada também, (c) ambos separados. b
