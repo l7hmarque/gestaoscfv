@@ -47,8 +47,24 @@ const COMPETENCIA_LABELS: Record<string, string> = {
   respeito_mutuo: "Respeito Mútuo",
 };
 
+function objectOrArrayToRows<T extends string>(value: any, keyName: T): Array<Record<T, string> & { count: number }> {
+  if (Array.isArray(value)) {
+    return value.map((x: any) => ({
+      [keyName]: String(x[keyName] ?? x.name ?? x.label ?? "N/I"),
+      count: Number(x.count ?? x.total ?? x.value ?? 0),
+    } as Record<T, string> & { count: number }));
+  }
+  if (value && typeof value === "object") {
+    return Object.entries(value).map(([key, count]) => ({
+      [keyName]: key,
+      count: Number(count ?? 0),
+    } as Record<T, string> & { count: number }));
+  }
+  return [];
+}
+
 export function useDashboardData(mes?: number | null, ano?: number | null, dataInicio?: string | null, dataFim?: string | null) {
-  const { data, isLoading: loading } = useQuery({
+  const { data, isLoading: loading, error } = useQuery({
     queryKey: ["dashboard-data", mes, ano, dataInicio, dataFim],
     queryFn: async (): Promise<DashboardData> => {
       const { data: raw, error } = await supabase.rpc("get_dashboard_stats", {
@@ -71,19 +87,19 @@ export function useDashboardData(mes?: number | null, ano?: number | null, dataI
         mediaELON: Number(d.mediaELON ?? 0),
         mediaAdesao: Number(d.mediaAdesao ?? 0),
         mediaAdesaoConsolidada: Number(d.mediaAdesaoConsolidada ?? 0),
-        participantesPorFaixa: (d.participantesPorFaixa || []).map((x: any) => ({ faixa: x.faixa, count: Number(x.count) })),
-        participantesPorGenero: (d.participantesPorGenero || []).map((x: any) => ({ genero: x.genero, count: Number(x.count) })),
-        participantesPorBairro: (d.participantesPorBairro || []).map((x: any) => ({ bairro: x.bairro, count: Number(x.count) })),
-        participantesPorPeriodo: (d.participantesPorPeriodo || []).map((x: any) => ({ periodo: x.periodo, count: Number(x.count) })),
-        eloMensal: (d.eloMensal || []).map((x: any) => ({ mes: x.mes, elo: Number(x.elo) })),
-        adesaoMensal: (d.adesaoMensal || []).map((x: any) => ({ mes: x.mes, adesao: Number(x.adesao) })),
+        participantesPorFaixa: objectOrArrayToRows(d.participantesPorFaixa, "faixa"),
+        participantesPorGenero: objectOrArrayToRows(d.participantesPorGenero, "genero"),
+        participantesPorBairro: objectOrArrayToRows(d.participantesPorBairro, "bairro"),
+        participantesPorPeriodo: objectOrArrayToRows(d.participantesPorPeriodo, "periodo"),
+        eloMensal: (d.eloMensal || []).map((x: any) => ({ mes: x.mes, elo: Number(x.elo ?? x.media ?? 0) })),
+        adesaoMensal: (d.adesaoMensal || []).map((x: any) => ({ mes: x.mes, adesao: Number(x.adesao ?? x.media ?? 0) })),
         competencias: Object.entries(d.competencias || {}).map(([key, value]) => ({
           name: COMPETENCIA_LABELS[key] || key,
           value: Number(value),
         })),
-        objetivos: (d.objetivos || []).map((x: any) => ({ status: x.status, count: Number(x.count) })),
+        objetivos: objectOrArrayToRows(d.objetivos, "status"),
         taxaFrequenciaGeral: Number(d.taxaFrequenciaGeral ?? 0),
-        topEducadores: (d.topEducadores || []).map((x: any) => ({ nome: x.nome, count: Number(x.count) })),
+        topEducadores: (d.topEducadores || []).map((x: any) => ({ nome: x.nome, count: Number(x.count ?? x.total ?? 0) })),
         totalParticipantesAlerta: Number(d.totalParticipantesAlerta ?? 0),
         presencaMensal: (d.presencaMensal || []).map((x: any) => ({
           mes: x.mes,
@@ -110,5 +126,5 @@ export function useDashboardData(mes?: number | null, ano?: number | null, dataI
     gcTime: 10 * 60 * 1000,
   });
 
-  return { data: data ?? null, loading };
+  return { data: data ?? null, loading, error };
 }

@@ -244,10 +244,12 @@ function IndicadoresTab() {
   const [selectedIndicator, setSelectedIndicator] = useState<IndicadorId | null>(null);
   const dataInicio = range?.from ? toIso(range.from) : null;
   const dataFim = range?.from ? toIso(range.to ?? range.from) : null;
-  const { data, loading } = useDashboardData(mes, ano, dataInicio, dataFim);
+  const { data, loading, error } = useDashboardData(mes, ano, dataInicio, dataFim);
   const navigate = useNavigate();
 
-  if (loading || !data) return <div className="p-6 text-sm text-muted-foreground">Carregando indicadores...</div>;
+  if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando indicadores...</div>;
+  if (error) return <div className="p-6 text-sm text-destructive">Erro ao carregar indicadores: {(error as Error).message}</div>;
+  if (!data) return <div className="p-6 text-sm text-muted-foreground">Nenhum indicador encontrado para o período selecionado.</div>;
 
   const periodLabel = range?.from
     ? range.to
