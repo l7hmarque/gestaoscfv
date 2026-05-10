@@ -48,9 +48,13 @@ export default function DashboardAdminTab() {
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Falha ao sincronizar");
       setDriveResult(data);
-      const totErr = (data.erros || []).length;
-      if (totErr > 0) toast.warning(`Sincronizado com ${totErr} aviso(s) — verifique o resultado abaixo.`);
-      else toast.success("Documentos enviados ao Google Drive");
+      if (data.async) {
+        toast.success("Sincronização iniciada em segundo plano. A pasta no Drive vai ser preenchida em alguns minutos.");
+      } else {
+        const totErr = (data.erros || []).length;
+        if (totErr > 0) toast.warning(`Sincronizado com ${totErr} aviso(s) — verifique o resultado abaixo.`);
+        else toast.success("Documentos enviados ao Google Drive");
+      }
     } catch (e: any) {
       toast.error("Erro ao sincronizar Drive: " + (e.message || e));
     } finally {

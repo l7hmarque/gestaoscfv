@@ -219,6 +219,10 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify(result), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Trabalho pesado roda em background para evitar IDLE_TIMEOUT (150s).
+    // Retornamos 202 imediatamente com a pasta criada; o cliente pode acompanhar pelo Drive.
+    const heavyWork = (async () => {
+      try {
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const mesStr = pad2(mes);
     const dataIni = `${ano}-${mesStr}-01`;
@@ -470,8 +474,17 @@ Deno.serve(async (req) => {
         } catch (e: any) { result.erros.push({ tipo: "reo:xlsx", msg: e.message }); }
       } catch (e: any) { result.erros.push({ tipo: "reo", msg: e.message }); }
     }
+      } catch (bgErr) {
+        console.error("[sync-drive-modelos:bg]", bgErr instanceof Error ? bgErr.message : bgErr);
+      }
+    })();
+    // @ts-ignore - EdgeRuntime é fornecido pelo runtime do Supabase
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) EdgeRuntime.waitUntil(heavyWork);
 
-    return new Response(JSON.stringify(result), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(
+      JSON.stringify({ ...result, async: true, message: "Sincronização iniciada em segundo plano. Verifique a pasta no Drive em alguns minutos." }),
+      { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sync-drive-modelos]", msg);
