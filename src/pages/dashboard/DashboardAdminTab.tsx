@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ export default function DashboardAdminTab() {
   const [resettingFreq, setResettingFreq] = useState(false);
   const [syncingDrive, setSyncingDrive] = useState(false);
   const [driveResult, setDriveResult] = useState<any>(null);
+  const [driveRootUrl, setDriveRootUrl] = useState<string | null>(null);
   const hoje = new Date();
   const [syncMes, setSyncMes] = useState<number>(hoje.getMonth() + 1);
   const [syncAno, setSyncAno] = useState<number>(hoje.getFullYear());
@@ -22,6 +23,18 @@ export default function DashboardAdminTab() {
     mensal: true, listas: true, relatorios: true, planejamentos: true, equipe_tecnica: true, reo: true,
   });
   const toggleTipo = (k: string) => setSyncTipos((s) => ({ ...s, [k]: !s[k] }));
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("drive_folder_cache" as any)
+        .select("folder_id")
+        .eq("chave", "root")
+        .maybeSingle();
+      const fid = (data as any)?.folder_id;
+      if (fid) setDriveRootUrl(`https://drive.google.com/drive/folders/${fid}`);
+    })();
+  }, []);
 
   const sincronizarDrive = async () => {
     setSyncingDrive(true);
@@ -97,6 +110,14 @@ export default function DashboardAdminTab() {
             Sincroniza os documentos institucionais do mês selecionado para <code>SYSCFV / {`{MÊS} - {ANO}`}</code> no
             Google Drive, usando os templates cadastrados em <strong>drive_modelos</strong>. Versões antigas viram <code>_v2</code>, <code>_v3</code>...
           </p>
+
+          {driveRootUrl && (
+            <Button asChild size="sm" variant="secondary" className="w-full sm:w-auto">
+              <a href={driveRootUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="h-3.5 w-3.5 mr-1" /> Abrir pasta SYSCFV no Drive
+              </a>
+            </Button>
+          )}
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div>
