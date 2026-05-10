@@ -90,8 +90,8 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   const cellStrikeStyle = { border: borders, alignment: { vertical: "center" as const }, font: { sz: 8, strike: true, color: { rgb: "000000" } } };
   const cellCenterStyle = { border: borders, alignment: { horizontal: "center" as const, vertical: "center" as const }, font: { sz: 8 } };
   const signStyle = {
-    font: { sz: 9, italic: true },
-    alignment: { horizontal: "center" as const, vertical: "center" as const },
+    font: { sz: 9, italic: true, bold: true },
+    alignment: { horizontal: "left" as const, vertical: "center" as const },
     border: borders,
   };
 
