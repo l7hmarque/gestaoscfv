@@ -1,111 +1,85 @@
-## Diagnóstico
+## Leitura dos 78 comentários do Sheets
 
-Investigando a função `generate-relatorio-mensal/index.ts` (matrizes de frequência, linhas 312-348) e o schema de `turma_participantes`, encontrei **duas causas distintas**:
-
-### Causa 1 — Nomes em duas turmas
-
-A query monta a lista de cada turma assim:
-
-```ts
-const tpIds = turmaParticipantes
-  .filter(tp => tp.turma_id === t.id)
-  .map(tp => tp.participante_id);
-```
-
-Não há nenhum filtro por `data_saida`. Verificando o banco:
-
-- A tabela `turma_participantes` tem coluna `data_saida` (nullable) — quando preenchida indica que o vínculo foi encerrado.
-- **77 participantes hoje têm 2 vínculos ativos simultâneos** (`data_saida IS NULL` em duas turmas). Provavelmente vieram de transferências aprovadas onde o vínculo antigo não recebeu `data_saida`, ou de re-matrículas.
-
-Resultado: o mesmo aluno aparece em duas matrizes do mesmo mês.
-
-### Causa 2 — Participantes que entraram em maio na lista de abril
-
-O único filtro temporal existente é:
-
-```ts
-.filter(p => !p.created_at || p.created_at < endDate)
-```
-
-Isso usa `participantes.created_at` (criação do **cadastro do participante**), não a data em que ele foi **matriculado na turma**. A tabela `turma_participantes` **não possui `created_at` nem `data_entrada**`, então hoje é impossível saber se o vínculo existia em abril.
-
-Casos típicos que causam o bug:
-
-- Participante cadastrado em fev, vinculado a uma turma só em maio → aparece em abril.
-- Participante transferido em maio para outra turma → aparece naquela turma já em abril.
+Consegui extrair todos via Drive Comments API. Eles caem em **5 grupos** distintos. Boa parte do grupo 4 (vínculos duplicados / participantes ausentes do mês) **já foi resolvida** pela migração anterior (`data_entrada`/`data_saida` + higienização dos 78 duplicados). Falta resolver o resto.
 
 ---
 
-## Solução proposta
+### Grupo 1 — Aba **Atividades** (2 colunas com lógica errada)
 
-### Passo 1 — Adicionar `data_entrada` em `turma_participantes` (migração)
+- **"Atividades Propostas"**: hoje está vazia/parcial. Deve listar **todos** os planejamentos do mês (`planejamentos` com `data_planejada` no mês, independentemente de terem virado relatório).
+- **"Atividades Desenvolvidas"**: hoje só traz o **título** do relatório. Deve trazer **descrição breve até 250 caracteres** (campo `descricao_atividade` ou equivalente do `relatorios_atividades`).
+- Total **364/440** ao final precisa recálculo após corrigir as duas colunas acima.
 
-```sql
-ALTER TABLE turma_participantes
-  ADD COLUMN data_entrada date NOT NULL DEFAULT CURRENT_DATE;
-```
+### Grupo 2 — Aba **Metas** (3 células com **43%**)
 
-Backfill conservador para os vínculos existentes: usar `participantes.created_at` como melhor estimativa (ou `2026-01-01` para todos os pré-existentes — o usuário decide).
+- Os 3 valores de "% atingido" estão errados — provavelmente usando denominador anual em vez do **mensal** (ou vice-versa). Revisar fórmula em `generate-relatorio-mensal/index.ts` na seção Metas.
 
-Atualizar todos os pontos do código que fazem `INSERT` em `turma_participantes` (matrícula pública, transferências, novo participante, importação) para gravar `data_entrada = CURRENT_DATE` (já é o default, então só precisa garantir que ninguém esteja sobrescrevendo).
+### Grupo 3 — Aba **Monitoramento** (3 valores de "Atendidos por bairro")
 
-### Passo 2 — Corrigir a função `generate-relatorio-mensal`
+- 113 / 125 / 126 hoje contam **registros de presença**. Devem contar **participantes únicos com ≥1 presença no mês** (`COUNT(DISTINCT participante_id) WHERE presente=true AND mês`).
 
-No bloco da matriz de frequência (linha ~312), trocar:
+### Grupo 4 — Listas de frequência por turma (~65 comentários)
 
-```ts
-const tpIds = turmaParticipantes
-  .filter(tp => tp.turma_id === t.id)
-  .map(tp => tp.participante_id);
-```
+Padrões observados:
 
-por:
 
-```ts
-const tpIds = turmaParticipantes
-  .filter(tp =>
-    tp.turma_id === t.id &&
-    (!tp.data_entrada || tp.data_entrada < endDate) &&
-    (!tp.data_saida   || tp.data_saida   >= startDate)
-  )
-  .map(tp => tp.participante_id);
-```
+| Padrão do comentário                                                      | Causa raiz                                                                           | Status                                                                                                    |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| "nenhuma presença antes do dia 09/04?" (≈25x)                             | participante entrou na turma no meio do mês, mas a matriz não diferencia visualmente | **falta fix visual**                                                                                      |
+| "participante repetido em 2 turmas" (4x)                                  | vínculos duplicados                                                                  | **resolvido** (78 higienizados)                                                                           |
+| "verifique se já estava inserido em abril" (≈20x)                         | sem `data_entrada` antes da migração                                                 | **resolvido** retroativamente, mas precisa **relatório de auditoria** para a coordenação validar os casos |
+| "preencher células anteriores ao dia X/04 em cinza claro" (3x explícitos) | pedido visual recorrente                                                             | **falta implementar**                                                                                     |
+| Aba inteira sem nenhuma presença                                          | turma sem chamadas no mês                                                            | **falta marcar visualmente** ("Sem chamadas no período")                                                  |
+| "tenho certeza que veio mas não tem presença" (≈5x)                       | falha de lançamento de chamada — não é bug de software                               | gerar **lista de auditoria** para coordenação                                                             |
 
-E remover o filtro frágil `participantes.created_at < endDate` da linha 314 (passa a ser redundante).
 
-Isso resolve simultaneamente:
+**Fix visual proposto** (uma única regra que resolve a maioria dos comentários do grupo):
 
-- **Duas turmas**: se o aluno foi transferido em 02/maio, em abril o vínculo antigo ainda estava ativo (`data_saida >= startDate`) e o novo ainda não existia (`data_entrada >= endDate`) → aparece só na turma certa.
-- **Entrou em maio**: `data_entrada` do vínculo será maio, filtrado fora de abril.
+- Para cada participante na matriz, pintar de **cinza claro** (`#E5E7EB`) toda célula cuja **data da chamada < `data_entrada**` ou **> `data_saida`/`data_desligamento**`.
+- Acrescentar legenda no topo: "■ presente · vazio = ausente · cinza = ainda não estava matriculado / já desligado · — sem aula" ; BA = Busca Ativa; D = Desligado"
+- Quando a turma não tem **nenhuma** presença no mês, render um aviso "Sem chamadas registradas no período" no topo da aba (em vez de matriz totalmente vazia).
 
-### Passo 3 — Aplicar o mesmo filtro em outras superfícies
+### Grupo 5 — Auditoria operacional (saída)
 
-Os mesmos critérios devem ser usados em:
+Como suporte aos comentários "verifique X", gerar um **anexo XLSX de auditoria** dentro do mesmo arquivo (nova aba **"Auditoria — Pendências"**) listando automaticamente:
 
-- `src/lib/listaFrequencia.ts` (carrega `turma_participantes` para listas individuais — hoje só filtra por `participantes.created_at`).
-- `supabase/functions/generate-reo/index.ts` (lista de presença do REO — verificar e alinhar).
-- Qualquer outro lugar que renderize chamadas/frequências históricas.
+1. Participantes com `data_entrada` no mês corrente (entradas novas).
+2. Participantes com `data_saida` no mês corrente (saídas/transferências/higienizações).
+3. Participantes com **0 presenças** no mês mas vínculo ativo o mês todo (candidatos a busca ativa / desligamento não registrado).
+4. Turmas com **0 chamadas** no mês.
+5. Participantes ainda com nome aparecendo em >1 aba do mês (sanidade pós-higienização — espera-se 0).
 
-### Passo 4 — Higienização dos 77 vínculos duplicados existentes
-
-Script de coordenação (uma só vez): para cada participante com 2 vínculos `data_saida IS NULL`, manter o mais recente (heurística: maior `id` ou último `relatorio_presenca` que o citou) e marcar `data_saida` no(s) outro(s) com a data da transferência aprovada (ou o início do mês corrente).
-
-Posso entregar isso como um botão no painel de Coordenação ("Higienizar vínculos duplicados") ou como uma migração única.
+Isso entrega um diagnóstico objetivo para a coordenação revisar caso a caso, em vez de o documento ficar com ambiguidade visual.
 
 ---
 
-## Detalhes técnicos
+## Implementação
 
-- A migração adiciona `data_entrada` (NOT NULL DEFAULT CURRENT_DATE) — não quebra inserts existentes.
-- O backfill será feito com `UPDATE turma_participantes tp SET data_entrada = COALESCE(p.created_at::date, '2026-01-01') FROM participantes p WHERE p.id = tp.participante_id`.
-- Após a migração, redeployar `generate-relatorio-mensal` e `generate-reo`.
-- Nenhuma alteração de UI é necessária para o relatório mensal — só corrige a lógica.
+### 1. `supabase/functions/generate-relatorio-mensal/index.ts`
+
+- **Atividades** — query nova: `planejamentos` do mês para coluna "Propostas"; `relatorios_atividades.descricao_atividade` truncada a 250 chars para "Desenvolvidas".
+- **Metas** — corrigir denominador (usar meta mensal, não anual) e recálculo do total `364/440`.
+- **Monitoramento** — `COUNT(DISTINCT participante_id)` filtrado por `presente=true` e mês.
+- **Matrizes de frequência por turma**:
+  - manter o filtro já implementado (`data_entrada < endDate && (!data_saida || data_saida >= startDate)`);
+  - **adicionar coloração cinza** nas células fora da janela de vínculo (usar `xlsx-js-style` `fill: { fgColor: { rgb: "E5E7EB" } }`);
+  - se `datasComChamadas.length === 0`, renderizar 1 linha com "Sem chamadas registradas neste mês" e pular a matriz;
+  - atualizar a legenda no topo da aba.
+- **Nova aba "Auditoria — Pendências"** com as 5 listas do Grupo 5.
+
+### 2. `src/lib/listaFrequencia.ts` e `supabase/functions/generate-reo/index.ts`
+
+Aplicar a mesma coloração cinza nas matrizes geradas por estes dois caminhos (DOCX/PDF/XLSX), para consistência com o REO e listas avulsas.
+
+### 3. Validação
+
+- Re-exportar Abril/2026 e conferir contra os 78 comentários originais (espera-se que ≥90% se resolvam visualmente ou apareçam na nova aba de Auditoria).
+- Comparar totais de Metas e Monitoramento com o `monthly_dashboard_metrics` da coordenação.
 
 ---
 
-## Pergunta antes de implementar
+## O que **não** vou fazer
 
-Posso confirmar os 4 passos? Especificamente:
-
-1. Backfill de `data_entrada` = `participantes.created_at` (estimativa) ou data fixa `2026-01-01`? BACKFILL DE DATA ENTRADA = PARTICIPANTES.CREATED_AT
-2. Os 77 duplicados — você quer que eu rode a higienização automaticamente ou só listar para revisão manual? AUTO
+- Marcar manualmente cada um dos ~50 participantes citados — a higienização já foi feita; o que falta é a coordenação revisar a aba de Auditoria.
+- Mudar a cor padrão do "presente" (■) ou a tipografia institucional.
+- Tocar em cores/temas globais — o cinza E5E7EB já está alinhado com a paleta cold gray do sistema.
