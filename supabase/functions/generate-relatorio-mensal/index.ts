@@ -15,6 +15,77 @@ const TIPO_ATENDIMENTO_LABELS: Record<string, string> = {
   encaminhamento: "Encaminhamento", busca_ativa: "Busca Ativa", acolhida: "Acolhida", desligamento: "Desligamento",
 };
 
+// ===== Estilos institucionais (atualizados conforme comentários da planilha) =====
+const BORDER_THIN = { style: "thin", color: { rgb: "000000" } };
+const BORDER_OBJ = { top: BORDER_THIN, bottom: BORDER_THIN, left: BORDER_THIN, right: BORDER_THIN };
+const FONT_NAME = "Arial";
+
+const TITULO_INSTITUCIONAL = "RELATÓRIO MENSAL CONSOLIDADO | SOCIEDADE CIVIL NOSSA SENHORA APARECIDA";
+const SUBTITULO_INSTITUCIONAL =
+  "Centro de Atenção Integral ao Adolescente | Serviço de Convivência e Fortalecimento de Vínculos";
+
+const STYLE_TITULO = {
+  font: { name: FONT_NAME, sz: 12, bold: true, color: { rgb: "FFFFFF" } },
+  fill: { fgColor: { rgb: "000000" } },
+  alignment: { horizontal: "center", vertical: "center", wrapText: true },
+  border: BORDER_OBJ,
+};
+const STYLE_SUBTITULO = {
+  font: { name: FONT_NAME, sz: 10, italic: true, color: { rgb: "000000" } },
+  alignment: { horizontal: "center", vertical: "center", wrapText: true },
+};
+const STYLE_BOLD = { font: { name: FONT_NAME, sz: 10, bold: true } };
+const STYLE_NORMAL = { font: { name: FONT_NAME, sz: 10 } };
+
+function periodoLabel(p?: string | null): string {
+  if (!p) return "—";
+  const v = String(p).toLowerCase();
+  if (v === "manha" || v === "manhã") return "MANHA";
+  if (v === "tarde") return "TARDE";
+  if (v === "integral") return "INTEGRAL";
+  return String(p).toUpperCase();
+}
+
+function styleCell(ws: any, addr: string, style: any, value?: any) {
+  if (!ws[addr]) ws[addr] = { v: value ?? "", t: "s" };
+  if (value !== undefined) ws[addr].v = value;
+  ws[addr].s = { ...(ws[addr].s || {}), ...style };
+}
+
+/** Aplica cabeçalho institucional (título preto + subtítulo) nas linhas 0-1 e
+ *  faz merge ao longo de `colCount` colunas. Eleva a altura das linhas. */
+function applyInstitutionalHeader(ws: any, colCount: number) {
+  // Título (linha 0)
+  for (let c = 0; c < colCount; c++) {
+    const addr = XLSX.utils.encode_cell({ r: 0, c });
+    styleCell(ws, addr, STYLE_TITULO, c === 0 ? TITULO_INSTITUCIONAL : "");
+  }
+  // Subtítulo (linha 1)
+  for (let c = 0; c < colCount; c++) {
+    const addr = XLSX.utils.encode_cell({ r: 1, c });
+    styleCell(ws, addr, STYLE_SUBTITULO, c === 0 ? SUBTITULO_INSTITUCIONAL : "");
+  }
+  ws["!merges"] = ws["!merges"] || [];
+  if (colCount > 1) {
+    ws["!merges"].push({ s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } });
+    ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: colCount - 1 } });
+  }
+  ws["!rows"] = ws["!rows"] || [];
+  ws["!rows"][0] = { hpt: 22 };
+  ws["!rows"][1] = { hpt: 16 };
+}
+
+/** Insere bordas finas pretas em todas as linhas com conteúdo até `lastDataCol`. */
+function applyBordersToRange(ws: any, startRow: number, endRow: number, colCount: number) {
+  for (let r = startRow; r <= endRow; r++) {
+    for (let c = 0; c < colCount; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+      ws[addr].s = { ...(ws[addr].s || {}), border: BORDER_OBJ };
+    }
+  }
+}
+
 function getDatasAtividade(ano: number, mes: number, diasSemana: string[]): string[] {
   const diasNum = diasSemana.map(d => DIAS_MAP[d.toLowerCase()]).filter(n => n !== undefined);
   if (!diasNum.length) return [];
