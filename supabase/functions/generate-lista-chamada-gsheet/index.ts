@@ -1,7 +1,8 @@
 // @ts-nocheck
 // Edge Function: gera Google Sheet "Lista de Chamada" para uma turma/mês,
 // aplicando o modelo institucional revisado (cabeçalho MAIÚSCULO, rótulos em
-// negrito, marcadores (BA)/(D)/(T) em negrito, autoresize de colunas, etc.).
+// negrito, marcadores (BA)/(D)/(T)/(N) em negrito, autoresize de colunas, etc.).
+// Filtros: exclui desligados pré-mês; marca (N) entrantes do mês.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -94,7 +95,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { turma_id, mes, ano } = await req.json();
+    const body = await req.json();
+    const turma_id = body.turma_id || body.turmaId;
+    const { mes, ano } = body;
     if (!turma_id || !mes || !ano) {
       return new Response(JSON.stringify({ error: "turma_id, mes, ano obrigatórios" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -102,6 +105,8 @@ Deno.serve(async (req) => {
     }
     const mesNum = Number(mes);
     const anoNum = Number(ano);
+    const dataIniMes = `${anoNum}-${pad2(mesNum)}-01`;
+    const proxMes = mesNum === 12 ? `${anoNum + 1}-01-01` : `${anoNum}-${pad2(mesNum + 1)}-01`;
 
     const svc = createClient(supaUrl, supaSvc);
 
@@ -115,13 +120,14 @@ Deno.serve(async (req) => {
 
     const { data: tps } = await svc
       .from("turma_participantes")
-      .select("data_saida, motivo_saida, participantes(nome_completo, status, data_desligamento)")
+      .select("data_saida, motivo_saida, participantes(nome_completo, status, data_desligamento, iniciou_em)")
       .eq("turma_id", turma_id);
 
     const members = (tps || []).map((r: any) => {
       const p = r.participantes || {};
       const desligado = p.status === "desligado";
       const transferido = !!r.data_saida && !desligado;
+      const novo = !!p.iniciou_em && p.iniciou_em >= dataIniMes && p.iniciou_em < proxMes;
       return {
         nome: p.nome_completo || "—",
         desligado,
@@ -129,7 +135,13 @@ Deno.serve(async (req) => {
         transferido,
         data_transferencia: r.data_saida || null,
         busca_ativa: p.status === "busca_ativa",
+        novo,
+        iniciou_em: p.iniciou_em || null,
       };
+    }).filter((m: any) => {
+      // Exclui quem desligou ANTES do início do mês
+      if (m.desligado && m.data_desligamento && m.data_desligamento < dataIniMes) return false;
+      return true;
     });
 
     // 2. Datas do mês conforme dias da semana
@@ -280,6 +292,9 @@ Deno.serve(async (req) => {
         runs = [{ text: m.nome + " " }, { text: `(T${data})`, bold: true }];
       } else if (m.busca_ativa) {
         runs = [{ text: m.nome + " " }, { text: "(BA)", bold: true }];
+      } else if (m.novo) {
+        const data = m.iniciou_em ? ` ${m.iniciou_em}` : "";
+        runs = [{ text: m.nome + " " }, { text: `(N${data})`, bold: true }];
       } else {
         runs = [{ text: m.nome }];
       }
@@ -308,7 +323,8 @@ Deno.serve(async (req) => {
         { text: "Legenda: " },
         { text: "(BA)", bold: true }, { text: " = Em busca ativa  ·  " },
         { text: "(D)", bold: true }, { text: " = Desligado  ·  " },
-        { text: "(T)", bold: true }, { text: " = Transferido" },
+        { text: "(T)", bold: true }, { text: " = Transferido  ·  " },
+        { text: "(N)", bold: true }, { text: " = Novo no mês" },
       ];
       const arr: any[] = [plainCell("", legendFmt), richCell(legendRuns, legendFmt)];
       for (let j = 2; j < totalCols; j++) arr.push(plainCell("", legendFmt));
