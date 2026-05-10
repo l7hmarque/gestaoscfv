@@ -266,14 +266,34 @@ Deno.serve(async (req) => {
         const target = subs["02_Relatorios_Atividade"].id;
         for (const rel of rels || []) {
           try {
-            const r = await invokeFn("generate-relatorio-gdoc", { relatorioId: rel.id, force: true }, authHeader);
-            const fileId = r?.fileId || r?.documentId;
-            if (!fileId) continue;
+            // Usa o MESMO motor do botão "Abrir no Drive" do /relatorios/:id —
+            // clona o template institucional de drive_modelos e preenche placeholders.
+            const r = await invokeFn(
+              "drive-sync-worker",
+              { action: "process_relatorio_now", origem_id: rel.id },
+              authHeader,
+            );
+            const sourceFileId: string | undefined = r?.drive_file_id;
+            if (!sourceFileId) continue;
             const base = `SysCFV_Relatorio_${rel.data}_${safeName(rel.nome_atividade || "Atividade")}`;
             const { nome, skip, toTrash } = await resolveNome(base, "gdoc", target, modo);
-            if (skip) { await trashFile(fileId); result.sincronizados.relatorios.push({ relId: rel.id, nome, skipped: true }); continue; }
+            if (skip) { result.sincronizados.relatorios.push({ relId: rel.id, nome, skipped: true }); continue; }
             for (const id of toTrash) await trashFile(id);
-            await renameFile(fileId, nome.replace(/\.gdoc$/, ""));
+            // Cópia para a pasta institucional (mantém o original na pasta do educador,
+            // que é o que o botão "Abrir no Drive" do relatório abre).
+            const copyName = nome.replace(/\.gdoc$/, "");
+            const copyRes = await fetch(
+              `${GATEWAY_URL}/files/${sourceFileId}/copy?supportsAllDrives=true&fields=id,name`,
+              {
+                method: "POST",
+                headers: authHeaders(),
+                body: JSON.stringify({ name: copyName, parents: [target] }),
+              },
+            );
+            if (!copyRes.ok) throw new Error(`copy falhou [${copyRes.status}]: ${await copyRes.text()}`);
+            const copyJson = await copyRes.json();
+            const fileId = copyJson.id;
+            // copy nem sempre respeita parents — garante movimento para a subpasta
             await moveFileToFolder(fileId, target);
             result.sincronizados.relatorios.push({ relId: rel.id, fileId, nome });
           } catch (e: any) { result.erros.push({ tipo: `relatorio:${rel.id}`, msg: e.message }); }
