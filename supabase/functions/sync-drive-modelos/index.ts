@@ -219,10 +219,6 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify(result), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Trabalho pesado roda em background para evitar IDLE_TIMEOUT (150s).
-    // Retornamos 202 imediatamente com a pasta criada; o cliente pode acompanhar pelo Drive.
-    const heavyWork = (async () => {
-      try {
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const mesStr = pad2(mes);
     const dataIni = `${ano}-${mesStr}-01`;
@@ -260,10 +256,24 @@ Deno.serve(async (req) => {
     // ===== TIPO: listas (Google Sheets, uma por turma ativa no mês) =====
     if (tipos.includes("listas")) {
       try {
-        const { data: rels } = await sb.from("relatorios_atividade")
-          .select("planejamento_id, planejamentos(turma_id)")
-          .gte("data", dataIni).lte("data", dataFimStr);
-        const turmasIds = Array.from(new Set((rels || []).map((r: any) => r?.planejamentos?.turma_id).filter(Boolean)));
+        // Turmas com algum relatório no mês (via relatorio_turmas) +
+        // turmas com planejamento no mês (via planejamento_turmas)
+        const { data: relIds } = await sb.from("relatorios_atividade")
+          .select("id").gte("data", dataIni).lte("data", dataFimStr);
+        const relIdsArr = (relIds || []).map((r: any) => r.id);
+        const { data: plIds } = await sb.from("planejamentos")
+          .select("id").gte("data_aplicacao", dataIni).lte("data_aplicacao", dataFimStr);
+        const plIdsArr = (plIds || []).map((p: any) => p.id);
+        const turmasSet = new Set<string>();
+        if (relIdsArr.length) {
+          const { data: rt } = await sb.from("relatorio_turmas").select("turma_id").in("relatorio_id", relIdsArr);
+          (rt || []).forEach((r: any) => r.turma_id && turmasSet.add(r.turma_id));
+        }
+        if (plIdsArr.length) {
+          const { data: pt } = await sb.from("planejamento_turmas").select("turma_id").in("planejamento_id", plIdsArr);
+          (pt || []).forEach((r: any) => r.turma_id && turmasSet.add(r.turma_id));
+        }
+        const turmasIds = Array.from(turmasSet);
         const target = subs["04_Listas_Presenca"].id;
         for (const turmaId of turmasIds) {
           try {
@@ -432,7 +442,7 @@ Deno.serve(async (req) => {
         const target = subs["06_REO"].id;
         // DOCX
         try {
-          const rDoc = await invokeFn("generate-reo", { mes, ano, format: "docx" }, authHeader);
+          const rDoc = await invokeFn("generate-reo", { mes, ano, formato: "docx" }, authHeader);
           if (rDoc?.url) {
             const buf = new Uint8Array(await (await fetch(rDoc.url)).arrayBuffer());
             const base = `SysCFV_REO_${periodoLabel}`;
@@ -453,7 +463,7 @@ Deno.serve(async (req) => {
         } catch (e: any) { result.erros.push({ tipo: "reo:docx", msg: e.message }); }
         // XLSX (anexo)
         try {
-          const rXls = await invokeFn("generate-reo", { mes, ano, format: "xlsx" }, authHeader);
+          const rXls = await invokeFn("generate-reo", { mes, ano, formato: "xlsx" }, authHeader);
           if (rXls?.url) {
             const buf = new Uint8Array(await (await fetch(rXls.url)).arrayBuffer());
             const base = `SysCFV_REO_Anexo_${periodoLabel}`;
@@ -474,16 +484,9 @@ Deno.serve(async (req) => {
         } catch (e: any) { result.erros.push({ tipo: "reo:xlsx", msg: e.message }); }
       } catch (e: any) { result.erros.push({ tipo: "reo", msg: e.message }); }
     }
-      } catch (bgErr) {
-        console.error("[sync-drive-modelos:bg]", bgErr instanceof Error ? bgErr.message : bgErr);
-      }
-    })();
-    // @ts-ignore - EdgeRuntime é fornecido pelo runtime do Supabase
-    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) EdgeRuntime.waitUntil(heavyWork);
-
     return new Response(
-      JSON.stringify({ ...result, async: true, message: "Sincronização iniciada em segundo plano. Verifique a pasta no Drive em alguns minutos." }),
-      { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      JSON.stringify({ ...result, async: false }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
