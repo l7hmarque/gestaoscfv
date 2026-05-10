@@ -1262,6 +1262,43 @@ async function processFoto(origemId: string): Promise<{ drive_file_id: string; d
 // -----------------------------------------------------------------------------
 // Loop principal
 // -----------------------------------------------------------------------------
+async function fixTemplateFotos(): Promise<{ docs: number; tabelasRemovidas: number }> {
+  const { data: modelos } = await supabase
+    .from("drive_modelos")
+    .select("tipo, template_doc_id")
+    .eq("tipo", "relatorio");
+  let tabelasRemovidas = 0;
+  let docs = 0;
+  for (const m of modelos || []) {
+    const docId = m.template_doc_id;
+    if (!docId) continue;
+    docs++;
+    // loop até não achar mais tabela com {fotoN}
+    for (let pass = 0; pass < 5; pass++) {
+      const doc = await getDocFull(docId);
+      const target = (doc.body.content || []).find((el: any) => {
+        if (!el.table) return false;
+        const t = JSON.stringify(el.table);
+        return /\{foto[1-5]\}/.test(t);
+      });
+      if (!target) break;
+      const start = target.startIndex;
+      const end = target.endIndex;
+      // delete a tabela inteira; depois insere 5 parágrafos com tokens
+      await docsBatch(docId, [
+        { deleteContentRange: { range: { startIndex: start, endIndex: end } } },
+      ]);
+      // após deletar, posição atual = start; insere texto com 5 linhas
+      const txt = "{foto1}\n{foto2}\n{foto3}\n{foto4}\n{foto5}\n";
+      await docsBatch(docId, [
+        { insertText: { location: { index: start }, text: txt } },
+      ]);
+      tabelasRemovidas++;
+    }
+  }
+  return { docs, tabelasRemovidas };
+}
+
 async function processQueue(): Promise<{ processed: number; errors: number }> {
   const { data: jobs, error } = await supabase
     .from("drive_sync_queue")
