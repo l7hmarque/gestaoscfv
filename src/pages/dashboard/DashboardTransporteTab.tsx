@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useSearchParams } from "react-router-dom";
 import { Plus, MapPin, Clock, Power, PowerOff, Pencil, Trash2, Check, X, Bus, CheckCircle2, XCircle, CircleDashed, RefreshCw, ArrowUp, ArrowDown, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { isBairroSCFV } from "@/lib/constants";
@@ -32,6 +34,13 @@ interface Bairro { id: string; nome: string; }
 
 export default function DashboardTransporteTab() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const subTab = (searchParams.get("sub") === "pontos" ? "pontos" : "embarques") as "embarques" | "pontos";
+  const setSubTab = (v: "embarques" | "pontos") => {
+    const next = new URLSearchParams(searchParams);
+    next.set("sub", v);
+    setSearchParams(next, { replace: true });
+  };
   const [isMotoristaOuCoord, setIsMotoristaOuCoord] = useState(false);
   const [pontos, setPontos] = useState<Ponto[]>([]);
   const [bairros, setBairros] = useState<Bairro[]>([]);
