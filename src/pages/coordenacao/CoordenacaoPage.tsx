@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Briefcase, Loader2 } from "lucide-react";
+import { Briefcase, Loader2, UserX, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -68,7 +69,7 @@ export default function CoordenacaoPage() {
       </header>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-8 w-full max-w-6xl">
+        <TabsList className="grid grid-cols-9 w-full max-w-6xl">
           <TabsTrigger value="painel">Painel</TabsTrigger>
           <TabsTrigger value="acoes">Ações Pendentes</TabsTrigger>
           <TabsTrigger value="decisoes">Decisões</TabsTrigger>
@@ -76,6 +77,7 @@ export default function CoordenacaoPage() {
           <TabsTrigger value="registros">Registros</TabsTrigger>
           <TabsTrigger value="familia">Portal Família</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
+          <TabsTrigger value="desligamento">Desligamento</TabsTrigger>
           <TabsTrigger value="relatorio">Relatório</TabsTrigger>
         </TabsList>
 
@@ -149,6 +151,26 @@ export default function CoordenacaoPage() {
             <TabsContent value="registros" className="mt-6"><RegistrosTab /></TabsContent>
             <TabsContent value="familia" className="mt-6"><AcessosFamiliaTab /></TabsContent>
             <TabsContent value="permissoes" className="mt-6"><PermissoesTab /></TabsContent>
+
+            <TabsContent value="desligamento" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <UserX className="h-4 w-4 text-destructive" />
+                    Painel Administrativo de Desligamento
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <p className="text-muted-foreground">
+                    Soft-delete em lote de participantes inativos com justificativa registrada em auditoria.
+                    Restrito a Coordenação. Use com cautela — alterações afetam relatórios retroativos.
+                  </p>
+                  <Button onClick={() => navigate("/desligamento-admin")} className="gap-2">
+                    <ExternalLink className="h-4 w-4" /> Abrir painel
+                  </Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
             <TabsContent value="relatorio" className="mt-6">
               <Card>

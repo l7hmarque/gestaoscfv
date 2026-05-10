@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SysCFVLogo } from "@/components/SysCFVLogo";
 import {
-  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings, User, UserX, CalendarDays, Briefcase, ChefHat, FolderOpen, Receipt, Bus,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings, User, CalendarDays, Briefcase, ChefHat, Bus,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -19,6 +19,7 @@ const menuGroups = [
       { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
       { title: "Participantes", url: "/participantes", icon: Users },
       { title: "Turmas", url: "/turmas", icon: GraduationCap },
+      { title: "Presença", url: "/presenca", icon: ClipboardCheck },
     ],
   },
   {
@@ -26,8 +27,8 @@ const menuGroups = [
     items: [
       { title: "Planejamento", url: "/planejamentos", icon: BookOpen },
       { title: "Relatórios", url: "/relatorios", icon: FileText },
-      { title: "Exportar Relatórios", url: "/relatorios/exportar", icon: FileDown },
-      { title: "Biblioteca .docx", url: "/biblioteca", icon: FolderOpen },
+      { title: "Exportar Relatórios em Lote", url: "/relatorios/exportar", icon: FileDown },
+      { title: "Exportar Chamada", url: "/presenca/exportar", icon: FileDown },
     ],
   },
   {
@@ -43,10 +44,8 @@ const menuGroups = [
       { title: "Cronograma", url: "/cronograma", icon: CalendarDays },
       { title: "Transporte", url: "/transporte", icon: Bus },
       { title: "Financeiro", url: "/financeiro", icon: DollarSign },
-      { title: "Arquivos Financeiros", url: "/financeiro/arquivos", icon: Receipt },
       { title: "Site Público", url: "/site-admin", icon: Globe },
       { title: "Banco de Dados", url: "/banco-de-dados", icon: Database },
-      { title: "Desligamento", url: "/desligamento-admin", icon: UserX },
       { title: "Configurações", url: "/configuracoes", icon: Settings },
     ],
   },

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Accordion, AcordeonItem } from "@/pages/biblioteca/BibliotecaAccordion";
+import { Accordion, AcordeonItem } from "@/components/Accordion";
 import { Loader2, Download, FolderOpen, Package, FileText, Receipt, Search, ExternalLink, AlertCircle } from "lucide-react";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";

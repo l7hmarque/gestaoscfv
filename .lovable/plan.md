@@ -1,55 +1,114 @@
-## Objetivo
+## Plano — 4 frentes coordenadas
 
-Na página da turma, renomear "Lista de Presença" para "Lista de Chamada" e adicionar a opção **"Abrir no Google Sheets"**, gerando o documento conforme o modelo institucional (com correções extraídas dos comentários do sheet de referência).
+### Frente A · Aplicar ações do Relatório de Divergências (Larissa · Abril/2026)
 
-## Correções de conteúdo/estilo (modelo Google Sheets — válidas para todas as listas)
+Execução via migration/insert (com auditoria) sobre `turma_participantes`, `relatorio_presenca`, `participantes`.
 
-Aplicadas tanto na geração XLSX local quanto na geração via Google Sheets:
+**A1. Correção de `data_saida` inconsistente (anterior à `data_entrada`)**
 
-1. **Título**: `LISTA DE CHAMADA — {MÊS} / {ANO}` (substitui "LISTA DE FREQUÊNCIA").
-2. **Cabeçalho institucional**: `SOCIEDADE CIVIL NOSSA SENHORA APARECIDA` em MAIÚSCULO.
-3. **Linha de info**: rótulos em **negrito** — `Período:`, `Faixa Etária:` (renomear de "Faixa"), `Educador(a):`, `Bairro:`.
-4. **Marcadores em negrito**: `(BA)`, `(D)`, `(T)` ao lado dos nomes e na legenda.
-5. **Assinatura**: linha "Assinatura do(a) Educador(a):" alinhada à esquerda e em **negrito**.
-6. **Largura das colunas**: B até a última ajustadas ao conteúdo (auto-fit).
-7. **Nome do arquivo**: `SysCFV_ListaChamada_{Turma}_{YYYY-MM}_{timestamp}` (segue padrão institucional, atualiza categoria de "ListaPresenca" → "ListaChamada").
+- 6-8 Tarde: Kayo Gabriell Mendez, Millena Sophia Eckardt, Natanael Alcides Taborda Flores → `data_saida = NULL`.
+- 6-8 Manhã: Ana Heloisa Pistilhi (saída 16/04 — confirmar se desligamento real ou erro; manter por ora e só registrar nota de auditoria).
+- Filtro de query do `generate-relatorio-mensal` já protege esses casos; aqui corrigimos a origem.
 
-## Mudanças na UI (`src/pages/turmas/TurmaDetalhePage.tsx`)
+**A2. Faltas Justificadas — Gabrielli (atestado a partir de 16/04)**
 
-- Botão "Lista Presença" → **"Lista de Chamada"**.
-- Título do diálogo "Gerar Lista de Presença" → **"Gerar Lista de Chamada"**.
-- Dentro do diálogo, ao lado de "Gerar XLSX", adicionar botão **"Abrir no Google Sheets"** (ícone `FileSpreadsheet`/`ExternalLink`), que invoca a edge function e abre a URL retornada em nova aba.
-- Toast de sucesso atualizado.
+- Inserir registros `relatorio_presenca` (ou criar relatórios "FJ" mínimos) para 16/04, 23/04, 28/04, 30/04 com `presente=false`, `justificativa='Atestado médico'`.
 
-## Edge Function nova: `generate-lista-chamada-gsheet`
+**A3. Lançamento de presenças faltantes (subnotificação ~83%)**
 
-Segue o mesmo padrão de `generate-relatorio-gdoc` (conta institucional única via conector Google Sheets + Google Drive).
+- Relatórios físicos das três turmas para datas: 02, 07, 09, 23, 28, 30/04 (e 16/04 para Joaquim/Kayo da Tarde quando ausente).
+- Estratégia: para cada (turma × data) sem relatório, criar um `relatorios_atividade` simples com título "Chamada física — abril (digitação retroativa)", `educador_id` = Larissa, e popular `relatorio_presenca` conforme o PDF. Marcar no campo `descricao` a origem ("Digitação retroativa a partir da lista física auditada em 10/05/2026").
+- Entregar relatorio de digitacoes reroativas em pdf.
 
-Fluxo:
-1. Recebe `{ turma_id, mes, ano }`. Valida sessão.
-2. Carrega turma (nome, período, faixa_etaria, dias_semana, bairro, educador) e membros (com flags `desligado`, `transferido`, `busca_ativa`, datas).
-3. Calcula as datas de atendimento do mês a partir de `dias_semana`.
-4. Cria uma nova planilha via `POST /v4/spreadsheets` com título `SysCFV_ListaChamada_{Turma}_{YYYY-MM}`.
-5. Envia `spreadsheets:batchUpdate` com:
-   - `updateCells` para cabeçalho (3 linhas institucionais em maiúsculo + título + nome da turma + linha de info com rich-text bold nos rótulos).
-   - Cabeçalho da tabela (`Nº`, `Nome do Participante`, datas `dd/MM`).
-   - Linhas dos participantes (ativos primeiro; transferidos e desligados ao final com strikethrough; `(BA)`/`(D)`/`(T)` em **bold runs**).
-   - Linha de assinatura (alinhada à esquerda, bold).
-   - Linha de legenda (com `(BA)`, `(D)`, `(T)` em bold).
-   - `mergeCells` nas linhas de cabeçalho institucional.
-   - `updateDimensionProperties` com `autoResizeDimensions` para colunas B+.
-   - Bordas e tamanhos consistentes com o template do sheet de referência.
-6. Via Google Drive API, define permissão pública (`anyone` / `reader`) e retorna `webViewLink`.
-7. Retorna `{ url }` para o frontend.
+**A4. Migrações de turma**
 
-Sem persistência por enquanto: cada clique gera nova planilha (consistente com a natureza de "lista de chamada em branco para impressão"). Caso a Coordenação valide, posso adicionar reuso por `(turma_id, mes, ano)` em iteração futura.
+- Yasmin Vitoria Taborda Flores: 9-11 Manhã → 12-17 (encerrar vínculo atual com `data_saida=02/04/2026` e abrir novo na 12-17 com `data_entrada=02/04/2026`).
 
-## Mudanças no exporter XLSX local (`src/lib/exportListaPresenca.ts`)
+**A5. Confirmação de desligamentos pendentes (9-11 Manhã)**
 
-Aplicar as mesmas 6 correções de estilo acima para manter paridade visual entre o XLSX baixado e o Google Sheets gerado. Renomear constantes/labels internos de "Frequência" para "Chamada" onde apropriado, mantendo o helper de naming.
+- Ana Julia Rodrigues Mackievicz, Arthur Aloisio Wolf, Gustavo Henrique Wolf: têm `data_saida=31/03` mas seguem na lista física como faltosos.
+- Ação automática: marcar `status='desligado'` em `participantes` se ainda ativo e registrar nota em `audit_log` ("Desligamento confirmado por divergência de chamada física").
 
-## Fora do escopo
+**A6. Busca ativa**
 
-- Não altero a página `/presenca/exportar` (Lista de Frequência preenchida × Lista de Chamada em branco já estão separadas lá).
-- Não altero o exporter de Lista de Frequência preenchida (modelo diferente, mantém marcadores `■`).
-- Não persisto `gsheet_id` na turma; pode ser adicionado depois se a Coordenação solicitar reuso.
+- Marcar Ygor Miguel Valansuelo Da Silva como `status='busca_ativa'`.
+
+**A7. Cadastros pendentes (manuscritos no PDF)**
+
+- Criar registros mínimos `participantes` (status `incompleto`) para: Joao Cardoso, Maria B. Cardozo, Lara Gabriely Flores, Nayeli Silguero Barua, Paloma Amaro Do Nascimento — só se ainda não houver match por nome (busca fuzzy via `pg_trgm > 0.5`). Deixar nomes na pagina de integridade para verificacao e criar recado sobre eles para Equipe Tecnica.
+
+**A8. Revisar lançamento divergente**
+
+- Antonio Marcos De Oliveira (9-11 Manhã, 22/04): apenas registrar alerta na `audit_log` para revisão humana — não excluir.
+
+Resultado: PDF "Relatorio_Aplicacao_Divergencias_Abril_Larissa.pdf" salvo em `/mnt/documents/` listando o que foi alterado, antes/depois, e pendências humanas (A8 e A7 quando o match for ambíguo).
+
+---
+
+### Frente B · Adicionar /presenca e /presenca/exportar ao menu lateral
+
+Em `src/components/AppSidebar.tsx`, grupo **Atividades**, inserir:
+
+- `Presença` → `/presenca` (ícone `ClipboardCheck`, antes de "Planejamento").
+- `Exportar Chamada` → `/presenca/exportar` (ícone `FileDown`, depois de "Exportar Relatórios").
+
+Em `src/pages/Index.tsx` o atalho "Presença" já existe; adicionar também "Exportar Chamada" no grupo Atividades para paridade.
+
+---
+
+### Frente C · Auditoria de botões (sidebar + dashboard) — remover desatualizados/redundantes
+
+Diagnóstico:
+
+
+| Item                                            | Local                        | Recomendação                                                             | Motivo                                                       |
+| ----------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `Biblioteca .docx`                              | sidebar (Atividades) e Index | **Remover**                                                              | Substituída pelo Drive (Frente D)                            |
+| `Exportar Relatórios` (`/relatorios/exportar`)  | sidebar e Index              | **Manter** mas renomear para `Exportar Relatorios em Lote`               | Convive com novo "Exportar Chamada"                          |
+| `Arquivos Financeiros` (`/financeiro/arquivos`) | sidebar e Index              | **Mover para sub-rota interna do Financeiro** (remover do sidebar)       | Já acessível dentro de `/financeiro`; ocupa espaço duplicado |
+| `Desligamento` (`/desligamento-admin`)          | sidebar (Gestão)             | **Mover para Coordenação**                                               | Painel administrativo restrito                               |
+| `Banco de Dados` (`/banco-de-dados`)            | sidebar (Gestão)             | **Manter**                                                               | Backup/exportação em massa, único acesso                     |
+| `Site Público` (`/site-admin`)                  | sidebar (Gestão)             | **Manter**                                                               | Único acesso                                                 |
+| `Mural` (`/mural`)                              | só rota, não no sidebar      | **Manter rota; já acessível pelo Feed**                                  | OK                                                           |
+| `Cronograma`, `Transporte`, `Cozinha`           | sidebar (Gestão)             | **Manter**                                                               | Painéis operacionais distintos                               |
+| Atalho `Feed/Mural` no Index                    | Index                        | **Manter** mas separar em "Feed" e "Mural" — hoje aponta só para `/feed` | Confunde usuários                                            |
+
+
+Resultado: sidebar enxuto, sem itens redundantes. Adicionar `Presença` e `Exportar Chamada` (Frente B) e remover `Biblioteca .docx` e `Arquivos Financeiros` (este último vira aba interna).
+
+---
+
+### Frente D · Desativar a página/funcionalidade Biblioteca .docx
+
+Justificativa: o fluxo institucional migrou para Google Drive (`generate-relatorio-gdoc`, `generate-lista-chamada-gsheet`), tornando a Biblioteca local obsoleta. Hoje ela mantém 212 documentos no bucket `biblioteca-docx` e cria fila a cada salvamento de relatório/planejamento (custo de Storage + chamadas de Edge).
+
+Etapas:
+
+1. **Remover UI**:
+  - Apagar `src/pages/biblioteca/BibliotecaPage.tsx` e `BibliotecaAccordion.tsx`.
+  - Mover `Accordion`/`AcordeonItem` (usados em `ArquivosFinanceirosPage.tsx`) para `src/components/ui/biblioteca-accordion.tsx` (ou inline) antes da exclusão para não quebrar.
+  - Remover rota `/biblioteca` em `App.tsx`, item do `AppSidebar` e atalho do `Index.tsx`.
+2. **Remover ganchos de enfileiramento**:
+  - Em `RelatorioNovoPage.tsx` e `PlanejamentoNovoPage.tsx` apagar a chamada `enfileirarDocBiblioteca(...)`.
+  - Apagar `src/lib/bibliotecaDocx.ts` (mantendo apenas `buildRelatorioDocxBlob`/`buildPlanejamentoDocxBlob` em `useDocumentExport.ts`, que continuam sendo usados pela exportação direta).
+3. **Limpeza de backend** (migration):
+  - Esvaziar bucket `biblioteca-docx` (loop em script via Edge ou comando), depois `DROP` do bucket.
+  - `DROP TABLE biblioteca_documentos CASCADE` e `DROP FUNCTION enqueue_biblioteca_doc`.
+4. **Confirmação**: como envolve perda de 212 arquivos, executo o backup ZIP do bucket antes de excluir e disponibilizo em `/mnt/documents/biblioteca_backup_2026-05-10.zip`.
+
+---
+
+### Ordem de execução
+
+1. Frente D etapa 1+2 (remover UI/ganchos) — sem perda de dados.
+2. Frente B + Frente C (sidebar/dashboard) — mesmo PR de UI.
+3. Frente A (correções de dados via migrations + inserts auditados) com PDF de evidência.
+4. Frente D etapas 3+4 (backup + drop bucket/tabela) — última para permitir rollback.
+
+Ao final: relatório consolidado das alterações + `audit_log` populado.
+
+### Confirmações necessárias antes de implementar
+
+- **A7**: criar cadastros `incompleto` automaticamente para os 5 manuscritos, ou apenas listar para revisão humana? criar, inserir para revisao de integridade e gerar recado para equipe tecnica.
+- **D**: confirma exclusão definitiva da Biblioteca após backup ZIP? sim.
+- **C**: tudo bem mover "Arquivos Financeiros" para dentro de `/financeiro` como aba? sim.
