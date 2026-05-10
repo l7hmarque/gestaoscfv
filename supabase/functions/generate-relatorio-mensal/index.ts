@@ -505,7 +505,9 @@ function generateMonthSheets(
       (tp: any) =>
         tp.turma_id === t.id &&
         (!tp.data_entrada || tp.data_entrada < endDate) &&
-        (!tp.data_saida || tp.data_saida >= startDate),
+        (!tp.data_saida || tp.data_saida >= startDate) &&
+        // Ignora vínculos com data_saida anterior à data_entrada (registros inconsistentes)
+        (!tp.data_saida || !tp.data_entrada || tp.data_saida >= tp.data_entrada),
     );
     const windowByPart = new Map<string, { entrada: string | null; saida: string | null }>();
     tpRecords.forEach((tp: any) =>
@@ -534,11 +536,21 @@ function generateMonthSheets(
     const bairroNome = bairroMap.get(t.bairro_id) || "N/I";
     const sheetName = truncSheet(`${(t.nome || "Turma").slice(0, 22)}${suffix}`, usedSheetNames);
 
-    const header1 = [`SCFV — CAIA Medianeira — Matriz de Frequência`];
-    const header2 = [`Turma: ${t.nome} | Bairro: ${bairroNome} | Faixa: ${t.faixa_etaria || "N/I"} | Período: ${t.periodo || "N/I"}`];
-    const header3 = [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum} | Exportado em: ${new Date().toLocaleString("pt-BR")}`];
-    const header4 = [`Legenda: ■ presente · vazio = ausente · cinza = fora do vínculo (não matriculado / já saiu) · D = desligado · BA = busca ativa`];
-    const colHeaders = ["Nº", "Nome do Participante", ...datas.map((d: string) => d.slice(8,10) + "/" + d.slice(5,7))];
+    // Cabeçalhos: 0/1 institucional · 2 título · 3 turma · 4 mês · 5 legenda · 6 vazio · 7 col headers
+    const header1 = [TITULO_INSTITUCIONAL];
+    const header2 = [SUBTITULO_INSTITUCIONAL];
+    const header3 = [`SCFV — CAIA Medianeira — Matriz de Frequência`];
+    const header4 = [
+      `Turma: ${t.nome} | Bairro: ${bairroNome} | Faixa Etária: ${t.faixa_etaria || "N/I"} | Período: ${periodoLabel(t.periodo)}`,
+    ];
+    const header5 = [`MÊS: ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum} | Exportado em: ${new Date().toLocaleString("pt-BR")}`];
+    const header6 = [`Legenda: ■ presente · vazio = ausente · cinza = fora do vínculo (não matriculado / já saiu) · D = desligado · BA = busca ativa`];
+    // Datas formatadas DD/MM/AA
+    const colHeaders = [
+      "Nº",
+      "Nome do Participante",
+      ...datas.map((d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}`),
+    ];
     const rows = tParts.map((p: any, idx: number) => {
       const isDesligado = p.status === "desligado";
       const dataDeslig = p.data_desligamento || null;
@@ -548,13 +560,30 @@ function generateMonthSheets(
       return row;
     });
 
-    const sheetData = [header1, header2, header3, header4, [], colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]];
+    const sheetData = [
+      header1, header2, header3, header4, header5, header6, [], colHeaders, ...rows, [],
+      [`Assinatura do Educador: _______________________`],
+    ];
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
     ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...datas.map(() => ({ wch: 6 }))];
     autoFitCols(ws);
-    applyHeaderStyle(ws, 5, colHeaders.length);
+    applyInstitutionalHeader(ws, colHeaders.length);
+    // Linha 3 ("Turma: ..."): negrito nos rótulos
+    styleCell(ws, "A4", {
+      font: { name: FONT_NAME, sz: 10, bold: true },
+      alignment: { horizontal: "left", vertical: "center", wrapText: true },
+    });
+    styleCell(ws, "A5", {
+      font: { name: FONT_NAME, sz: 10, bold: true },
+      alignment: { horizontal: "left", vertical: "center" },
+    });
+    styleCell(ws, "A6", {
+      font: { name: FONT_NAME, sz: 9, italic: true, color: { rgb: "555555" } },
+      alignment: { horizontal: "left", wrapText: true },
+    });
+    applyHeaderStyle(ws, 7, colHeaders.length);
 
-    const dataStartRow = 6;
+    const dataStartRow = 8;
     const grayFill = { fgColor: { rgb: "E5E7EB" } };
     tParts.forEach((p: any, pIdx: number) => {
       const excelRow = dataStartRow + pIdx;
