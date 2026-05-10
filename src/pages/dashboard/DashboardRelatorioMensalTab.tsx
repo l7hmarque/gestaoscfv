@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileSpreadsheet, Download, FileText, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { FormatPicker, ExportFormat } from "@/components/FormatPicker";
+import { sysCfvFileName } from "@/lib/fileNaming";
 
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -48,7 +49,7 @@ export default function DashboardRelatorioMensalTab() {
       });
       if (error) throw error;
       if (!data?.url) throw new Error("URL não retornada");
-      await downloadFromUrl(data.url, data.fileName || `RelatorioMensal_${ano}-${mes}.xlsx`);
+      await downloadFromUrl(data.url, data.fileName || sysCfvFileName("RelatorioMensal", "xlsx", `${ano}-${mes}`));
       toast.success("Relatório mensal gerado!");
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || "Erro desconhecido"));
@@ -76,7 +77,7 @@ export default function DashboardRelatorioMensalTab() {
           downloads.push(
             downloadFromUrl(
               r.value.data.url,
-              r.value.data.fileName || `REO_${ano}-${mes}.${reoFormats[i]}`,
+              r.value.data.fileName || sysCfvFileName("REO", reoFormats[i], `${ano}-${mes}`),
             ),
           );
         }
