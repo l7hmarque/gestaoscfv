@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useSearchParams } from "react-router-dom";
 import { Plus, MapPin, Clock, Power, PowerOff, Pencil, Trash2, Check, X, Bus, CheckCircle2, XCircle, CircleDashed, RefreshCw, ArrowUp, ArrowDown, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { isBairroSCFV } from "@/lib/constants";
@@ -32,6 +34,13 @@ interface Bairro { id: string; nome: string; }
 
 export default function DashboardTransporteTab() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const subTab = (searchParams.get("sub") === "pontos" ? "pontos" : "embarques") as "embarques" | "pontos";
+  const setSubTab = (v: "embarques" | "pontos") => {
+    const next = new URLSearchParams(searchParams);
+    next.set("sub", v);
+    setSearchParams(next, { replace: true });
+  };
   const [isMotoristaOuCoord, setIsMotoristaOuCoord] = useState(false);
   const [pontos, setPontos] = useState<Ponto[]>([]);
   const [bairros, setBairros] = useState<Bairro[]>([]);
@@ -338,17 +347,32 @@ export default function DashboardTransporteTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-lg font-semibold text-foreground">Transporte — Pontos</h2>
+        <h2 className="text-lg font-semibold text-foreground">Transporte</h2>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => { setBulkMode(!bulkMode); setSelected(new Set()); }}>
-            {bulkMode ? "Sair seleção" : "Seleção em massa"}
-          </Button>
-          <Button size="sm" onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" /> Novo Ponto</Button>
+          {subTab === "pontos" && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => { setBulkMode(!bulkMode); setSelected(new Set()); }}>
+                {bulkMode ? "Sair seleção" : "Seleção em massa"}
+              </Button>
+              <Button size="sm" onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" /> Novo Ponto</Button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Embarques de hoje (motorista + coordenação) */}
-      {isMotoristaOuCoord && (
+      <Tabs value={subTab} onValueChange={(v) => setSubTab(v as any)} className="w-full">
+        <TabsList className="grid grid-cols-2 w-full sm:w-auto sm:inline-grid">
+          <TabsTrigger value="embarques">Embarques de Hoje</TabsTrigger>
+          <TabsTrigger value="pontos">Pontos & Rotas</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="embarques" className="space-y-4 mt-4">
+          {!isMotoristaOuCoord && (
+            <p className="text-sm text-muted-foreground italic p-4 border rounded-md">
+              Somente motoristas e coordenação visualizam os embarques diários.
+            </p>
+          )}
+          {isMotoristaOuCoord && (
         <Card className="border-l-4 border-l-blue-600">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -511,7 +535,10 @@ export default function DashboardTransporteTab() {
             )}
           </CardContent>
         </Card>
-      )}
+          )}
+        </TabsContent>
+
+        <TabsContent value="pontos" className="space-y-4 mt-4">
 
       {/* Bulk action bar */}
       {bulkMode && selected.size > 0 && (
@@ -635,6 +662,8 @@ export default function DashboardTransporteTab() {
           </CardContent>
         </Card>
       ))}
+        </TabsContent>
+      </Tabs>
 
       {/* New point dialog */}
       <Dialog open={openNew} onOpenChange={setOpenNew}>

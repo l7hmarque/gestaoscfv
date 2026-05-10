@@ -10,6 +10,7 @@ import { User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { SystemBanner } from "@/components/SystemBanner";
+import { FloatingActionButton } from "@/components/FloatingActionButton";
 
 export function AppLayout() {
   useSessionTimeout();
@@ -48,6 +49,7 @@ export function AppLayout() {
               <Outlet />
             </div>
           </main>
+          <FloatingActionButton />
         </div>
       </div>
     </SidebarProvider>
