@@ -3740,6 +3740,7 @@ export type Database = {
       }
       turma_participantes: {
         Row: {
+          data_entrada: string
           data_saida: string | null
           id: string
           motivo_saida: string | null
@@ -3748,6 +3749,7 @@ export type Database = {
           turma_id: string
         }
         Insert: {
+          data_entrada?: string
           data_saida?: string | null
           id?: string
           motivo_saida?: string | null
@@ -3756,6 +3758,7 @@ export type Database = {
           turma_id: string
         }
         Update: {
+          data_entrada?: string
           data_saida?: string | null
           id?: string
           motivo_saida?: string | null

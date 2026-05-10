@@ -1,86 +1,111 @@
+## Diagnóstico
 
-# Próxima etapa: ajustes dos comentários + engine de template real + 13 exemplos
+Investigando a função `generate-relatorio-mensal/index.ts` (matrizes de frequência, linhas 312-348) e o schema de `turma_participantes`, encontrei **duas causas distintas**:
 
-Os 2 docs de teste foram gerados por um protótipo one-off da rodada anterior — o worker `drive-sync-worker` ainda usa o caminho antigo "constrói do zero" (`relatorioToBlocks`/`writeDoc`), e a tabela `drive_modelos` está populada mas nunca é consultada. Os comentários que você deixou expõem exatamente os 4 pontos que precisam ser resolvidos antes de escalar para os outros documentos.
+### Causa 1 — Nomes em duas turmas
 
-## Comentários recebidos e correções
+A query monta a lista de cada turma assim:
 
-**Relatório de Atividade**
-1. *"Conforme a legenda deveria estar com cor de destaque verde, olhe o [4] da legenda"* → pintar a célula da competência com a cor da nota. Mapa: 1=#C0392B, 2=#E67E22, 3=#F1C40F, 4=#27AE60, 5=#16A085 (e SCORE_ELO usa o arredondado).
-2. *"Essa é a legenda"* → manter intacta (não substituir nada nela).
-3. *"As fotos ficaram todas uma em cima da outra, precisam ficar bem distribuídas"* → cada `{foto1..5}` é substituído por `insertInlineImage` com largura fixa (≈ 16cm = 460pt) e quebra de parágrafo entre elas; placeholders sem foto viram parágrafo vazio (não ficam pendurados). Fotos extras (>5) entram em parágrafos novos abaixo do `{foto5}`.
-4. *"Cadê o nome das crianças presentes na atividade?"* → ANEXO II ganha tabela inserida programaticamente (3 colunas: Nº, Nome, P/A) — uma linha por participante presente, ordenada alfabeticamente, e abaixo um bloco "Ausentes com justificativa".
-
-**Planejamento de Atividade**
-1. *"Aqui era pra ser o título MATERIAIS NECESSARIOS e não a lista de materiais"* → bug é o `replaceAllText("MATERIAIS", ...)` casando com "Materiais necessários:" (case-insensitive). Correção em **2 frentes**: (a) renomear todos os tokens nos templates para a forma `{TOKEN}` (já fiz para relatório, vou fazer para planejamento); (b) no worker forçar `matchCase: true` em todos os `replaceAllText`. Tokens livres em CAIXA-ALTA tipo `EDUCADOR`, `TURMAS`, `MATERIAIS`, `ROTEIRO`, etc. serão renomeados nos templates para `{EDUCADOR}`, `{TURMAS}`, `{MATERIAIS}`, `{ROTEIRO}`...
-
-## O que muda no código
-
-### Templates (Drive)
-- Renomear placeholders soltos nos modelos para a forma `{TOKEN}` exclusivamente. Atualizo via `documents.batchUpdate` com `replaceAllText` em cada modelo:
-  - Relatório: `DATA: 00/00/0000` → `{DATA}`, `BAIRRO; BAIRRO2 ; BAIRRO 3.` → `{BAIRROS}`, `PERÍODO` → `{PERIODO}`, `TURMAS` → `{TURMAS}`, `EDUCADOR` → `{EDUCADOR}`, `NOME ATIVIDADE` → `{NOME_ATIVIDADE}`, `TIPO ATIVIDADE` → `{TIPO_ATIVIDADE}`, `NUM PRESENTES` → `{NUM_PRESENTES}`, `NUM MATRICULADOS` → `{NUM_MATRICULADOS}`, `{ATIVIDADES REALIZADAS}` → `{ATIVIDADES_REALIZADAS}` (sem espaço), `{OBSERVAÇÕES}` → `{OBSERVACOES}`, `PCT_ADESAO` → `{PCT_ADESAO}`, mantém `{ENG_*}`, `{SIT_*}`, `{OBJ_1}` (já corretos), `{INICIATIVA}` etc.
-  - Planejamento: `EDUCADOR` → `{EDUCADOR}`, `TURMAS` → `{TURMAS}`, `TITULO` → `{TITULO}`, `TEMA` → `{TEMA}`, `QUESTAO_GERADORA` → `{QUESTAO_GERADORA}`, `OBJETIVOS` → `{OBJETIVOS}`, `FORMA AVALIACAO` → `{FORMA_AVALIACAO}`, `ROTEIRO` → `{ROTEIRO}`, `MATERIAIS` → `{MATERIAIS}`, `APOIO_TECNICO` → `{APOIO_TECNICO}`. Os 3 ☐ dos eixos viram `{EIXO_1}` `{EIXO_2}` `{EIXO_3}`.
-- Inserir uma tabela esqueleto vazia logo após o título "ANEXO II - REGISTROS DE PRESENÇA" no relatório (1 linha de cabeçalho), para o engine apenas anexar linhas com `insertTableRow`.
-- Atualizar `drive_modelos.ultima_atualizacao_origem` e renomear as cópias com a nova data.
-
-### Worker — substituir o ramo "construir do zero" pelo engine de template
-Novo módulo no `drive-sync-worker/index.ts`:
-
-```text
-cloneFromTemplate(tipo, destFolderId, title)
-  → Drive.files.copy(template_doc_id, parents=[destFolderId], name=title)
-
-replacePlaceholders(docId, map)              // matchCase: true sempre
-replaceCheckboxesGroup(docId, base, indexMarcado)   // {OBJ_1} pode aparecer 3x; marca o n-ésimo
-insertImageAtPlaceholder(docId, token, driveFileId, widthPt=460)
-colorCompetenciaCell(docId, token, nota)     // localiza célula que contém token, aplica updateTableCellStyle
-appendPresencaRows(docId, anexoTitle, rows)  // localiza tabela após "ANEXO II", insertTableRow + insertText
-fillTipoAtividade(docId)                     // {TIPO_ATIVIDADE} renderiza lista compacta
+```ts
+const tpIds = turmaParticipantes
+  .filter(tp => tp.turma_id === t.id)
+  .map(tp => tp.participante_id);
 ```
 
-Pseudo do `processRelatorio` novo:
-1. `cloneFromTemplate('relatorio', folderEducador, titulo)` se `drive_file_id` é null; senão reusa.
-2. Constroi `map` com todos os tokens preenchidos (`{DATA}`, `{EDUCADOR}`, `{TURMAS}`, `{NOME_ATIVIDADE}`, `{TIPO_ATIVIDADE}`, `{PERIODO}`, `{NUM_PRESENTES}`, `{NUM_MATRICULADOS}`, `{ATIVIDADES_REALIZADAS}`, `{OBSERVACOES}`, `{PCT_ADESAO}`, `{INICIATIVA}`..`{SCORE_ELO}` com nota 1-5).
-3. Para `{ENG_*}`/`{SIT_*}`: substitui por ■ se selecionado, □ caso contrário. Para `{OBJ_1}`: usa `replaceAllText` sequenciais (controla por índice do texto retornado por `documents.get`).
-4. `colorCompetenciaCell` para cada uma das 6 células de competência.
-5. Para cada `{foto1..5}`: se há foto correspondente, `insertImageAtPlaceholder`; senão substitui por string vazia.
-6. `appendPresencaRows` no ANEXO II com participantes presentes (depois ausentes).
+Não há nenhum filtro por `data_saida`. Verificando o banco:
 
-Pseudo do `processPlanejamento` novo: igual mas só `replacePlaceholders` + checkboxes dos 3 eixos.
+- A tabela `turma_participantes` tem coluna `data_saida` (nullable) — quando preenchida indica que o vínculo foi encerrado.
+- **77 participantes hoje têm 2 vínculos ativos simultâneos** (`data_saida IS NULL` em duas turmas). Provavelmente vieram de transferências aprovadas onde o vínculo antigo não recebeu `data_saida`, ou de re-matrículas.
 
-### Listas (Sheets) — chamada e frequência
-- `cloneFromTemplate` da `lista_chamada` ou `lista_frequencia` (1 spreadsheet por turma×mês), mover para pasta `Listas de {Chamada|Frequência}/{YYYY-MM}/`.
-- `values.update` no header (`Educador`, `Turma`, `Mês`, `Bairro`, `Período`, `Faixa`, `Oficina`).
-- `insertDimension` para criar N linhas de participantes; `values.update` com nomes (sufixo `(D DD/MM)` se desligado).
-- `repeatCell` por célula de data: `P` = bg preto/texto branco, `A` = bg branco/texto preto, `D` = bg #D9D9D9. Última linha = "Assinatura do Educador: ____" (sem nada abaixo).
+Resultado: o mesmo aluno aparece em duas matrizes do mesmo mês.
 
-### Demais 9 documentos (PDF → Docs/Sheets nativo)
-Para Roteiro de Visita, Atendimento, Orçamento/Mapa, Prestação de Contas, REO, RCA, Relatório Mensal, Cardápio + Movimentação, Transporte: gera o PDF/XLSX com o exporter já existente, faz `Drive.files.upload` com `?convert=true`/ ou `files.copy` com `mimeType: application/vnd.google-apps.document` (PDF→Docs) ou `.spreadsheet` (XLSX→Sheets). **Nenhum builder novo nesta etapa.**
+### Causa 2 — Participantes que entraram em maio na lista de abril
 
-## Tabela final entregue para você comentar
+O único filtro temporal existente é:
 
-Vou enfileirar 1 exemplo real de cada tipo (escolhendo o registro com mais informação/fotos) e responder com a tabela:
+```ts
+.filter(p => !p.created_at || p.created_at < endDate)
+```
 
-| # | Documento | Critério | Link Docs/Sheets |
-|---|---|---|---|
-| 1 | Relatório de Atividade | mais fotos + presença + observações longas | … |
-| 2 | Planejamento | mais campos preenchidos | … |
-| 3 | Lista de Frequência (Web) | turma com mais participantes | … |
-| 4 | Lista de Chamada (Física) | mesma turma | … |
-| 5 | Roteiro de Visita | mais recente | … |
-| 6 | Atendimento Equipe Técnica | mais recente | … |
-| 7 | Orçamento / Mapa | 3 fornecedores | … |
-| 8 | Prestação de Contas | mês com mais despesas | … |
-| 9 | REO | último gerado | … |
-| 10 | RCA | último gerado | … |
-| 11 | Relatório Mensal | último gerado | … |
-| 12 | Cardápio + Movimentação | mês corrente | … |
-| 13 | Transporte | dia mais recente | … |
+Isso usa `participantes.created_at` (criação do **cadastro do participante**), não a data em que ele foi **matriculado na turma**. A tabela `turma_participantes` **não possui `created_at` nem `data_entrada**`, então hoje é impossível saber se o vínculo existia em abril.
 
-Você comenta dentro do próprio Google e na próxima rodada eu releio via `comments.list` e itero.
+Casos típicos que causam o bug:
 
-## Não está nesta etapa
+- Participante cadastrado em fev, vinculado a uma turma só em maio → aparece em abril.
+- Participante transferido em maio para outra turma → aparece naquela turma já em abril.
 
-- Substituir os exportadores PDF/DOCX/XLSX atuais (continuam servindo de fonte para os 9 docs convertidos).
-- Sincronização bidirecional (Google → SysCFV).
-- Templates Google novos para os 9 documentos secundários (mantém PDF/XLSX → conversão nativa).
+---
+
+## Solução proposta
+
+### Passo 1 — Adicionar `data_entrada` em `turma_participantes` (migração)
+
+```sql
+ALTER TABLE turma_participantes
+  ADD COLUMN data_entrada date NOT NULL DEFAULT CURRENT_DATE;
+```
+
+Backfill conservador para os vínculos existentes: usar `participantes.created_at` como melhor estimativa (ou `2026-01-01` para todos os pré-existentes — o usuário decide).
+
+Atualizar todos os pontos do código que fazem `INSERT` em `turma_participantes` (matrícula pública, transferências, novo participante, importação) para gravar `data_entrada = CURRENT_DATE` (já é o default, então só precisa garantir que ninguém esteja sobrescrevendo).
+
+### Passo 2 — Corrigir a função `generate-relatorio-mensal`
+
+No bloco da matriz de frequência (linha ~312), trocar:
+
+```ts
+const tpIds = turmaParticipantes
+  .filter(tp => tp.turma_id === t.id)
+  .map(tp => tp.participante_id);
+```
+
+por:
+
+```ts
+const tpIds = turmaParticipantes
+  .filter(tp =>
+    tp.turma_id === t.id &&
+    (!tp.data_entrada || tp.data_entrada < endDate) &&
+    (!tp.data_saida   || tp.data_saida   >= startDate)
+  )
+  .map(tp => tp.participante_id);
+```
+
+E remover o filtro frágil `participantes.created_at < endDate` da linha 314 (passa a ser redundante).
+
+Isso resolve simultaneamente:
+
+- **Duas turmas**: se o aluno foi transferido em 02/maio, em abril o vínculo antigo ainda estava ativo (`data_saida >= startDate`) e o novo ainda não existia (`data_entrada >= endDate`) → aparece só na turma certa.
+- **Entrou em maio**: `data_entrada` do vínculo será maio, filtrado fora de abril.
+
+### Passo 3 — Aplicar o mesmo filtro em outras superfícies
+
+Os mesmos critérios devem ser usados em:
+
+- `src/lib/listaFrequencia.ts` (carrega `turma_participantes` para listas individuais — hoje só filtra por `participantes.created_at`).
+- `supabase/functions/generate-reo/index.ts` (lista de presença do REO — verificar e alinhar).
+- Qualquer outro lugar que renderize chamadas/frequências históricas.
+
+### Passo 4 — Higienização dos 77 vínculos duplicados existentes
+
+Script de coordenação (uma só vez): para cada participante com 2 vínculos `data_saida IS NULL`, manter o mais recente (heurística: maior `id` ou último `relatorio_presenca` que o citou) e marcar `data_saida` no(s) outro(s) com a data da transferência aprovada (ou o início do mês corrente).
+
+Posso entregar isso como um botão no painel de Coordenação ("Higienizar vínculos duplicados") ou como uma migração única.
+
+---
+
+## Detalhes técnicos
+
+- A migração adiciona `data_entrada` (NOT NULL DEFAULT CURRENT_DATE) — não quebra inserts existentes.
+- O backfill será feito com `UPDATE turma_participantes tp SET data_entrada = COALESCE(p.created_at::date, '2026-01-01') FROM participantes p WHERE p.id = tp.participante_id`.
+- Após a migração, redeployar `generate-relatorio-mensal` e `generate-reo`.
+- Nenhuma alteração de UI é necessária para o relatório mensal — só corrige a lógica.
+
+---
+
+## Pergunta antes de implementar
+
+Posso confirmar os 4 passos? Especificamente:
+
+1. Backfill de `data_entrada` = `participantes.created_at` (estimativa) ou data fixa `2026-01-01`? BACKFILL DE DATA ENTRADA = PARTICIPANTES.CREATED_AT
+2. Os 77 duplicados — você quer que eu rode a higienização automaticamente ou só listar para revisão manual? AUTO
