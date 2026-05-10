@@ -80,7 +80,6 @@ export default function DashboardAdminTab() {
       if (totErr > 0) toast.warning(`Sincronizado com ${totErr} aviso(s) — verifique o resultado abaixo.`);
       else toast.success("Documentos enviados ao Google Drive");
       setDriveProgress(null);
-      }
     } catch (e: any) {
       toast.error("Erro ao sincronizar Drive: " + (e.message || e));
       setDriveProgress(null);
