@@ -413,12 +413,12 @@ function IndicadoresTab() {
             <div className="h-52" ref={ref}>
               {data.presencaMensal.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data.presencaMensal}>
+                  <LineChart data={data.presencaMensal.map((m) => ({ ...m, mesLabel: formatMesLabel(m.mes) }))}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,90%)" />
-                    <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="mesLabel" tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} />
                     <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} width={35} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v: any) => `${v}%`} />
-                    <Line type="monotone" dataKey="pct" name="% Presença" stroke="hsl(0,58%,56%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(0,58%,56%)" }} />
+                    <Tooltip content={<RichTooltip valueFormatter={(v) => `${v}%`} />} />
+                    <Line type="monotone" dataKey="pct" name="% Presença" stroke="hsl(0,58%,56%)" strokeWidth={2.5} dot={{ r: 3, fill: "hsl(0,58%,56%)" }} activeDot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados</p>}
@@ -431,12 +431,12 @@ function IndicadoresTab() {
             <div className="h-52">
               {data.eloMensal.length ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data.eloMensal}>
+                  <LineChart data={data.eloMensal.map((m) => ({ ...m, mesLabel: formatMesLabel(m.mes) }))}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,90%)" />
-                    <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="mesLabel" tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} />
                     <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} width={35} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                    <Line type="monotone" dataKey="elo" name="ELO" stroke="hsl(0,58%,56%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(0,58%,56%)" }} />
+                    <Tooltip content={<RichTooltip valueFormatter={(v) => v.toFixed(2)} />} />
+                    <Line type="monotone" dataKey="elo" name="ELO" stroke="hsl(0,58%,56%)" strokeWidth={2.5} dot={{ r: 3, fill: "hsl(0,58%,56%)" }} activeDot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados</p>}
@@ -496,7 +496,7 @@ function IndicadoresTab() {
 
       {/* Bairro + Educadores */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <ChartCard title="Bairro (top 10)">
+        <ChartCard title="Distribuição por Bairros">
           {() => (
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
@@ -504,7 +504,7 @@ function IndicadoresTab() {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,90%)" />
                   <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <YAxis type="category" dataKey="bairro" tick={{ fontSize: 9, fill: "hsl(215,14%,46%)" }} width={80} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Tooltip content={<RichTooltip />} />
                   <Bar dataKey="count" name="Participantes" fill="hsl(210,22%,49%)" radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -521,7 +521,7 @@ function IndicadoresTab() {
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,90%)" />
                     <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <YAxis type="category" dataKey="nome" tick={{ fontSize: 9, fill: "hsl(215,14%,46%)" }} width={80} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Tooltip content={<RichTooltip />} />
                     <Bar dataKey="count" name="Relatórios" fill="hsl(142,50%,40%)" radius={[0, 3, 3, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -533,18 +533,21 @@ function IndicadoresTab() {
 
       {/* Competências + Adesão + Objetivos */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <ChartCard title="Competências ELO">
+        <ChartCard title="Competências ELO" subtitle="Cores escalares por pontuação">
           {() => (
             <div className="h-56">
               {data.competencias.some(c => c.value > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart cx="50%" cy="50%" outerRadius="65%" data={data.competencias}>
-                    <PolarGrid stroke="hsl(220,13%,90%)" />
-                    <PolarAngleAxis dataKey="name" tick={{ fontSize: 9, fill: "hsl(215,14%,46%)" }} />
-                    <PolarRadiusAxis domain={[0, 5]} tick={{ fontSize: 9, fill: "hsl(215,14%,46%)" }} />
-                    <Radar name="Média" dataKey="value" stroke="hsl(0,58%,56%)" fill="hsl(0,58%,56%)" fillOpacity={0.25} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  </RadarChart>
+                  <BarChart data={data.competencias} margin={{ top: 18, right: 8, left: 0, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,90%)" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
+                    <YAxis domain={[0, 5]} tick={{ fontSize: 10, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} width={28} />
+                    <Tooltip content={<RichTooltip valueFormatter={(v) => v.toFixed(2)} />} />
+                    <Bar dataKey="value" name="Média" radius={[4, 4, 0, 0]}>
+                      <LabelList dataKey="value" position="top" formatter={(v: any) => Number(v).toFixed(1)} style={{ fontSize: 10, fill: "hsl(215,14%,30%)", fontWeight: 600 }} />
+                      {data.competencias.map((c, i) => <Cell key={i} fill={eloColor(c.value)} />)}
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
               ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados</p>}
             </div>
@@ -556,12 +559,12 @@ function IndicadoresTab() {
             <div className="h-56">
               {data.adesaoMensal.length ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data.adesaoMensal}>
+                  <LineChart data={data.adesaoMensal.map((m) => ({ ...m, mesLabel: formatMesLabel(m.mes) }))}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,90%)" />
-                    <XAxis dataKey="mes" tick={{ fontSize: 10, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="mesLabel" tick={{ fontSize: 10, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} />
                     <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} width={35} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                    <Line type="monotone" dataKey="adesao" name="Adesão %" stroke="hsl(210,22%,49%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(210,22%,49%)" }} />
+                    <Tooltip content={<RichTooltip valueFormatter={(v) => `${v}%`} />} />
+                    <Line type="monotone" dataKey="adesao" name="Adesão %" stroke="hsl(210,22%,49%)" strokeWidth={2.5} dot={{ r: 3, fill: "hsl(210,22%,49%)" }} activeDot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados</p>}
@@ -578,7 +581,7 @@ function IndicadoresTab() {
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,90%)" />
                     <XAxis dataKey="label" tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} width={30} allowDecimals={false} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Tooltip content={<RichTooltip />} />
                     <Bar dataKey="count" name="Relatórios" radius={[3, 3, 0, 0]}>
                       {data.objetivos.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                     </Bar>
