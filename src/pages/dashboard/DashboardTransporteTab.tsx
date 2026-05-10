@@ -535,7 +535,10 @@ export default function DashboardTransporteTab() {
             )}
           </CardContent>
         </Card>
-      )}
+          )}
+        </TabsContent>
+
+        <TabsContent value="pontos" className="space-y-4 mt-4">
 
       {/* Bulk action bar */}
       {bulkMode && selected.size > 0 && (
@@ -659,6 +662,8 @@ export default function DashboardTransporteTab() {
           </CardContent>
         </Card>
       ))}
+        </TabsContent>
+      </Tabs>
 
       {/* New point dialog */}
       <Dialog open={openNew} onOpenChange={setOpenNew}>
