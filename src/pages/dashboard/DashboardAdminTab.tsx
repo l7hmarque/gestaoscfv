@@ -191,8 +191,9 @@ export default function DashboardAdminTab() {
           <div className="flex flex-wrap gap-2 items-center">
             <Button size="sm" onClick={sincronizarDrive} disabled={syncingDrive}>
               {syncingDrive ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FolderSync className="h-3.5 w-3.5 mr-1" />}
-              Sincronizar mês ao Drive
+              {syncingDrive ? "Sincronizando..." : "Sincronizar mês ao Drive"}
             </Button>
+            {driveProgress && <span className="text-[11px] text-muted-foreground">{driveProgress}</span>}
             {driveResult?.root?.url && (
               <Button asChild size="sm" variant="outline">
                 <a href={driveResult.root.url} target="_blank" rel="noreferrer">
