@@ -3245,6 +3245,8 @@ export type Database = {
           educador_apoio_id: string | null
           educador_id: string | null
           engajamento: string[] | null
+          gdoc_id: string | null
+          gdoc_url: string | null
           id: string
           iniciativa: number | null
           intervencoes: string | null
@@ -3278,6 +3280,8 @@ export type Database = {
           educador_apoio_id?: string | null
           educador_id?: string | null
           engajamento?: string[] | null
+          gdoc_id?: string | null
+          gdoc_url?: string | null
           id?: string
           iniciativa?: number | null
           intervencoes?: string | null
@@ -3311,6 +3315,8 @@ export type Database = {
           educador_apoio_id?: string | null
           educador_id?: string | null
           engajamento?: string[] | null
+          gdoc_id?: string | null
+          gdoc_url?: string | null
           id?: string
           iniciativa?: number | null
           intervencoes?: string | null
