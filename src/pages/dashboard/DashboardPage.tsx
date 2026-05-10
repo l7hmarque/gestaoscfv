@@ -298,8 +298,8 @@ function IndicadoresTab() {
           label="Participantes Ativos"
           value={data.totalParticipantesAtivos}
           delta={data.deltaParticipantes}
-          deltaLabel="vs mês anterior"
-          tooltip={`Δ baseado em participantes com presença registrada no mês — Mês anterior: ${data.participantesAtivosMesAnterior} · Mês atual: ${data.participantesAtivosMesAtual}. Não é afetado por desligamentos retroativos.`}
+          deltaLabel="vs período anterior"
+          tooltip={`Total = participantes ativos no período selecionado (ou ativos hoje, se sem filtro). Δ = distintos com presença registrada no período (${data.participantesAtivosMesAtual}) vs período anterior equivalente (${data.participantesAtivosMesAnterior}).`}
           color="hsl(210,60%,50%)"
           onClick={() => setSelectedIndicator("participantes")}
         />

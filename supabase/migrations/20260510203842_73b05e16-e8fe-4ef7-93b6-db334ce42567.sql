@@ -1,0 +1,516 @@
+CREATE OR REPLACE FUNCTION public.get_dashboard_stats(_mes integer DEFAULT NULL::integer, _ano integer DEFAULT NULL::integer, _data_inicio date DEFAULT NULL::date, _data_fim date DEFAULT NULL::date)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  result jsonb;
+  v_total_participantes int;
+  v_total_turmas int;
+  v_total_relatorios int;
+  v_total_consolidados int;
+  v_total_planejamentos int;
+  v_media_elo numeric;
+  v_media_elo_n int;
+  v_media_adesao numeric;
+  v_media_adesao_consolidada numeric;
+  v_taxa_frequencia numeric;
+  v_total_alerta int;
+  v_delta_participantes int;
+  v_ativos_atual int;
+  v_ativos_anterior int;
+  v_por_faixa jsonb;
+  v_por_genero jsonb;
+  v_por_bairro jsonb;
+  v_por_periodo jsonb;
+  v_elo_mensal jsonb;
+  v_adesao_mensal jsonb;
+  v_competencias jsonb;
+  v_objetivos jsonb;
+  v_top_educadores jsonb;
+  v_presenca_mensal jsonb;
+  v_filter_start date;
+  v_filter_end date;     -- exclusive
+  v_has_filter boolean;
+  v_atividades_recentes jsonb;
+  v_current_month text := to_char(current_date, 'YYYY-MM');
+  v_synthetic_filter text := 'Atividade SCFV (consolidado%';
+  v_data_corte date;
+  v_effective_start date;
+  v_inicio_mes_atual date := date_trunc('month', current_date)::date;
+  v_inicio_mes_anterior date := (date_trunc('month', current_date) - interval '1 month')::date;
+  v_fim_mes_anterior date := (date_trunc('month', current_date))::date;
+  v_period_label text;
+  v_prev_start date;
+  v_prev_end date;
+  v_parcial_atual boolean := false;
+  v_window_days int;
+BEGIN
+  SELECT valor::date INTO v_data_corte
+  FROM configuracoes_gerais WHERE chave = 'data_inicio_operacional';
+  v_data_corte := COALESCE(v_data_corte, '2026-04-01'::date);
+
+  v_has_filter := (_data_inicio IS NOT NULL AND _data_fim IS NOT NULL) OR (_mes IS NOT NULL AND _ano IS NOT NULL);
+  IF _data_inicio IS NOT NULL AND _data_fim IS NOT NULL THEN
+    v_filter_start := _data_inicio;
+    v_filter_end := _data_fim + 1;
+    v_effective_start := GREATEST(v_filter_start, v_data_corte);
+    v_window_days := (v_filter_end - v_filter_start);
+    v_prev_start := v_filter_start - v_window_days;
+    v_prev_end := v_filter_start;
+    v_period_label := 'intervalo';
+  ELSIF _mes IS NOT NULL AND _ano IS NOT NULL THEN
+    v_filter_start := make_date(_ano, _mes, 1);
+    v_filter_end := (v_filter_start + interval '1 month')::date;
+    v_effective_start := GREATEST(v_filter_start, v_data_corte);
+    v_prev_start := (v_filter_start - interval '1 month')::date;
+    v_prev_end := v_filter_start;
+    v_period_label := 'mes';
+  ELSE
+    v_effective_start := v_data_corte;
+  END IF;
+
+  -- Participantes ativos (sensível ao filtro)
+  IF v_has_filter THEN
+    -- Ativo durante o período: começou antes do fim do período E (não desligado OU desligamento >= início do período)
+    SELECT count(*) INTO v_total_participantes
+    FROM participantes
+    WHERE is_teste = false
+      AND COALESCE(iniciou_em, created_at::date) < v_filter_end
+      AND (status <> 'desligado' OR (data_desligamento IS NULL OR data_desligamento >= v_filter_start));
+  ELSE
+    SELECT count(*) INTO v_total_participantes FROM participantes WHERE status = 'ativo' AND is_teste = false;
+  END IF;
+
+  -- Turmas (sensível ao filtro: turmas existentes no período)
+  IF v_has_filter THEN
+    SELECT count(*) INTO v_total_turmas FROM turmas WHERE created_at < v_filter_end;
+  ELSE
+    SELECT count(*) INTO v_total_turmas FROM turmas WHERE ativa = true;
+  END IF;
+
+  IF v_has_filter THEN
+    SELECT 
+      count(*) FILTER (WHERE coalesce(nome_atividade,'') NOT LIKE v_synthetic_filter),
+      count(*) FILTER (WHERE coalesce(nome_atividade,'') LIKE v_synthetic_filter)
+    INTO v_total_relatorios, v_total_consolidados
+    FROM relatorios_atividade
+    WHERE data >= v_effective_start AND data < v_filter_end;
+    SELECT count(*) INTO v_total_planejamentos FROM planejamentos WHERE data_aplicacao >= v_effective_start AND data_aplicacao < v_filter_end;
+  ELSE
+    SELECT 
+      count(*) FILTER (WHERE coalesce(nome_atividade,'') NOT LIKE v_synthetic_filter),
+      count(*) FILTER (WHERE coalesce(nome_atividade,'') LIKE v_synthetic_filter)
+    INTO v_total_relatorios, v_total_consolidados
+    FROM relatorios_atividade
+    WHERE data >= v_data_corte;
+    SELECT count(*) INTO v_total_planejamentos FROM planejamentos WHERE coalesce(data_aplicacao, '1900-01-01'::date) >= v_data_corte;
+  END IF;
+
+  IF v_has_filter THEN
+    SELECT 
+      coalesce(avg(score_elo), 0), 
+      count(*) FILTER (WHERE score_elo IS NOT NULL),
+      coalesce(avg(pct_adesao) FILTER (WHERE coalesce(nome_atividade,'') NOT LIKE v_synthetic_filter), 0)
+    INTO v_media_elo, v_media_elo_n, v_media_adesao
+    FROM relatorios_atividade
+    WHERE data >= v_effective_start AND data < v_filter_end;
+
+    SELECT coalesce(avg(pct_adesao), 0)
+    INTO v_media_adesao_consolidada
+    FROM relatorios_atividade
+    WHERE data >= v_effective_start AND data < v_filter_end
+      AND coalesce(nome_atividade,'') LIKE v_synthetic_filter;
+  ELSE
+    SELECT 
+      coalesce(avg(score_elo), 0), 
+      count(*) FILTER (WHERE score_elo IS NOT NULL),
+      coalesce(avg(pct_adesao) FILTER (WHERE coalesce(nome_atividade,'') NOT LIKE v_synthetic_filter), 0)
+    INTO v_media_elo, v_media_elo_n, v_media_adesao
+    FROM relatorios_atividade
+    WHERE data >= v_data_corte;
+
+    SELECT coalesce(avg(pct_adesao), 0)
+    INTO v_media_adesao_consolidada
+    FROM relatorios_atividade
+    WHERE data >= v_data_corte
+      AND coalesce(nome_atividade,'') LIKE v_synthetic_filter;
+  END IF;
+
+  -- Distribuições de participantes (sensíveis ao filtro)
+  IF v_has_filter THEN
+    SELECT coalesce(jsonb_agg(jsonb_build_object('faixa', faixa, 'count', cnt)), '[]'::jsonb)
+    INTO v_por_faixa
+    FROM (
+      SELECT
+        CASE
+          WHEN extract(year FROM age(v_filter_end - 1, data_nascimento)) BETWEEN 6 AND 8 THEN '6-8'
+          WHEN extract(year FROM age(v_filter_end - 1, data_nascimento)) BETWEEN 9 AND 11 THEN '9-11'
+          WHEN extract(year FROM age(v_filter_end - 1, data_nascimento)) BETWEEN 12 AND 17 THEN '12-17'
+          WHEN extract(year FROM age(v_filter_end - 1, data_nascimento)) >= 60 THEN 'idosos'
+          ELSE NULL
+        END AS faixa,
+        count(*) AS cnt
+      FROM participantes
+      WHERE is_teste = false AND data_nascimento IS NOT NULL
+        AND COALESCE(iniciou_em, created_at::date) < v_filter_end
+        AND (status <> 'desligado' OR (data_desligamento IS NULL OR data_desligamento >= v_filter_start))
+      GROUP BY faixa
+      HAVING CASE
+          WHEN extract(year FROM age(v_filter_end - 1, data_nascimento)) BETWEEN 6 AND 8 THEN '6-8'
+          WHEN extract(year FROM age(v_filter_end - 1, data_nascimento)) BETWEEN 9 AND 11 THEN '9-11'
+          WHEN extract(year FROM age(v_filter_end - 1, data_nascimento)) BETWEEN 12 AND 17 THEN '12-17'
+          WHEN extract(year FROM age(v_filter_end - 1, data_nascimento)) >= 60 THEN 'idosos'
+          ELSE NULL
+        END IS NOT NULL
+    ) sub;
+
+    SELECT coalesce(jsonb_agg(jsonb_build_object('genero', g, 'count', cnt)), '[]'::jsonb)
+    INTO v_por_genero
+    FROM (
+      SELECT coalesce(genero, 'Não informado') AS g, count(*) AS cnt
+      FROM participantes
+      WHERE is_teste = false
+        AND COALESCE(iniciou_em, created_at::date) < v_filter_end
+        AND (status <> 'desligado' OR (data_desligamento IS NULL OR data_desligamento >= v_filter_start))
+      GROUP BY g
+    ) sub;
+
+    SELECT coalesce(jsonb_agg(jsonb_build_object('bairro', b, 'count', cnt)), '[]'::jsonb)
+    INTO v_por_bairro
+    FROM (
+      SELECT coalesce(ba.nome, 'Não informado') AS b, count(*) AS cnt
+      FROM participantes p
+      LEFT JOIN bairros ba ON ba.id = p.bairro_id
+      WHERE p.is_teste = false
+        AND COALESCE(p.iniciou_em, p.created_at::date) < v_filter_end
+        AND (p.status <> 'desligado' OR (p.data_desligamento IS NULL OR p.data_desligamento >= v_filter_start))
+      GROUP BY b
+      ORDER BY cnt DESC
+      LIMIT 10
+    ) sub;
+
+    SELECT coalesce(jsonb_agg(jsonb_build_object('periodo', per, 'count', cnt)), '[]'::jsonb)
+    INTO v_por_periodo
+    FROM (
+      SELECT
+        CASE coalesce(periodo, 'manha')
+          WHEN 'manha' THEN 'Manhã'
+          WHEN 'tarde' THEN 'Tarde'
+          WHEN 'integral' THEN 'Integral'
+          ELSE periodo::text
+        END AS per,
+        count(*) AS cnt
+      FROM participantes
+      WHERE is_teste = false
+        AND COALESCE(iniciou_em, created_at::date) < v_filter_end
+        AND (status <> 'desligado' OR (data_desligamento IS NULL OR data_desligamento >= v_filter_start))
+      GROUP BY per
+    ) sub;
+  ELSE
+    SELECT coalesce(jsonb_agg(jsonb_build_object('faixa', faixa, 'count', cnt)), '[]'::jsonb)
+    INTO v_por_faixa
+    FROM (
+      SELECT
+        CASE
+          WHEN extract(year FROM age(current_date, data_nascimento)) BETWEEN 6 AND 8 THEN '6-8'
+          WHEN extract(year FROM age(current_date, data_nascimento)) BETWEEN 9 AND 11 THEN '9-11'
+          WHEN extract(year FROM age(current_date, data_nascimento)) BETWEEN 12 AND 17 THEN '12-17'
+          WHEN extract(year FROM age(current_date, data_nascimento)) >= 60 THEN 'idosos'
+          ELSE NULL
+        END AS faixa,
+        count(*) AS cnt
+      FROM participantes
+      WHERE status = 'ativo' AND is_teste = false AND data_nascimento IS NOT NULL
+      GROUP BY faixa
+      HAVING CASE
+          WHEN extract(year FROM age(current_date, data_nascimento)) BETWEEN 6 AND 8 THEN '6-8'
+          WHEN extract(year FROM age(current_date, data_nascimento)) BETWEEN 9 AND 11 THEN '9-11'
+          WHEN extract(year FROM age(current_date, data_nascimento)) BETWEEN 12 AND 17 THEN '12-17'
+          WHEN extract(year FROM age(current_date, data_nascimento)) >= 60 THEN 'idosos'
+          ELSE NULL
+        END IS NOT NULL
+    ) sub;
+
+    SELECT coalesce(jsonb_agg(jsonb_build_object('genero', g, 'count', cnt)), '[]'::jsonb)
+    INTO v_por_genero
+    FROM (
+      SELECT coalesce(genero, 'Não informado') AS g, count(*) AS cnt
+      FROM participantes WHERE status = 'ativo' AND is_teste = false
+      GROUP BY g
+    ) sub;
+
+    SELECT coalesce(jsonb_agg(jsonb_build_object('bairro', b, 'count', cnt)), '[]'::jsonb)
+    INTO v_por_bairro
+    FROM (
+      SELECT coalesce(ba.nome, 'Não informado') AS b, count(*) AS cnt
+      FROM participantes p
+      LEFT JOIN bairros ba ON ba.id = p.bairro_id
+      WHERE p.status = 'ativo' AND p.is_teste = false
+      GROUP BY b
+      ORDER BY cnt DESC
+      LIMIT 10
+    ) sub;
+
+    SELECT coalesce(jsonb_agg(jsonb_build_object('periodo', per, 'count', cnt)), '[]'::jsonb)
+    INTO v_por_periodo
+    FROM (
+      SELECT
+        CASE coalesce(periodo, 'manha')
+          WHEN 'manha' THEN 'Manhã'
+          WHEN 'tarde' THEN 'Tarde'
+          WHEN 'integral' THEN 'Integral'
+          ELSE periodo::text
+        END AS per,
+        count(*) AS cnt
+      FROM participantes WHERE status = 'ativo' AND is_teste = false
+      GROUP BY per
+    ) sub;
+  END IF;
+
+  -- Séries temporais sempre completas (tendência)
+  SELECT coalesce(jsonb_agg(jsonb_build_object('mes', mes, 'elo', elo) ORDER BY mes), '[]'::jsonb)
+  INTO v_elo_mensal
+  FROM (
+    SELECT to_char(data, 'YYYY-MM') AS mes, round(avg(score_elo)::numeric, 2) AS elo
+    FROM relatorios_atividade WHERE score_elo IS NOT NULL AND data >= v_data_corte
+    GROUP BY mes
+  ) sub;
+
+  SELECT coalesce(jsonb_agg(jsonb_build_object('mes', mes, 'adesao', adesao) ORDER BY mes), '[]'::jsonb)
+  INTO v_adesao_mensal
+  FROM (
+    SELECT to_char(data, 'YYYY-MM') AS mes, round(avg(pct_adesao)::numeric, 1) AS adesao
+    FROM relatorios_atividade 
+    WHERE pct_adesao IS NOT NULL
+      AND coalesce(nome_atividade,'') NOT LIKE v_synthetic_filter
+      AND data >= v_data_corte
+    GROUP BY mes
+  ) sub;
+
+  IF v_has_filter THEN
+    SELECT jsonb_build_object(
+      'iniciativa', round(coalesce(avg(iniciativa), 0)::numeric, 2),
+      'autonomia', round(coalesce(avg(autonomia), 0)::numeric, 2),
+      'colaboracao', round(coalesce(avg(colaboracao), 0)::numeric, 2),
+      'comunicacao', round(coalesce(avg(comunicacao), 0)::numeric, 2),
+      'respeito_mutuo', round(coalesce(avg(respeito_mutuo), 0)::numeric, 2)
+    ) INTO v_competencias
+    FROM relatorios_atividade WHERE data >= v_effective_start AND data < v_filter_end;
+  ELSE
+    SELECT jsonb_build_object(
+      'iniciativa', round(coalesce(avg(iniciativa), 0)::numeric, 2),
+      'autonomia', round(coalesce(avg(autonomia), 0)::numeric, 2),
+      'colaboracao', round(coalesce(avg(colaboracao), 0)::numeric, 2),
+      'comunicacao', round(coalesce(avg(comunicacao), 0)::numeric, 2),
+      'respeito_mutuo', round(coalesce(avg(respeito_mutuo), 0)::numeric, 2)
+    ) INTO v_competencias
+    FROM relatorios_atividade WHERE data >= v_data_corte;
+  END IF;
+
+  IF v_has_filter THEN
+    SELECT coalesce(jsonb_agg(jsonb_build_object('status', obj, 'count', cnt)), '[]'::jsonb)
+    INTO v_objetivos
+    FROM (
+      SELECT objetivo_alcancado AS obj, count(*) AS cnt
+      FROM relatorios_atividade WHERE objetivo_alcancado IS NOT NULL AND data >= v_effective_start AND data < v_filter_end
+      GROUP BY obj
+    ) sub;
+  ELSE
+    SELECT coalesce(jsonb_agg(jsonb_build_object('status', obj, 'count', cnt)), '[]'::jsonb)
+    INTO v_objetivos
+    FROM (
+      SELECT objetivo_alcancado AS obj, count(*) AS cnt
+      FROM relatorios_atividade WHERE objetivo_alcancado IS NOT NULL AND data >= v_data_corte
+      GROUP BY obj
+    ) sub;
+  END IF;
+
+  IF v_has_filter THEN
+    SELECT coalesce(jsonb_agg(jsonb_build_object('nome', nome, 'count', cnt) ORDER BY cnt DESC), '[]'::jsonb)
+    INTO v_top_educadores
+    FROM (
+      SELECT coalesce(pr.nome, 'Desconhecido') AS nome, count(*) AS cnt
+      FROM relatorios_atividade r
+      LEFT JOIN profiles pr ON pr.id = r.educador_id
+      WHERE r.data >= v_effective_start AND r.data < v_filter_end
+        AND coalesce(r.nome_atividade,'') NOT LIKE v_synthetic_filter
+      GROUP BY pr.nome
+      ORDER BY cnt DESC
+      LIMIT 5
+    ) sub;
+  ELSE
+    SELECT coalesce(jsonb_agg(jsonb_build_object('nome', nome, 'count', cnt) ORDER BY cnt DESC), '[]'::jsonb)
+    INTO v_top_educadores
+    FROM (
+      SELECT coalesce(pr.nome, 'Desconhecido') AS nome, count(*) AS cnt
+      FROM relatorios_atividade r
+      LEFT JOIN profiles pr ON pr.id = r.educador_id
+      WHERE coalesce(r.nome_atividade,'') NOT LIKE v_synthetic_filter
+        AND r.data >= v_data_corte
+      GROUP BY pr.nome
+      ORDER BY cnt DESC
+      LIMIT 5
+    ) sub;
+  END IF;
+
+  IF v_has_filter THEN
+    SELECT
+      CASE WHEN count(*) > 0 THEN round((sum(CASE WHEN rp.presente THEN 1 ELSE 0 END)::numeric / count(*)) * 100, 1) ELSE 0 END
+    INTO v_taxa_frequencia
+    FROM relatorio_presenca rp
+    JOIN relatorios_atividade ra ON ra.id = rp.relatorio_id
+    WHERE ra.data >= v_effective_start AND ra.data < v_filter_end;
+  ELSE
+    SELECT
+      CASE WHEN count(*) > 0 THEN round((sum(CASE WHEN rp.presente THEN 1 ELSE 0 END)::numeric / count(*)) * 100, 1) ELSE 0 END
+    INTO v_taxa_frequencia
+    FROM relatorio_presenca rp
+    JOIN relatorios_atividade ra ON ra.id = rp.relatorio_id
+    WHERE ra.data >= v_data_corte;
+  END IF;
+
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'mes', mes, 
+    'presentes', presentes, 
+    'total', total, 
+    'pct', pct,
+    'parcial', (mes = v_current_month)
+  ) ORDER BY mes), '[]'::jsonb)
+  INTO v_presenca_mensal
+  FROM (
+    SELECT
+      to_char(ra.data, 'YYYY-MM') AS mes,
+      sum(CASE WHEN rp.presente THEN 1 ELSE 0 END) AS presentes,
+      count(*) AS total,
+      CASE WHEN count(*) > 0 THEN round((sum(CASE WHEN rp.presente THEN 1 ELSE 0 END)::numeric / count(*)) * 100, 1) ELSE 0 END AS pct
+    FROM relatorio_presenca rp
+    JOIN relatorios_atividade ra ON ra.id = rp.relatorio_id
+    WHERE ra.data >= v_data_corte
+    GROUP BY mes
+  ) sub;
+
+  -- Alerta sensível ao filtro
+  IF v_has_filter THEN
+    SELECT count(*) INTO v_total_alerta
+    FROM (
+      SELECT rp.participante_id
+      FROM relatorio_presenca rp
+      JOIN participantes p ON p.id = rp.participante_id AND p.is_teste = false
+      JOIN relatorios_atividade ra ON ra.id = rp.relatorio_id
+      WHERE rp.participante_id IS NOT NULL
+        AND ra.data >= v_effective_start AND ra.data < v_filter_end
+      GROUP BY rp.participante_id
+      HAVING (
+        array_agg(rp.presente ORDER BY ra.data DESC, rp.id DESC) @> ARRAY[false, false, false]
+        AND (array_agg(rp.presente ORDER BY ra.data DESC, rp.id DESC))[1] = false
+        AND (array_agg(rp.presente ORDER BY ra.data DESC, rp.id DESC))[2] = false
+        AND (array_agg(rp.presente ORDER BY ra.data DESC, rp.id DESC))[3] = false
+      )
+    ) sub;
+  ELSE
+    SELECT count(*) INTO v_total_alerta
+    FROM (
+      SELECT rp.participante_id
+      FROM relatorio_presenca rp
+      JOIN participantes p ON p.id = rp.participante_id AND p.status = 'ativo' AND p.is_teste = false
+      JOIN relatorios_atividade ra ON ra.id = rp.relatorio_id
+      WHERE rp.participante_id IS NOT NULL
+        AND ra.data >= v_data_corte
+      GROUP BY rp.participante_id
+      HAVING (
+        array_agg(rp.presente ORDER BY ra.data DESC, rp.id DESC) @> ARRAY[false, false, false]
+        AND (array_agg(rp.presente ORDER BY ra.data DESC, rp.id DESC))[1] = false
+        AND (array_agg(rp.presente ORDER BY ra.data DESC, rp.id DESC))[2] = false
+        AND (array_agg(rp.presente ORDER BY ra.data DESC, rp.id DESC))[3] = false
+      )
+    ) sub;
+  END IF;
+
+  -- Delta de participantes alinhado ao filtro
+  IF v_has_filter THEN
+    SELECT count(DISTINCT rp.participante_id) INTO v_ativos_atual
+    FROM relatorio_presenca rp
+    JOIN relatorios_atividade ra ON ra.id = rp.relatorio_id
+    WHERE rp.presente = true
+      AND ra.data >= v_effective_start AND ra.data < v_filter_end;
+
+    SELECT count(DISTINCT rp.participante_id) INTO v_ativos_anterior
+    FROM relatorio_presenca rp
+    JOIN relatorios_atividade ra ON ra.id = rp.relatorio_id
+    WHERE rp.presente = true
+      AND ra.data >= v_prev_start AND ra.data < v_prev_end;
+
+    v_parcial_atual := (v_filter_end > current_date);
+  ELSE
+    SELECT count(DISTINCT rp.participante_id) INTO v_ativos_atual
+    FROM relatorio_presenca rp
+    JOIN relatorios_atividade ra ON ra.id = rp.relatorio_id
+    WHERE rp.presente = true
+      AND ra.data >= v_inicio_mes_atual
+      AND ra.data <= current_date;
+
+    SELECT count(DISTINCT rp.participante_id) INTO v_ativos_anterior
+    FROM relatorio_presenca rp
+    JOIN relatorios_atividade ra ON ra.id = rp.relatorio_id
+    WHERE rp.presente = true
+      AND ra.data >= v_inicio_mes_anterior
+      AND ra.data < v_fim_mes_anterior;
+
+    v_parcial_atual := true;
+  END IF;
+
+  v_delta_participantes := v_ativos_atual - v_ativos_anterior;
+
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'id', r.id,
+    'nome_atividade', coalesce(r.nome_atividade, r.tipo_atividade_detalhe, 'Atividade'),
+    'data', r.data,
+    'educador', coalesce(pr.nome, 'Desconhecido'),
+    'num_participantes', coalesce(r.num_participantes, 0)
+  ) ORDER BY r.data DESC, r.created_at DESC), '[]'::jsonb)
+  INTO v_atividades_recentes
+  FROM (
+    SELECT * FROM relatorios_atividade 
+    WHERE coalesce(nome_atividade,'') NOT LIKE v_synthetic_filter
+      AND (NOT v_has_filter OR (data >= v_effective_start AND data < v_filter_end))
+      AND data >= v_data_corte
+    ORDER BY data DESC, created_at DESC LIMIT 10
+  ) r
+  LEFT JOIN profiles pr ON pr.id = r.educador_id;
+
+  result := jsonb_build_object(
+    'totalParticipantesAtivos', v_total_participantes,
+    'totalTurmasAtivas', v_total_turmas,
+    'totalRelatorios', v_total_relatorios,
+    'totalConsolidadosChamada', v_total_consolidados,
+    'totalPlanejamentos', v_total_planejamentos,
+    'mediaELO', round(v_media_elo, 2),
+    'mediaELON', v_media_elo_n,
+    'mediaAdesao', round(v_media_adesao, 1),
+    'mediaAdesaoConsolidada', round(v_media_adesao_consolidada, 1),
+    'participantesPorFaixa', v_por_faixa,
+    'participantesPorGenero', v_por_genero,
+    'participantesPorBairro', v_por_bairro,
+    'participantesPorPeriodo', v_por_periodo,
+    'eloMensal', v_elo_mensal,
+    'adesaoMensal', v_adesao_mensal,
+    'competencias', v_competencias,
+    'objetivos', v_objetivos,
+    'taxaFrequenciaGeral', v_taxa_frequencia,
+    'topEducadores', v_top_educadores,
+    'totalParticipantesAlerta', v_total_alerta,
+    'presencaMensal', v_presenca_mensal,
+    'deltaParticipantes', v_delta_participantes,
+    'participantesAtivosMesAtual', v_ativos_atual,
+    'participantesAtivosMesAnterior', v_ativos_anterior,
+    'deltaParticipantesBase', CASE WHEN v_has_filter THEN 'periodo_filtrado' ELSE 'mes_corrente' END,
+    'deltaParcialAtual', v_parcial_atual,
+    'atividadesRecentes', v_atividades_recentes,
+    'dataInicioOperacional', v_data_corte
+  );
+
+  RETURN result;
+END;
+$function$;
