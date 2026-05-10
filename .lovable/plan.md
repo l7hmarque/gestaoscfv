@@ -1,102 +1,85 @@
 ## Objetivo
 
-1. Trazer **todo** o DOCX de Relatório de Atividade ao formato do modelo `1BSf2Gz...UJUg` (Google Doc), em todos os pontos do sistema que exportam relatório de atividade.
-2. Ler do Sheets `1J1Qr5...arjk` as **edições manuais** que você fez em Abril/2026 (presenças marcadas a mão, desligamentos com "D" tachado, datas em cinza para entradas no meio do mês) e refletir no banco.
-3. Regerar o **Relatório Mensal de Abril/2026** já com tudo isso aplicado e com as células cinza para vínculos fora da janela do mês.
+Trocar o fluxo "Exportar DOCX" do relatório de atividade por "Abrir no Google Docs":
+1. Cada relatório vira uma cópia do template institucional `1in9wpXN6kScnZ048pnxvboaWiqKEWzxaB_m8hr-eG2I` (que já contém cabeçalho/rodapé timbrado).
+2. O conteúdo do relatório é inserido no corpo via batchUpdate, **sem tocar em header/footer** (preservando a folha timbrada).
+3. O doc é compartilhado como "qualquer pessoa com o link pode visualizar".
+4. O link `webViewLink` abre em nova aba.
 
 ---
 
-## Parte 1 — DOCX do Relatório de Atividade (alinhar ao modelo)
+## Arquitetura
 
-### Diferenças entre o gerado hoje e o modelo
+**Conector**: Google Docs + Google Drive (mesma conta institucional, via gateway Lovable). Os 2 já compartilham OAuth — uma única ligação atende.
 
-| Bloco | Hoje | Modelo (alvo) |
-|---|---|---|
-| Cabeçalho institucional | 3 linhas + faixa vermelha "RELATÓRIO DE ATIVIDADE" | Igual, manter |
-| Tabela "Dados da Atividade" | 6 linhas (Data, Dia, Educador, Turmas, Tipo, Nome) — OK | Mesma estrutura |
-| Engajamento | Render só se houver opção marcada | **Sempre renderizar** as 4 opções com ■/☐ inline na mesma linha |
-| Competências | Tabela 5x3 + linha "Score ELO: X.XX" à direita | Igual, **sem coluna colorida**, célula central só com nº (3) e label ("Moderado") |
-| Resumo | Tabela 1x3 "Presentes / Ausentes / % Adesão" | Igual |
-| Objetivo | Render como bloco com label | "Objetivo: Alcançado" inline |
-| Atividades Realizadas | Texto puro | Texto puro (mantém) |
-| Observações | "não há" se vazio | **Renderizar sempre**, com "não há" se vazio |
-| Situações Relevantes | Render bloco se houver | **Remover** do DOCX (não está no modelo) |
-| Score ELO destacado | Linha à direita em vermelho | Linha à direita, **preto bold** (sem cor de marca) |
-| Anexo I — Lista de Frequência | Página nova, título "LISTA DE FREQUÊNCIA" + meta-linha | **Faixa "ANEXO I - LISTA DE FREQUÊNCIA"** (tabela 1x1 cinza claro) seguida de meta-linha "Atividade: ... | Data: ... | Turma(s): ...", "Educador(a): ...", e tabela Nº/Nome/Presença |
-| Linha "Educador" | Está no corpo | Manter no anexo + assinatura ao final |
-| Anexo II — Fotos | Bloco de fotos sem faixa | **Faixa "ANEXO II - REGISTROS FOTOGRÁFICOS"** (tabela 1x1) antes das fotos |
+**Edge Function nova**: `supabase/functions/generate-relatorio-gdoc/index.ts`
+- Input: `{ relatorioId: string }`
+- Fluxo:
+  1. Valida JWT do usuário.
+  2. Carrega relatório + turmas + presença + fotos do Supabase (mesma query de `bibliotecaDocx.ts`).
+  3. **Copia o template** via Drive API: `POST /drive/v3/files/{TEMPLATE_ID}/copy` com `{ name: "SysCFV_Relatorio_<data>_<titulo>.gdoc" }` em pasta institucional (configurável por secret `GDOCS_RELATORIOS_FOLDER_ID`, opcional).
+  4. **Limpa o body** do doc copiado (deleteContentRange 1..endIndex-1) — header/footer permanecem intactos pois vivem em `documentStyle.defaultHeaderId/FooterId`.
+  5. **Insere conteúdo** via `documents:batchUpdate` na ordem do modelo já alinhado em `useDocumentExport.ts`:
+     - Faixa "RELATÓRIO DE ATIVIDADE" (parágrafo com fundo vermelho via `updateParagraphStyle.shading`)
+     - Tabela "Dados da Atividade" (6 linhas)
+     - Engajamento (4 opções com ■/☐)
+     - Tabela Competências (5x3) + linha "Score ELO: X.XX"
+     - Tabela Resumo (1x3 Presentes/Ausentes/% Adesão)
+     - Objetivo, Atividades Realizadas, Observações
+     - Faixa cinza "ANEXO I — LISTA DE FREQUÊNCIA" + tabela Nº/Nome/Presença
+     - Faixa cinza "ANEXO II — REGISTROS FOTOGRÁFICOS" + imagens (insertInlineImage com URLs públicas do Storage)
+  6. **Compartilha**: `POST /drive/v3/files/{newId}/permissions` com `{ role: "reader", type: "anyone" }`.
+  7. **Persiste** o `gdoc_id` e `gdoc_url` (webViewLink) numa nova coluna em `relatorios_atividade` para evitar regerar — se já existe, retorna o link existente.
+  8. Retorna `{ url, fileId }`.
 
-### Onde aplicar
-
-A função `buildRelatorioDocxBlob` em `src/hooks/useDocumentExport.ts` já é a única superfície usada por:
-- Botão "Exportar DOCX" em `RelatorioDetalhePage`
-- Hub de exportação em massa (`useBulkRelatorioExport`)
-- Biblioteca de Documentos (`bibliotecaDocx.ts` → `gerarDocxRelatorioBlob`)
-- Exportação por lote em `RelatoriosPage`
-
-Logo, **todas as origens** ganham o novo formato com uma única edição.
-
-> Observação: o template `relatorio.docx` carregado por `loadTemplate()` será desabilitado para esse fluxo — o caminho "from scratch" passa a ser o oficial, garantindo paridade exata com o modelo. Mantenho o template como fallback inerte para não quebrar a Biblioteca de Tags.
+**Migration**: adicionar colunas `gdoc_id text` e `gdoc_url text` em `relatorios_atividade`.
 
 ---
 
-## Parte 2 — Extração das edições manuais do Sheets de Abril
+## Frontend
 
-A planilha tem 21 abas (3 institucionais + 18 turmas). Vou rodar um script único (executado fora do build, no sandbox) que para cada aba de turma:
+**Arquivos a editar**:
+- `src/hooks/useDocumentExport.ts`: adicionar `abrirRelatorioNoGoogleDocs(relatorioId)` que chama a edge function e faz `window.open(url, "_blank")`. Manter `buildRelatorioDocxBlob` como **fallback interno** apenas para a Biblioteca de Documentos (que precisa de Blob para upload em Storage), mas remover dos botões de UI.
+- `src/pages/relatorios/RelatorioDetalhePage.tsx`: trocar botão "Exportar DOCX" por "Abrir no Google Docs" (ícone `FileText` + `ExternalLink`).
+- `src/pages/relatorios/RelatoriosPage.tsx` (lista): no menu de ações, mesmo swap.
+- `src/hooks/useBulkRelatorioExport.ts`: para exportação em lote, gerar N Google Docs em paralelo (Promise.allSettled, 3 simultâneos) e abrir uma página intermediária (ou toast com lista de links) — **sem auto-abrir N abas** que o navegador bloqueia.
+- `src/pages/biblioteca/BibliotecaPage.tsx`: substituir download DOCX por link Google Docs (usa `gdoc_url` se presente, senão dispara geração).
 
-1. Lê a matriz de presença (linhas = participantes, colunas = datas) via Sheets API.
-2. Detecta **células marcadas manualmente como "■"** que não existem na tabela `presenca` do banco e prepara `INSERT` (presente=true, com flag `origem='auditoria_abril_manual'` em coluna `observacao` ou similar para rastreabilidade).
-3. Detecta **linhas com strikethrough no nome** (formatação `textFormatRuns[].format.strikethrough=true`) — gera lista CSV "Participantes a desligar manualmente" para sua revisão (não mexe em cadastros agora).
-4. Para o **regerar do relatório**: aplica esses desligamentos como `data_saida` retroativa (último dia em que aparecem no Sheets) **somente em memória dentro da edge function**, via uma tabela auxiliar `auditoria_abril_desligamentos` que a função consulta ao montar matrizes — assim você revisa caso a caso depois sem perder o vínculo real.
-
-**Entregáveis desta parte (em /mnt/documents/):**
-- `auditoria_abril_presencas_inseridas.csv` — log do que foi inserido em `presenca`.
-- `auditoria_abril_desligamentos_pendentes.csv` — nomes/datas com "D" tachado, para sua revisão.
-- Migration criando `auditoria_abril_desligamentos` (id, participante_id, data_saida_efetiva, motivo, revisado_em).
-
-> Não vou desligar de fato no `participantes`/`turma_participantes` até você revisar o CSV.
+**Sem alteração**:
+- PDF (`exportRelatorioPdf`) permanece.
+- XLSX, REO, Relatório Mensal (não são relatórios de atividade individuais).
+- Planejamentos (continuam DOCX por enquanto, só relatórios mudam).
 
 ---
 
-## Parte 3 — Células cinza para datas anteriores ao `data_entrada`
+## Conector
 
-Já implementado parcialmente no último loop. **Faltava**:
+Disparar `standard_connectors--connect` para `google_docs` e `google_drive` (mesma conta). Validar via `verify_credentials`. Secrets esperados: `GOOGLE_DOCS_API_KEY`, `GOOGLE_DRIVE_API_KEY`, `LOVABLE_API_KEY`.
 
-- Aplicar a regra também para participantes com `data_saida` no meio do mês → cinza após a saída.
-- Para os "desligados manualmente" da Parte 2, ler `auditoria_abril_desligamentos.data_saida_efetiva` e pintar cinza a partir desse ponto.
-- Verificar consistência entre as 3 superfícies de matriz: `generate-relatorio-mensal/index.ts`, `ExportarRelatoriosPage.tsx` e `generate-reo/index.ts`.
+Secret extra opcional (via `add_secret`): `GDOCS_RELATORIOS_TEMPLATE_ID` (default `1in9wpXN6kScnZ048pnxvboaWiqKEWzxaB_m8hr-eG2I`) e `GDOCS_RELATORIOS_FOLDER_ID` (opcional, para organizar por mês).
 
 ---
 
-## Parte 4 — Regerar Relatório Mensal Abril/2026
+## Cuidados com a folha timbrada
 
-1. Aplicar Parte 2 (inserts de presença) no banco.
-2. Aplicar Parte 3 (cinza fora-da-janela em todas as matrizes).
-3. Disparar `generate-relatorio-mensal` para Abril/2026 a partir da UI atual (`/relatorios/exportar`).
-4. Comparar XLSX gerado contra o Sheets anotado e listar discrepâncias residuais na aba **Auditoria — Pendências**.
-
----
-
-## Detalhes técnicos
-
-**Arquivos editados**
-- `src/hooks/useDocumentExport.ts` — reescrever `buildRelatorioDocxBlob` para casar com o modelo (remover Situações, sempre renderizar Engajamento e Observações, faixas "ANEXO I/II", trocar cor do Score ELO para preto, ajustar tabela de competências sem coluna colorida).
-- `supabase/functions/generate-relatorio-mensal/index.ts` — consumir `auditoria_abril_desligamentos` ao montar matrizes; pintar cinza pós-`data_saida` além do pré-`data_entrada`.
-- `src/pages/relatorios/ExportarRelatoriosPage.tsx` e `supabase/functions/generate-reo/index.ts` — paridade de regra cinza.
-
-**Migrations**
-- `auditoria_abril_desligamentos` (sem RLS aberta — só coordenação lê/escreve).
-
-**Scripts one-off (sandbox, não vão para o repo)**
-- `extract_april_manual_edits.py` — Sheets API → CSVs + INSERTs em `presenca`.
-
-**Validação**
-- Re-exportar Abril/2026 e validar contra os 78 comentários originais.
-- Exportar 1 relatório de atividade qualquer e abrir em Word para comparar com o modelo (faixas Anexo I/II presentes; Engajamento sempre visível; sem bloco Situações; Score ELO em preto).
+- **Nunca** editar `headers`/`footers` do doc copiado — o template já os possui e a cópia preserva.
+- Definir margens via `documents:batchUpdate updateDocumentStyle` somente se necessário (top/bottom maiores para não invadir timbre — ler do template original primeiro e replicar).
+- Inserir tudo entre `body.content[0].endIndex` e final, garantindo que o conteúdo fique no corpo, não no header.
+- Imagens do Anexo II: URL pública do Supabase Storage (já temos), inseridas via `insertInlineImage` com `objectSize` capada em ~450pt para não estourar margens.
 
 ---
 
-## Fora de escopo (confirmar se quer adicionar)
+## Validação
 
-- Replicar o mesmo modelo para o **PDF** do relatório de atividade (`exportRelatorioPdf`) — hoje ele tem layout próprio. Posso alinhar também, mas dobra o trabalho.
-- Migrar a Biblioteca de Documentos para gerar via Google Docs API em vez de DOCX local — você mencionou "agora em google docs" no doc; se for isso, vira projeto à parte (precisa OAuth por usuário, não cabe aqui).
+1. Gerar Google Doc do relatório atual (`/relatorios/5b477c4d-...`) e abrir no Drive: confirmar timbre presente em todas as páginas, nenhum texto sobreposto.
+2. Confirmar permissão "anyone with link can view" (testar em janela anônima).
+3. Testar lote (3+ relatórios) — toast com lista de links.
+4. Confirmar que segunda chamada do mesmo relatório retorna o mesmo `gdoc_url` (idempotência).
+
+---
+
+## Fora de escopo
+
+- Sincronizar edições feitas no Google Docs de volta para o Supabase.
+- Aplicar mesmo fluxo a Planejamentos e REO (pode virar próxima iteração).
+- Per-user OAuth (todos os docs ficam na conta institucional).
