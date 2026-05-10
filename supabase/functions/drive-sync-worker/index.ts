@@ -147,6 +147,8 @@ async function insertImageAtToken(docId: string, token: string, driveFileId: str
           uri: `https://drive.google.com/uc?export=view&id=${driveFileId}`,
           objectSize: { width: { magnitude: widthPt, unit: "PT" }, height: { magnitude: widthPt * 0.75, unit: "PT" } },
         } },
+        // garante quebra de parágrafo APÓS a imagem para não empilhar/sobrepor
+        { insertText: { location: { index: idx + 1 }, text: "\n" } },
       ]);
       return true;
     } catch (e) {
@@ -242,6 +244,15 @@ function fmtDateBR(d: any): string {
   return `${p(dt.getDate())}/${p(dt.getMonth() + 1)}/${dt.getFullYear()}`;
 }
 
+// snake_case / SNAKE_CASE → "Title Case" (preserva acentos)
+function humanize(s: string): string {
+  if (!s) return "";
+  return String(s)
+    .replace(/[_-]+/g, " ")
+    .toLowerCase()
+    .replace(/\b([a-zà-ÿ])/g, (_m, c) => c.toUpperCase());
+}
+
 async function fillRelatorioTemplate(docId: string, ctx: {
   rel: any; turmas: string[]; presenca: any[]; fotos: any[]; bairros: string[];
 }) {
@@ -261,7 +272,7 @@ async function fillRelatorioTemplate(docId: string, ctx: {
     "{TURMAS}": turmas.join(", ") || "—",
     "{EDUCADOR}": rel.educador_nome || "—",
     "{NOME_ATIVIDADE}": rel.nome_atividade || "—",
-    "{TIPO_ATIVIDADE}": (rel.tipo_atividade || []).join(", ") || "—",
+    "{TIPO_ATIVIDADE}": (rel.tipo_atividade || []).map(humanize).join(", ") || "—",
     "{NUM_PRESENTES}": String(rel.num_participantes ?? presenca.filter((p) => p.presente).length),
     "{NUM_MATRICULADOS}": String(rel.num_matriculados ?? presenca.length),
     "{ATIVIDADES_REALIZADAS}": rel.atividades_realizadas || rel.descricao || "—",
@@ -307,7 +318,7 @@ async function fillRelatorioTemplate(docId: string, ctx: {
     const tok = `{foto${i + 1}}`;
     const fileId = fotos[i]?.drive_file_id;
     if (fileId) {
-      await insertImageAtToken(docId, tok, fileId, 460);
+      await insertImageAtToken(docId, tok, fileId, 340);
     } else {
       await replacePlaceholders(docId, { [tok]: "" });
     }
@@ -329,6 +340,8 @@ async function fillRelatorioTemplate(docId: string, ctx: {
 
 async function fillPlanejamentoTemplate(docId: string, ctx: { pl: any; turmas: string[] }) {
   const { pl, turmas } = ctx;
+  const eixos: string[] = pl.eixos || [];
+  const EIXO_KEYS = ["convivencia_social", "direito_de_ser", "participacao_social"];
   const map: Record<string, string> = {
     "{EDUCADOR}": pl.educador_nome || "—",
     "{TURMAS}": turmas.join(", ") || "—",
@@ -340,6 +353,9 @@ async function fillPlanejamentoTemplate(docId: string, ctx: { pl: any; turmas: s
     "{ROTEIRO}": pl.roteiro || "—",
     "{MATERIAIS}": pl.materiais || "—",
     "{APOIO_TECNICO}": pl.apoio_tecnico || "—",
+    "{EIXO_1}": eixos.includes(EIXO_KEYS[0]) ? "■" : "☐",
+    "{EIXO_2}": eixos.includes(EIXO_KEYS[1]) ? "■" : "☐",
+    "{EIXO_3}": eixos.includes(EIXO_KEYS[2]) ? "■" : "☐",
   };
   await replacePlaceholders(docId, map);
 }
