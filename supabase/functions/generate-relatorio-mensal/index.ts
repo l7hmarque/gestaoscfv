@@ -504,15 +504,26 @@ function generateMonthSheets(
     const tpRecords = turmaParticipantes.filter(
       (tp: any) =>
         tp.turma_id === t.id &&
-        (!tp.data_entrada || tp.data_entrada < endDate) &&
-        (!tp.data_saida || tp.data_saida >= startDate) &&
-        // Ignora vínculos com data_saida anterior à data_entrada (registros inconsistentes)
         (!tp.data_saida || !tp.data_entrada || tp.data_saida >= tp.data_entrada),
     );
+    // Janela efetiva por participante: combina turma_participantes com participantes.iniciou_em e data_desligamento
+    const addDay = (iso: string): string => {
+      const d = new Date(iso + "T12:00:00");
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().slice(0, 10);
+    };
     const windowByPart = new Map<string, { entrada: string | null; saida: string | null }>();
-    tpRecords.forEach((tp: any) =>
-      windowByPart.set(tp.participante_id, { entrada: tp.data_entrada || null, saida: tp.data_saida || null }),
-    );
+    tpRecords.forEach((tp: any) => {
+      const part = partMap.get(tp.participante_id);
+      const iniciou = part?.iniciou_em || null;
+      const tpEntrada = tp.data_entrada || null;
+      const effEntrada = iniciou && tpEntrada ? (iniciou > tpEntrada ? iniciou : tpEntrada) : (iniciou || tpEntrada);
+      const tpSaida = tp.data_saida || null;
+      const dataDeslig = (part?.status === "desligado" && part?.data_desligamento) ? part.data_desligamento : null;
+      const deligSaida = dataDeslig ? addDay(dataDeslig) : null; // saida exclusiva
+      const effSaida = tpSaida && deligSaida ? (tpSaida < deligSaida ? tpSaida : deligSaida) : (tpSaida || deligSaida);
+      windowByPart.set(tp.participante_id, { entrada: effEntrada, saida: effSaida });
+    });
     const tParts = tpRecords.map((tp: any) => partMap.get(tp.participante_id)).filter(Boolean) as any[];
     const tPresencas = presencas.filter((p: any) => p.turma_id === t.id);
 
@@ -544,7 +555,7 @@ function generateMonthSheets(
       `Turma: ${t.nome} | Bairro: ${bairroNome} | Faixa Etária: ${t.faixa_etaria || "N/I"} | Período: ${periodoLabel(t.periodo)}`,
     ];
     const header5 = [`MÊS: ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum} | Exportado em: ${new Date().toLocaleString("pt-BR")}`];
-    const header6 = [`Legenda: ■ presente · vazio = ausente · cinza = fora do vínculo (não matriculado / já saiu) · D = desligado · BA = busca ativa`];
+    const header6 = [`Legenda: ■ presente · vazio = ausente · cinza = fora do vínculo (não matriculado, já saiu ou desligado) · "(D dd/mm)" no nome = desligado · "(BA)" = busca ativa`];
     // Datas formatadas DD/MM/AA
     const colHeaders = [
       "Nº",
@@ -553,8 +564,11 @@ function generateMonthSheets(
     ];
     const rows = tParts.map((p: any, idx: number) => {
       const isDesligado = p.status === "desligado";
+      const isBA = p.status === "busca_ativa";
       const dataDeslig = p.data_desligamento || null;
-      const nameSuffix = isDesligado && dataDeslig ? ` (D ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})` : "";
+      let nameSuffix = "";
+      if (isDesligado && dataDeslig) nameSuffix = ` (D ${dataDeslig.slice(8,10)}/${dataDeslig.slice(5,7)})`;
+      else if (isBA) nameSuffix = " (BA)";
       const row: any[] = [idx + 1, p.nome_completo + nameSuffix];
       datas.forEach(() => row.push(""));
       return row;
@@ -587,8 +601,6 @@ function generateMonthSheets(
     const grayFill = { fgColor: { rgb: "E5E7EB" } };
     tParts.forEach((p: any, pIdx: number) => {
       const excelRow = dataStartRow + pIdx;
-      const isDesligado = p.status === "desligado";
-      const dataDeslig = p.data_desligamento || null;
       const win = windowByPart.get(p.id) || { entrada: null, saida: null };
       for (let c = 0; c < 2; c++) {
         const addr = XLSX.utils.encode_cell({ r: excelRow, c });
@@ -604,19 +616,13 @@ function generateMonthSheets(
           ws[addr].s = { fill: grayFill, border: borderObj };
           return;
         }
-        // If desligado and date is after data_desligamento, mark with grey "D"
-        if (isDesligado && dataDeslig && d > dataDeslig) {
-          ws[addr].v = "D";
-          ws[addr].s = { fill: { fgColor: { rgb: "000000" } }, font: { color: { rgb: "FFFFFF" } }, border: borderObj };
+        const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
+        const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
+        if ((rec && rec.presente) || (fallbackRec && fallbackRec.presente)) {
+          ws[addr].v = "■";
+          ws[addr].s = { font: { sz: 14, color: { rgb: "000000" } }, alignment: { horizontal: "center", vertical: "center" }, border: borderObj };
         } else {
-          const rec = tPresencas.find((pr: any) => pr.participante_id === p.id && pr.data === d);
-          const fallbackRec = !rec ? relPresFallback.find(f => f.participante_id === p.id && f.data === d) : null;
-          if ((rec && rec.presente) || (fallbackRec && fallbackRec.presente)) {
-            ws[addr].v = "■";
-            ws[addr].s = { font: { sz: 14, color: { rgb: "000000" } }, alignment: { horizontal: "center", vertical: "center" }, border: borderObj };
-          } else {
-            ws[addr].s = { border: borderObj };
-          }
+          ws[addr].s = { border: borderObj };
         }
       });
     });
