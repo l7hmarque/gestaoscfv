@@ -1,44 +1,23 @@
 ## Problema
 
-Na aba **Indicadores** do dashboard:
+O KPI "Participantes Ativos" no `/dashboard` (aba Indicadores), quando filtrado por Abril/2026, está mostrando 260 — esse número vem da definição atual: "participantes cuja matrícula sobreviveu ao mês" (`iniciou_em < fim` AND não desligado antes do início). Ou seja, está contando *matriculados no período*, não *frequentantes*.
 
-1. **O filtro de Mês/Ano (e intervalo de datas) não afeta vários KPIs.** A função `get_dashboard_stats` ignora o filtro nestes campos:
-   - `totalParticipantesAtivos` (sempre conta `status='ativo'` global)
-   - `totalTurmasAtivas` (sempre conta turmas ativas globais)
-   - `participantesPorFaixa`, `participantesPorGenero`, `participantesPorBairro`, `participantesPorPeriodo` (sempre snapshot atual)
-   - `totalParticipantesAlerta` (sempre histórico completo)
-   - `eloMensal`, `adesaoMensal`, `presencaMensal` (séries temporais — correto manter trend completo)
+A definição correta solicitada: **1 participante = teve pelo menos 1 presença registrada (`presente=true`) no período filtrado.**
 
-2. **O número "-69" aparece como delta vs mês anterior.** Bug: `participantesAtivosMesAtual` e `participantesAtivosMesAnterior` usam **sempre** `current_date` / mês corrente do servidor — ignoram completamente os parâmetros `_mes`/`_ano`/`_data_inicio`/`_data_fim`. Quando o usuário seleciona Abril/2026, o card mostra o total atual (ex.: 200) mas o delta continua sendo (ativos de maio até hoje) − (ativos de abril cheio) = número grande negativo, sem relação com o filtro escolhido.
+## Solução
 
-## Solução (somente backend — RPC)
+Reescrever `public.get_dashboard_stats` para alinhar `totalParticipantesAtivos` ao mesmo critério já usado em `participantesAtivosMesAtual`:
 
-Reescrever `public.get_dashboard_stats` em uma nova migração para aplicar o filtro de período de forma coerente:
+- **Com filtro (mês/ano ou intervalo)**: `totalParticipantesAtivos` = `COUNT(DISTINCT rp.participante_id)` em `relatorio_presenca rp JOIN relatorios_atividade ra` onde `rp.presente=true` AND `ra.data` no período. Excluir participantes `is_teste=true`.
+- **Sem filtro**: manter contagem atual (`status='ativo'` global), pois representa o estado vivo do cadastro.
 
-### 1. KPIs sensíveis ao período passam a respeitar o filtro
-Quando há filtro ativo (`v_has_filter`), calcular:
+Como esse passa a ser o mesmo valor de `participantesAtivosMesAtual` quando há filtro, o tooltip do card também é simplificado (Total = mesmo critério do delta).
 
-- **totalParticipantesAtivos**: `COUNT(participantes)` onde participante estava ativo *durante* o período — `iniciou_em <= v_filter_end - 1` AND (`status <> 'desligado'` OR `data_desligamento >= v_filter_start`) AND `is_teste = false`. Sem filtro: comportamento atual (status='ativo' agora).
-- **totalTurmasAtivas**: turmas com `created_at < v_filter_end` AND (`ativa = true` OR `desativada_em >= v_filter_start`). Sem filtro: comportamento atual.
-- **participantesPorFaixa / Genero / Bairro / Periodo**: aplicar o mesmo predicado de "ativo durante o período" do item acima.
-- **totalParticipantesAlerta**: já filtra por `relatorios_atividade.data`; passar a usar `v_effective_start..v_filter_end` quando há filtro.
-
-### 2. Delta de Participantes — alinhado ao filtro
-
-Renomear conceitualmente para "ativos no período selecionado vs período anterior equivalente":
-
-- Quando há filtro de **mês/ano**: `v_ativos_mes_atual` = distintos com `presente=true` em `[mes_selecionado_inicio, mes_selecionado_fim)`; `v_ativos_mes_anterior` = mesmo cálculo no mês imediatamente anterior ao selecionado.
-- Quando há filtro de **intervalo**: comparar com janela imediatamente anterior do mesmo tamanho (ex.: 15 dias vs 15 dias anteriores).
-- Sem filtro: manter cálculo atual (mês corrente vs mês anterior, parcial).
-
-Adicionar flag `parcialAtual` ao retorno para o tooltip indicar quando o "atual" ainda está incompleto (mes corrente).
-
-### 3. Tooltip do KPI
-Atualizar o `tooltip` em `DashboardPage.tsx` (apenas o texto) para refletir que o delta agora segue o filtro selecionado.
+Adicionalmente, alinhar as **distribuições** (Faixa, Gênero, Bairro, Período) ao mesmo universo de "frequentantes do período" quando há filtro — caso contrário, o KPI mostraria 80 mas a soma das fatias do gráfico seria 260, gerando incoerência. Sem filtro continuam sendo snapshot do cadastro ativo atual.
 
 ## Arquivos
 
-- **Nova migração**: `supabase/migrations/<timestamp>_fix_dashboard_stats_filtro.sql` — recria `public.get_dashboard_stats` com a lógica acima.
-- **Edit**: `src/pages/dashboard/DashboardPage.tsx` — somente texto do tooltip do card "Participantes Ativos".
+- **Nova migração**: recria `public.get_dashboard_stats` ajustando os blocos de `v_total_participantes` e das 4 distribuições para usar a interseção com `relatorio_presenca` quando `v_has_filter`.
+- **Edit**: `src/pages/dashboard/DashboardPage.tsx` — atualizar o `tooltip` do card "Participantes Ativos" para refletir o novo critério ("participantes distintos com presença registrada no período").
 
-Sem mudanças em hooks, tipos ou outras tabs (Profissionais, Admin, Relatório Mensal continuam intactas).
+Sem alteração em hooks ou outras tabs.
