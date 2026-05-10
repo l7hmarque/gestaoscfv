@@ -701,9 +701,14 @@ Deno.serve(async (req: Request) => {
           dStr.setDate(dStr.getDate() + 1);
         }
 
-        const tpMembers = turmaParticipantes.filter((tp: any) => tp.turma_id === t.id);
         const endDate = mesNum === 12 ? `${anoNum + 1}-01-01` : `${anoNum}-${String(mesNum + 1).padStart(2, "0")}-01`;
-        const memberParts = tpMembers.map((tp: any) => partMap[tp.participante_id]).filter(Boolean).filter((p: any) => !p.created_at || p.created_at < endDate);
+        const startDate = `${anoNum}-${String(mesNum).padStart(2, "0")}-01`;
+        const tpMembers = turmaParticipantes.filter((tp: any) =>
+          tp.turma_id === t.id &&
+          (!tp.data_entrada || tp.data_entrada < endDate) &&
+          (!tp.data_saida || tp.data_saida >= startDate)
+        );
+        const memberParts = tpMembers.map((tp: any) => partMap[tp.participante_id]).filter(Boolean);
         const sorted = [...memberParts].sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo));
         if (sorted.length === 0 && datas.length === 0) continue;
 
@@ -898,9 +903,14 @@ Deno.serve(async (req: Request) => {
         if (datas.length === 0) continue;
 
         // Get members for this turma
-        const tpMembers = turmaParticipantes.filter((tp: any) => tp.turma_id === turma.id);
         const endDateFilter = mesNum === 12 ? `${anoNum + 1}-01-01` : `${anoNum}-${String(mesNum + 1).padStart(2, "0")}-01`;
-        const memberParts = tpMembers.map((tp: any) => partMap[tp.participante_id]).filter(Boolean).filter((p: any) => !p.created_at || p.created_at < endDateFilter);
+        const startDateFilter = `${anoNum}-${String(mesNum).padStart(2, "0")}-01`;
+        const tpMembers = turmaParticipantes.filter((tp: any) =>
+          tp.turma_id === turma.id &&
+          (!tp.data_entrada || tp.data_entrada < endDateFilter) &&
+          (!tp.data_saida || tp.data_saida >= startDateFilter)
+        );
+        const memberParts = tpMembers.map((tp: any) => partMap[tp.participante_id]).filter(Boolean);
         const sorted = [...memberParts].sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo));
         if (sorted.length === 0) continue;
 

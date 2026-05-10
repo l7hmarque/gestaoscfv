@@ -310,8 +310,14 @@ function generateMonthSheets(
   const borderObj = { top: border, bottom: border, left: border, right: border };
 
   for (const t of turmasAtivas) {
-    const tpIds = turmaParticipantes.filter((tp: any) => tp.turma_id === t.id).map((tp: any) => tp.participante_id);
-    const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean).filter((p: any) => !p.created_at || p.created_at < endDate) as any[];
+    const tpIds = turmaParticipantes
+      .filter((tp: any) =>
+        tp.turma_id === t.id &&
+        (!tp.data_entrada || tp.data_entrada < endDate) &&
+        (!tp.data_saida || tp.data_saida >= startDate)
+      )
+      .map((tp: any) => tp.participante_id);
+    const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean) as any[];
     const tPresencas = presencas.filter((p: any) => p.turma_id === t.id);
 
     const relIdsForTurma = relatorioTurmas.filter((rt: any) => rt.turma_id === t.id).map((rt: any) => rt.relatorio_id);
