@@ -192,12 +192,25 @@ function generateMonthSheets(
   autoFitCols(wsResumo);
   XLSX.utils.book_append_sheet(wb, wsResumo, sn1);
 
-  // Sheet: Atividades
+  // Sheet: Atividades — Propostas = TODOS planejamentos do mês; Desenvolvidas = relatórios + descrição (até 250)
   const atividadesRows: any[][] = [];
+  const usedPlanIds = new Set<string>();
+  const filteredPlanejamentos = planejamentos.filter(
+    (p: any) => p.data_aplicacao && p.data_aplicacao >= startDate && p.data_aplicacao < endDate,
+  );
+  const truncStr = (s: string, n: number) => (s || "").length > n ? (s || "").slice(0, n - 1) + "…" : (s || "");
   filteredRelatorios.forEach((r: any) => {
     const plan = r.planejamento_id ? planMap.get(r.planejamento_id) : null;
+    if (plan) usedPlanIds.add(plan.id);
     const proposta = plan ? (plan.titulo + (plan.tema ? ` — ${plan.tema}` : "")) : "Não planejada";
-    atividadesRows.push([proposta, r.nome_atividade || "", r.analise_ia || "", ""]);
+    const desc = truncStr(r.observacoes || r.intervencoes || r.nome_atividade || "", 250);
+    const desenvolvida = r.nome_atividade ? `${r.nome_atividade}\n${desc}` : desc;
+    atividadesRows.push([proposta, desenvolvida, r.analise_ia || "", ""]);
+  });
+  filteredPlanejamentos.forEach((plan: any) => {
+    if (usedPlanIds.has(plan.id)) return;
+    const proposta = plan.titulo + (plan.tema ? ` — ${plan.tema}` : "");
+    atividadesRows.push([proposta, "— Não executada —", "", ""]);
   });
   if (atividadesRows.length === 0) atividadesRows.push(["Nenhuma atividade registrada no período", "", "", ""]);
   const atividadesData = [["ATIVIDADES PROPOSTAS x DESENVOLVIDAS"], [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum}`], [], ["Atividades Propostas", "Atividades Desenvolvidas", "Resultados Alcançados", "Justificativas"], ...atividadesRows];
@@ -310,14 +323,17 @@ function generateMonthSheets(
   const borderObj = { top: border, bottom: border, left: border, right: border };
 
   for (const t of turmasAtivas) {
-    const tpIds = turmaParticipantes
-      .filter((tp: any) =>
+    const tpRecords = turmaParticipantes.filter(
+      (tp: any) =>
         tp.turma_id === t.id &&
         (!tp.data_entrada || tp.data_entrada < endDate) &&
-        (!tp.data_saida || tp.data_saida >= startDate)
-      )
-      .map((tp: any) => tp.participante_id);
-    const tParts = tpIds.map((id: string) => partMap.get(id)).filter(Boolean) as any[];
+        (!tp.data_saida || tp.data_saida >= startDate),
+    );
+    const windowByPart = new Map<string, { entrada: string | null; saida: string | null }>();
+    tpRecords.forEach((tp: any) =>
+      windowByPart.set(tp.participante_id, { entrada: tp.data_entrada || null, saida: tp.data_saida || null }),
+    );
+    const tParts = tpRecords.map((tp: any) => partMap.get(tp.participante_id)).filter(Boolean) as any[];
     const tPresencas = presencas.filter((p: any) => p.turma_id === t.id);
 
     const relIdsForTurma = relatorioTurmas.filter((rt: any) => rt.turma_id === t.id).map((rt: any) => rt.relatorio_id);
@@ -343,6 +359,7 @@ function generateMonthSheets(
     const header1 = [`SCFV — CAIA Medianeira — Matriz de Frequência`];
     const header2 = [`Turma: ${t.nome} | Bairro: ${bairroNome} | Faixa: ${t.faixa_etaria || "N/I"} | Período: ${t.periodo || "N/I"}`];
     const header3 = [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum} | Exportado em: ${new Date().toLocaleString("pt-BR")}`];
+    const header4 = [`Legenda: ■ presente · vazio = ausente · cinza = fora do vínculo (não matriculado / já saiu) · D = desligado · BA = busca ativa`];
     const colHeaders = ["Nº", "Nome do Participante", ...datas.map((d: string) => d.slice(8,10) + "/" + d.slice(5,7))];
     const rows = tParts.map((p: any, idx: number) => {
       const isDesligado = p.status === "desligado";
@@ -353,17 +370,19 @@ function generateMonthSheets(
       return row;
     });
 
-    const sheetData = [header1, header2, header3, [], colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]];
+    const sheetData = [header1, header2, header3, header4, [], colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]];
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
     ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...datas.map(() => ({ wch: 6 }))];
     autoFitCols(ws);
-    applyHeaderStyle(ws, 4, colHeaders.length);
+    applyHeaderStyle(ws, 5, colHeaders.length);
 
-    const dataStartRow = 5;
+    const dataStartRow = 6;
+    const grayFill = { fgColor: { rgb: "E5E7EB" } };
     tParts.forEach((p: any, pIdx: number) => {
       const excelRow = dataStartRow + pIdx;
       const isDesligado = p.status === "desligado";
       const dataDeslig = p.data_desligamento || null;
+      const win = windowByPart.get(p.id) || { entrada: null, saida: null };
       for (let c = 0; c < 2; c++) {
         const addr = XLSX.utils.encode_cell({ r: excelRow, c });
         if (!ws[addr]) ws[addr] = { v: "", t: "s" };
@@ -373,6 +392,11 @@ function generateMonthSheets(
         const col = 2 + dIdx;
         const addr = XLSX.utils.encode_cell({ r: excelRow, c: col });
         if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+        const foraDaJanela = (win.entrada && d < win.entrada) || (win.saida && d >= win.saida);
+        if (foraDaJanela) {
+          ws[addr].s = { fill: grayFill, border: borderObj };
+          return;
+        }
         // If desligado and date is after data_desligamento, mark with grey "D"
         if (isDesligado && dataDeslig && d > dataDeslig) {
           ws[addr].v = "D";
@@ -389,6 +413,17 @@ function generateMonthSheets(
         }
       });
     });
+
+    // Aviso quando não houve nenhuma chamada/registro
+    const houveChamada = tPresencas.length > 0 || relPresFallback.length > 0;
+    if (!houveChamada && datas.length) {
+      const noteRow = dataStartRow + tParts.length + 1;
+      const addr = XLSX.utils.encode_cell({ r: noteRow, c: 0 });
+      ws[addr] = { v: "Sem chamadas registradas neste mês", t: "s", s: { font: { italic: true, color: { rgb: "7F1D1D" } } } };
+      const refRange = XLSX.utils.decode_range(ws["!ref"] || "A1");
+      refRange.e.r = Math.max(refRange.e.r, noteRow);
+      ws["!ref"] = XLSX.utils.encode_range(refRange);
+    }
 
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   }
