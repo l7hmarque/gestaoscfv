@@ -1,0 +1,1 @@
+UPDATE drive_sync_queue SET status='pendente', tentativas=0, ultimo_erro=NULL, drive_file_id=NULL, drive_url=NULL WHERE tipo='relatorio' AND drive_url LIKE '%1FJTeq6mtO83MnG9sZ-U_bk_QzbVmiftwT7OfC-Ho9mg%';
