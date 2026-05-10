@@ -217,59 +217,6 @@ function PeriodFilter({ mes, ano, onChange, range, onRangeChange }: {
   );
 }
 
-/* ── Atividades Recentes ── */
-function AtividadesRecentes({ data }: { data: any }) {
-  const navigate = useNavigate();
-  if (!data?.atividadesRecentes?.length) {
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Clock size={14} className="text-muted-foreground" />
-            Atividades Recentes
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 pt-0">
-          <p className="text-xs text-muted-foreground py-4 text-center">Sem atividades no período</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          <Clock size={14} className="text-muted-foreground" />
-          Atividades Recentes
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-1 p-4 pt-0">
-        {data.atividadesRecentes.map((a: any) => (
-          <button
-            key={a.id}
-            onClick={() => navigate(`/relatorios/${a.id}`)}
-            className="w-full flex items-center justify-between p-2.5 rounded-md hover:bg-muted/50 transition-colors text-left group"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-medium text-foreground truncate">{a.nome_atividade}</p>
-              <p className="text-[11px] text-muted-foreground">
-                {a.educador} · {a.num_participantes} participantes
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0 ml-2">
-              <span className="text-[11px] text-muted-foreground">
-                {new Date(a.data + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
-              </span>
-              <ChevronRight size={14} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-          </button>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
 /* ── Alerta Card ── */
 function AlertaCard({ count }: { count: number }) {
   if (!count) return null;
