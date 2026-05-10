@@ -15,6 +15,77 @@ const TIPO_ATENDIMENTO_LABELS: Record<string, string> = {
   encaminhamento: "Encaminhamento", busca_ativa: "Busca Ativa", acolhida: "Acolhida", desligamento: "Desligamento",
 };
 
+// ===== Estilos institucionais (atualizados conforme comentários da planilha) =====
+const BORDER_THIN = { style: "thin", color: { rgb: "000000" } };
+const BORDER_OBJ = { top: BORDER_THIN, bottom: BORDER_THIN, left: BORDER_THIN, right: BORDER_THIN };
+const FONT_NAME = "Arial";
+
+const TITULO_INSTITUCIONAL = "RELATÓRIO MENSAL CONSOLIDADO | SOCIEDADE CIVIL NOSSA SENHORA APARECIDA";
+const SUBTITULO_INSTITUCIONAL =
+  "Centro de Atenção Integral ao Adolescente | Serviço de Convivência e Fortalecimento de Vínculos";
+
+const STYLE_TITULO = {
+  font: { name: FONT_NAME, sz: 12, bold: true, color: { rgb: "FFFFFF" } },
+  fill: { fgColor: { rgb: "000000" } },
+  alignment: { horizontal: "center", vertical: "center", wrapText: true },
+  border: BORDER_OBJ,
+};
+const STYLE_SUBTITULO = {
+  font: { name: FONT_NAME, sz: 10, italic: true, color: { rgb: "000000" } },
+  alignment: { horizontal: "center", vertical: "center", wrapText: true },
+};
+const STYLE_BOLD = { font: { name: FONT_NAME, sz: 10, bold: true } };
+const STYLE_NORMAL = { font: { name: FONT_NAME, sz: 10 } };
+
+function periodoLabel(p?: string | null): string {
+  if (!p) return "—";
+  const v = String(p).toLowerCase();
+  if (v === "manha" || v === "manhã") return "MANHA";
+  if (v === "tarde") return "TARDE";
+  if (v === "integral") return "INTEGRAL";
+  return String(p).toUpperCase();
+}
+
+function styleCell(ws: any, addr: string, style: any, value?: any) {
+  if (!ws[addr]) ws[addr] = { v: value ?? "", t: "s" };
+  if (value !== undefined) ws[addr].v = value;
+  ws[addr].s = { ...(ws[addr].s || {}), ...style };
+}
+
+/** Aplica cabeçalho institucional (título preto + subtítulo) nas linhas 0-1 e
+ *  faz merge ao longo de `colCount` colunas. Eleva a altura das linhas. */
+function applyInstitutionalHeader(ws: any, colCount: number) {
+  // Título (linha 0)
+  for (let c = 0; c < colCount; c++) {
+    const addr = XLSX.utils.encode_cell({ r: 0, c });
+    styleCell(ws, addr, STYLE_TITULO, c === 0 ? TITULO_INSTITUCIONAL : "");
+  }
+  // Subtítulo (linha 1)
+  for (let c = 0; c < colCount; c++) {
+    const addr = XLSX.utils.encode_cell({ r: 1, c });
+    styleCell(ws, addr, STYLE_SUBTITULO, c === 0 ? SUBTITULO_INSTITUCIONAL : "");
+  }
+  ws["!merges"] = ws["!merges"] || [];
+  if (colCount > 1) {
+    ws["!merges"].push({ s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } });
+    ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: colCount - 1 } });
+  }
+  ws["!rows"] = ws["!rows"] || [];
+  ws["!rows"][0] = { hpt: 22 };
+  ws["!rows"][1] = { hpt: 16 };
+}
+
+/** Insere bordas finas pretas em todas as linhas com conteúdo até `lastDataCol`. */
+function applyBordersToRange(ws: any, startRow: number, endRow: number, colCount: number) {
+  for (let r = startRow; r <= endRow; r++) {
+    for (let c = 0; c < colCount; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (!ws[addr]) ws[addr] = { v: "", t: "s" };
+      ws[addr].s = { ...(ws[addr].s || {}), border: BORDER_OBJ };
+    }
+  }
+}
+
 function getDatasAtividade(ano: number, mes: number, diasSemana: string[]): string[] {
   const diasNum = diasSemana.map(d => DIAS_MAP[d.toLowerCase()]).filter(n => n !== undefined);
   if (!diasNum.length) return [];
@@ -169,27 +240,48 @@ function generateMonthSheets(
   filteredAtendimentos.forEach((a: any) => { const t = a.tipo || "atendimento_individual"; atendByTipo[t] = (atendByTipo[t] || 0) + 1; });
 
   // Sheet: Resumo
-  const resumoData = [
-    ["RELATÓRIO MENSAL — SysCFV SCFV"],
-    [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum}`],
+  const periodoLabelMap = (k: string) => k === "manha" ? "Manha" : k === "tarde" ? "Tarde" : k === "integral" ? "Integral" : k;
+  const totalGeral = atendidosFiltered.length;
+  const resumoData: any[][] = [
+    [TITULO_INSTITUCIONAL], // linha 1 (sobrescrita pelo applyInstitutionalHeader)
+    [SUBTITULO_INSTITUCIONAL], // linha 2
+    [`MÊS: ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`],
     [`Data de geração: ${new Date().toLocaleString("pt-BR")}`],
     [],
     ["ATENDIDOS NO MÊS", atendidosFiltered.length],
-    [], ["POR BAIRRO"],
+    [], ["POR BAIRRO", "Quant."],
     ...Object.entries(byBairro).sort((a, b) => b[1] - a[1]).map(([b, c]) => [b, c]),
-    [], ["POR FAIXA ETÁRIA"],
+    [], ["POR FAIXA ETÁRIA", "Quant."],
     ...Object.entries(byFaixa).map(([f, c]) => [f, c]),
-    [], ["POR PERÍODO"],
-    ...Object.entries(byPeriodo).map(([p, c]) => [p, c]),
+    [], ["POR PERÍODO", "Quant."],
+    ...Object.entries(byPeriodo).map(([p, c]) => [periodoLabelMap(p), c]),
     [], ["NOVAS INSERÇÕES NO MÊS", novasInsercoes.length],
     ...novasInsercoes.map((p: any) => [p.nome_completo, p.iniciou_em]),
     [], ["ATENDIMENTOS TÉCNICOS NO MÊS", filteredAtendimentos.length],
     ...Object.entries(atendByTipo).map(([t, c]) => [TIPO_ATENDIMENTO_LABELS[t] || t, c]),
+    [], ["TOTAL GERAL", totalGeral],
   ];
   const sn1 = truncSheet(`Resumo${suffix}`, usedSheetNames);
   const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
   wsResumo["!cols"] = [{ wch: 40 }, { wch: 15 }];
   autoFitCols(wsResumo);
+  applyInstitutionalHeader(wsResumo, 2);
+  // Negritos institucionais
+  const RESUMO_BOLD_LABELS = new Set([
+    "ATENDIDOS NO MÊS", "POR BAIRRO", "POR FAIXA ETÁRIA", "POR PERÍODO",
+    "NOVAS INSERÇÕES NO MÊS", "ATENDIMENTOS TÉCNICOS NO MÊS", "TOTAL GERAL",
+    ...BAIRROS_SCFV,
+  ]);
+  for (let r = 2; r < resumoData.length; r++) {
+    const v = resumoData[r][0];
+    if (typeof v === "string") {
+      if (v.startsWith("MÊS:")) styleCell(wsResumo, XLSX.utils.encode_cell({ r, c: 0 }), { ...STYLE_BOLD, alignment: { horizontal: "left" } });
+      else if (RESUMO_BOLD_LABELS.has(v)) {
+        styleCell(wsResumo, XLSX.utils.encode_cell({ r, c: 0 }), STYLE_BOLD);
+        styleCell(wsResumo, XLSX.utils.encode_cell({ r, c: 1 }), STYLE_BOLD);
+      }
+    }
+  }
   XLSX.utils.book_append_sheet(wb, wsResumo, sn1);
 
   // Sheet: Atividades — Propostas = TODOS planejamentos do mês; Desenvolvidas = relatórios + descrição (até 250)
@@ -213,13 +305,32 @@ function generateMonthSheets(
     atividadesRows.push([proposta, "— Não executada —", "", ""]);
   });
   if (atividadesRows.length === 0) atividadesRows.push(["Nenhuma atividade registrada no período", "", "", ""]);
-  const atividadesData = [["ATIVIDADES PROPOSTAS x DESENVOLVIDAS"], [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum}`], [], ["Atividades Propostas", "Atividades Desenvolvidas", "Resultados Alcançados", "Justificativas"], ...atividadesRows];
+  const atividadesData = [
+    [TITULO_INSTITUCIONAL],
+    [SUBTITULO_INSTITUCIONAL],
+    ["ATIVIDADES PROPOSTAS x DESENVOLVIDAS"],
+    [`MÊS: ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`],
+    [],
+    ["Atividades Propostas", "Atividades Desenvolvidas", "Resultados Alcançados", "Justificativas"],
+    ...atividadesRows,
+  ];
   const sn2 = truncSheet(`Ativ${suffix}`, usedSheetNames);
   const wsAtiv = XLSX.utils.aoa_to_sheet(atividadesData);
   wsAtiv["!cols"] = [{ wch: 35 }, { wch: 35 }, { wch: 40 }, { wch: 30 }];
   autoFitCols(wsAtiv);
-  applyHeaderStyle(wsAtiv, 3, 4);
-  applyBorders(wsAtiv);
+  applyInstitutionalHeader(wsAtiv, 4);
+  styleCell(wsAtiv, "A3", STYLE_BOLD, "ATIVIDADES PROPOSTAS x DESENVOLVIDAS");
+  styleCell(wsAtiv, "A4", { ...STYLE_BOLD, alignment: { horizontal: "left" } });
+  applyHeaderStyle(wsAtiv, 5, 4);
+  // Bordas e wrap em todas as linhas com conteúdo (incluindo coluna Resultados)
+  const lastRowAtiv = 5 + atividadesRows.length;
+  applyBordersToRange(wsAtiv, 5, lastRowAtiv, 4);
+  for (let r = 6; r <= lastRowAtiv; r++) {
+    for (let c = 0; c < 4; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      styleCell(wsAtiv, addr, { font: { name: FONT_NAME, sz: 9 }, alignment: { wrapText: true, vertical: "top", horizontal: c === 2 ? "left" : "left" }, border: BORDER_OBJ });
+    }
+  }
   XLSX.utils.book_append_sheet(wb, wsAtiv, sn2);
 
   // Sheet: Metas
@@ -267,13 +378,43 @@ function generateMonthSheets(
   const pctGeral = totalMeta > 0 ? Math.round((totalCriancas / totalMeta) * 100) : 0;
   const pctIdosos2 = totalMetaIdosos > 0 ? Math.round((totalIdosos / totalMetaIdosos) * 100) : 0;
   metasRows.push(["TOTAL GERAL", "", "", ""], [`  Crianças/adolescentes: ${totalCriancas} (${pctGeral}% da meta de ${totalMeta})`, `${totalCriancas}`, "", ""], [`  Idosos: ${totalIdosos} (${pctIdosos2}% da meta de ${totalMetaIdosos})`, `${totalIdosos}`, "", ""]);
-  const metasData = [["METAS PROPOSTAS — ACOMPANHAMENTO MENSAL"], [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum}`], [], ["Metas Propostas", "Quant.", "Resultados Alcançados", "Justificativa"], ...metasRows];
+  const metasData = [
+    [TITULO_INSTITUCIONAL],
+    [SUBTITULO_INSTITUCIONAL],
+    ["METAS PROPOSTAS — ACOMPANHAMENTO MENSAL"],
+    [`MÊS: ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`],
+    [],
+    ["Metas Propostas", "Quant.", "Resultados Alcançados", "Justificativa"],
+    ...metasRows,
+  ];
   const sn3 = truncSheet(`Metas${suffix}`, usedSheetNames);
   const wsMetas = XLSX.utils.aoa_to_sheet(metasData);
   wsMetas["!cols"] = [{ wch: 55 }, { wch: 35 }, { wch: 50 }, { wch: 25 }];
   autoFitCols(wsMetas);
-  applyHeaderStyle(wsMetas, 3, 4);
-  applyBorders(wsMetas);
+  applyInstitutionalHeader(wsMetas, 4);
+  styleCell(wsMetas, "A3", STYLE_BOLD, "METAS PROPOSTAS — ACOMPANHAMENTO MENSAL");
+  styleCell(wsMetas, "A4", { ...STYLE_BOLD, alignment: { horizontal: "left" } });
+  applyHeaderStyle(wsMetas, 5, 4);
+  const lastRowMetas = 5 + metasRows.length;
+  applyBordersToRange(wsMetas, 5, lastRowMetas, 4);
+  // Negrito em "TOTAL GERAL" e nomes de bairro
+  for (let r = 6; r <= lastRowMetas; r++) {
+    const v = metasData[r]?.[0];
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      if (trimmed === "TOTAL GERAL" || BAIRROS_SCFV.includes(trimmed)) {
+        for (let c = 0; c < 4; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c });
+          styleCell(wsMetas, addr, { ...STYLE_BOLD, border: BORDER_OBJ });
+        }
+      } else {
+        for (let c = 0; c < 4; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c });
+          styleCell(wsMetas, addr, { font: { name: FONT_NAME, sz: 9 }, alignment: { wrapText: true, vertical: "top" }, border: BORDER_OBJ });
+        }
+      }
+    }
+  }
   XLSX.utils.book_append_sheet(wb, wsMetas, sn3);
 
   // Sheet: Monitoramento (use activePresencas to exclude post-desligamento)
@@ -291,13 +432,30 @@ function generateMonthSheets(
     ["Contribuir para a inserção, reinserção e permanência no sistema educacional", "Matrícula, rendimento e frequência escolar", "100%", `${pctBomFreq}%`],
     ["Promover o acesso aos benefícios e serviços socioassistenciais, fortalecendo a função protetiva das famílias", "Quantidade de beneficiários encaminhados para a proteção social básica", "100%", "100%"],
   ];
-  const monitorData = [["MONITORAMENTO E AVALIAÇÃO"], [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum}`], [], ["Objetivo", "Indicador", "Meta Prevista", "Meta Atingida"], ...monitorRows];
+  const monitorData = [
+    [TITULO_INSTITUCIONAL],
+    [SUBTITULO_INSTITUCIONAL],
+    ["MONITORAMENTO E AVALIAÇÃO"],
+    [`MÊS: ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`],
+    [],
+    ["Objetivo", "Indicador", "Meta Prevista", "Meta Atingida"],
+    ...monitorRows,
+  ];
   const sn4 = truncSheet(`Monitor${suffix}`, usedSheetNames);
   const wsMonitor = XLSX.utils.aoa_to_sheet(monitorData);
   wsMonitor["!cols"] = [{ wch: 60 }, { wch: 45 }, { wch: 15 }, { wch: 15 }];
   autoFitCols(wsMonitor);
-  applyHeaderStyle(wsMonitor, 3, 4);
-  applyBorders(wsMonitor);
+  applyInstitutionalHeader(wsMonitor, 4);
+  styleCell(wsMonitor, "A3", STYLE_BOLD, "MONITORAMENTO E AVALIAÇÃO");
+  styleCell(wsMonitor, "A4", { ...STYLE_BOLD, alignment: { horizontal: "left" } });
+  applyHeaderStyle(wsMonitor, 5, 4);
+  applyBordersToRange(wsMonitor, 5, 5 + monitorRows.length, 4);
+  for (let r = 6; r <= 5 + monitorRows.length; r++) {
+    for (let c = 0; c < 4; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      styleCell(wsMonitor, addr, { font: { name: FONT_NAME, sz: 9 }, alignment: { wrapText: true, vertical: "top" }, border: BORDER_OBJ });
+    }
+  }
   XLSX.utils.book_append_sheet(wb, wsMonitor, sn4);
 
   // Sheet: Atendimentos
@@ -307,13 +465,33 @@ function generateMonthSheets(
       const prof = profileMap.get(a.profissional_id);
       return [a.data_atendimento, TIPO_ATENDIMENTO_LABELS[a.tipo] || a.tipo, part?.nome_completo || "—", prof?.nome || "—", (a.descricao || "").slice(0, 200), a.encaminhamento || ""];
     });
-    const atendData = [["ATENDIMENTOS TÉCNICOS"], [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum}`], [], ["Data", "Tipo", "Participante", "Profissional", "Descrição", "Encaminhamento"], ...atendRows];
+    // Formatar datas como DD/MM/AA
+    const atendRowsFmt = atendRows.map((row: any[]) => {
+      const d = row[0];
+      if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}/.test(d)) {
+        row = [...row];
+        row[0] = `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}`;
+      }
+      return row;
+    });
+    const atendData = [
+      [TITULO_INSTITUCIONAL],
+      [SUBTITULO_INSTITUCIONAL],
+      ["ATENDIMENTOS TÉCNICOS"],
+      [`MÊS: ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`],
+      [],
+      ["Data", "Tipo", "Participante", "Profissional", "Descrição", "Encaminhamento"],
+      ...atendRowsFmt,
+    ];
     const sn5 = truncSheet(`Atend${suffix}`, usedSheetNames);
     const wsAtend = XLSX.utils.aoa_to_sheet(atendData);
     wsAtend["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 30 }, { wch: 20 }, { wch: 50 }, { wch: 30 }];
     autoFitCols(wsAtend);
-    applyHeaderStyle(wsAtend, 3, 6);
-    applyBorders(wsAtend);
+    applyInstitutionalHeader(wsAtend, 6);
+    styleCell(wsAtend, "A3", STYLE_BOLD, "ATENDIMENTOS TÉCNICOS");
+    styleCell(wsAtend, "A4", { ...STYLE_BOLD, alignment: { horizontal: "left" } });
+    applyHeaderStyle(wsAtend, 5, 6);
+    applyBordersToRange(wsAtend, 5, 5 + atendRowsFmt.length, 6);
     XLSX.utils.book_append_sheet(wb, wsAtend, sn5);
   }
 
@@ -327,7 +505,9 @@ function generateMonthSheets(
       (tp: any) =>
         tp.turma_id === t.id &&
         (!tp.data_entrada || tp.data_entrada < endDate) &&
-        (!tp.data_saida || tp.data_saida >= startDate),
+        (!tp.data_saida || tp.data_saida >= startDate) &&
+        // Ignora vínculos com data_saida anterior à data_entrada (registros inconsistentes)
+        (!tp.data_saida || !tp.data_entrada || tp.data_saida >= tp.data_entrada),
     );
     const windowByPart = new Map<string, { entrada: string | null; saida: string | null }>();
     tpRecords.forEach((tp: any) =>
@@ -356,11 +536,21 @@ function generateMonthSheets(
     const bairroNome = bairroMap.get(t.bairro_id) || "N/I";
     const sheetName = truncSheet(`${(t.nome || "Turma").slice(0, 22)}${suffix}`, usedSheetNames);
 
-    const header1 = [`SCFV — CAIA Medianeira — Matriz de Frequência`];
-    const header2 = [`Turma: ${t.nome} | Bairro: ${bairroNome} | Faixa: ${t.faixa_etaria || "N/I"} | Período: ${t.periodo || "N/I"}`];
-    const header3 = [`Mês: ${MESES_NOMES[mesNum - 1]} / ${anoNum} | Exportado em: ${new Date().toLocaleString("pt-BR")}`];
-    const header4 = [`Legenda: ■ presente · vazio = ausente · cinza = fora do vínculo (não matriculado / já saiu) · D = desligado · BA = busca ativa`];
-    const colHeaders = ["Nº", "Nome do Participante", ...datas.map((d: string) => d.slice(8,10) + "/" + d.slice(5,7))];
+    // Cabeçalhos: 0/1 institucional · 2 título · 3 turma · 4 mês · 5 legenda · 6 vazio · 7 col headers
+    const header1 = [TITULO_INSTITUCIONAL];
+    const header2 = [SUBTITULO_INSTITUCIONAL];
+    const header3 = [`SCFV — CAIA Medianeira — Matriz de Frequência`];
+    const header4 = [
+      `Turma: ${t.nome} | Bairro: ${bairroNome} | Faixa Etária: ${t.faixa_etaria || "N/I"} | Período: ${periodoLabel(t.periodo)}`,
+    ];
+    const header5 = [`MÊS: ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum} | Exportado em: ${new Date().toLocaleString("pt-BR")}`];
+    const header6 = [`Legenda: ■ presente · vazio = ausente · cinza = fora do vínculo (não matriculado / já saiu) · D = desligado · BA = busca ativa`];
+    // Datas formatadas DD/MM/AA
+    const colHeaders = [
+      "Nº",
+      "Nome do Participante",
+      ...datas.map((d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}`),
+    ];
     const rows = tParts.map((p: any, idx: number) => {
       const isDesligado = p.status === "desligado";
       const dataDeslig = p.data_desligamento || null;
@@ -370,13 +560,30 @@ function generateMonthSheets(
       return row;
     });
 
-    const sheetData = [header1, header2, header3, header4, [], colHeaders, ...rows, [], [`Assinatura do Educador: _______________________`]];
+    const sheetData = [
+      header1, header2, header3, header4, header5, header6, [], colHeaders, ...rows, [],
+      [`Assinatura do Educador: _______________________`],
+    ];
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
     ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...datas.map(() => ({ wch: 6 }))];
     autoFitCols(ws);
-    applyHeaderStyle(ws, 5, colHeaders.length);
+    applyInstitutionalHeader(ws, colHeaders.length);
+    // Linha 3 ("Turma: ..."): negrito nos rótulos
+    styleCell(ws, "A4", {
+      font: { name: FONT_NAME, sz: 10, bold: true },
+      alignment: { horizontal: "left", vertical: "center", wrapText: true },
+    });
+    styleCell(ws, "A5", {
+      font: { name: FONT_NAME, sz: 10, bold: true },
+      alignment: { horizontal: "left", vertical: "center" },
+    });
+    styleCell(ws, "A6", {
+      font: { name: FONT_NAME, sz: 9, italic: true, color: { rgb: "555555" } },
+      alignment: { horizontal: "left", wrapText: true },
+    });
+    applyHeaderStyle(ws, 7, colHeaders.length);
 
-    const dataStartRow = 6;
+    const dataStartRow = 8;
     const grayFill = { fgColor: { rgb: "E5E7EB" } };
     tParts.forEach((p: any, pIdx: number) => {
       const excelRow = dataStartRow + pIdx;
