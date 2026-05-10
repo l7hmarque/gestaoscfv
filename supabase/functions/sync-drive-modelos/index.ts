@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
       root: { id: root.id, url: `https://drive.google.com/drive/folders/${root.id}` },
       mesPasta: monthFolderName,
       subfolders: subs,
-      sincronizados: { mensal: null, listas: [], relatorios: [], planejamentos: [], equipe_tecnica: null },
+      sincronizados: { mensal: null, listas: [], relatorios: [], planejamentos: [], equipe_tecnica: null, reo: null },
       erros: [] as { tipo: string; msg: string }[],
     };
 
@@ -234,11 +234,18 @@ Deno.serve(async (req) => {
           const buf = new Uint8Array(await (await fetch(r.url)).arrayBuffer());
           const base = `SysCFV_RelatorioMensal_${periodoLabel}`;
           const target = subs["05_Relatorios_Mensais"].id;
-          const { nome, skip, toTrash } = await resolveNome(base, "xlsx", target, modo);
+          const { nome, skip, toTrash } = await resolveNome(base, "gsheet", target, modo);
           if (!skip) {
             for (const id of toTrash) await trashFile(id);
-            const fid = await uploadBytes(nome, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buf, target);
-            result.sincronizados.mensal = { nome, fileId: fid };
+            const cleanName = nome.replace(/\.gsheet$/, "");
+            const fid = await uploadBytes(
+              cleanName,
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              buf,
+              target,
+              "application/vnd.google-apps.spreadsheet",
+            );
+            result.sincronizados.mensal = { nome: cleanName, fileId: fid, url: `https://docs.google.com/spreadsheets/d/${fid}/edit` };
           } else {
             result.sincronizados.mensal = { nome, skipped: true };
           }
@@ -397,15 +404,71 @@ Deno.serve(async (req) => {
         const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
         const target = subs["07_Roteiros_Equipe_Tecnica"].id;
         const base = `SysCFV_EquipeTecnica_${periodoLabel}`;
-        const { nome, skip, toTrash } = await resolveNome(base, "xlsx", target, modo);
+        const { nome, skip, toTrash } = await resolveNome(base, "gsheet", target, modo);
         if (!skip) {
           for (const id of toTrash) await trashFile(id);
-          const fid = await uploadBytes(nome, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new Uint8Array(buf), target);
-          result.sincronizados.equipe_tecnica = { nome, fileId: fid, atendimentos: (atend || []).length, relatos: (relatos || []).length };
+          const cleanName = nome.replace(/\.gsheet$/, "");
+          const fid = await uploadBytes(
+            cleanName,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            new Uint8Array(buf),
+            target,
+            "application/vnd.google-apps.spreadsheet",
+          );
+          result.sincronizados.equipe_tecnica = { nome: cleanName, fileId: fid, url: `https://docs.google.com/spreadsheets/d/${fid}/edit`, atendimentos: (atend || []).length, relatos: (relatos || []).length };
         } else {
           result.sincronizados.equipe_tecnica = { nome, skipped: true };
         }
       } catch (e: any) { result.erros.push({ tipo: "equipe_tecnica", msg: e.message }); }
+    }
+
+    // ===== TIPO: reo (DOCX → Google Doc + XLSX → Google Sheet) =====
+    if (tipos.includes("reo")) {
+      try {
+        const target = subs["06_REO"].id;
+        // DOCX
+        try {
+          const rDoc = await invokeFn("generate-reo", { mes, ano, format: "docx" }, authHeader);
+          if (rDoc?.url) {
+            const buf = new Uint8Array(await (await fetch(rDoc.url)).arrayBuffer());
+            const base = `SysCFV_REO_${periodoLabel}`;
+            const { nome, skip, toTrash } = await resolveNome(base, "gdoc", target, modo);
+            if (!skip) {
+              for (const id of toTrash) await trashFile(id);
+              const cleanName = nome.replace(/\.gdoc$/, "");
+              const fid = await uploadBytes(
+                cleanName,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                buf,
+                target,
+                "application/vnd.google-apps.document",
+              );
+              result.sincronizados.reo = { ...(result.sincronizados.reo || {}), doc: { nome: cleanName, fileId: fid, url: `https://docs.google.com/document/d/${fid}/edit` } };
+            }
+          }
+        } catch (e: any) { result.erros.push({ tipo: "reo:docx", msg: e.message }); }
+        // XLSX (anexo)
+        try {
+          const rXls = await invokeFn("generate-reo", { mes, ano, format: "xlsx" }, authHeader);
+          if (rXls?.url) {
+            const buf = new Uint8Array(await (await fetch(rXls.url)).arrayBuffer());
+            const base = `SysCFV_REO_Anexo_${periodoLabel}`;
+            const { nome, skip, toTrash } = await resolveNome(base, "gsheet", target, modo);
+            if (!skip) {
+              for (const id of toTrash) await trashFile(id);
+              const cleanName = nome.replace(/\.gsheet$/, "");
+              const fid = await uploadBytes(
+                cleanName,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                buf,
+                target,
+                "application/vnd.google-apps.spreadsheet",
+              );
+              result.sincronizados.reo = { ...(result.sincronizados.reo || {}), sheet: { nome: cleanName, fileId: fid, url: `https://docs.google.com/spreadsheets/d/${fid}/edit` } };
+            }
+          }
+        } catch (e: any) { result.erros.push({ tipo: "reo:xlsx", msg: e.message }); }
+      } catch (e: any) { result.erros.push({ tipo: "reo", msg: e.message }); }
     }
 
     return new Response(JSON.stringify(result), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
