@@ -221,6 +221,9 @@ export default function DashboardAdminTab() {
               {driveResult.sincronizados.equipe_tecnica && (
                 <p>👥 Equipe Técnica: <span className="text-muted-foreground">{driveResult.sincronizados.equipe_tecnica.nome}{driveResult.sincronizados.equipe_tecnica.skipped ? " (pulado)" : ` · ${driveResult.sincronizados.equipe_tecnica.atendimentos || 0} atendimentos, ${driveResult.sincronizados.equipe_tecnica.relatos || 0} relatos`}</span></p>
               )}
+              {(driveResult.sincronizados.reo?.doc || driveResult.sincronizados.reo?.sheet) && (
+                <p>📑 REO: <span className="text-muted-foreground">{[driveResult.sincronizados.reo?.doc?.nome, driveResult.sincronizados.reo?.sheet?.nome].filter(Boolean).join(" + ")}</span></p>
+              )}
               {driveResult.erros?.length > 0 && (
                 <details className="mt-1">
                   <summary className="cursor-pointer text-amber-700 dark:text-amber-400">⚠ {driveResult.erros.length} aviso(s)</summary>
