@@ -243,66 +243,6 @@ export type Database = {
         }
         Relationships: []
       }
-      biblioteca_documentos: {
-        Row: {
-          ano: number
-          created_at: string
-          data_referencia: string
-          educador_id: string | null
-          educador_nome: string | null
-          erro_mensagem: string | null
-          file_size_bytes: number | null
-          gerado_em: string | null
-          id: string
-          mes: number
-          origem_id: string
-          status: string
-          storage_path: string
-          tipo: string
-          titulo: string
-          turma_nome: string | null
-          updated_at: string
-        }
-        Insert: {
-          ano: number
-          created_at?: string
-          data_referencia: string
-          educador_id?: string | null
-          educador_nome?: string | null
-          erro_mensagem?: string | null
-          file_size_bytes?: number | null
-          gerado_em?: string | null
-          id?: string
-          mes: number
-          origem_id: string
-          status?: string
-          storage_path: string
-          tipo: string
-          titulo: string
-          turma_nome?: string | null
-          updated_at?: string
-        }
-        Update: {
-          ano?: number
-          created_at?: string
-          data_referencia?: string
-          educador_id?: string | null
-          educador_nome?: string | null
-          erro_mensagem?: string | null
-          file_size_bytes?: number | null
-          gerado_em?: string | null
-          id?: string
-          mes?: number
-          origem_id?: string
-          status?: string
-          storage_path?: string
-          tipo?: string
-          titulo?: string
-          turma_nome?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
       busca_ativa_registros: {
         Row: {
           atendimento_id: string | null
@@ -3977,10 +3917,6 @@ export type Database = {
           _membros_ids?: string[]
           _nome: string
         }
-        Returns: string
-      }
-      enqueue_biblioteca_doc: {
-        Args: { _origem_id: string; _tipo: string }
         Returns: string
       }
       enqueue_drive_sync: {
