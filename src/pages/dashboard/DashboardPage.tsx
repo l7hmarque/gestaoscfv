@@ -338,36 +338,72 @@ function IndicadoresTab() {
         <KPICard icon={Activity} label="Educadores Ativos" value={data.topEducadores.length} sub="com relatórios" color="hsl(142,50%,40%)" onClick={() => setSelectedIndicator("educadores")} />
       </div>
 
+      {/* Frequência Atual (mês corrente parcial) */}
+      {(() => {
+        const atual = data.presencaMensal.find((m) => m.parcial) ?? data.presencaMensal[data.presencaMensal.length - 1];
+        if (!atual) return null;
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <KPICard
+              icon={CalendarRange}
+              label={`Frequência Atual · ${formatMesExtenso(atual.mes)}${atual.parcial ? " (parcial)" : ""}`}
+              value={`${atual.pct}%`}
+              sub={`${atual.presentes} presenças / ${atual.total} esperadas`}
+              tooltip="Inclui relatórios pedagógicos reais e consolidados de chamada física do mês corrente."
+              color="hsl(142,50%,40%)"
+              onClick={() => setSelectedIndicator("frequencia")}
+            />
+          </div>
+        );
+      })()}
+
       {/* Alerta */}
       <AlertaCard count={data.totalParticipantesAlerta} />
-      {/* Main charts + Recent activities */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <ChartCard title="Frequência Mensal" subtitle="Presentes vs Total · meses parciais marcados com *" className="lg:col-span-3">
+      {/* Frequência Mensal — Tendência (linha) + Comparativo (barras) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ChartCard title="Frequência Mensal — Tendência" subtitle="Últimos meses · % de presença">
           {(ref) => (
             <div className="h-52" ref={ref}>
               {data.presencaMensal.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.presencaMensal.map((m) => ({ ...m, mesLabel: m.parcial ? `${m.mes}*` : m.mes }))} barGap={2}>
+                  <LineChart data={data.presencaMensal.map((m) => ({ ...m, mesLabel: formatMesLabel(m.mes) + (m.parcial ? "*" : "") }))}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,90%)" />
                     <XAxis dataKey="mesLabel" tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} width={35} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                      labelFormatter={(label: string) => label.endsWith("*") ? `${label.replace("*","")} (parcial)` : label}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="total" name="Total" fill="hsl(215,20%,93%)" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="presentes" name="Presentes" fill="hsl(0,58%,56%)" radius={[3, 3, 0, 0]} />
-                  </BarChart>
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} width={35} />
+                    <Tooltip content={<RichTooltip
+                      labelFormatter={(l) => l.endsWith("*") ? `${l.replace("*","")} (parcial)` : l}
+                      valueFormatter={(v) => `${v}%`}
+                    />} />
+                    <Line type="monotone" dataKey="pct" name="% Presença" stroke="hsl(0,58%,56%)" strokeWidth={2.5} dot={{ r: 3, fill: "hsl(0,58%,56%)" }} activeDot={{ r: 5 }} />
+                  </LineChart>
                 </ResponsiveContainer>
               ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados de presença</p>}
             </div>
           )}
         </ChartCard>
 
-        <div className="lg:col-span-2">
-          <AtividadesRecentes data={data} />
-        </div>
+        <ChartCard title="Frequência Mensal — Comparativo" subtitle="Mês atual × mês anterior">
+          {(ref) => {
+            const ult = data.presencaMensal.slice(-2);
+            return (
+              <div className="h-52" ref={ref}>
+                {ult.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={ult.map((m) => ({ ...m, mesLabel: formatMesLabel(m.mes) + (m.parcial ? "*" : "") }))} barGap={4}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,90%)" />
+                      <XAxis dataKey="mesLabel" tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: "hsl(215,14%,46%)" }} axisLine={false} tickLine={false} width={35} allowDecimals={false} />
+                      <Tooltip content={<RichTooltip labelFormatter={(l) => l.endsWith("*") ? `${l.replace("*","")} (parcial)` : l} />} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="total" name="Esperadas" fill="hsl(215,20%,85%)" radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="presentes" name="Presenças" fill="hsl(0,58%,56%)" radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados</p>}
+              </div>
+            );
+          }}
+        </ChartCard>
       </div>
 
       {/* Evolution charts */}
