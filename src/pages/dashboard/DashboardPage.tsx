@@ -14,12 +14,11 @@ import type { DateRange } from "react-day-picker";
 import {
   Users, GraduationCap, FileText, BookOpen, TrendingUp, Percent,
   Activity, ArrowUpRight, ArrowDownRight, CalendarDays, Newspaper,
-  ClipboardCheck, AlertTriangle, Clock, ChevronRight, CalendarIcon, X,
+  ClipboardCheck, AlertTriangle, Clock, CalendarIcon, X, CalendarRange,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, RadarChart, PolarGrid, PolarAngleAxis,
-  PolarRadiusAxis, Radar, Legend,
+  PieChart, Pie, Cell, LineChart, Line, Legend, LabelList,
 } from "recharts";
 import { ChartCopyButton } from "@/components/ChartCopyButton";
 import DashboardProfissionaisTab from "./DashboardProfissionaisTab";
@@ -30,6 +29,9 @@ import { PageHeader } from "@/components/PageHeader";
 import { LayoutDashboard } from "lucide-react";
 import { IndicadorTimelineDrawer } from "@/components/dashboard/IndicadorTimelineDrawer";
 import type { IndicadorId } from "@/lib/indicadorTimelineFetchers";
+import { formatMesLabel, formatMesExtenso } from "@/lib/dateLabels";
+import { eloColor } from "@/lib/eloColors";
+import { RichTooltip } from "@/components/dashboard/RichTooltip";
 
 const COLORS = [
   "hsl(0,58%,56%)", "hsl(210,22%,49%)", "hsl(142,50%,40%)",
@@ -40,11 +42,6 @@ const OBJ_LABELS: Record<string, string> = { alcancado: "Alcançado", parcial: "
 const MONTH_NAMES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
-];
-
-const MES_ABREV = [
-  "jan", "fev", "mar", "abr", "mai", "jun",
-  "jul", "ago", "set", "out", "nov", "dez",
 ];
 
 function toIso(d?: Date | null): string | null {
