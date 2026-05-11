@@ -50,10 +50,22 @@ REGRAS CRÍTICAS:
    - Várias NFs no mesmo PDF → 1 despesa por NF
 2) Para folhas de pagamento, cada funcionário é uma despesa cujo valor é o LÍQUIDO pago, fornecedor é o nome do funcionário, tipo_documento é "folha_pagamento" e tipo_doc_despesa SIT é 6.
 3) Para comprovantes de transferência bancária pareados com holerite, use a DATA DA TRANSFERÊNCIA como data_lancamento e o NR.DOCUMENTO da transferência como numero_doc_pagamento.
-4) Valores no padrão brasileiro (1.019,23) devem virar número decimal com ponto (1019.23).
-5) Datas devem virar YYYY-MM-DD.
-6) Se o documento mencionar "TERMO DE FOMENTO/COLABORAÇÃO Nº XXX/AAAA", extraia para sit_numero_instrumento (XXX) e sit_ano_transferencia (AAAA).
-7) CLASSIFIQUE CADA DESPESA EM UMA RUBRICA OFICIAL escolhendo o código mais ESPECÍFICO da lista abaixo (campo rubrica_codigo). Use apenas códigos exatos desta lista — não invente. Heurísticas: holerite/salário líquido → 3.1.90.11.01; 13º salário → 3.1.90.11.43; férias/abono → 3.1.90.11.45; FGTS → 3.1.90.13.01; INSS/GPS → 3.1.90.13.02; vale-transporte → 3.1.90.49.00; rescisão/indenização trabalhista → 3.1.90.94.00; combustível/posto → 3.3.90.30.01; alimentos/mercado/açougue → 3.3.90.30.07; material pedagógico/esportivo → 3.3.90.30.14; papelaria/expediente → 3.3.90.30.16; produtos de limpeza/higiene → 3.3.90.30.22; uniformes/tecidos → 3.3.90.30.23; aluguel de imóvel → 3.3.90.36.15; serviços domésticos (PF) → 3.3.90.36.26; serviços profissionais (contabilidade, jurídico, consultoria PJ) → 3.3.90.39.05; oficina/manutenção de veículo → 3.3.90.39.19; conta de luz → 3.3.90.39.43; conta de água/esgoto → 3.3.90.39.44; seguros (auto, predial) → 3.3.90.39.69; tarifas bancárias → 3.3.90.39.81; outros serviços PJ não classificados → 3.3.90.39.99; internet/telefonia/telecom → 3.3.90.40.97; tributos (DARF, ISS) genéricos → 3.3.90.47.99; compra de veículo → 4.4.90.52.52; equipamento/mobiliário permanente → 4.4.90.52.99.
+4) PAREAMENTO MULTI-PÁGINA (CRÍTICO — não duplique despesas):
+   - Um PDF pode conter, em páginas DIFERENTES, documentos que compõem UMA MESMA despesa. Antes de listar, percorra todas as páginas e identifique os pareamentos.
+   - Combinações típicas:
+     a) Nota Fiscal (página A) + Boleto/Fatura COM comprovante de pagamento na mesma página (página B) → 1 despesa.
+     b) Nota Fiscal (página A) + Comprovante PIX (página B), SEM boleto/fatura → 1 despesa (pagamento via PIX).
+     c) Boleto/Fatura sozinho COM comprovante na mesma página, SEM NF (ex: contas de consumo, água, luz, internet) → 1 despesa.
+     d) Holerite (página A) + Comprovante de transferência bancária (página B) → 1 despesa por funcionário.
+   - Pareamento: use VALOR (idêntico ou muito próximo), FORNECEDOR/CNPJ, DATA de vencimento × data do pagamento, e número do documento referenciado no boleto/PIX.
+   - Quando houver NF, priorize seus dados (sit_numero_doc_despesa, sit_data_doc_despesa, sit_descricao_item) e use o boleto/comprovante para sit_numero_doc_pagamento, sit_data_emissao_pagamento e sit_tipo_doc_pagamento.
+   - Se o pagamento for PIX: sit_tipo_doc_pagamento = 3 (TED/DOC/PIX). NÃO marque como boleto. sit_tipo_doc_despesa segue a NF (1) quando houver.
+   - Se houver boleto/fatura + comprovante mas NÃO houver NF, sit_tipo_doc_despesa = 5 (Boleto) ou 3 (Fatura), conforme o documento.
+   - NUNCA gere uma despesa só com a NF e outra só com o boleto/comprovante para o mesmo valor — eles são a MESMA despesa.
+5) Valores no padrão brasileiro (1.019,23) devem virar número decimal com ponto (1019.23).
+6) Datas devem virar YYYY-MM-DD.
+7) Se o documento mencionar "TERMO DE FOMENTO/COLABORAÇÃO Nº XXX/AAAA", extraia para sit_numero_instrumento (XXX) e sit_ano_transferencia (AAAA).
+8) CLASSIFIQUE CADA DESPESA EM UMA RUBRICA OFICIAL escolhendo o código mais ESPECÍFICO da lista abaixo (campo rubrica_codigo). Use apenas códigos exatos desta lista — não invente. Heurísticas: holerite/salário líquido → 3.1.90.11.01; 13º salário → 3.1.90.11.43; férias/abono → 3.1.90.11.45; FGTS → 3.1.90.13.01; INSS/GPS → 3.1.90.13.02; vale-transporte → 3.1.90.49.00; rescisão/indenização trabalhista → 3.1.90.94.00; combustível/posto → 3.3.90.30.01; alimentos/mercado/açougue → 3.3.90.30.07; material pedagógico/esportivo → 3.3.90.30.14; papelaria/expediente → 3.3.90.30.16; produtos de limpeza/higiene → 3.3.90.30.22; uniformes/tecidos → 3.3.90.30.23; aluguel de imóvel → 3.3.90.36.15; serviços domésticos (PF) → 3.3.90.36.26; serviços profissionais (contabilidade, jurídico, consultoria PJ) → 3.3.90.39.05; oficina/manutenção de veículo → 3.3.90.39.19; conta de luz → 3.3.90.39.43; conta de água/esgoto → 3.3.90.39.44; seguros (auto, predial) → 3.3.90.39.69; tarifas bancárias → 3.3.90.39.81; outros serviços PJ não classificados → 3.3.90.39.99; internet/telefonia/telecom → 3.3.90.40.97; tributos (DARF, ISS) genéricos → 3.3.90.47.99; compra de veículo → 4.4.90.52.52; equipamento/mobiliário permanente → 4.4.90.52.99.
 
 RUBRICAS OFICIAIS DISPONÍVEIS:
 ${RUBRICAS_TXT}`;
@@ -112,7 +124,7 @@ serve(async (req) => {
     const userContent: any[] = [
       {
         type: "text",
-        text: "Analise TODAS as páginas (sem exceção) deste PDF — pode haver dezenas de lançamentos, NFs, holerites e comprovantes ao longo de várias páginas. Percorra página por página, do início ao fim, e extraia CADA lançamento fiscal individualmente, sem omitir nenhum. Não pare na primeira página. Use a função extract_despesas. Folhas de pagamento têm UMA despesa POR FUNCIONÁRIO; comprovantes bancários pareados com holerites também são UMA despesa por par. Se houver tabelas de lançamentos contábeis/financeiros, gere UMA despesa POR LINHA da tabela.",
+        text: "Analise TODAS as páginas (sem exceção) deste PDF. ANTES de listar despesas, percorra página por página e identifique os pareamentos: NF (página separada) ↔ Boleto/Fatura+Comprovante (mesma página) ou NF ↔ Comprovante PIX (sem boleto). Cada TRANSAÇÃO REAL = 1 despesa, mesmo que a evidência esteja distribuída em 2 ou 3 páginas. NUNCA duplique uma despesa criando uma entrada para a NF e outra para o boleto/comprovante do mesmo valor. Folhas de pagamento têm UMA despesa POR FUNCIONÁRIO; comprovantes bancários pareados com holerites também são UMA despesa por par. Se houver tabelas de lançamentos contábeis/financeiros, gere UMA despesa POR LINHA da tabela. Use a função extract_despesas.",
       },
     ];
 
