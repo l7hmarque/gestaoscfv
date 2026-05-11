@@ -993,7 +993,7 @@ export default function ExportarRelatoriosPage() {
           <DriveCard
             icon={<FileSpreadsheet className="h-4 w-4" />}
             title="1. Relatório Mensal Consolidado"
-            desc="Gera 1 Google Sheet consolidado do mês (resumo, atividades, metas, monitoramento, atendimentos, matrizes de frequência)."
+            desc="Gera 1 Google Sheet consolidado do mês (resumo, atividades, metas, monitoramento, atendimentos). As listas de presença vão em arquivo separado (Card 5)."
             action={
               <div className="flex items-center gap-2 flex-wrap">
                 <Button onClick={gerarMensalDrive} disabled={driveLoading !== null}>
