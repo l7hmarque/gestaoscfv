@@ -20,7 +20,7 @@ const DRIVE_UPLOAD_GW = "https://connector-gateway.lovable.dev/google_drive/uplo
 const DOCS_GW = "https://connector-gateway.lovable.dev/google_docs/v1";
 const SHEETS_GW = "https://connector-gateway.lovable.dev/google_sheets/v4";
 
-const MAX_JOBS_PER_RUN = 6;
+const MAX_JOBS_PER_RUN = 3;
 const MAX_TENTATIVAS = 5;
 
 // =============================================================================
@@ -1508,7 +1508,9 @@ Deno.serve(async (req) => {
       EdgeRuntime.waitUntil((async () => {
         // Single-flight: tenta adquirir o lock. Se outro worker está rodando
         // (lock < 5 min), aborta esta execução para não duplicar carga na cota Docs.
-        const lockCutoff = new Date(Date.now() - 5 * 60_000).toISOString();
+        // Cutoff curto: se o worker anterior morreu (CPU Time exceeded etc.),
+        // o lock fica preso. 90s é suficiente para qualquer execução normal terminar.
+        const lockCutoff = new Date(Date.now() - 90_000).toISOString();
         const { data: lockRow } = await supabase
           .from("drive_sync_state")
           .update({ is_running: true, started_at: new Date().toISOString() })
