@@ -1449,7 +1449,25 @@ Deno.serve(async (req) => {
     // @ts-ignore EdgeRuntime exists in supabase edge runtime
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
       // @ts-ignore
-      EdgeRuntime.waitUntil(processQueue().catch((e) => console.error("bg processQueue", e)));
+      EdgeRuntime.waitUntil((async () => {
+        try {
+          await processQueue();
+          // Se ainda há jobs pendentes, encadeia uma nova invocação para drenar a fila.
+          const { count } = await supabase
+            .from("drive_sync_queue")
+            .select("id", { count: "exact", head: true })
+            .in("status", ["pendente", "erro"])
+            .lt("tentativas", MAX_TENTATIVAS);
+          if ((count || 0) > 0) {
+            await new Promise((r) => setTimeout(r, 4000));
+            await fetch(`${SUPABASE_URL}/functions/v1/drive-sync-worker`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+              body: JSON.stringify({ chained: true }),
+            }).catch((e) => console.warn("chain invoke", e));
+          }
+        } catch (e) { console.error("bg processQueue", e); }
+      })());
       return new Response(JSON.stringify({ ok: true, queued: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
