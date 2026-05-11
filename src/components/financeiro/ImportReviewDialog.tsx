@@ -38,6 +38,12 @@ export interface ReviewDocFile {
   extractedList: any[];
 }
 
+export interface RubricaOption {
+  id: string;
+  codigo: string;
+  descricao: string;
+}
+
 interface ImportReviewDialogProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -45,6 +51,7 @@ interface ImportReviewDialogProps {
   mesRef: string;
   saving: boolean;
   isCoordenacao: boolean;
+  categorias?: RubricaOption[];
   onUpdateField: (docIdx: number, despIdx: number, field: string, value: any) => void;
   onRemoveDespesa: (docIdx: number, despIdx: number) => void;
   onConfirm: (opts: { allowPendentes: boolean }) => Promise<void> | void;
@@ -84,6 +91,7 @@ export default function ImportReviewDialog({
   mesRef,
   saving,
   isCoordenacao,
+  categorias = [],
   onUpdateField,
   onRemoveDespesa,
   onConfirm,
@@ -91,6 +99,12 @@ export default function ImportReviewDialog({
   const [filterPendentes, setFilterPendentes] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [allowPendentes, setAllowPendentes] = useState(false);
+
+  const rubricaToCategoriaId = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const c of categorias) m[c.codigo.trim()] = c.id;
+    return m;
+  }, [categorias]);
 
   const validated = useMemo(
     () =>
@@ -101,10 +115,10 @@ export default function ImportReviewDialog({
         items: d.extractedList.map((e, despIdx) => ({
           despIdx,
           original: e,
-          ...validateDespesa(e, { mesRef, storageUrl: d.storageUrl }),
+          ...validateDespesa(e, { mesRef, storageUrl: d.storageUrl, rubricaToCategoriaId }),
         })),
       })),
-    [docs, mesRef]
+    [docs, mesRef, rubricaToCategoriaId]
   );
 
   const totals = useMemo(() => {
@@ -397,6 +411,33 @@ export default function ImportReviewDialog({
                                       onUpdateField(d.docIdx, it.despIdx, "data_lancamento", e.target.value)
                                     }
                                   />
+                                </div>
+                                <div className="col-span-2 md:col-span-3">
+                                  <Label className="text-[10px]">
+                                    Rubrica (SIT/TCE-PR){" "}
+                                    {original.rubrica_codigo && rubricaToCategoriaId[String(original.rubrica_codigo).trim()] ? (
+                                      <span className="text-emerald-600">— sugerida pela IA</span>
+                                    ) : (
+                                      <span className="text-amber-700">— defina manualmente</span>
+                                    )}
+                                  </Label>
+                                  <Select
+                                    value={original.rubrica_codigo || ""}
+                                    onValueChange={(v) =>
+                                      onUpdateField(d.docIdx, it.despIdx, "rubrica_codigo", v)
+                                    }
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder="Selecione a rubrica" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {categorias.map((c) => (
+                                        <SelectItem key={c.id} value={c.codigo} className="text-xs">
+                                          {c.codigo} — {c.descricao}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                 </div>
                                 <div>
                                   <Label className="text-[10px]">

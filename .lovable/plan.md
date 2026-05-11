@@ -1,48 +1,83 @@
 ## Objetivo
 
-Tornar a classificação de **Busca Ativa (BA)** exclusivamente **manual**, removendo toda lógica automática que hoje promove ou rebaixa participantes para esse status.
+Adotar as **28 rubricas oficiais** da planilha como única lista do `categorias_financeiras` e usá-las em todas as funcionalidades do módulo financeiro — incluindo a sugestão automática pela IA na digitalização de lançamentos.
 
-## O que muda
+## 1. Banco de Dados (migration)
 
-Hoje, a função `recalcular_busca_ativa()` (criada na migration `20260430183028`) roda automaticamente e:
+- Apagar as 10 categorias atuais (não há despesas/orçamentos vinculados — verificado: 0 registros com `categoria_id`).
+- Inserir as 28 rubricas exatamente como na planilha:
 
-- Marca como `busca_ativa` quem tem 3 faltas consecutivas OU mais de 14 dias sem presença.
-- Reverte para `ativo` quem volta a ter presença recente.
+```text
+3.1.90.11.01  VENCIMENTOS E SALÁRIOS
+3.1.90.11.43  13º SALÁRIO
+3.1.90.11.45  FÉRIAS - ABONO CONSTITUCIONAL
+3.1.90.13.01  FGTS
+3.1.90.13.02  CONTRIBUIÇÕES PREVIDENCIÁRIAS - INSS
+3.1.90.16.00  OUTRAS DESPESAS VARIÁVEIS - PESSOAL CIVIL
+3.1.90.47.99  OUTRAS OBRIGAÇÕES TRIBUTÁRIAS E CONTRIBUTIVAS
+3.1.90.49.00  AUXÍLIO-TRANSPORTE
+3.1.90.94.00  INDENIZAÇÕES E RESTITUIÇÕES TRABALHISTAS
+3.3.90.30.01  COMBUSTÍVEIS E LUBRIFICANTES AUTOMOTIVOS
+3.3.90.30.07  GÊNEROS DE ALIMENTAÇÃO
+3.3.90.30.14  MATERIAL EDUCATIVO E ESPORTIVO
+3.3.90.30.16  MATERIAL DE EXPEDIENTE
+3.3.90.30.22  MATERIAL DE LIMPEZA E PRODUTOS DE HIGIENIZAÇÃO
+3.3.90.30.23  UNIFORMES, TECIDOS E AVIAMENTOS
+3.3.90.36.15  LOCAÇÃO DE IMÓVEIS
+3.3.90.36.26  SERVIÇOS DOMÉSTICOS
+3.3.90.39.05  SERVIÇOS TÉCNICOS PROFISSIONAIS
+3.3.90.39.19  MANUTENÇÃO E CONSERVAÇÃO DE VEÍCULOS
+3.3.90.39.43  SERVIÇOS DE ENERGIA ELÉTRICA
+3.3.90.39.44  SERVIÇOS DE ÁGUA E ESGOTO
+3.3.90.39.69  SEGUROS EM GERAL
+3.3.90.39.81  SERVIÇOS BANCÁRIOS
+3.3.90.39.99  OUTROS SERVIÇOS DE TERCEIROS, PESSOA JURÍDICA
+3.3.90.40.97  DESPESAS DE TELEPROCESSAMENTO
+3.3.90.47.99  OUTRAS OBRIGAÇÕES TRIBUTÁRIAS E CONTRIBUTIVAS
+4.4.90.52.52  VEÍCULOS DE TRAÇÃO MECÂNICA
+4.4.90.52.99  OUTROS MATERIAIS PERMANENTES
+```
 
-Além disso, o `PresencaPage.tsx` também faz auto-reversão de `busca_ativa → ativo` ao salvar presença, e cria registros automáticos em `busca_ativa_registros`.
+- Garantir índice único em `codigo` (já existe; continuar).
 
-Tudo isso será desativado. A classificação BA passará a depender 100% de ação manual da equipe técnica/coordenação (via tela do participante, painel de busca ativa, etc.).
+## 2. Constante centralizada
 
-## Implementação
+- Criar `src/lib/rubricasOficiais.ts` exportando o array `[{codigo, descricao}]` com as 28 entradas — usado como fonte da verdade para seed, validação e prompt da IA.
 
-### 1. Migration (banco)
+## 3. Detecção por IA (`detect-despesa-from-doc`)
 
-- Remover/desabilitar qualquer **trigger** ou **cron job** (`pg_cron`) que chame `recalcular_busca_ativa()`.
-- Substituir o corpo da função `recalcular_busca_ativa()` por um `no-op` (retorna 0) — mantém compatibilidade caso algum código ainda invoque, mas não altera mais status.
-- Manter as tabelas `busca_ativa_registros` e os campos `status` em `participantes` intactos (sem perda de dados).
+- No `SYSTEM_PROMPT`, adicionar a lista completa das 28 rubricas (código + descrição) e instrução para escolher **a mais específica** com base na natureza do lançamento (ex.: holerite → `3.1.90.11.01`; conta de luz → `3.3.90.39.43`; combustível → `3.3.90.30.01`; INSS → `3.1.90.13.02`; FGTS → `3.1.90.13.01`).
+- Adicionar ao `PARAMS_SCHEMA` o campo:
+  - `rubrica_codigo` (string, enum com os 28 códigos) — código sugerido.
+- Após receber a resposta da IA, no front (`ImportReviewDialog`), resolver o `rubrica_codigo` → `categoria_id` por lookup local e pré-selecionar no formulário; usuário pode trocar.
 
-### 2. Frontend — `src/pages/presenca/PresencaPage.tsx`
+## 4. Front-end — onde aparecem os selects e exibições
 
-- Remover o bloco "Auto-revert busca_ativa → ativo" (linhas ~115-130) que altera status e insere registros automáticos ao salvar presença.
+Pontos já mapeados que continuarão funcionando após a substituição (somente o conteúdo da lista muda):
 
-### 3. Verificação
+- `FinanceiroPage.tsx`: cadastro/edição de Despesa, Estorno, aba Categorias e dashboards por rubrica.
+- `OrcamentosTab.tsx`: criação e edição de Orçamento, exportação XLSX e Mapa Comparativo.
+- `BancoDadosPage.tsx`: tabelas de despesas/estornos/orçamentos com nome da categoria.
+- `ImportReviewDialog.tsx`: aceitar `rubrica_codigo` vindo da IA e pré-selecionar a categoria correspondente.
 
-- Buscar no código outras chamadas a `recalcular_busca_ativa` ou auto-mudanças de `status = 'busca_ativa'` (edge functions, hooks) e remover/neutralizar.
+Aba **Categorias** ganha uma nota informativa: "Lista oficial conforme rubricas SIT/TCE-PR — manter padronizado."
 
-## Não muda
+## 5. Relatórios e exportações
 
-- Botões manuais para marcar/desmarcar BA na ficha do participante e no painel de Busca Ativa continuam funcionando normalmente.
-- Histórico já existente em `busca_ativa_registros` é preservado.
-- Marcador `(BA)` em listagens e relatórios continua refletindo o status atual (apenas a fonte do status muda para 100% manual).
+- `useOrcamentoExport`, `useRelatorioGestao`, `ExportarRelatoriosPage`, `generate-rca`, `generate-reo` e `audit-financeiro`: nenhuma mudança estrutural — eles já leem `categorias_financeiras` dinamicamente. Apenas validar que as colunas/labels acomodam código de 5 segmentos (ex.: `3.3.90.30.22`).
 
-## Confirmação necessária
+## 6. Memória
 
-Posso prosseguir com:
+Atualizar `mem://constraints/formato-exportacao-sit` (ou criar `mem://funcionalidades/financeiro-rubricas-oficiais`) registrando que a lista de 28 rubricas é a oficial e que IA deve sugeri-las automaticamente.
 
-1. Desligar cron/trigger automáticos
-2. Neutralizar a função `recalcular_busca_ativa()`
-3. Remover auto-reversão no `PresencaPage`
+## Detalhes técnicos
 
-`Remover (BA) atuais das listas de chamada e listas de presenca.`
+- Migration: `DELETE FROM categorias_financeiras;` seguido de `INSERT` em lote com os 28 pares `(codigo, descricao)`. `valor_previsto` permanece `0` (preenchido depois conforme orçamento anual).
+- Edge function `detect-despesa-from-doc` recebe a lista hardcoded — mais barato que consultar o banco a cada chamada e mantém prompt determinístico.
+- Lookup no `ImportReviewDialog` usa `categorias.find(c => c.codigo.trim() === rubrica_codigo.trim())`.
 
-Quer manter algum dos dois critérios automáticos ativos como sugestão (sem alterar status, só sinalizando na UI)? Ou remoção total?
+## Não incluído
+
+- Não cria hierarquia pai/filho.
+- Não altera o catálogo de fornecedores nem os campos SIT já existentes (`sit_codigo_tipo_despesa` etc.).
+- Não mexe em despesas já cadastradas (todas estão sem categoria).
