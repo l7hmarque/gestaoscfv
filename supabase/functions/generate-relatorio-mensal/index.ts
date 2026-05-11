@@ -822,7 +822,12 @@ Deno.serve(async (req: Request) => {
       if (uploadError) throw uploadError;
       const { data: signed } = await supabaseAdmin.storage.from("documentos").createSignedUrl(fileName, 3600);
       if (!signed?.signedUrl) throw new Error("Failed to create signed URL");
-      return new Response(JSON.stringify({ url: signed.signedUrl, fileName }), {
+      // Espelha no Google Drive (mesma pasta mensal usada por sync-drive-modelos).
+      // Para o modo "completo" usamos o mês mais recente do range como pasta-alvo.
+      const lastMes = parseInt(body.mes_fim || body.mes || "1");
+      const lastAno = parseInt(body.ano_fim || body.ano || String(new Date().getFullYear()));
+      const drive = await maybePushToDrive(buf, fileName.split("/").pop()!.replace(/\.xlsx$/i, ""), lastMes, lastAno);
+      return new Response(JSON.stringify({ url: signed.signedUrl, fileName, gsheet_url: drive?.url || null, gsheet_id: drive?.id || null }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -843,7 +848,8 @@ Deno.serve(async (req: Request) => {
     const { data: signed } = await supabaseAdmin.storage.from("documentos").createSignedUrl(fileName, 3600);
     if (!signed?.signedUrl) throw new Error("Failed to create signed URL");
 
-    return new Response(JSON.stringify({ url: signed.signedUrl, fileName }), {
+    const drive = await maybePushToDrive(buf, fileName.split("/").pop()!.replace(/\.xlsx$/i, ""), mesNum, anoNum);
+    return new Response(JSON.stringify({ url: signed.signedUrl, fileName, gsheet_url: drive?.url || null, gsheet_id: drive?.id || null }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
