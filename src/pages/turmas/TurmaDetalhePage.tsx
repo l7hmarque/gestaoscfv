@@ -294,6 +294,26 @@ const TurmaDetalhePage = () => {
     }
   };
 
+  const abrirFrequenciaPreenchida = async () => {
+    if (!turma) return;
+    setGsheetLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-lista-frequencia-gsheet", {
+        body: { turma_id: turma.id, mes: parseInt(listaMes), ano: parseInt(listaAno) },
+      });
+      if (error) throw error;
+      const url = (data as any)?.url;
+      if (!url) throw new Error("URL não retornada");
+      window.open(url, "_blank", "noopener,noreferrer");
+      toast.success("Lista de Frequência preenchida gerada no Drive!");
+      setListaOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao gerar Lista de Frequência");
+    } finally {
+      setGsheetLoading(false);
+    }
+  };
+
   const memberIds = new Set(members.map((m) => m.participante_id));
   const availableParticipantes = allParticipantes.filter((p) => !memberIds.has(p.id) && p.nome_completo.toLowerCase().includes(addSearch.toLowerCase()));
 
