@@ -65,11 +65,15 @@ function calcAge(dob: string): number {
 }
 
 async function fetchAll(supabase: any, table: string, select = "*") {
+  return fetchAllQuery(supabase.from(table).select(select));
+}
+
+async function fetchAllQuery(query: any) {
   const allRows: any[] = [];
   let from = 0;
   const pageSize = 1000;
   while (true) {
-    const { data, error } = await supabase.from(table).select(select).range(from, from + pageSize - 1);
+    const { data, error } = await query.range(from, from + pageSize - 1);
     if (error) throw error;
     allRows.push(...(data || []));
     if (!data || data.length < pageSize) break;
