@@ -815,7 +815,9 @@ Deno.serve(async (req: Request) => {
 
     // ── ANEXO I - REGISTROS FOTOGRÁFICOS (DOCX only) ──
     const relIdsMes = new Set(relsMes.map((r: any) => r.id));
-    const fotosMes = relatorioFotos.filter((f: any) => relIdsMes.has(f.relatorio_id));
+    const fotosMes = incluirFotos
+      ? relatorioFotos.filter((f: any) => relIdsMes.has(f.relatorio_id)).slice(0, maxFotos)
+      : [];
 
     const photoChildren: (Paragraph | DocxTable)[] = [];
     if (fotosMes.length > 0) {
@@ -885,7 +887,7 @@ Deno.serve(async (req: Request) => {
 
     const tableWidth = 9360;
 
-    if (turmasAtivas.length > 0) {
+    if (incluirListasPresenca && turmasAtivas.length > 0) {
       presencaChildren.push(new Paragraph({
         spacing: { before: 300, after: 300 },
         alignment: AlignmentType.CENTER,
