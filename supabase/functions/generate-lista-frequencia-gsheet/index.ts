@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
     // 1. Turma
     const { data: turma, error: tErr } = await svc
       .from("turmas")
-      .select("id, nome, periodo, faixa_etaria, profiles(nome), bairros(nome)")
+      .select("id, nome, periodo, faixa_etaria, dias_semana, profiles(nome), bairros(nome)")
       .eq("id", turma_id)
       .maybeSingle();
     if (tErr || !turma) throw new Error(tErr?.message || "Turma não encontrada");
@@ -186,14 +186,18 @@ Deno.serve(async (req) => {
       ? await svc.from("relatorio_presenca").select("relatorio_id, participante_id, presente, justificativa").in("relatorio_id", relIds)
       : { data: [] as any[] };
 
-    // datas únicas presentes em algum relatório (DD/MM)
-    const datesSet = new Set<string>();
-    (relatorios || []).forEach((r: any) => { if (r.data) datesSet.add(r.data); });
-    const datesISO = [...datesSet].sort();
+    // Datas canônicas vêm de turma.dias_semana — todas as datas planejadas do mês.
+    // Se a turma não tem dias_semana cadastrados, cai no fallback: datas que tiveram relatório.
+    const diasSemana: string[] = (turma as any).dias_semana || [];
+    let datesISO = diasSemana.length ? diasDoMesPorSemana(anoNum, mesNum, diasSemana) : [];
+    if (!datesISO.length) {
+      const datesSet = new Set<string>();
+      (relatorios || []).forEach((r: any) => { if (r.data) datesSet.add(r.data); });
+      datesISO = [...datesSet].sort();
+    }
     const datas = datesISO.map(d => `${d.slice(8,10)}/${d.slice(5,7)}`);
-
     if (datas.length === 0) {
-      return new Response(JSON.stringify({ error: "Sem relatórios cadastrados para esta turma neste mês." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "Turma sem dias_semana cadastrados e sem relatórios neste mês." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // index: por participante -> por data ISO -> {presente, justificativa}
