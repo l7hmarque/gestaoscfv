@@ -20,11 +20,33 @@ const DRIVE_UPLOAD_GW = "https://connector-gateway.lovable.dev/google_drive/uplo
 const DOCS_GW = "https://connector-gateway.lovable.dev/google_docs/v1";
 const SHEETS_GW = "https://connector-gateway.lovable.dev/google_sheets/v4";
 
-const MAX_JOBS_PER_RUN = 2;
+const MAX_JOBS_PER_RUN = 6;
 const MAX_TENTATIVAS = 5;
+
+// =============================================================================
+// Throttle global de escritas Google Docs (cota: 60 writes/min/usuário).
+// Mantemos um teto seguro (~50/min) e enfileiramos as chamadas para evitar 429.
+// =============================================================================
+const WRITE_RATE_PER_MIN = 50;
+const WRITE_INTERVAL_MS = Math.ceil(60_000 / WRITE_RATE_PER_MIN); // ~1200ms
+let _lastWriteAt = 0;
+let _writeChain: Promise<void> = Promise.resolve();
+function scheduleWrite(): Promise<void> {
+  _writeChain = _writeChain.then(async () => {
+    const now = Date.now();
+    const wait = Math.max(0, _lastWriteAt + WRITE_INTERVAL_MS - now);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    _lastWriteAt = Date.now();
+  });
+  return _writeChain;
+}
 
 // Retry helper para chamadas Google: trata 429/503/5xx com backoff exponencial.
 async function fetchGoogle(url: string, init: RequestInit, label: string, maxRetries = 4): Promise<Response> {
+  // Aplica throttle apenas em escritas (write requests contam para a cota).
+  const method = (init?.method || "GET").toUpperCase();
+  const isWrite = method !== "GET" && method !== "HEAD";
+  if (isWrite) await scheduleWrite();
   let attempt = 0;
   let lastStatus = 0;
   let lastBody = "";
@@ -143,6 +165,36 @@ async function colorCellByToken(docId: string, token: string, nota: number) {
       return;
     }
   }
+}
+
+// Colore várias células em UMA única chamada de batchUpdate (1 write em vez de N).
+async function colorCellsBatched(docId: string, items: Array<[string, number | null | undefined]>) {
+  const valid = items.filter(([, v]) => v != null) as Array<[string, number]>;
+  if (!valid.length) return;
+  const doc = await getDocFull(docId);
+  const reqs: any[] = [];
+  for (const [token, nota] of valid) {
+    const n = Math.max(1, Math.min(5, Math.round(Number(nota))));
+    const color = LIKERT_RGB[n];
+    if (!color) continue;
+    for (const r of walkRuns(doc.body.content)) {
+      if (r.tableStartLocation !== undefined && r.content.includes(token)) {
+        reqs.push({
+          updateTableCellStyle: {
+            tableCellStyle: { backgroundColor: { color: { rgbColor: color } } },
+            fields: "backgroundColor",
+            tableRange: {
+              tableCellLocation: { tableStartLocation: { index: r.tableStartLocation }, rowIndex: r.rowIndex, columnIndex: r.columnIndex },
+              rowSpan: 1,
+              columnSpan: 1,
+            },
+          },
+        });
+        break;
+      }
+    }
+  }
+  if (reqs.length) await docsBatch(docId, reqs).catch((e) => console.warn("colorCellsBatched", e.message));
 }
 
 async function makeFilePublic(fileId: string) {
@@ -321,18 +373,15 @@ async function fillRelatorioTemplate(docId: string, ctx: {
 
   await replacePlaceholders(docId, map);
 
-  // Cores nas células de competência
-  const compTokens: [string, number | null][] = [
+  // Cores nas células de competência (1 batch único — economia de cota Docs).
+  await colorCellsBatched(docId, [
     ["INICIATIVA", rel.iniciativa],
     ["AUTONOMIA", rel.autonomia],
     ["COLABORAÇÃO", rel.colaboracao],
     ["COMUNICAÇÃO", rel.comunicacao],
     ["RESPEITO MÚTUO", rel.respeito_mutuo],
     ["SCORE ELO", rel.score_elo],
-  ];
-  for (const [tok, val] of compTokens) {
-    if (val != null) await colorCellByToken(docId, tok, Number(val));
-  }
+  ]);
 
   // Fotos (até 5 placeholders)
   for (let i = 0; i < 5; i++) {
@@ -1321,6 +1370,13 @@ async function fixTemplateFotos(): Promise<{ docs: number; tabelasRemovidas: num
 }
 
 async function processQueue(): Promise<{ processed: number; errors: number }> {
+  // Reset jobs travados em "processando" há mais de 5 min (worker anterior morreu).
+  await supabase
+    .from("drive_sync_queue")
+    .update({ status: "pendente" })
+    .eq("status", "processando")
+    .lt("updated_at", new Date(Date.now() - 5 * 60_000).toISOString());
+
   const { data: jobs, error } = await supabase
     .from("drive_sync_queue")
     .select("*")
@@ -1450,6 +1506,20 @@ Deno.serve(async (req) => {
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
       // @ts-ignore
       EdgeRuntime.waitUntil((async () => {
+        // Single-flight: tenta adquirir o lock. Se outro worker está rodando
+        // (lock < 5 min), aborta esta execução para não duplicar carga na cota Docs.
+        const lockCutoff = new Date(Date.now() - 5 * 60_000).toISOString();
+        const { data: lockRow } = await supabase
+          .from("drive_sync_state")
+          .update({ is_running: true, started_at: new Date().toISOString() })
+          .eq("id", 1)
+          .or(`is_running.eq.false,started_at.lt.${lockCutoff}`)
+          .select("id")
+          .maybeSingle();
+        if (!lockRow) {
+          console.log("worker: outra instância já está rodando, abortando");
+          return;
+        }
         try {
           await processQueue();
           // Se ainda há jobs pendentes, encadeia uma nova invocação para drenar a fila.
@@ -1458,6 +1528,8 @@ Deno.serve(async (req) => {
             .select("id", { count: "exact", head: true })
             .in("status", ["pendente", "erro"])
             .lt("tentativas", MAX_TENTATIVAS);
+          // Libera o lock ANTES de encadear, para a próxima invocação poder adquirir.
+          await supabase.from("drive_sync_state").update({ is_running: false }).eq("id", 1);
           if ((count || 0) > 0) {
             await new Promise((r) => setTimeout(r, 4000));
             await fetch(`${SUPABASE_URL}/functions/v1/drive-sync-worker`, {
@@ -1466,7 +1538,10 @@ Deno.serve(async (req) => {
               body: JSON.stringify({ chained: true }),
             }).catch((e) => console.warn("chain invoke", e));
           }
-        } catch (e) { console.error("bg processQueue", e); }
+        } catch (e) {
+          console.error("bg processQueue", e);
+          await supabase.from("drive_sync_state").update({ is_running: false }).eq("id", 1).catch(() => {});
+        }
       })());
       return new Response(JSON.stringify({ ok: true, queued: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
