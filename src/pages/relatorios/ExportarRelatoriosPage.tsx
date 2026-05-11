@@ -899,7 +899,8 @@ export default function ExportarRelatoriosPage() {
     setDriveProgress({ done: 0, total: 0 });
     try {
       const tabela = tipo === "relatorio" ? "relatorios_atividade" : "planejamentos";
-      const { data: items, error } = await supabase.from(tabela).select("id").gte("data", dataIniMes).lt("data", proxMesIso);
+      const dateCol = tipo === "relatorio" ? "data" : "data_aplicacao";
+      const { data: items, error } = await supabase.from(tabela).select("id").gte(dateCol, dataIniMes).lt(dateCol, proxMesIso);
       if (error) throw error;
       const ids = (items || []).map((r: any) => r.id);
       setDriveProgress({ done: 0, total: ids.length });
