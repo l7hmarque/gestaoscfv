@@ -20,7 +20,7 @@ const DRIVE_UPLOAD_GW = "https://connector-gateway.lovable.dev/google_drive/uplo
 const DOCS_GW = "https://connector-gateway.lovable.dev/google_docs/v1";
 const SHEETS_GW = "https://connector-gateway.lovable.dev/google_sheets/v4";
 
-const MAX_JOBS_PER_RUN = 8;
+const MAX_JOBS_PER_RUN = 3;
 const MAX_TENTATIVAS = 5;
 
 // =============================================================================
@@ -1423,6 +1423,15 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+    }
+    // Processa em background para evitar IDLE_TIMEOUT (150s) na invocação manual.
+    // @ts-ignore EdgeRuntime exists in supabase edge runtime
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(processQueue().catch((e) => console.error("bg processQueue", e)));
+      return new Response(JSON.stringify({ ok: true, queued: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
     const result = await processQueue();
     return new Response(JSON.stringify({ ok: true, ...result }), {
