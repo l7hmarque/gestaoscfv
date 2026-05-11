@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { FileSpreadsheet, Download, FileText, Loader2, Calendar, ClipboardList, Users } from "lucide-react";
+import { FileSpreadsheet, Download, FileText, Loader2, Calendar, ClipboardList, Users, UploadCloud, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
@@ -873,6 +873,55 @@ export default function ExportarRelatoriosPage() {
   };
 
   const anyLoading = loadingRelMensal || loadingPC || loadingAnual || loadingAtividades || loadingAtendimentos || loadingGestao;
+
+  // ===== Drive (Padrão) — lotes mensais via drive-sync-worker =====
+  const [driveLoading, setDriveLoading] = useState<null | "mensal" | "rel" | "plan">(null);
+  const [driveProgress, setDriveProgress] = useState<{ done: number; total: number } | null>(null);
+  const [mensalDriveUrl, setMensalDriveUrl] = useState<string | null>(null);
+  const dataIniMes = `${ano}-${MESES[mesNum - 1]}-01`;
+  const proxMesIso = mesNum === 12 ? `${parseInt(ano) + 1}-01-01` : `${ano}-${MESES[mesNum]}-01`;
+
+  const gerarMensalDrive = async () => {
+    setDriveLoading("mensal"); setMensalDriveUrl(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-relatorio-mensal", { body: { mes: mesNum, ano: parseInt(ano) } });
+      if (error) throw error;
+      if (data?.gsheet_url) { setMensalDriveUrl(data.gsheet_url); toast.success("Relatório consolidado no Drive!"); }
+      else toast.success("Relatório gerado (Drive indisponível)");
+    } catch (e: any) { toast.error("Erro: " + (e.message || "")); }
+    finally { setDriveLoading(null); }
+  };
+
+  const enfileirarLote = async (tipo: "relatorio" | "planejamento") => {
+    setDriveLoading(tipo === "relatorio" ? "rel" : "plan");
+    setDriveProgress({ done: 0, total: 0 });
+    try {
+      const tabela = tipo === "relatorio" ? "relatorios_atividade" : "planejamentos";
+      const { data: items, error } = await supabase.from(tabela).select("id").gte("data", dataIniMes).lt("data", proxMesIso);
+      if (error) throw error;
+      const ids = (items || []).map((r: any) => r.id);
+      setDriveProgress({ done: 0, total: ids.length });
+      if (!ids.length) { toast.info("Nenhum item no mês."); return; }
+      let done = 0;
+      for (const id of ids) {
+        await supabase.rpc("enqueue_drive_sync", { _tipo: tipo, _origem_id: id });
+        done++; setDriveProgress({ done, total: ids.length });
+      }
+      await supabase.functions.invoke("drive-sync-worker", { body: { manual: true } }).catch(() => {});
+      toast.success(`${ids.length} ${tipo}(s) enfileirados. Verifique o Drive em alguns minutos.`);
+    } catch (e: any) { toast.error("Erro: " + (e.message || "")); }
+    finally { setDriveLoading(null); setTimeout(() => setDriveProgress(null), 4000); }
+  };
+
+  const DriveCard = ({ icon, title, desc, action, disabled, badge }: any) => (
+    <Card>
+      <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2">{icon}{title}{badge}</CardTitle></CardHeader>
+      <CardContent className="space-y-2">
+        <p className="text-xs text-muted-foreground">{desc}</p>
+        {action}
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="space-y-6">
