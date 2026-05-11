@@ -278,7 +278,6 @@ Deno.serve(async (req) => {
       if (m.desligado) runs = [{ text: m.nome + " " }, { text: `(D${m.data_desligamento ? " " + m.data_desligamento : ""})`, bold: true }];
       else if (m.transferido) runs = [{ text: m.nome + " " }, { text: `(T${m.data_transferencia ? " " + m.data_transferencia : ""})`, bold: true }];
       else if (m.busca_ativa) runs = [{ text: m.nome + " " }, { text: "(BA)", bold: true }];
-      else if (m.novo) runs = [{ text: m.nome + " " }, { text: `(N${m.iniciou_em ? " " + m.iniciou_em : ""})`, bold: true }];
       else runs = [{ text: m.nome }];
 
       const arr: any[] = [plainCell(i + 1, numFmt), richCell(runs, cellFmt)];
@@ -312,8 +311,7 @@ Deno.serve(async (req) => {
         { text: "J", bold: true }, { text: " = Ausência justificada (justificativa em comentário da célula)  ·  " },
         { text: "(BA)", bold: true }, { text: " = Em busca ativa  ·  " },
         { text: "(D)", bold: true }, { text: " = Desligado  ·  " },
-        { text: "(T)", bold: true }, { text: " = Transferido  ·  " },
-        { text: "(N)", bold: true }, { text: " = Novo no mês" },
+        { text: "(T)", bold: true }, { text: " = Transferido" },
       ];
       const arr: any[] = [plainCell("", legendFmt), richCell(legendRuns, legendFmt)];
       for (let j = 2; j < totalCols; j++) arr.push(plainCell("", legendFmt));
@@ -360,7 +358,6 @@ Deno.serve(async (req) => {
     requests.push({ mergeCells: { range: { sheetId: SHEET_ID, startRowIndex: legendRowIdx, endRowIndex: legendRowIdx + 1, startColumnIndex: 1, endColumnIndex: totalCols }, mergeType: "MERGE_ALL" } });
     requests.push({ updateDimensionProperties: { range: { sheetId: SHEET_ID, dimension: "COLUMNS", startIndex: 0, endIndex: 1 }, properties: { pixelSize: 40 }, fields: "pixelSize" } });
     requests.push({ autoResizeDimensions: { dimensions: { sheetId: SHEET_ID, dimension: "COLUMNS", startIndex: 1, endIndex: totalCols } } });
-    requests.push({ updateSheetProperties: { properties: { sheetId: SHEET_ID, gridProperties: { frozenRowCount: headerStartRow + 1 } }, fields: "gridProperties.frozenRowCount" } });
     await gw(`${SHEETS_GW}/spreadsheets/${fileId}:batchUpdate`, { method: "POST", body: JSON.stringify({ requests }) }, GOOGLE_SHEETS_API_KEY, LOVABLE_API_KEY);
 
     try {
