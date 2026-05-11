@@ -13,7 +13,69 @@ const DOCS_GW = "https://connector-gateway.lovable.dev/google_docs/v1";
 const DRIVE_GW = "https://connector-gateway.lovable.dev/google_drive/drive/v3";
 const TEMPLATE_ID =
   Deno.env.get("GDOCS_RELATORIOS_TEMPLATE_ID") ||
-  "1in9wpXN6kScnZ048pnxvboaWiqKEWzxaB_m8hr-eG2I";
+  "1BSf2GzuXu0QYGsVg-d-plbjrqEemRXxEFX3ut86UJUg";
+
+const MESES_UPPER = [
+  "JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO",
+  "JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO",
+];
+
+/** Resolve (cria se necessário) a pasta SYSCFV/{MES} - {ANO}/{sub} e retorna seu fileId. */
+async function ensureMonthSubfolder(
+  yyyy: number,
+  mm: number,
+  sub: string,
+  driveKey: string,
+  lovableKey: string,
+): Promise<string | null> {
+  try {
+    const headers = {
+      Authorization: `Bearer ${lovableKey}`,
+      "X-Connection-Api-Key": driveKey,
+      "Content-Type": "application/json",
+    };
+    const find = async (name: string, parent?: string) => {
+      const pq = parent ? ` and '${parent}' in parents` : "";
+      const q = `mimeType='application/vnd.google-apps.folder' and name='${name.replace(/'/g, "\\'")}' and trashed=false${pq}`;
+      const url = `${DRIVE_GW}/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=1&supportsAllDrives=true`;
+      const r = await fetch(url, { headers });
+      if (!r.ok) return null;
+      const j = await r.json();
+      return j.files?.[0]?.id || null;
+    };
+    const create = async (name: string, parent?: string) => {
+      const body: any = { name, mimeType: "application/vnd.google-apps.folder" };
+      if (parent) body.parents = [parent];
+      const r = await fetch(`${DRIVE_GW}/files?fields=id&supportsAllDrives=true`, { method: "POST", headers, body: JSON.stringify(body) });
+      if (!r.ok) return null;
+      return (await r.json()).id;
+    };
+    const ensure = async (name: string, parent?: string) => (await find(name, parent)) || (await create(name, parent));
+    const root = await ensure("SYSCFV");
+    if (!root) return null;
+    const monthName = `${MESES_UPPER[mm - 1]} - ${yyyy}`;
+    const month = await ensure(monthName, root);
+    if (!month) return null;
+    return await ensure(sub, month);
+  } catch (e) {
+    console.warn("[ensureMonthSubfolder] falhou:", e);
+    return null;
+  }
+}
+
+async function moveFileToFolder(fileId: string, parentId: string, driveKey: string, lovableKey: string) {
+  const headers = {
+    Authorization: `Bearer ${lovableKey}`,
+    "X-Connection-Api-Key": driveKey,
+    "Content-Type": "application/json",
+  };
+  const meta = await fetch(`${DRIVE_GW}/files/${fileId}?fields=parents&supportsAllDrives=true`, { headers });
+  if (!meta.ok) return;
+  const cur = await meta.json();
+  const removeParents = (cur.parents || []).join(",");
+  const url = `${DRIVE_GW}/files/${fileId}?addParents=${parentId}${removeParents ? `&removeParents=${removeParents}` : ""}&supportsAllDrives=true&fields=id,parents`;
+  await fetch(url, { method: "PATCH", headers });
+}
 
 const tipoLabels: Record<string, string> = {
   conteudo_pedagogico: "Conteúdo Pedagógico",
