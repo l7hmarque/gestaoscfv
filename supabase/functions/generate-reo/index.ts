@@ -136,8 +136,15 @@ Deno.serve(async (req: Request) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const { mes, ano, formato } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { mes, ano, formato } = body;
     const outputFormat = formato || "docx";
+    // O DOCX completo com fotos + listas de presença estoura o limite de CPU da Edge Function.
+    // Por padrão, gera o REO principal de forma estável; anexos pesados ficam opt-in.
+    const incluirAnexosPesados = body.incluirAnexos === true;
+    const incluirFotos = incluirAnexosPesados && body.incluirFotos !== false;
+    const incluirListasPresenca = incluirAnexosPesados && body.incluirListasPresenca !== false;
+    const maxFotos = Math.min(Math.max(Number(body.maxFotos ?? 8), 0), 12);
     const mesNum = parseInt(mes);
     const anoNum = parseInt(ano);
     const prefix = `${anoNum}-${String(mesNum).padStart(2, "0")}`;
