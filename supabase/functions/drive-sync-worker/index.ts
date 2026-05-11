@@ -167,6 +167,36 @@ async function colorCellByToken(docId: string, token: string, nota: number) {
   }
 }
 
+// Colore várias células em UMA única chamada de batchUpdate (1 write em vez de N).
+async function colorCellsBatched(docId: string, items: Array<[string, number | null | undefined]>) {
+  const valid = items.filter(([, v]) => v != null) as Array<[string, number]>;
+  if (!valid.length) return;
+  const doc = await getDocFull(docId);
+  const reqs: any[] = [];
+  for (const [token, nota] of valid) {
+    const n = Math.max(1, Math.min(5, Math.round(Number(nota))));
+    const color = LIKERT_RGB[n];
+    if (!color) continue;
+    for (const r of walkRuns(doc.body.content)) {
+      if (r.tableStartLocation !== undefined && r.content.includes(token)) {
+        reqs.push({
+          updateTableCellStyle: {
+            tableCellStyle: { backgroundColor: { color: { rgbColor: color } } },
+            fields: "backgroundColor",
+            tableRange: {
+              tableCellLocation: { tableStartLocation: { index: r.tableStartLocation }, rowIndex: r.rowIndex, columnIndex: r.columnIndex },
+              rowSpan: 1,
+              columnSpan: 1,
+            },
+          },
+        });
+        break;
+      }
+    }
+  }
+  if (reqs.length) await docsBatch(docId, reqs).catch((e) => console.warn("colorCellsBatched", e.message));
+}
+
 async function makeFilePublic(fileId: string) {
   await fetch(`${DRIVE_GW}/files/${fileId}/permissions`, {
     method: "POST",
@@ -343,18 +373,15 @@ async function fillRelatorioTemplate(docId: string, ctx: {
 
   await replacePlaceholders(docId, map);
 
-  // Cores nas células de competência
-  const compTokens: [string, number | null][] = [
+  // Cores nas células de competência (1 batch único — economia de cota Docs).
+  await colorCellsBatched(docId, [
     ["INICIATIVA", rel.iniciativa],
     ["AUTONOMIA", rel.autonomia],
     ["COLABORAÇÃO", rel.colaboracao],
     ["COMUNICAÇÃO", rel.comunicacao],
     ["RESPEITO MÚTUO", rel.respeito_mutuo],
     ["SCORE ELO", rel.score_elo],
-  ];
-  for (const [tok, val] of compTokens) {
-    if (val != null) await colorCellByToken(docId, tok, Number(val));
-  }
+  ]);
 
   // Fotos (até 5 placeholders)
   for (let i = 0; i < 5; i++) {
