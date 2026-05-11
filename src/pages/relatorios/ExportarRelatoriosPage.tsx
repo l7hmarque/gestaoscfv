@@ -1038,17 +1038,41 @@ export default function ExportarRelatoriosPage() {
           <DriveCard
             icon={<FileSpreadsheet className="h-4 w-4" />}
             title="4. Listas de Chamada em Branco (mês)"
-            badge={<Badge variant="outline" className="ml-1 text-[10px]">em breve</Badge>}
-            desc="1 Google Sheet com 1 aba por turma. Por enquanto, gere por turma na página /turmas/:id."
-            action={<Button disabled variant="outline">Em breve</Button>}
+            desc="1 Google Sheet com 1 aba por turma ativa. Datas geradas a partir de dias_semana da turma."
+            action={
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button onClick={() => gerarListasMes("chamada")} disabled={driveLoading !== null} variant="secondary">
+                  {driveLoading === "chamada"
+                    ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando…</>
+                    : <><UploadCloud className="h-4 w-4 mr-1" />Gerar no Drive (Sheets)</>}
+                </Button>
+                {chamadaDriveUrl && (
+                  <a href={chamadaDriveUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                    <ExternalLink className="h-3 w-3" /> Abrir no Drive
+                  </a>
+                )}
+              </div>
+            }
           />
 
           <DriveCard
             icon={<FileSpreadsheet className="h-4 w-4" />}
             title="5. Listas de Frequência Preenchidas (mês)"
-            badge={<Badge variant="outline" className="ml-1 text-[10px]">em breve</Badge>}
-            desc="1 Google Sheet com 1 aba por turma, datas de dias_semana preenchidas (P/A/J)."
-            action={<Button disabled variant="outline">Em breve</Button>}
+            desc="1 Google Sheet com 1 aba por turma ativa, datas de dias_semana preenchidas (P/A/J)."
+            action={
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button onClick={() => gerarListasMes("freq")} disabled={driveLoading !== null} variant="secondary">
+                  {driveLoading === "freq"
+                    ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando…</>
+                    : <><UploadCloud className="h-4 w-4 mr-1" />Gerar no Drive (Sheets)</>}
+                </Button>
+                {freqDriveUrl && (
+                  <a href={freqDriveUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                    <ExternalLink className="h-3 w-3" /> Abrir no Drive
+                  </a>
+                )}
+              </div>
+            }
           />
 
           <DriveCard
