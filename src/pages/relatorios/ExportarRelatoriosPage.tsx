@@ -954,7 +954,8 @@ export default function ExportarRelatoriosPage() {
       </Card>
 
       <Tabs defaultValue="mensal" className="space-y-4">
-        <TabsList className="grid grid-cols-6 w-full">
+        <TabsList className="grid grid-cols-7 w-full">
+          <TabsTrigger value="drive">📁 Drive (Padrão)</TabsTrigger>
           <TabsTrigger value="mensal">Rel. Mensal</TabsTrigger>
           <TabsTrigger value="pc">Prest. Contas</TabsTrigger>
           <TabsTrigger value="atividades">Atividades</TabsTrigger>
@@ -962,6 +963,92 @@ export default function ExportarRelatoriosPage() {
           <TabsTrigger value="anual">Anual</TabsTrigger>
           <TabsTrigger value="gestao">Gestão</TabsTrigger>
         </TabsList>
+
+        {/* Aba Drive (padrão institucional) */}
+        <TabsContent value="drive" className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Geração no padrão Google Drive para <strong>{MESES_NOMES[mesNum - 1]} / {ano}</strong>.
+            Tudo é salvo em <code>SYSCFV/{MESES_NOMES[mesNum - 1].toUpperCase()} - {ano}/</code>.
+          </p>
+
+          <DriveCard
+            icon={<FileSpreadsheet className="h-4 w-4" />}
+            title="1. Relatório Mensal Consolidado"
+            desc="Gera 1 Google Sheet consolidado do mês (resumo, atividades, metas, monitoramento, atendimentos, matrizes de frequência)."
+            action={
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button onClick={gerarMensalDrive} disabled={driveLoading !== null}>
+                  {driveLoading === "mensal"
+                    ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando…</>
+                    : <><UploadCloud className="h-4 w-4 mr-1" />Gerar no Drive (Sheets)</>}
+                </Button>
+                {mensalDriveUrl && (
+                  <a href={mensalDriveUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                    <ExternalLink className="h-3 w-3" /> Abrir no Drive
+                  </a>
+                )}
+              </div>
+            }
+          />
+
+          <DriveCard
+            icon={<FileText className="h-4 w-4" />}
+            title="2. Relatórios de Atividade do Mês"
+            desc="Enfileira todos os relatórios do mês para gerar 1 Google Doc por relatório (template institucional) em 02_Relatorios_Atividade."
+            action={
+              <Button onClick={() => enfileirarLote("relatorio")} disabled={driveLoading !== null} variant="secondary">
+                {driveLoading === "rel"
+                  ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Enfileirando {driveProgress?.done}/{driveProgress?.total}…</>
+                  : <><UploadCloud className="h-4 w-4 mr-1" />Gerar todos no Drive (lote)</>}
+              </Button>
+            }
+          />
+
+          <DriveCard
+            icon={<ClipboardList className="h-4 w-4" />}
+            title="3. Planejamentos do Mês"
+            desc="Enfileira todos os planejamentos do mês — 1 Google Doc por planejamento em 03_Planejamentos."
+            action={
+              <Button onClick={() => enfileirarLote("planejamento")} disabled={driveLoading !== null} variant="secondary">
+                {driveLoading === "plan"
+                  ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Enfileirando {driveProgress?.done}/{driveProgress?.total}…</>
+                  : <><UploadCloud className="h-4 w-4 mr-1" />Gerar todos no Drive (lote)</>}
+              </Button>
+            }
+          />
+
+          <DriveCard
+            icon={<FileSpreadsheet className="h-4 w-4" />}
+            title="4. Listas de Chamada em Branco (mês)"
+            badge={<Badge variant="outline" className="ml-1 text-[10px]">em breve</Badge>}
+            desc="1 Google Sheet com 1 aba por turma. Por enquanto, gere por turma na página /turmas/:id."
+            action={<Button disabled variant="outline">Em breve</Button>}
+          />
+
+          <DriveCard
+            icon={<FileSpreadsheet className="h-4 w-4" />}
+            title="5. Listas de Frequência Preenchidas (mês)"
+            badge={<Badge variant="outline" className="ml-1 text-[10px]">em breve</Badge>}
+            desc="1 Google Sheet com 1 aba por turma, datas de dias_semana preenchidas (P/A/J)."
+            action={<Button disabled variant="outline">Em breve</Button>}
+          />
+
+          <DriveCard
+            icon={<FileText className="h-4 w-4" />}
+            title="6. Relatório de Execução do Objeto (REO)"
+            badge={<Badge variant="outline" className="ml-1 text-[10px]">em breve</Badge>}
+            desc="Será integrado ao pipeline Drive."
+            action={<Button disabled variant="outline">Em breve</Button>}
+          />
+
+          <DriveCard
+            icon={<FileText className="h-4 w-4" />}
+            title="7. Prestação de Contas"
+            badge={<Badge variant="outline" className="ml-1 text-[10px]">em breve</Badge>}
+            desc="Será integrada ao pipeline Drive."
+            action={<Button disabled variant="outline">Em breve</Button>}
+          />
+        </TabsContent>
 
         {/* Relatório Mensal */}
         <TabsContent value="mensal">
