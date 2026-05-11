@@ -1039,7 +1039,7 @@ export default function ExportarRelatoriosPage() {
           <DriveCard
             icon={<FileSpreadsheet className="h-4 w-4" />}
             title="4. Listas de Chamada em Branco (mês)"
-            desc="1 Google Sheet com 1 aba por turma ativa. Datas geradas a partir de dias_semana da turma."
+            desc="1 Google Sheet com 1 aba por turma ativa, datas de dias_semana — salvo em 04_Listas_Chamada_Em_Branco."
             action={
               <div className="flex items-center gap-2 flex-wrap">
                 <Button onClick={() => gerarListasMes("chamada")} disabled={driveLoading !== null} variant="secondary">
@@ -1059,7 +1059,7 @@ export default function ExportarRelatoriosPage() {
           <DriveCard
             icon={<FileSpreadsheet className="h-4 w-4" />}
             title="5. Listas de Frequência Preenchidas (mês)"
-            desc="1 Google Sheet com 1 aba por turma ativa, datas de dias_semana preenchidas (P/A/J)."
+            desc="1 Google Sheet com 1 aba por turma ativa, preenchido com P/A/J — salvo em 05_Listas_Frequencia_Preenchidas."
             action={
               <div className="flex items-center gap-2 flex-wrap">
                 <Button onClick={() => gerarListasMes("freq")} disabled={driveLoading !== null} variant="secondary">
