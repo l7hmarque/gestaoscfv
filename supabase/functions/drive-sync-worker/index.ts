@@ -1371,7 +1371,6 @@ async function fixTemplateFotos(): Promise<{ docs: number; tabelasRemovidas: num
 
 async function processQueue(): Promise<{ processed: number; errors: number }> {
   // Reset jobs travados em "processando" há mais de 5 min (worker anterior morreu).
-  await supabase.rpc("noop").catch(() => {});
   await supabase
     .from("drive_sync_queue")
     .update({ status: "pendente" })
