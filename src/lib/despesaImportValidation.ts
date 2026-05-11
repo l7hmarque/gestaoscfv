@@ -173,7 +173,7 @@ function resolveSitCodeWithWarn(
 
 export function validateDespesa(
   e: any,
-  ctx: { mesRef: string; storageUrl?: string }
+  ctx: { mesRef: string; storageUrl?: string; rubricaToCategoriaId?: Record<string, string> }
 ): ValidatedDespesa {
   const warnings: DespesaWarning[] = [];
   const missing: string[] = [];
@@ -322,7 +322,8 @@ export function validateDespesa(
     descricao: e.descricao || "Sem descrição",
     valor: Number(e.valor) || 0,
     data_lancamento: e.data_lancamento || new Date().toISOString().split("T")[0],
-    categoria_id: null,
+    categoria_id:
+      (e.rubrica_codigo && ctx.rubricaToCategoriaId?.[String(e.rubrica_codigo).trim()]) || null,
     mes_referencia: ctx.mesRef,
     fornecedor: e.fornecedor || e.sit_nome_favorecido || null,
     cnpj_cpf: e.cnpj_cpf || null,
