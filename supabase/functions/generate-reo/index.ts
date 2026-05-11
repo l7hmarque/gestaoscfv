@@ -185,7 +185,7 @@ Deno.serve(async (req: Request) => {
     const [relatorioTurmas, relatorioFotos, relatorioPresencas] = relIdsFetched.length
       ? await Promise.all([
           fetchAllQuery(supabase.from("relatorio_turmas").select("*").in("relatorio_id", relIdsFetched)),
-          incluirFotos ? fetchAllQuery(supabase.from("relatorio_fotos").select("*").in("relatorio_id", relIdsFetched).limit(maxFotos)) : Promise.resolve([]),
+          incluirFotos ? fetchLimitedQuery(supabase.from("relatorio_fotos").select("*").in("relatorio_id", relIdsFetched), maxFotos) : Promise.resolve([]),
           fetchAllQuery(supabase.from("relatorio_presenca").select("*").in("relatorio_id", relIdsFetched)),
         ])
       : [[], [], []];
