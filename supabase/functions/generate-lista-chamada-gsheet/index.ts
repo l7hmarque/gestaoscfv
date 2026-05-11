@@ -328,8 +328,6 @@ Deno.serve(async (req) => {
       } else if (m.transferido) {
         const data = m.data_transferencia ? ` ${m.data_transferencia}` : "";
         runs = [{ text: m.nome + " " }, { text: `(T${data})`, bold: true }];
-      } else if (m.busca_ativa) {
-        runs = [{ text: m.nome + " " }, { text: "(BA)", bold: true }];
       } else if (m.novo) {
         const data = m.iniciou_em ? ` ${m.iniciou_em}` : "";
         runs = [{ text: m.nome + " " }, { text: `(N${data})`, bold: true }];
@@ -359,7 +357,6 @@ Deno.serve(async (req) => {
     {
       const legendRuns = [
         { text: "Legenda: " },
-        { text: "(BA)", bold: true }, { text: " = Em busca ativa  ·  " },
         { text: "(D)", bold: true }, { text: " = Desligado  ·  " },
         { text: "(T)", bold: true }, { text: " = Transferido  ·  " },
         { text: "(N)", bold: true }, { text: " = Novo no mês" },
