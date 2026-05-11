@@ -18,6 +18,7 @@ const MESES = [
   "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
   "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro",
 ];
+const MESES_UPPER = MESES.map(m => m.toUpperCase());
 const DIAS_MAP: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
 const PERIODO_LABEL: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const FAIXA_LABEL: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
@@ -40,6 +41,43 @@ async function gw(url: string, init: RequestInit, sheetsKey: string, lovableKey:
   try { body = text ? JSON.parse(text) : null; } catch { body = text; }
   if (!res.ok) throw new Error(`[${res.status}] ${url}: ${typeof body === "string" ? body : JSON.stringify(body)}`);
   return body;
+}
+
+/** Garante a pasta SYSCFV/{MES} - {ANO}/{sub} no Drive. */
+async function ensureMonthSubfolder(yyyy: number, mm: number, sub: string, driveKey: string, lovableKey: string): Promise<string | null> {
+  try {
+    const headers = { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": driveKey, "Content-Type": "application/json" };
+    const find = async (name: string, parent?: string) => {
+      const pq = parent ? ` and '${parent}' in parents` : "";
+      const q = `mimeType='application/vnd.google-apps.folder' and name='${name.replace(/'/g, "\\'")}' and trashed=false${pq}`;
+      const url = `${DRIVE_GW}/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1&supportsAllDrives=true`;
+      const r = await fetch(url, { headers });
+      if (!r.ok) return null;
+      const j = await r.json();
+      return j.files?.[0]?.id || null;
+    };
+    const create = async (name: string, parent?: string) => {
+      const body: any = { name, mimeType: "application/vnd.google-apps.folder" };
+      if (parent) body.parents = [parent];
+      const r = await fetch(`${DRIVE_GW}/files?fields=id&supportsAllDrives=true`, { method: "POST", headers, body: JSON.stringify(body) });
+      if (!r.ok) return null;
+      return (await r.json()).id;
+    };
+    const ensure = async (name: string, parent?: string) => (await find(name, parent)) || (await create(name, parent));
+    const root = await ensure("SYSCFV"); if (!root) return null;
+    const month = await ensure(`${MESES_UPPER[mm - 1]} - ${yyyy}`, root); if (!month) return null;
+    return await ensure(sub, month);
+  } catch (e) { console.warn("[ensureMonthSubfolder]", e); return null; }
+}
+
+async function moveFileToFolder(fileId: string, parentId: string, driveKey: string, lovableKey: string) {
+  const headers = { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": driveKey, "Content-Type": "application/json" };
+  const meta = await fetch(`${DRIVE_GW}/files/${fileId}?fields=parents&supportsAllDrives=true`, { headers });
+  if (!meta.ok) return;
+  const cur = await meta.json();
+  const removeParents = (cur.parents || []).join(",");
+  const url = `${DRIVE_GW}/files/${fileId}?addParents=${parentId}${removeParents ? `&removeParents=${removeParents}` : ""}&supportsAllDrives=true&fields=id`;
+  await fetch(url, { method: "PATCH", headers });
 }
 
 // Build a cell with optional rich-text bold runs.
