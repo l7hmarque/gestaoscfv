@@ -1,7 +1,7 @@
 // @ts-nocheck
 // Edge Function: gera 1 Google Sheet com 1 aba por turma — Listas de Chamada em branco do mês.
 // Reutiliza o layout institucional da função generate-lista-chamada-gsheet (uma turma por aba).
-// Salvo em SYSCFV/{MES} - {ANO}/04_Listas_Presenca/.
+// Salvo em SYSCFV/{MES} - {ANO}/04_Listas_Chamada_Em_Branco/.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
