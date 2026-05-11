@@ -20,11 +20,33 @@ const DRIVE_UPLOAD_GW = "https://connector-gateway.lovable.dev/google_drive/uplo
 const DOCS_GW = "https://connector-gateway.lovable.dev/google_docs/v1";
 const SHEETS_GW = "https://connector-gateway.lovable.dev/google_sheets/v4";
 
-const MAX_JOBS_PER_RUN = 2;
+const MAX_JOBS_PER_RUN = 6;
 const MAX_TENTATIVAS = 5;
+
+// =============================================================================
+// Throttle global de escritas Google Docs (cota: 60 writes/min/usuário).
+// Mantemos um teto seguro (~50/min) e enfileiramos as chamadas para evitar 429.
+// =============================================================================
+const WRITE_RATE_PER_MIN = 50;
+const WRITE_INTERVAL_MS = Math.ceil(60_000 / WRITE_RATE_PER_MIN); // ~1200ms
+let _lastWriteAt = 0;
+let _writeChain: Promise<void> = Promise.resolve();
+function scheduleWrite(): Promise<void> {
+  _writeChain = _writeChain.then(async () => {
+    const now = Date.now();
+    const wait = Math.max(0, _lastWriteAt + WRITE_INTERVAL_MS - now);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    _lastWriteAt = Date.now();
+  });
+  return _writeChain;
+}
 
 // Retry helper para chamadas Google: trata 429/503/5xx com backoff exponencial.
 async function fetchGoogle(url: string, init: RequestInit, label: string, maxRetries = 4): Promise<Response> {
+  // Aplica throttle apenas em escritas (write requests contam para a cota).
+  const method = (init?.method || "GET").toUpperCase();
+  const isWrite = method !== "GET" && method !== "HEAD";
+  if (isWrite) await scheduleWrite();
   let attempt = 0;
   let lastStatus = 0;
   let lastBody = "";
