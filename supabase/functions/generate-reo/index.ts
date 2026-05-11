@@ -82,6 +82,12 @@ async function fetchAllQuery(query: any) {
   return allRows;
 }
 
+async function fetchLimitedQuery(query: any, limit: number) {
+  const { data, error } = await query.limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+
 // ── Helpers for building table cells ──
 
 const thinBorder = { style: BorderStyle.SINGLE, size: 1, color: "000000" };
