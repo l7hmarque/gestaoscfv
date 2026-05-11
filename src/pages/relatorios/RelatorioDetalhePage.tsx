@@ -614,20 +614,6 @@ const RelatorioDetalhePage = () => {
           </Button>
           <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={async () => {
             try {
-              toast.info("Abrindo no Google Docs...");
-              await ensurePresencaForExport(item.id, presenca);
-              await abrirRelatorioNoGoogleDocs(item.id);
-              toast.success("Google Doc pronto!");
-            } catch (e) {
-              console.error("Erro ao abrir Google Doc:", e);
-              const msg = e instanceof Error ? e.message : String(e);
-              toast.error(`Erro: ${msg.slice(0, 200)}`);
-            }
-          }}>
-            <FileText className="h-3.5 w-3.5" />Abrir no Google Docs
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={async () => {
-            try {
               toast.info("Gerando PDF...");
               const presencaExport = await ensurePresencaForExport(item.id, presenca);
               await exportRelatorioPdf(item, turmaNames, presencaExport);
