@@ -326,7 +326,7 @@ Deno.serve(async (req) => {
     } catch (e) { console.warn("[listas-chamada-mes] permissão pública:", e); }
 
     try {
-      const folderId = await ensureMonthSubfolder(anoNum, mesNum, "04_Listas_Presenca", GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY);
+      const folderId = await ensureMonthSubfolder(anoNum, mesNum, "04_Listas_Chamada_Em_Branco", GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY);
       if (folderId) await moveFileToFolder(fileId, folderId, GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY);
     } catch (e) { console.warn("[listas-chamada-mes] mover pasta:", e); }
 

@@ -358,7 +358,7 @@ Deno.serve(async (req) => {
     } catch (e) { console.warn("[listas-frequencia-mes] permissão pública:", e); }
 
     try {
-      const folderId = await ensureMonthSubfolder(anoNum, mesNum, "04_Listas_Presenca", GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY);
+      const folderId = await ensureMonthSubfolder(anoNum, mesNum, "05_Listas_Frequencia_Preenchidas", GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY);
       if (folderId) await moveFileToFolder(fileId, folderId, GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY);
     } catch (e) { console.warn("[listas-frequencia-mes] mover pasta:", e); }
 

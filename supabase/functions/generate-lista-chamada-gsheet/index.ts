@@ -476,7 +476,7 @@ Deno.serve(async (req) => {
 
     // 8. Mover para pasta SYSCFV/{MES} - {ANO}/04_Listas_Presenca
     try {
-      const folderId = await ensureMonthSubfolder(anoNum, mesNum, "04_Listas_Presenca", GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY);
+      const folderId = await ensureMonthSubfolder(anoNum, mesNum, "04_Listas_Chamada_Em_Branco", GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY);
       if (folderId) await moveFileToFolder(fileId, folderId, GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY);
     } catch (mvErr) {
       console.warn("[lista-chamada-gsheet] move pasta mensal:", mvErr);
