@@ -1506,6 +1506,20 @@ Deno.serve(async (req) => {
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
       // @ts-ignore
       EdgeRuntime.waitUntil((async () => {
+        // Single-flight: tenta adquirir o lock. Se outro worker está rodando
+        // (lock < 5 min), aborta esta execução para não duplicar carga na cota Docs.
+        const lockCutoff = new Date(Date.now() - 5 * 60_000).toISOString();
+        const { data: lockRow } = await supabase
+          .from("drive_sync_state")
+          .update({ is_running: true, started_at: new Date().toISOString() })
+          .eq("id", 1)
+          .or(`is_running.eq.false,started_at.lt.${lockCutoff}`)
+          .select("id")
+          .maybeSingle();
+        if (!lockRow) {
+          console.log("worker: outra instância já está rodando, abortando");
+          return;
+        }
         try {
           await processQueue();
           // Se ainda há jobs pendentes, encadeia uma nova invocação para drenar a fila.
@@ -1514,6 +1528,8 @@ Deno.serve(async (req) => {
             .select("id", { count: "exact", head: true })
             .in("status", ["pendente", "erro"])
             .lt("tentativas", MAX_TENTATIVAS);
+          // Libera o lock ANTES de encadear, para a próxima invocação poder adquirir.
+          await supabase.from("drive_sync_state").update({ is_running: false }).eq("id", 1);
           if ((count || 0) > 0) {
             await new Promise((r) => setTimeout(r, 4000));
             await fetch(`${SUPABASE_URL}/functions/v1/drive-sync-worker`, {
@@ -1522,7 +1538,10 @@ Deno.serve(async (req) => {
               body: JSON.stringify({ chained: true }),
             }).catch((e) => console.warn("chain invoke", e));
           }
-        } catch (e) { console.error("bg processQueue", e); }
+        } catch (e) {
+          console.error("bg processQueue", e);
+          await supabase.from("drive_sync_state").update({ is_running: false }).eq("id", 1).catch(() => {});
+        }
       })());
       return new Response(JSON.stringify({ ok: true, queued: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
