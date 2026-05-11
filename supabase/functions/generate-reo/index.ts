@@ -154,27 +154,35 @@ Deno.serve(async (req: Request) => {
     const prefix = `${anoNum}-${String(mesNum).padStart(2, "0")}`;
     const mesNome = MESES_NOMES[mesNum - 1];
 
-    // ── Fetch all data ──
+    // ── Fetch data ──
+    // Evita carregar histórico inteiro de tabelas volumosas (presença/fotos/relatórios),
+    // reduzindo CPU e memória na geração do documento.
+    const startDate = `${anoNum}-${String(mesNum).padStart(2, "0")}-01`;
+    const endDate = mesNum === 12 ? `${anoNum + 1}-01-01` : `${anoNum}-${String(mesNum + 1).padStart(2, "0")}-01`;
     const [participantes, turmas, turmaParticipantes, presenca, planejamentos, relatorios,
-           atendimentos, profiles, bairros, categorias, despesas, parcelas, estornos,
-           relatorioTurmas, relatorioFotos, relatorioPresencas] = await Promise.all([
+           atendimentos, profiles, bairros, categorias, despesas, parcelas, estornos] = await Promise.all([
       fetchAll(supabase, "participantes"),
       fetchAll(supabase, "turmas"),
       fetchAll(supabase, "turma_participantes"),
-      fetchAll(supabase, "presenca"),
-      fetchAll(supabase, "planejamentos"),
-      fetchAll(supabase, "relatorios_atividade"),
-      fetchAll(supabase, "atendimentos"),
+      fetchAllQuery(supabase.from("presenca").select("*").gte("data", startDate).lt("data", endDate)),
+      fetchAllQuery(supabase.from("planejamentos").select("*").gte("data_aplicacao", startDate).lt("data_aplicacao", endDate)),
+      fetchAllQuery(supabase.from("relatorios_atividade").select("*").gte("data", startDate).lt("data", endDate)),
+      fetchAllQuery(supabase.from("atendimentos").select("*").gte("data_atendimento", startDate).lt("data_atendimento", endDate)),
       fetchAll(supabase, "profiles"),
       fetchAll(supabase, "bairros"),
       fetchAll(supabase, "categorias_financeiras"),
       fetchAll(supabase, "despesas"),
       fetchAll(supabase, "parcelas_financeiras"),
       fetchAll(supabase, "estornos"),
-      fetchAll(supabase, "relatorio_turmas"),
-      fetchAll(supabase, "relatorio_fotos"),
-      fetchAll(supabase, "relatorio_presenca"),
     ]);
+    const relIdsFetched = relatorios.map((r: any) => r.id).filter(Boolean);
+    const [relatorioTurmas, relatorioFotos, relatorioPresencas] = relIdsFetched.length
+      ? await Promise.all([
+          fetchAllQuery(supabase.from("relatorio_turmas").select("*").in("relatorio_id", relIdsFetched)),
+          incluirFotos ? fetchAllQuery(supabase.from("relatorio_fotos").select("*").in("relatorio_id", relIdsFetched).limit(maxFotos)) : Promise.resolve([]),
+          fetchAllQuery(supabase.from("relatorio_presenca").select("*").in("relatorio_id", relIdsFetched)),
+        ])
+      : [[], [], []];
 
     const bairroMap = Object.fromEntries(bairros.map((b: any) => [b.id, b.nome]));
     const ativos = participantes.filter((p: any) => p.status === "ativo");
