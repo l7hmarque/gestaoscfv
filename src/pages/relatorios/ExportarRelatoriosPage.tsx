@@ -875,9 +875,11 @@ export default function ExportarRelatoriosPage() {
   const anyLoading = loadingRelMensal || loadingPC || loadingAnual || loadingAtividades || loadingAtendimentos || loadingGestao;
 
   // ===== Drive (Padrão) — lotes mensais via drive-sync-worker =====
-  const [driveLoading, setDriveLoading] = useState<null | "mensal" | "rel" | "plan">(null);
+  const [driveLoading, setDriveLoading] = useState<null | "mensal" | "rel" | "plan" | "chamada" | "freq">(null);
   const [driveProgress, setDriveProgress] = useState<{ done: number; total: number } | null>(null);
   const [mensalDriveUrl, setMensalDriveUrl] = useState<string | null>(null);
+  const [chamadaDriveUrl, setChamadaDriveUrl] = useState<string | null>(null);
+  const [freqDriveUrl, setFreqDriveUrl] = useState<string | null>(null);
   const dataIniMes = `${ano}-${MESES[mesNum - 1]}-01`;
   const proxMesIso = mesNum === 12 ? `${parseInt(ano) + 1}-01-01` : `${ano}-${MESES[mesNum]}-01`;
 
@@ -911,6 +913,22 @@ export default function ExportarRelatoriosPage() {
       toast.success(`${ids.length} ${tipo}(s) enfileirados. Verifique o Drive em alguns minutos.`);
     } catch (e: any) { toast.error("Erro: " + (e.message || "")); }
     finally { setDriveLoading(null); setTimeout(() => setDriveProgress(null), 4000); }
+  };
+
+  const gerarListasMes = async (tipo: "chamada" | "freq") => {
+    setDriveLoading(tipo);
+    if (tipo === "chamada") setChamadaDriveUrl(null); else setFreqDriveUrl(null);
+    try {
+      const fn = tipo === "chamada" ? "generate-listas-chamada-mes-gsheet" : "generate-listas-frequencia-mes-gsheet";
+      const { data, error } = await supabase.functions.invoke(fn, { body: { mes: mesNum, ano: parseInt(ano) } });
+      if (error) throw error;
+      const url = data?.url || null;
+      if (url) {
+        if (tipo === "chamada") setChamadaDriveUrl(url); else setFreqDriveUrl(url);
+        toast.success(`${data.turmas} turma(s) geradas no Drive${data.skipped ? ` (${data.skipped} sem dias_semana)` : ""}.`);
+      } else toast.info("Geração concluída sem URL");
+    } catch (e: any) { toast.error("Erro: " + (e.message || "")); }
+    finally { setDriveLoading(null); }
   };
 
   const DriveCard = ({ icon, title, desc, action, disabled, badge }: any) => (
