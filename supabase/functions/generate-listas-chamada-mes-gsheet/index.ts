@@ -162,7 +162,6 @@ function buildTurmaSheet(turma: any, members: any[], anoNum: number, mesNum: num
     let runs: Array<{ text: string; bold?: boolean }>;
     if (m.desligado) runs = [{ text: m.nome + " " }, { text: `(D${m.data_desligamento ? " " + m.data_desligamento : ""})`, bold: true }];
     else if (m.transferido) runs = [{ text: m.nome + " " }, { text: `(T${m.data_transferencia ? " " + m.data_transferencia : ""})`, bold: true }];
-    else if (m.busca_ativa) runs = [{ text: m.nome + " " }, { text: "(BA)", bold: true }];
     else if (m.novo) runs = [{ text: m.nome + " " }, { text: `(N${m.iniciou_em ? " " + m.iniciou_em : ""})`, bold: true }];
     else runs = [{ text: m.nome }];
 
@@ -181,7 +180,6 @@ function buildTurmaSheet(turma: any, members: any[], anoNum: number, mesNum: num
   {
     const legendRuns = [
       { text: "Legenda: " },
-      { text: "(BA)", bold: true }, { text: " = Em busca ativa  ·  " },
       { text: "(D)", bold: true }, { text: " = Desligado  ·  " },
       { text: "(T)", bold: true }, { text: " = Transferido  ·  " },
       { text: "(N)", bold: true }, { text: " = Novo no mês" },
