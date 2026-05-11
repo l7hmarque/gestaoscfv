@@ -284,6 +284,20 @@ Deno.serve(async (req) => {
     const fileId: string = copy.id;
     const webViewLink: string = copy.webViewLink || `https://docs.google.com/document/d/${fileId}/edit`;
 
+    // 2.1 Mover para SYSCFV/{MES} - {ANO}/02_Relatorios_Atividade
+    try {
+      if (dataField) {
+        const d = new Date((dataField as string).length === 10 ? dataField + "T12:00:00" : dataField);
+        const folderId = await ensureMonthSubfolder(
+          d.getFullYear(), d.getMonth() + 1, "02_Relatorios_Atividade",
+          GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY,
+        );
+        if (folderId) await moveFileToFolder(fileId, folderId, GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY);
+      }
+    } catch (mvErr) {
+      console.warn("[gdoc] move para pasta mensal falhou:", mvErr);
+    }
+
     // 3. Buscar doc para descobrir endIndex do body (Docs API)
     const doc = await gw(
       `${DOCS_GW}/documents/${fileId}`,
