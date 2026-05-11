@@ -1,0 +1,2 @@
+UPDATE public.drive_sync_state SET is_running=false WHERE id=1;
+UPDATE public.drive_sync_queue SET status='pendente', tentativas=0, ultimo_erro=NULL WHERE status='processando' OR (status='erro' AND tentativas < 5);
