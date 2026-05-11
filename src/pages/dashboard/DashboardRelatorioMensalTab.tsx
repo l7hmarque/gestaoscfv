@@ -68,23 +68,20 @@ export default function DashboardRelatorioMensalTab() {
     }
     setLoadingReo(true);
     try {
-      const calls = reoFormats.map((formato) =>
-        supabase.functions.invoke("generate-reo", { body: { mes, ano, formato } }),
-      );
-      const results = await Promise.allSettled(calls);
       const downloads: Promise<void>[] = [];
       let ok = 0;
-      results.forEach((r, i) => {
-        if (r.status === "fulfilled" && r.value.data?.url) {
+      for (const formato of reoFormats) {
+        const result = await supabase.functions.invoke("generate-reo", { body: { mes, ano, formato } });
+        if (!result.error && result.data?.url) {
           ok++;
           downloads.push(
             downloadFromUrl(
-              r.value.data.url,
-              r.value.data.fileName || sysCfvFileName("REO", reoFormats[i], `${ano}-${mes}`),
+              result.data.url,
+              result.data.fileName || sysCfvFileName("REO", formato, `${ano}-${mes}`),
             ),
           );
         }
-      });
+      }
       await Promise.all(downloads);
       if (ok > 0) toast.success(`REO gerado em ${ok} formato(s)!`);
       else throw new Error("Nenhum formato retornou arquivo");

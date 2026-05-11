@@ -65,17 +65,27 @@ function calcAge(dob: string): number {
 }
 
 async function fetchAll(supabase: any, table: string, select = "*") {
+  return fetchAllQuery(supabase.from(table).select(select));
+}
+
+async function fetchAllQuery(query: any) {
   const allRows: any[] = [];
   let from = 0;
   const pageSize = 1000;
   while (true) {
-    const { data, error } = await supabase.from(table).select(select).range(from, from + pageSize - 1);
+    const { data, error } = await query.range(from, from + pageSize - 1);
     if (error) throw error;
     allRows.push(...(data || []));
     if (!data || data.length < pageSize) break;
     from += pageSize;
   }
   return allRows;
+}
+
+async function fetchLimitedQuery(query: any, limit: number) {
+  const { data, error } = await query.limit(limit);
+  if (error) throw error;
+  return data || [];
 }
 
 // ── Helpers for building table cells ──
@@ -136,34 +146,49 @@ Deno.serve(async (req: Request) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const { mes, ano, formato } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { mes, ano, formato } = body;
     const outputFormat = formato || "docx";
+    // O DOCX completo com fotos + listas de presença estoura o limite de CPU da Edge Function.
+    // Por padrão, gera o REO principal de forma estável; anexos pesados ficam opt-in.
+    const incluirAnexosPesados = body.incluirAnexos === true;
+    const incluirFotos = incluirAnexosPesados && body.incluirFotos !== false;
+    const incluirListasPresenca = incluirAnexosPesados && body.incluirListasPresenca !== false;
+    const maxFotos = Math.min(Math.max(Number(body.maxFotos ?? 8), 0), 12);
     const mesNum = parseInt(mes);
     const anoNum = parseInt(ano);
     const prefix = `${anoNum}-${String(mesNum).padStart(2, "0")}`;
     const mesNome = MESES_NOMES[mesNum - 1];
 
-    // ── Fetch all data ──
+    // ── Fetch data ──
+    // Evita carregar histórico inteiro de tabelas volumosas (presença/fotos/relatórios),
+    // reduzindo CPU e memória na geração do documento.
+    const startDate = `${anoNum}-${String(mesNum).padStart(2, "0")}-01`;
+    const endDate = mesNum === 12 ? `${anoNum + 1}-01-01` : `${anoNum}-${String(mesNum + 1).padStart(2, "0")}-01`;
     const [participantes, turmas, turmaParticipantes, presenca, planejamentos, relatorios,
-           atendimentos, profiles, bairros, categorias, despesas, parcelas, estornos,
-           relatorioTurmas, relatorioFotos, relatorioPresencas] = await Promise.all([
+           atendimentos, profiles, bairros, categorias, despesas, parcelas, estornos] = await Promise.all([
       fetchAll(supabase, "participantes"),
       fetchAll(supabase, "turmas"),
       fetchAll(supabase, "turma_participantes"),
-      fetchAll(supabase, "presenca"),
-      fetchAll(supabase, "planejamentos"),
-      fetchAll(supabase, "relatorios_atividade"),
-      fetchAll(supabase, "atendimentos"),
+      fetchAllQuery(supabase.from("presenca").select("*").gte("data", startDate).lt("data", endDate)),
+      fetchAllQuery(supabase.from("planejamentos").select("*").gte("data_aplicacao", startDate).lt("data_aplicacao", endDate)),
+      fetchAllQuery(supabase.from("relatorios_atividade").select("*").gte("data", startDate).lt("data", endDate)),
+      fetchAllQuery(supabase.from("atendimentos").select("*").gte("data_atendimento", startDate).lt("data_atendimento", endDate)),
       fetchAll(supabase, "profiles"),
       fetchAll(supabase, "bairros"),
       fetchAll(supabase, "categorias_financeiras"),
       fetchAll(supabase, "despesas"),
       fetchAll(supabase, "parcelas_financeiras"),
       fetchAll(supabase, "estornos"),
-      fetchAll(supabase, "relatorio_turmas"),
-      fetchAll(supabase, "relatorio_fotos"),
-      fetchAll(supabase, "relatorio_presenca"),
     ]);
+    const relIdsFetched = relatorios.map((r: any) => r.id).filter(Boolean);
+    const [relatorioTurmas, relatorioFotos, relatorioPresencas] = relIdsFetched.length
+      ? await Promise.all([
+          fetchAllQuery(supabase.from("relatorio_turmas").select("*").in("relatorio_id", relIdsFetched)),
+          incluirFotos ? fetchLimitedQuery(supabase.from("relatorio_fotos").select("*").in("relatorio_id", relIdsFetched), maxFotos) : Promise.resolve([]),
+          fetchAllQuery(supabase.from("relatorio_presenca").select("*").in("relatorio_id", relIdsFetched)),
+        ])
+      : [[], [], []];
 
     const bairroMap = Object.fromEntries(bairros.map((b: any) => [b.id, b.nome]));
     const ativos = participantes.filter((p: any) => p.status === "ativo");
@@ -808,7 +833,9 @@ Deno.serve(async (req: Request) => {
 
     // ── ANEXO I - REGISTROS FOTOGRÁFICOS (DOCX only) ──
     const relIdsMes = new Set(relsMes.map((r: any) => r.id));
-    const fotosMes = relatorioFotos.filter((f: any) => relIdsMes.has(f.relatorio_id));
+    const fotosMes = incluirFotos
+      ? relatorioFotos.filter((f: any) => relIdsMes.has(f.relatorio_id)).slice(0, maxFotos)
+      : [];
 
     const photoChildren: (Paragraph | DocxTable)[] = [];
     if (fotosMes.length > 0) {
@@ -878,7 +905,7 @@ Deno.serve(async (req: Request) => {
 
     const tableWidth = 9360;
 
-    if (turmasAtivas.length > 0) {
+    if (incluirListasPresenca && turmasAtivas.length > 0) {
       presencaChildren.push(new Paragraph({
         spacing: { before: 300, after: 300 },
         alignment: AlignmentType.CENTER,
