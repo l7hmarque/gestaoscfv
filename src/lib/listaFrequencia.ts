@@ -16,7 +16,6 @@
  *   ■  presente
  *      vazio = ausente
  *   —  sem aula / desligado
- *  (BA) em busca ativa
  *  (D)  desligado (com data)
  *  (T)  transferido
  */
