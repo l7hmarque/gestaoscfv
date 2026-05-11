@@ -1203,6 +1203,24 @@ export type Database = {
         }
         Relationships: []
       }
+      drive_sync_state: {
+        Row: {
+          id: number
+          is_running: boolean
+          started_at: string | null
+        }
+        Insert: {
+          id?: number
+          is_running?: boolean
+          started_at?: string | null
+        }
+        Update: {
+          id?: number
+          is_running?: boolean
+          started_at?: string | null
+        }
+        Relationships: []
+      }
       encaminhamentos_externos: {
         Row: {
           atendimento_id: string | null
