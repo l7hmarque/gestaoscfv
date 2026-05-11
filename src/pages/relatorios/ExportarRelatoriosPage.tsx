@@ -899,7 +899,8 @@ export default function ExportarRelatoriosPage() {
     setDriveProgress({ done: 0, total: 0 });
     try {
       const tabela = tipo === "relatorio" ? "relatorios_atividade" : "planejamentos";
-      const { data: items, error } = await supabase.from(tabela).select("id").gte("data", dataIniMes).lt("data", proxMesIso);
+      const dateCol = tipo === "relatorio" ? "data" : "data_aplicacao";
+      const { data: items, error } = await supabase.from(tabela).select("id").gte(dateCol, dataIniMes).lt(dateCol, proxMesIso);
       if (error) throw error;
       const ids = (items || []).map((r: any) => r.id);
       setDriveProgress({ done: 0, total: ids.length });
@@ -992,7 +993,7 @@ export default function ExportarRelatoriosPage() {
           <DriveCard
             icon={<FileSpreadsheet className="h-4 w-4" />}
             title="1. Relatório Mensal Consolidado"
-            desc="Gera 1 Google Sheet consolidado do mês (resumo, atividades, metas, monitoramento, atendimentos, matrizes de frequência)."
+            desc="Gera 1 Google Sheet consolidado do mês (resumo, atividades, metas, monitoramento, atendimentos). As listas de presença vão em arquivo separado (Card 5)."
             action={
               <div className="flex items-center gap-2 flex-wrap">
                 <Button onClick={gerarMensalDrive} disabled={driveLoading !== null}>
@@ -1038,7 +1039,7 @@ export default function ExportarRelatoriosPage() {
           <DriveCard
             icon={<FileSpreadsheet className="h-4 w-4" />}
             title="4. Listas de Chamada em Branco (mês)"
-            desc="1 Google Sheet com 1 aba por turma ativa. Datas geradas a partir de dias_semana da turma."
+            desc="1 Google Sheet com 1 aba por turma ativa, datas de dias_semana — salvo em 04_Listas_Chamada_Em_Branco."
             action={
               <div className="flex items-center gap-2 flex-wrap">
                 <Button onClick={() => gerarListasMes("chamada")} disabled={driveLoading !== null} variant="secondary">
@@ -1058,7 +1059,7 @@ export default function ExportarRelatoriosPage() {
           <DriveCard
             icon={<FileSpreadsheet className="h-4 w-4" />}
             title="5. Listas de Frequência Preenchidas (mês)"
-            desc="1 Google Sheet com 1 aba por turma ativa, datas de dias_semana preenchidas (P/A/J)."
+            desc="1 Google Sheet com 1 aba por turma ativa, preenchido com P/A/J — salvo em 05_Listas_Frequencia_Preenchidas."
             action={
               <div className="flex items-center gap-2 flex-wrap">
                 <Button onClick={() => gerarListasMes("freq")} disabled={driveLoading !== null} variant="secondary">

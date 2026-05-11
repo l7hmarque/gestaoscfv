@@ -15,11 +15,12 @@ const SUBFOLDERS = [
   "01_Modelos_Institucionais",
   "02_Relatorios_Atividade",
   "03_Planejamentos",
-  "04_Listas_Presenca",
-  "05_Relatorios_Mensais",
-  "06_REO",
-  "07_Roteiros_Equipe_Tecnica",
-  "08_Cronogramas",
+  "04_Listas_Chamada_Em_Branco",
+  "05_Listas_Frequencia_Preenchidas",
+  "06_Relatorios_Mensais",
+  "07_REO",
+  "08_Roteiros_Equipe_Tecnica",
+  "09_Cronogramas",
 ];
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -254,7 +255,7 @@ Deno.serve(async (req) => {
         if (r?.url) {
           const buf = new Uint8Array(await (await fetch(r.url)).arrayBuffer());
           const base = `SysCFV_RelatorioMensal_${periodoLabel}`;
-          const target = subs["05_Relatorios_Mensais"].id;
+          const target = subs["06_Relatorios_Mensais"].id;
           const { nome, skip, toTrash } = await resolveNome(base, "gsheet", target, modo);
           if (!skip) {
             for (const id of toTrash) await trashFile(id);
@@ -298,7 +299,7 @@ Deno.serve(async (req) => {
         }
         const turmasIds = Array.from(turmasSet);
         const lote = turmasIds.slice(offset, offset + batchSize);
-        const target = subs["04_Listas_Presenca"].id;
+        const target = subs["04_Listas_Chamada_Em_Branco"].id;
         for (const turmaId of lote) {
           try {
             const r = await invokeFn("generate-lista-chamada-gsheet", { turma_id: turmaId, mes, ano }, authHeader);
@@ -456,7 +457,7 @@ Deno.serve(async (req) => {
         XLSX.utils.book_append_sheet(wb, wsR, "Relatos Pedagógicos");
 
         const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-        const target = subs["07_Roteiros_Equipe_Tecnica"].id;
+        const target = subs["08_Roteiros_Equipe_Tecnica"].id;
         const base = `SysCFV_EquipeTecnica_${periodoLabel}`;
         const { nome, skip, toTrash } = await resolveNome(base, "gsheet", target, modo);
         if (!skip) {
@@ -481,7 +482,7 @@ Deno.serve(async (req) => {
     // ===== TIPO: reo (DOCX → Google Doc + XLSX → Google Sheet) =====
     if (currentTipo === "reo") {
       try {
-        const target = subs["06_REO"].id;
+        const target = subs["07_REO"].id;
         // DOCX
         if (part === 0) try {
           const rDoc = await invokeFn("generate-reo", { mes, ano, formato: "docx" }, authHeader);

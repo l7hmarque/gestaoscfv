@@ -387,7 +387,7 @@ const TurmaDetalhePage = () => {
                   Frequência preenchida (Drive)
                 </Button>
                 <p className="text-[10px] text-muted-foreground text-center">
-                  Documentos institucionais salvos em SYSCFV/{`{MÊS} - {ANO}`}/04_Listas_Presenca.
+                  Documentos institucionais salvos em SYSCFV/{`{MÊS} - {ANO}`}/04_Listas_Chamada_Em_Branco (em branco) ou 05_Listas_Frequencia_Preenchidas (preenchidas).
                 </p>
                 <button type="button" onClick={exportListaPresencaXlsx} className="text-[10px] text-muted-foreground underline w-full text-center hover:text-foreground">
                   Baixar XLSX local (fallback)

@@ -20,8 +20,32 @@ const DRIVE_UPLOAD_GW = "https://connector-gateway.lovable.dev/google_drive/uplo
 const DOCS_GW = "https://connector-gateway.lovable.dev/google_docs/v1";
 const SHEETS_GW = "https://connector-gateway.lovable.dev/google_sheets/v4";
 
-const MAX_JOBS_PER_RUN = 3;
+const MAX_JOBS_PER_RUN = 2;
 const MAX_TENTATIVAS = 5;
+
+// Retry helper para chamadas Google: trata 429/503/5xx com backoff exponencial.
+async function fetchGoogle(url: string, init: RequestInit, label: string, maxRetries = 4): Promise<Response> {
+  let attempt = 0;
+  let lastStatus = 0;
+  let lastBody = "";
+  while (attempt <= maxRetries) {
+    const r = await fetch(url, init);
+    if (r.ok) return r;
+    lastStatus = r.status;
+    if (r.status !== 429 && r.status !== 503 && r.status < 500) {
+      lastBody = await r.text();
+      throw new Error(`${label} ${r.status}: ${lastBody}`);
+    }
+    lastBody = await r.text();
+    if (attempt === maxRetries) break;
+    const retryAfter = Number(r.headers.get("retry-after")) || 0;
+    const delay = Math.max(retryAfter * 1000, Math.min(16000, 2000 * Math.pow(2, attempt)));
+    console.warn(`${label} ${r.status} — retry ${attempt + 1}/${maxRetries} em ${delay}ms`);
+    await new Promise((res) => setTimeout(res, delay));
+    attempt++;
+  }
+  throw new Error(`${label} ${lastStatus} (após ${maxRetries} retries): ${lastBody}`);
+}
 
 // =============================================================================
 // Template Engine (clone-from-template + replace placeholders)
@@ -42,29 +66,26 @@ async function getTemplateId(tipo: string): Promise<string> {
 
 async function cloneFromTemplate(tipo: string, parentFolderId: string, title: string): Promise<string> {
   const tplId = await getTemplateId(tipo);
-  const r = await fetch(`${DRIVE_GW}/files/${tplId}/copy?fields=id&supportsAllDrives=true`, {
+  const r = await fetchGoogle(`${DRIVE_GW}/files/${tplId}/copy?fields=id&supportsAllDrives=true`, {
     method: "POST",
     headers: { ...driveHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({ name: title, parents: [parentFolderId] }),
-  });
-  if (!r.ok) throw new Error(`cloneTemplate ${tipo} ${r.status}: ${await r.text()}`);
+  }, `cloneTemplate ${tipo}`);
   return (await r.json()).id;
 }
 
 async function docsBatch(docId: string, requests: any[]): Promise<any> {
   if (!requests.length) return null;
-  const r = await fetch(`${DOCS_GW}/documents/${docId}:batchUpdate`, {
+  const r = await fetchGoogle(`${DOCS_GW}/documents/${docId}:batchUpdate`, {
     method: "POST",
     headers: docsHeaders(),
     body: JSON.stringify({ requests }),
-  });
-  if (!r.ok) throw new Error(`docsBatch ${r.status}: ${await r.text()}`);
+  }, "docsBatch");
   return await r.json();
 }
 
 async function getDocFull(docId: string): Promise<any> {
-  const r = await fetch(`${DOCS_GW}/documents/${docId}`, { headers: docsHeaders() });
-  if (!r.ok) throw new Error(`getDoc ${r.status}`);
+  const r = await fetchGoogle(`${DOCS_GW}/documents/${docId}`, { headers: docsHeaders() }, "getDoc");
   return await r.json();
 }
 
@@ -1428,7 +1449,25 @@ Deno.serve(async (req) => {
     // @ts-ignore EdgeRuntime exists in supabase edge runtime
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
       // @ts-ignore
-      EdgeRuntime.waitUntil(processQueue().catch((e) => console.error("bg processQueue", e)));
+      EdgeRuntime.waitUntil((async () => {
+        try {
+          await processQueue();
+          // Se ainda há jobs pendentes, encadeia uma nova invocação para drenar a fila.
+          const { count } = await supabase
+            .from("drive_sync_queue")
+            .select("id", { count: "exact", head: true })
+            .in("status", ["pendente", "erro"])
+            .lt("tentativas", MAX_TENTATIVAS);
+          if ((count || 0) > 0) {
+            await new Promise((r) => setTimeout(r, 4000));
+            await fetch(`${SUPABASE_URL}/functions/v1/drive-sync-worker`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+              body: JSON.stringify({ chained: true }),
+            }).catch((e) => console.warn("chain invoke", e));
+          }
+        } catch (e) { console.error("bg processQueue", e); }
+      })());
       return new Response(JSON.stringify({ ok: true, queued: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
