@@ -412,6 +412,33 @@ export default function ImportReviewDialog({
                                     }
                                   />
                                 </div>
+                                <div className="col-span-2 md:col-span-3">
+                                  <Label className="text-[10px]">
+                                    Rubrica (SIT/TCE-PR){" "}
+                                    {original.rubrica_codigo && rubricaToCategoriaId[String(original.rubrica_codigo).trim()] ? (
+                                      <span className="text-emerald-600">— sugerida pela IA</span>
+                                    ) : (
+                                      <span className="text-amber-700">— defina manualmente</span>
+                                    )}
+                                  </Label>
+                                  <Select
+                                    value={original.rubrica_codigo || ""}
+                                    onValueChange={(v) =>
+                                      onUpdateField(d.docIdx, it.despIdx, "rubrica_codigo", v)
+                                    }
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder="Selecione a rubrica" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {categorias.map((c) => (
+                                        <SelectItem key={c.id} value={c.codigo} className="text-xs">
+                                          {c.codigo} — {c.descricao}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                                 <div>
                                   <Label className="text-[10px]">
                                     Nome favorecido (SIT){" "}
