@@ -88,12 +88,10 @@ function fmtDataShort(d: string | null | undefined): string {
 /** Aplica marcadores institucionais ao nome do participante. */
 function rotularNome(p: ListaParticipante): string {
   const isDesligado = p.status === "desligado";
-  const isBA = p.status === "busca_ativa";
   if (isDesligado) {
     const data = fmtDataShort(p.data_desligamento);
     return `${p.nome}${data ? ` (D ${data})` : " (D)"}`;
   }
-  if (isBA) return `${p.nome} (BA)`;
   return p.nome;
 }
 
