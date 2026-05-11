@@ -5,6 +5,40 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Rubricas oficiais SIT/TCE-PR (mantenha sincronizado com src/lib/rubricasOficiais.ts)
+const RUBRICAS = [
+  ["3.1.90.11.01", "VENCIMENTOS E SALÁRIOS"],
+  ["3.1.90.11.43", "13º SALÁRIO"],
+  ["3.1.90.11.45", "FÉRIAS - ABONO CONSTITUCIONAL"],
+  ["3.1.90.13.01", "FGTS"],
+  ["3.1.90.13.02", "CONTRIBUIÇÕES PREVIDENCIÁRIAS - INSS"],
+  ["3.1.90.16.00", "OUTRAS DESPESAS VARIÁVEIS - PESSOAL CIVIL"],
+  ["3.1.90.47.99", "OUTRAS OBRIGAÇÕES TRIBUTÁRIAS E CONTRIBUTIVAS (PESSOAL)"],
+  ["3.1.90.49.00", "AUXÍLIO-TRANSPORTE"],
+  ["3.1.90.94.00", "INDENIZAÇÕES E RESTITUIÇÕES TRABALHISTAS"],
+  ["3.3.90.30.01", "COMBUSTÍVEIS E LUBRIFICANTES AUTOMOTIVOS"],
+  ["3.3.90.30.07", "GÊNEROS DE ALIMENTAÇÃO"],
+  ["3.3.90.30.14", "MATERIAL EDUCATIVO E ESPORTIVO"],
+  ["3.3.90.30.16", "MATERIAL DE EXPEDIENTE"],
+  ["3.3.90.30.22", "MATERIAL DE LIMPEZA E PRODUTOS DE HIGIENIZAÇÃO"],
+  ["3.3.90.30.23", "UNIFORMES, TECIDOS E AVIAMENTOS"],
+  ["3.3.90.36.15", "LOCAÇÃO DE IMÓVEIS"],
+  ["3.3.90.36.26", "SERVIÇOS DOMÉSTICOS"],
+  ["3.3.90.39.05", "SERVIÇOS TÉCNICOS PROFISSIONAIS"],
+  ["3.3.90.39.19", "MANUTENÇÃO E CONSERVAÇÃO DE VEÍCULOS"],
+  ["3.3.90.39.43", "SERVIÇOS DE ENERGIA ELÉTRICA"],
+  ["3.3.90.39.44", "SERVIÇOS DE ÁGUA E ESGOTO"],
+  ["3.3.90.39.69", "SEGUROS EM GERAL"],
+  ["3.3.90.39.81", "SERVIÇOS BANCÁRIOS"],
+  ["3.3.90.39.99", "OUTROS SERVIÇOS DE TERCEIROS, PESSOA JURÍDICA"],
+  ["3.3.90.40.97", "DESPESAS DE TELEPROCESSAMENTO"],
+  ["3.3.90.47.99", "OUTRAS OBRIGAÇÕES TRIBUTÁRIAS E CONTRIBUTIVAS"],
+  ["4.4.90.52.52", "VEÍCULOS DE TRAÇÃO MECÂNICA"],
+  ["4.4.90.52.99", "OUTROS MATERIAIS PERMANENTES"],
+] as const;
+const RUBRICA_CODES = RUBRICAS.map((r) => r[0]);
+const RUBRICAS_TXT = RUBRICAS.map((r) => `  - ${r[0]}  ${r[1]}`).join("\n");
+
 const SYSTEM_PROMPT = `Você é um especialista em documentos financeiros brasileiros para prestação de contas no SIT (Sistema Integrado de Transferências do TCE/PR).
 
 Tipos de documentos que você analisa: notas fiscais, cupons fiscais, recibos, boletos, DARF, GPS, GFIP, folhas de pagamento, holerites, comprovantes de transferência bancária, contracheques.
@@ -18,7 +52,11 @@ REGRAS CRÍTICAS:
 3) Para comprovantes de transferência bancária pareados com holerite, use a DATA DA TRANSFERÊNCIA como data_lancamento e o NR.DOCUMENTO da transferência como numero_doc_pagamento.
 4) Valores no padrão brasileiro (1.019,23) devem virar número decimal com ponto (1019.23).
 5) Datas devem virar YYYY-MM-DD.
-6) Se o documento mencionar "TERMO DE FOMENTO/COLABORAÇÃO Nº XXX/AAAA", extraia para sit_numero_instrumento (XXX) e sit_ano_transferencia (AAAA).`;
+6) Se o documento mencionar "TERMO DE FOMENTO/COLABORAÇÃO Nº XXX/AAAA", extraia para sit_numero_instrumento (XXX) e sit_ano_transferencia (AAAA).
+7) CLASSIFIQUE CADA DESPESA EM UMA RUBRICA OFICIAL escolhendo o código mais ESPECÍFICO da lista abaixo (campo rubrica_codigo). Use apenas códigos exatos desta lista — não invente. Heurísticas: holerite/salário líquido → 3.1.90.11.01; 13º salário → 3.1.90.11.43; férias/abono → 3.1.90.11.45; FGTS → 3.1.90.13.01; INSS/GPS → 3.1.90.13.02; vale-transporte → 3.1.90.49.00; rescisão/indenização trabalhista → 3.1.90.94.00; combustível/posto → 3.3.90.30.01; alimentos/mercado/açougue → 3.3.90.30.07; material pedagógico/esportivo → 3.3.90.30.14; papelaria/expediente → 3.3.90.30.16; produtos de limpeza/higiene → 3.3.90.30.22; uniformes/tecidos → 3.3.90.30.23; aluguel de imóvel → 3.3.90.36.15; serviços domésticos (PF) → 3.3.90.36.26; serviços profissionais (contabilidade, jurídico, consultoria PJ) → 3.3.90.39.05; oficina/manutenção de veículo → 3.3.90.39.19; conta de luz → 3.3.90.39.43; conta de água/esgoto → 3.3.90.39.44; seguros (auto, predial) → 3.3.90.39.69; tarifas bancárias → 3.3.90.39.81; outros serviços PJ não classificados → 3.3.90.39.99; internet/telefonia/telecom → 3.3.90.40.97; tributos (DARF, ISS) genéricos → 3.3.90.47.99; compra de veículo → 4.4.90.52.52; equipamento/mobiliário permanente → 4.4.90.52.99.
+
+RUBRICAS OFICIAIS DISPONÍVEIS:
+${RUBRICAS_TXT}`;
 
 const PARAMS_SCHEMA = {
   type: "object",
@@ -52,6 +90,7 @@ const PARAMS_SCHEMA = {
           sit_numero_instrumento: { type: "string", description: "Nº do termo de fomento/colaboração (ex: '001')" },
           sit_ano_transferencia: { type: "number", description: "Ano do termo (ex: 2022)" },
           sit_descricao_item: { type: "string", description: "Descrição detalhada do item/serviço (até 2000 chars)" },
+          rubrica_codigo: { type: "string", enum: RUBRICA_CODES, description: "Código da rubrica oficial SIT/TCE-PR mais específica para esta despesa." },
         },
         required: ["descricao"],
         additionalProperties: false,
