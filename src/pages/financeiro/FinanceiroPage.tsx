@@ -488,6 +488,11 @@ export default function FinanceiroPage() {
   };
 
   // Pré-validação de todas as despesas extraídas (memoizada por render)
+  const rubricaToCategoriaId = (() => {
+    const m: Record<string, string> = {};
+    for (const c of categorias) m[c.codigo.trim()] = c.id;
+    return m;
+  })();
   const validatedDocs = docFiles.map((d, docIdx) => ({
     docIdx,
     fileName: d.file.name,
@@ -495,7 +500,7 @@ export default function FinanceiroPage() {
     items: d.extractedList.map((e, despIdx) => ({
       despIdx,
       original: e,
-      ...validateDespesa(e, { mesRef, storageUrl: d.storageUrl }),
+      ...validateDespesa(e, { mesRef, storageUrl: d.storageUrl, rubricaToCategoriaId }),
     })),
   }));
 
@@ -925,6 +930,7 @@ export default function FinanceiroPage() {
           mesRef={mesRef}
           saving={savingDocs}
           isCoordenacao={isCoordenacao}
+          categorias={categorias}
           onUpdateField={updateDocExtracted}
           onRemoveDespesa={removeDespesa}
           onConfirm={confirmAndSaveImportedDocs}
