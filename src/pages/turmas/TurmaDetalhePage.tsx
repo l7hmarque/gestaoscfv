@@ -380,14 +380,18 @@ const TurmaDetalhePage = () => {
                 </div>
                 <Button onClick={abrirListaNoGoogleSheets} disabled={gsheetLoading} className="w-full gap-1">
                   {gsheetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                  Abrir no Google Sheets
+                  Chamada em branco (Drive)
                 </Button>
-                <Button onClick={exportListaPresencaXlsx} variant="outline" className="w-full gap-1">
-                  <Download className="h-4 w-4" />Baixar XLSX
+                <Button onClick={abrirFrequenciaPreenchida} disabled={gsheetLoading} variant="default" className="w-full gap-1">
+                  {gsheetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                  Frequência preenchida (Drive)
                 </Button>
                 <p className="text-[10px] text-muted-foreground text-center">
-                  Documento institucional para impressão e marcação manual.
+                  Documentos institucionais salvos em SYSCFV/{`{MÊS} - {ANO}`}/04_Listas_Presenca.
                 </p>
+                <button type="button" onClick={exportListaPresencaXlsx} className="text-[10px] text-muted-foreground underline w-full text-center hover:text-foreground">
+                  Baixar XLSX local (fallback)
+                </button>
               </div>
             </DialogContent>
           </Dialog>
