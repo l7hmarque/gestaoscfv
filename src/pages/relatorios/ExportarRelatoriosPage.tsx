@@ -953,7 +953,7 @@ export default function ExportarRelatoriosPage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="mensal" className="space-y-4">
+      <Tabs defaultValue="drive" className="space-y-4">
         <TabsList className="grid grid-cols-7 w-full">
           <TabsTrigger value="drive">📁 Drive (Padrão)</TabsTrigger>
           <TabsTrigger value="mensal">Rel. Mensal</TabsTrigger>
