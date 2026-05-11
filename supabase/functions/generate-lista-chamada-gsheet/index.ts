@@ -474,6 +474,14 @@ Deno.serve(async (req) => {
       console.warn("[lista-chamada-gsheet] permissão pública falhou:", permErr);
     }
 
+    // 8. Mover para pasta SYSCFV/{MES} - {ANO}/04_Listas_Presenca
+    try {
+      const folderId = await ensureMonthSubfolder(anoNum, mesNum, "04_Listas_Presenca", GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY);
+      if (folderId) await moveFileToFolder(fileId, folderId, GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY);
+    } catch (mvErr) {
+      console.warn("[lista-chamada-gsheet] move pasta mensal:", mvErr);
+    }
+
     return new Response(
       JSON.stringify({ url: sheetUrl, fileId }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
