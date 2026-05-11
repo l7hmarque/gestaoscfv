@@ -294,6 +294,26 @@ const TurmaDetalhePage = () => {
     }
   };
 
+  const abrirFrequenciaPreenchida = async () => {
+    if (!turma) return;
+    setGsheetLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-lista-frequencia-gsheet", {
+        body: { turma_id: turma.id, mes: parseInt(listaMes), ano: parseInt(listaAno) },
+      });
+      if (error) throw error;
+      const url = (data as any)?.url;
+      if (!url) throw new Error("URL não retornada");
+      window.open(url, "_blank", "noopener,noreferrer");
+      toast.success("Lista de Frequência preenchida gerada no Drive!");
+      setListaOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao gerar Lista de Frequência");
+    } finally {
+      setGsheetLoading(false);
+    }
+  };
+
   const memberIds = new Set(members.map((m) => m.participante_id));
   const availableParticipantes = allParticipantes.filter((p) => !memberIds.has(p.id) && p.nome_completo.toLowerCase().includes(addSearch.toLowerCase()));
 
@@ -360,14 +380,18 @@ const TurmaDetalhePage = () => {
                 </div>
                 <Button onClick={abrirListaNoGoogleSheets} disabled={gsheetLoading} className="w-full gap-1">
                   {gsheetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                  Abrir no Google Sheets
+                  Chamada em branco (Drive)
                 </Button>
-                <Button onClick={exportListaPresencaXlsx} variant="outline" className="w-full gap-1">
-                  <Download className="h-4 w-4" />Baixar XLSX
+                <Button onClick={abrirFrequenciaPreenchida} disabled={gsheetLoading} variant="default" className="w-full gap-1">
+                  {gsheetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                  Frequência preenchida (Drive)
                 </Button>
                 <p className="text-[10px] text-muted-foreground text-center">
-                  Documento institucional para impressão e marcação manual.
+                  Documentos institucionais salvos em SYSCFV/{`{MÊS} - {ANO}`}/04_Listas_Presenca.
                 </p>
+                <button type="button" onClick={exportListaPresencaXlsx} className="text-[10px] text-muted-foreground underline w-full text-center hover:text-foreground">
+                  Baixar XLSX local (fallback)
+                </button>
               </div>
             </DialogContent>
           </Dialog>
