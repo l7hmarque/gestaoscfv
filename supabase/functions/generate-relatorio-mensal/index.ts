@@ -570,7 +570,11 @@ function generateMonthSheets(
   }
 
   // Sheets: Matrizes de frequência por turma
-  const turmasAtivas = turmas.filter((t: any) => t.ativa);
+  // Removido: as listas de presença/frequência agora são geradas em arquivo separado
+  // (`generate-listas-frequencia-mes-gsheet`) com layout institucional P/A/J,
+  // salvas em SYSCFV/{MÊS} - {ANO}/05_Listas_Frequencia_Preenchidas/.
+  // O consolidado mensal foca em indicadores, atividades e atendimentos.
+  const turmasAtivas: any[] = [];
   const border = { style: "thin", color: { rgb: "000000" } };
   const borderObj = { top: border, bottom: border, left: border, right: border };
 
