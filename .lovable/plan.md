@@ -1,98 +1,112 @@
-## Objetivo
+## Diagnóstico — por que "Abrir no Drive" funciona e "Abrir no Google Docs" não
 
-Padronizar toda a geração de documentos do SysCFV usando os modelos oficiais em Google Docs/Sheets do Drive, salvando os arquivos finais na mesma pasta mensal já criada por `sync-drive-modelos`. As exportações locais (DOCX/PDF/XLSX) deixam de aparecer na UI e ficam apenas como fallback oculto se a chamada ao Google falhar.
+| Botão | Função | Como gera |
+|---|---|---|
+| **Abrir no Google Docs** (cabeçalho do relatório) | `generate-relatorio-gdoc` | Copia um template ID hardcoded e injeta texto cru via `insertText` + `updateTextStyle`. **Não usa os modelos institucionais cadastrados em `drive_modelos`.** É por isso que o "Minha Família" saiu fora do padrão. |
+| **Abrir no Drive** (DriveSyncBadge) | `drive-sync-worker` (assíncrono, em fila) | Clona o template registrado em `drive_modelos.template_doc_id` e faz **substituição de placeholders** (`{DATA}`, `{EDUCADOR}`, `{ENG_1}`, fotos, tabela ANEXO II...). É o pipeline que produz o resultado que você gostou. |
 
-Escopo coberto agora (com modelo no txt):
+**Por que só "Maio Laranja 11/05" mostra o botão Drive em planejamentos:** apenas 8 de 34 planejamentos têm `drive_url` preenchido (os demais nunca foram enfileirados; o badge volta `null` quando não há linha em `drive_sync_queue`). Mesma lógica para relatórios antigos.
 
-1. **Relatório Mensal Consolidado** — Google Sheets (modelo `1YgUTOzN7criGJPfO06rYp7OsM7wW9lX-HTKHktFvoyg`)
-2. **Listas de Frequência** (preenchidas) — Google Sheets (modelo `12taeg34khJAwY8e6zL2ZiNIMMuJdCIIJacC6e245iBU`)
-3. **Relatório de Atividade** (1 por atividade) — Google Docs (modelo `1BSf2GzuXu0QYGsVg-d-plbjrqEemRXxEFX3ut86UJUg`)
-4. **Lista de Chamada em branco** — Google Sheets (modelo `18bJs2NjbuxjQ3y3rJlCmXjCgX-PkJOArwNpNNRCULq4`)
+**Lista de frequência preenchida — 3 bugs confirmados:**
+1. **Só apareceu 13/04**: a função usa apenas as datas que já têm `relatorios_atividade` cadastrado. Quero usar os `dias_semana` da turma (`{seg,qua}` etc.) para gerar TODAS as datas planejadas do mês — relatório existente preenche P/A/J, datas sem relatório ficam em branco.
+2. **Linha congelada**: `frozenRowCount: headerStartRow + 1` na linha 345 — remover.
+3. **Sufixo (N) "novo no mês"**: linhas 263 e 298 — remover (lógica + legenda).
 
-Fora do escopo (mantém como está): REO, Prestação de Contas, Relatório da Coordenação, Financeiro, Cronograma, Ficha de Inscrição, Planejamento, RCA — aguardando modelos.
+**Relatório Mensal Consolidado no Drive:** hoje só existe via Dashboard → aba "Relatório Mensal" → botão "Exportar XLSX" (faz upload como Google Sheets e mostra "Abrir no Drive" depois). Não há botão dedicado no Hub.
 
-## Padrão institucional aplicado a todos os modelos
+---
 
-- Cabeçalho institucional (Calibri 12, mesclado até a última coluna com dados, centralizado):
-  - Linha 1 (fundo preto / texto branco / negrito): "SOCIEDADE CIVIL NOSSA SENHORA APARECIDA"
-  - Linha 2 (fundo branco / preto / negrito): "Centro de Atenção Integral ao Adolescente | Serviço de Convivência e Fortalecimento de Vínculos"
-  - Linha 3 (fundo branco / preto / negrito itálico): "Termo de Colaboração 001/2022"
-- Títulos de coluna: fundo preto, texto branco negrito, Calibri 11
-- Demais conteúdos: Calibri 11; legendas Calibri 9
-- Bordas pretas 0.5px em todas as células com dados; alinhamento vertical ao meio; "ajustar texto"; colunas/linhas auto-fit
-- Nome das abas referenciando a informação contida
-- Nome do arquivo continua `SysCFV_{Categoria}_{YYYY-MM-DD}_{HHmmss}` (sem extensão local; o Drive guarda como Google Docs/Sheets)
+## Plano de Execução
 
-## Mudanças por categoria
+### Etapa 1 — Unificar relatórios e planejamentos no pipeline Drive (o que você gostou)
 
-### 1. Relatório Mensal Consolidado (Sheets)
+**Página do Relatório de Atividade (`RelatorioDetalhePage.tsx`)**
+- Remover botão **"Abrir no Google Docs"**.
+- Substituir por um único botão **"Abrir no Drive"** que:
+  - se `drive_sync_queue` está sincronizado → abre o link;
+  - se ainda não foi gerado → chama `enqueue_drive_sync` + `drive-sync-worker` e mostra "Sincronizando…".
+- Manter o `DriveSyncBadge` no rodapé como indicador de status para casos avançados (ou consolidar tudo nesse componente).
 
-- Nova edge function `generate-relatorio-mensal-gsheet` que:
-  - Copia o template Sheets para a pasta `SysCFV/{AAAA-MM}/Relatorios_Mensais/` no Drive (mesma raiz usada por `sync-drive-modelos`)
-  - Preenche as abas conforme o txt:
-    - Resumo Sintético (atendidos no mês, por bairro, faixa etária, período — únicos com ≥1 presença)
-    - Atividades (planejadas vs realizadas + Resultados Alcançados IA ≤300 chars)
-    - Metas (por território + Resultados Alcançados IA ≤400 chars)
-    - Monitoramento (4 indicadores: Momentos Educando, Oficinas, Educacional 100%, Socioassistencial 100%)
-    - Atendimentos Técnicos
-    - Listas de Frequência (uma aba por turma, usando o mesmo padrão da categoria 2)
-- Aposenta `generate-relatorio-mensal` (XLSX local) — fica só como fallback chamado se a função Google falhar
-- UI (`DashboardRelatorioMensalTab.tsx`): troca o botão "Exportar XLSX" por "Gerar no Drive" + link "Abrir no Drive" após sucesso
+**Página do Planejamento (`PlanejamentoDetalhePage.tsx`)**
+- Estender `DriveSyncBadge` para que, quando não houver linha em `drive_sync_queue`, mostre o botão **"Gerar no Drive"** que enfileira via `enqueue_drive_sync('planejamento', id)` + dispara `drive-sync-worker` (igual ao `retry`).
+- Resultado: todos os 34 planejamentos passam a ter o botão.
 
-### 2. Listas de Frequência preenchidas (Sheets)
+**Decomissionar (mantendo arquivos como fallback técnico, sem botão)**
+- Edge function `generate-relatorio-gdoc` deixa de ser chamada pela UI (mantida para um eventual fallback futuro).
+- Hook `abrirRelatorioNoGoogleDocs` em `useDocumentExport.ts`: marcar como deprecated, sem chamadas.
 
-- Nova edge function `generate-lista-frequencia-gsheet` (uma aba por turma/intervalo) usando o template informado
-- Datas como colunas (DD/MM), presença marcada com "P'" negrito faltas com "A", justificativa com "J" na celula correspondente a data e descricao da justificativa em comentario.
-- Substitui `exportListaPresenca.ts` na UI; lib local fica só como fallback
+### Etapa 2 — Corrigir Lista de Frequência (`generate-lista-frequencia-gsheet`)
 
-### 3. Relatório de Atividade (Docs)
+1. Ler `turmas.dias_semana` (ex.: `{seg,qua}`) e calcular **todos os dias do mês** que casam com esses dias da semana → essa é a lista canônica de colunas.
+2. Para cada data: se há relatório → P / A / J; se não há → célula em branco.
+3. Remover `frozenRowCount` (sem linha congelada).
+4. Remover lógica `(N)` e o item "(N) = Novo no mês" da legenda.
 
-- `generate-relatorio-gdoc` já existe e copia template Docs — **trocar TEMPLATE_ID padrão** para `1BSf2GzuXu0QYGsVg-d-plbjrqEemRXxEFX3ut86UJUg` e revisar o `batchUpdate` para casar exatamente com a estrutura do novo modelo (ler o doc primeiro, mapear seções)
-- UI (`RelatorioDetalhePage.tsx`, `useDocumentExport.ts`): remover botões DOCX/PDF locais; deixar só "Abrir no Drive (Docs)". Fallback DOCX local fica oculto, só dispara se a edge function retornar erro
+### Etapa 3 — Botão de Relatório Mensal Consolidado (Google Sheets) no Hub
 
-### 4. Lista de Chamada em branco (Sheets)
+- Adicionar botão **"Gerar no Drive (Sheets)"** ao lado do atual "Exportar XLSX" no Dashboard → Relatório Mensal.
+- O Hub `/relatorios/exportar` ganha o card descrito na Etapa 4.
 
-- `generate-lista-chamada-gsheet` já existe — **atualizar TEMPLATE_ID** para `18bJs2NjbuxjQ3y3rJlCmXjCgX-PkJOArwNpNNRCULq4` e revisar mapeamento de células conforme o novo modelo (idêntico à Lista de Frequência mas com células de presença vazias)
-- UI: substitui o botão "Imprimir Chamada" pelo "Gerar Chamada (Drive)"
+### Etapa 4 — Reestruturar Hub Exportar Relatórios
 
-## Localização dos arquivos no Drive
-
-Reaproveitar a estrutura criada por `sync-drive-modelos`:
+Layout do mês selecionado (Mês/Ano no topo) com cards alinhados ao Drive:
 
 ```
-SysCFV/
-  └── 2026-04/
-       ├── Relatorios_Mensais/
-       ├── Listas_Frequencia/
-       ├── Relatorios_Atividade/
-       └── Chamadas_Branco/
+[Mês: Maio ▾] [Ano: 2026]
+
+┌─────────────────────────────────────────┐
+│ 1. Relatório Mensal Consolidado         │
+│    → Gerar no Drive (1 Google Sheet)    │
+├─────────────────────────────────────────┤
+│ 2. Relatórios de Atividade do Mês       │
+│    → Gerar todos no Drive (lote)        │
+│    Cria/atualiza 1 Google Doc por       │
+│    relatório em 02_Relatorios_Atividade │
+├─────────────────────────────────────────┤
+│ 3. Planejamentos do Mês                 │
+│    → Gerar todos no Drive (lote)        │
+│    1 Google Doc por planejamento em     │
+│    03_Planejamentos                     │
+├─────────────────────────────────────────┤
+│ 4. Listas de Chamada em Branco          │
+│    → 1 Google Sheet, 1 aba por turma    │
+├─────────────────────────────────────────┤
+│ 5. Listas de Frequência Preenchidas     │
+│    → 1 Google Sheet, 1 aba por turma    │
+├─────────────────────────────────────────┤
+│ 6. Relatório de Execução do Objeto (REO)│  ← placeholder
+│    🚧 em breve                           │
+├─────────────────────────────────────────┤
+│ 7. Prestação de Contas                  │  ← placeholder
+│    🚧 em breve                           │
+└─────────────────────────────────────────┘
 ```
 
-Cada edge function:
+**Implementação técnica dos botões em lote:**
+- Cards 2 e 3: para cada item do mês, faz `enqueue_drive_sync(tipo, id)` e dispara `drive-sync-worker`. Mostra progresso (X/Y concluídos) e ao final lista links.
+- Cards 4 e 5: novas edge functions `generate-listas-chamada-mes-gsheet` e `generate-listas-frequencia-mes-gsheet` — variações das atuais, criando UMA spreadsheet com **uma aba por turma** ao invés de uma planilha por turma. Reutilizam a lógica de cabeçalho institucional + a lógica corrigida da Etapa 2.
+- Tudo salvo em `SYSCFV/{MÊS} - {ANO}/0X_…/` (estrutura já existente).
 
-1. Garante a pasta-mês via helper `ensureMonthFolder(yyyyMm, subcat)` (extrair de `sync-drive-modelos` para `_shared`)
-2. Copia o template, renomeia com `sysCfvFileName`, preenche
-3. Compartilha como "qualquer pessoa com link → leitor"
-4. Persiste `gdoc_url`/`gsheet_url` no registro origem (relatório, mês consolidado, etc.) para idempotência
+**Preservar o legado** descrito na conversa anterior: REO, Prestação de Contas, Atendimentos Técnicos, Coordenação, Cronograma, Atividades em lote DOCX/PDF — esses cards/seções existentes ficam abaixo, agrupados como **"Outros (legado)"**, até termos modelos institucionais para eles.
 
-## UI/UX
+---
 
-- Hub `useDocumentExport` ganha um modo `preferGoogle = true` (padrão) que tenta a edge function Google primeiro; em caso de erro mostra toast com botão "tentar formato local" (fallback oculto)
-- Toast de sucesso: "Documento gerado no Drive" + link direto
-- Tela `Exportar Relatórios` (`/relatorios/exportar`): botões redirecionados para as funções Google
-- Tela `Dashboard → Relatório Mensal`: idem
+## Arquivos a alterar
 
-## Detalhes técnicos
-
-- Connectors: `google_drive` + `google_docs` + `google_sheets` já estão conectados (já usados em `generate-relatorio-gdoc` e `generate-lista-chamada-gsheet`); confirmar `GOOGLE_SHEETS_API_KEY` antes do deploy
-- Compartilhamento: `POST /files/{id}/permissions` com `{ role: "reader", type: "anyone" }`
-- IA (Resultados Alcançados): reutilizar `generate-resultados-alcancados` com novos limites de caracteres (300 para atividades, 400 para metas)
-- Sem novas tabelas; reutilizar colunas `gdoc_id/gdoc_url` em `relatorios_atividade` e adicionar `gsheet_id/gsheet_url` em `relatorios_mensais` via migration
-- Memória: atualizar `mem://constraints/nomenclatura-arquivos` e adicionar `mem://funcionalidades/exportacao-google-drive-unificada` documentando o novo padrão e os IDs dos templates
+- `supabase/functions/generate-lista-frequencia-gsheet/index.ts` — datas via `dias_semana`, sem freeze, sem (N).
+- `supabase/functions/drive-sync-worker/index.ts` — confirmar que job `relatorio` e `planejamento` escrevem `drive_url` na tabela origem (ajuste se faltar).
+- `src/components/DriveSyncBadge.tsx` — quando não há linha em fila, mostrar botão "Gerar no Drive" que chama `enqueue_drive_sync`.
+- `src/pages/relatorios/RelatorioDetalhePage.tsx` — remover botão "Abrir no Google Docs", deixar só o fluxo Drive.
+- `src/pages/planejamentos/PlanejamentoDetalhePage.tsx` — sem mudança extra além do badge atualizado.
+- `src/pages/relatorios/ExportarRelatoriosPage.tsx` — reestruturação dos cards na ordem acima, com seção "Outros (legado)" para o que sobra.
+- `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` — renomear botão para "Gerar no Drive (Sheets)".
+- Novas edge functions: `generate-listas-chamada-mes-gsheet`, `generate-listas-frequencia-mes-gsheet` (1 spreadsheet, 1 aba por turma).
 
 ## Validação
 
-1. `curl_edge_functions` em cada nova função para Abril/2026 e conferir o arquivo gerado no Drive
-2. Visualmente abrir cada documento e validar cabeçalho institucional, fontes, bordas e dados
-3. Confirmar que os botões antigos sumiram da UI das telas listadas
-4. Conferir que `sync-drive-modelos` continua organizando as pastas (sem regressão)
+1. Lista de Frequência da turma testada (mês 04/2026) → deve listar 01, 06, 08, 13, 15, 20, 22, 27, 29; sem freeze; sem (N).
+2. Planejamento "Minha Família" → botão "Gerar no Drive" disponível, gera doc no padrão dos 8 que já estão OK.
+3. Relatório "Minha Família" → "Abrir no Drive" idem.
+4. Hub Exportar → 5 cards funcionando + 2 placeholders.
+
+Aprovando este plano, executo na ordem das etapas.

@@ -147,7 +147,7 @@ export default function DashboardRelatorioMensalTab() {
           <Button onClick={exportarMensal} disabled={anyLoading}>
             {loadingMensal
               ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando...</>
-              : <><Download className="h-4 w-4 mr-1" />Exportar XLSX</>}
+              : <><Download className="h-4 w-4 mr-1" />Gerar no Drive (Sheets)</>}
           </Button>
           {mensalDriveUrl && (
             <a

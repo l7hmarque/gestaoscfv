@@ -19,6 +19,20 @@ const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Ag
 const MESES_UPPER = MESES.map(m => m.toUpperCase());
 const PERIODO_LABEL: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const FAIXA_LABEL: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
+// Mapa dias_semana (turmas) -> getDay() do JS (0=dom .. 6=sab)
+const DIA_SEMANA_MAP: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
+
+function diasDoMesPorSemana(ano: number, mes: number, diasSemana: string[]): string[] {
+  const targets = new Set((diasSemana || []).map(d => DIA_SEMANA_MAP[String(d).toLowerCase()]).filter(n => n !== undefined));
+  if (!targets.size) return [];
+  const out: string[] = [];
+  const last = new Date(ano, mes, 0).getDate();
+  for (let d = 1; d <= last; d++) {
+    const dow = new Date(ano, mes - 1, d).getDay();
+    if (targets.has(dow)) out.push(`${ano}-${pad2(mes)}-${pad2(d)}`);
+  }
+  return out;
+}
 
 function safeName(s: string): string {
   return (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w\s\-]/g, "").trim().slice(0, 80);
@@ -131,7 +145,7 @@ Deno.serve(async (req) => {
     // 1. Turma
     const { data: turma, error: tErr } = await svc
       .from("turmas")
-      .select("id, nome, periodo, faixa_etaria, profiles(nome), bairros(nome)")
+      .select("id, nome, periodo, faixa_etaria, dias_semana, profiles(nome), bairros(nome)")
       .eq("id", turma_id)
       .maybeSingle();
     if (tErr || !turma) throw new Error(tErr?.message || "Turma não encontrada");
@@ -172,14 +186,18 @@ Deno.serve(async (req) => {
       ? await svc.from("relatorio_presenca").select("relatorio_id, participante_id, presente, justificativa").in("relatorio_id", relIds)
       : { data: [] as any[] };
 
-    // datas únicas presentes em algum relatório (DD/MM)
-    const datesSet = new Set<string>();
-    (relatorios || []).forEach((r: any) => { if (r.data) datesSet.add(r.data); });
-    const datesISO = [...datesSet].sort();
+    // Datas canônicas vêm de turma.dias_semana — todas as datas planejadas do mês.
+    // Se a turma não tem dias_semana cadastrados, cai no fallback: datas que tiveram relatório.
+    const diasSemana: string[] = (turma as any).dias_semana || [];
+    let datesISO = diasSemana.length ? diasDoMesPorSemana(anoNum, mesNum, diasSemana) : [];
+    if (!datesISO.length) {
+      const datesSet = new Set<string>();
+      (relatorios || []).forEach((r: any) => { if (r.data) datesSet.add(r.data); });
+      datesISO = [...datesSet].sort();
+    }
     const datas = datesISO.map(d => `${d.slice(8,10)}/${d.slice(5,7)}`);
-
     if (datas.length === 0) {
-      return new Response(JSON.stringify({ error: "Sem relatórios cadastrados para esta turma neste mês." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "Turma sem dias_semana cadastrados e sem relatórios neste mês." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // index: por participante -> por data ISO -> {presente, justificativa}
@@ -260,7 +278,6 @@ Deno.serve(async (req) => {
       if (m.desligado) runs = [{ text: m.nome + " " }, { text: `(D${m.data_desligamento ? " " + m.data_desligamento : ""})`, bold: true }];
       else if (m.transferido) runs = [{ text: m.nome + " " }, { text: `(T${m.data_transferencia ? " " + m.data_transferencia : ""})`, bold: true }];
       else if (m.busca_ativa) runs = [{ text: m.nome + " " }, { text: "(BA)", bold: true }];
-      else if (m.novo) runs = [{ text: m.nome + " " }, { text: `(N${m.iniciou_em ? " " + m.iniciou_em : ""})`, bold: true }];
       else runs = [{ text: m.nome }];
 
       const arr: any[] = [plainCell(i + 1, numFmt), richCell(runs, cellFmt)];
@@ -294,8 +311,7 @@ Deno.serve(async (req) => {
         { text: "J", bold: true }, { text: " = Ausência justificada (justificativa em comentário da célula)  ·  " },
         { text: "(BA)", bold: true }, { text: " = Em busca ativa  ·  " },
         { text: "(D)", bold: true }, { text: " = Desligado  ·  " },
-        { text: "(T)", bold: true }, { text: " = Transferido  ·  " },
-        { text: "(N)", bold: true }, { text: " = Novo no mês" },
+        { text: "(T)", bold: true }, { text: " = Transferido" },
       ];
       const arr: any[] = [plainCell("", legendFmt), richCell(legendRuns, legendFmt)];
       for (let j = 2; j < totalCols; j++) arr.push(plainCell("", legendFmt));
@@ -342,7 +358,6 @@ Deno.serve(async (req) => {
     requests.push({ mergeCells: { range: { sheetId: SHEET_ID, startRowIndex: legendRowIdx, endRowIndex: legendRowIdx + 1, startColumnIndex: 1, endColumnIndex: totalCols }, mergeType: "MERGE_ALL" } });
     requests.push({ updateDimensionProperties: { range: { sheetId: SHEET_ID, dimension: "COLUMNS", startIndex: 0, endIndex: 1 }, properties: { pixelSize: 40 }, fields: "pixelSize" } });
     requests.push({ autoResizeDimensions: { dimensions: { sheetId: SHEET_ID, dimension: "COLUMNS", startIndex: 1, endIndex: totalCols } } });
-    requests.push({ updateSheetProperties: { properties: { sheetId: SHEET_ID, gridProperties: { frozenRowCount: headerStartRow + 1 } }, fields: "gridProperties.frozenRowCount" } });
     await gw(`${SHEETS_GW}/spreadsheets/${fileId}:batchUpdate`, { method: "POST", body: JSON.stringify({ requests }) }, GOOGLE_SHEETS_API_KEY, LOVABLE_API_KEY);
 
     try {

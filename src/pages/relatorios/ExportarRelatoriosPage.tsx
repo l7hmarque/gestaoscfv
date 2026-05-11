@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { FileSpreadsheet, Download, FileText, Loader2, Calendar, ClipboardList, Users } from "lucide-react";
+import { FileSpreadsheet, Download, FileText, Loader2, Calendar, ClipboardList, Users, UploadCloud, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
@@ -874,6 +874,55 @@ export default function ExportarRelatoriosPage() {
 
   const anyLoading = loadingRelMensal || loadingPC || loadingAnual || loadingAtividades || loadingAtendimentos || loadingGestao;
 
+  // ===== Drive (Padrão) — lotes mensais via drive-sync-worker =====
+  const [driveLoading, setDriveLoading] = useState<null | "mensal" | "rel" | "plan">(null);
+  const [driveProgress, setDriveProgress] = useState<{ done: number; total: number } | null>(null);
+  const [mensalDriveUrl, setMensalDriveUrl] = useState<string | null>(null);
+  const dataIniMes = `${ano}-${MESES[mesNum - 1]}-01`;
+  const proxMesIso = mesNum === 12 ? `${parseInt(ano) + 1}-01-01` : `${ano}-${MESES[mesNum]}-01`;
+
+  const gerarMensalDrive = async () => {
+    setDriveLoading("mensal"); setMensalDriveUrl(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-relatorio-mensal", { body: { mes: mesNum, ano: parseInt(ano) } });
+      if (error) throw error;
+      if (data?.gsheet_url) { setMensalDriveUrl(data.gsheet_url); toast.success("Relatório consolidado no Drive!"); }
+      else toast.success("Relatório gerado (Drive indisponível)");
+    } catch (e: any) { toast.error("Erro: " + (e.message || "")); }
+    finally { setDriveLoading(null); }
+  };
+
+  const enfileirarLote = async (tipo: "relatorio" | "planejamento") => {
+    setDriveLoading(tipo === "relatorio" ? "rel" : "plan");
+    setDriveProgress({ done: 0, total: 0 });
+    try {
+      const tabela = tipo === "relatorio" ? "relatorios_atividade" : "planejamentos";
+      const { data: items, error } = await supabase.from(tabela).select("id").gte("data", dataIniMes).lt("data", proxMesIso);
+      if (error) throw error;
+      const ids = (items || []).map((r: any) => r.id);
+      setDriveProgress({ done: 0, total: ids.length });
+      if (!ids.length) { toast.info("Nenhum item no mês."); return; }
+      let done = 0;
+      for (const id of ids) {
+        await supabase.rpc("enqueue_drive_sync", { _tipo: tipo, _origem_id: id });
+        done++; setDriveProgress({ done, total: ids.length });
+      }
+      await supabase.functions.invoke("drive-sync-worker", { body: { manual: true } }).catch(() => {});
+      toast.success(`${ids.length} ${tipo}(s) enfileirados. Verifique o Drive em alguns minutos.`);
+    } catch (e: any) { toast.error("Erro: " + (e.message || "")); }
+    finally { setDriveLoading(null); setTimeout(() => setDriveProgress(null), 4000); }
+  };
+
+  const DriveCard = ({ icon, title, desc, action, disabled, badge }: any) => (
+    <Card>
+      <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2">{icon}{title}{badge}</CardTitle></CardHeader>
+      <CardContent className="space-y-2">
+        <p className="text-xs text-muted-foreground">{desc}</p>
+        {action}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -904,8 +953,9 @@ export default function ExportarRelatoriosPage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="mensal" className="space-y-4">
-        <TabsList className="grid grid-cols-6 w-full">
+      <Tabs defaultValue="drive" className="space-y-4">
+        <TabsList className="grid grid-cols-7 w-full">
+          <TabsTrigger value="drive">📁 Drive (Padrão)</TabsTrigger>
           <TabsTrigger value="mensal">Rel. Mensal</TabsTrigger>
           <TabsTrigger value="pc">Prest. Contas</TabsTrigger>
           <TabsTrigger value="atividades">Atividades</TabsTrigger>
@@ -913,6 +963,92 @@ export default function ExportarRelatoriosPage() {
           <TabsTrigger value="anual">Anual</TabsTrigger>
           <TabsTrigger value="gestao">Gestão</TabsTrigger>
         </TabsList>
+
+        {/* Aba Drive (padrão institucional) */}
+        <TabsContent value="drive" className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Geração no padrão Google Drive para <strong>{MESES_NOMES[mesNum - 1]} / {ano}</strong>.
+            Tudo é salvo em <code>SYSCFV/{MESES_NOMES[mesNum - 1].toUpperCase()} - {ano}/</code>.
+          </p>
+
+          <DriveCard
+            icon={<FileSpreadsheet className="h-4 w-4" />}
+            title="1. Relatório Mensal Consolidado"
+            desc="Gera 1 Google Sheet consolidado do mês (resumo, atividades, metas, monitoramento, atendimentos, matrizes de frequência)."
+            action={
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button onClick={gerarMensalDrive} disabled={driveLoading !== null}>
+                  {driveLoading === "mensal"
+                    ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando…</>
+                    : <><UploadCloud className="h-4 w-4 mr-1" />Gerar no Drive (Sheets)</>}
+                </Button>
+                {mensalDriveUrl && (
+                  <a href={mensalDriveUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                    <ExternalLink className="h-3 w-3" /> Abrir no Drive
+                  </a>
+                )}
+              </div>
+            }
+          />
+
+          <DriveCard
+            icon={<FileText className="h-4 w-4" />}
+            title="2. Relatórios de Atividade do Mês"
+            desc="Enfileira todos os relatórios do mês para gerar 1 Google Doc por relatório (template institucional) em 02_Relatorios_Atividade."
+            action={
+              <Button onClick={() => enfileirarLote("relatorio")} disabled={driveLoading !== null} variant="secondary">
+                {driveLoading === "rel"
+                  ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Enfileirando {driveProgress?.done}/{driveProgress?.total}…</>
+                  : <><UploadCloud className="h-4 w-4 mr-1" />Gerar todos no Drive (lote)</>}
+              </Button>
+            }
+          />
+
+          <DriveCard
+            icon={<ClipboardList className="h-4 w-4" />}
+            title="3. Planejamentos do Mês"
+            desc="Enfileira todos os planejamentos do mês — 1 Google Doc por planejamento em 03_Planejamentos."
+            action={
+              <Button onClick={() => enfileirarLote("planejamento")} disabled={driveLoading !== null} variant="secondary">
+                {driveLoading === "plan"
+                  ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Enfileirando {driveProgress?.done}/{driveProgress?.total}…</>
+                  : <><UploadCloud className="h-4 w-4 mr-1" />Gerar todos no Drive (lote)</>}
+              </Button>
+            }
+          />
+
+          <DriveCard
+            icon={<FileSpreadsheet className="h-4 w-4" />}
+            title="4. Listas de Chamada em Branco (mês)"
+            badge={<Badge variant="outline" className="ml-1 text-[10px]">em breve</Badge>}
+            desc="1 Google Sheet com 1 aba por turma. Por enquanto, gere por turma na página /turmas/:id."
+            action={<Button disabled variant="outline">Em breve</Button>}
+          />
+
+          <DriveCard
+            icon={<FileSpreadsheet className="h-4 w-4" />}
+            title="5. Listas de Frequência Preenchidas (mês)"
+            badge={<Badge variant="outline" className="ml-1 text-[10px]">em breve</Badge>}
+            desc="1 Google Sheet com 1 aba por turma, datas de dias_semana preenchidas (P/A/J)."
+            action={<Button disabled variant="outline">Em breve</Button>}
+          />
+
+          <DriveCard
+            icon={<FileText className="h-4 w-4" />}
+            title="6. Relatório de Execução do Objeto (REO)"
+            badge={<Badge variant="outline" className="ml-1 text-[10px]">em breve</Badge>}
+            desc="Será integrado ao pipeline Drive."
+            action={<Button disabled variant="outline">Em breve</Button>}
+          />
+
+          <DriveCard
+            icon={<FileText className="h-4 w-4" />}
+            title="7. Prestação de Contas"
+            badge={<Badge variant="outline" className="ml-1 text-[10px]">em breve</Badge>}
+            desc="Será integrada ao pipeline Drive."
+            action={<Button disabled variant="outline">Em breve</Button>}
+          />
+        </TabsContent>
 
         {/* Relatório Mensal */}
         <TabsContent value="mensal">
