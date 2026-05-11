@@ -15,6 +15,80 @@ const TIPO_ATENDIMENTO_LABELS: Record<string, string> = {
   encaminhamento: "Encaminhamento", busca_ativa: "Busca Ativa", acolhida: "Acolhida", desligamento: "Desligamento",
 };
 
+// ===== Drive helpers (upload XLSX e converte em Google Sheets na pasta mensal) =====
+const DRIVE_GW = "https://connector-gateway.lovable.dev/google_drive/drive/v3";
+const DRIVE_UPLOAD_GW = "https://connector-gateway.lovable.dev/google_drive/upload/drive/v3";
+const MESES_UPPER = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
+
+async function ensureMonthSubfolder(yyyy: number, mm: number, sub: string, driveKey: string, lovableKey: string): Promise<string | null> {
+  try {
+    const headers = { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": driveKey, "Content-Type": "application/json" };
+    const find = async (name: string, parent?: string) => {
+      const pq = parent ? ` and '${parent}' in parents` : "";
+      const q = `mimeType='application/vnd.google-apps.folder' and name='${name.replace(/'/g, "\\'")}' and trashed=false${pq}`;
+      const r = await fetch(`${DRIVE_GW}/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1&supportsAllDrives=true`, { headers });
+      if (!r.ok) return null;
+      return (await r.json()).files?.[0]?.id || null;
+    };
+    const create = async (name: string, parent?: string) => {
+      const body: any = { name, mimeType: "application/vnd.google-apps.folder" };
+      if (parent) body.parents = [parent];
+      const r = await fetch(`${DRIVE_GW}/files?fields=id&supportsAllDrives=true`, { method: "POST", headers, body: JSON.stringify(body) });
+      if (!r.ok) return null;
+      return (await r.json()).id;
+    };
+    const ensure = async (n: string, p?: string) => (await find(n, p)) || (await create(n, p));
+    const root = await ensure("SYSCFV"); if (!root) return null;
+    const month = await ensure(`${MESES_UPPER[mm - 1]} - ${yyyy}`, root); if (!month) return null;
+    return await ensure(sub, month);
+  } catch (e) { console.warn("ensureMonthSubfolder", e); return null; }
+}
+
+async function uploadXlsxAsGsheet(buf: Uint8Array, name: string, parentId: string | null, driveKey: string, lovableKey: string): Promise<{ id: string; url: string } | null> {
+  try {
+    const metadata: any = {
+      name,
+      mimeType: "application/vnd.google-apps.spreadsheet", // converte para Sheets
+    };
+    if (parentId) metadata.parents = [parentId];
+    const boundary = "----syscfv" + Math.random().toString(36).slice(2);
+    const enc = new TextEncoder();
+    const head = enc.encode(
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+      `--${boundary}\r\nContent-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n`
+    );
+    const tail = enc.encode(`\r\n--${boundary}--`);
+    const body = new Uint8Array(head.length + buf.length + tail.length);
+    body.set(head, 0); body.set(buf, head.length); body.set(tail, head.length + buf.length);
+    const r = await fetch(`${DRIVE_UPLOAD_GW}/files?uploadType=multipart&supportsAllDrives=true&fields=id,webViewLink`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${lovableKey}`,
+        "X-Connection-Api-Key": driveKey,
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    });
+    if (!r.ok) { console.warn("upload drive falhou", r.status, await r.text()); return null; }
+    const j = await r.json();
+    // share anyone with link
+    await fetch(`${DRIVE_GW}/files/${j.id}/permissions?supportsAllDrives=true`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": driveKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "reader", type: "anyone" }),
+    }).catch(() => {});
+    return { id: j.id, url: j.webViewLink || `https://docs.google.com/spreadsheets/d/${j.id}/edit` };
+  } catch (e) { console.warn("uploadXlsxAsGsheet", e); return null; }
+}
+
+async function maybePushToDrive(buf: Uint8Array, name: string, mes: number, ano: number): Promise<{ url: string; id: string } | null> {
+  const driveKey = Deno.env.get("GOOGLE_DRIVE_API_KEY");
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!driveKey || !lovableKey) return null;
+  const folderId = await ensureMonthSubfolder(ano, mes, "01_Relatorios_Mensais", driveKey, lovableKey);
+  return await uploadXlsxAsGsheet(buf, name, folderId, driveKey, lovableKey);
+}
+
 // ===== Estilos institucionais (atualizados conforme comentários da planilha) =====
 const BORDER_THIN = { style: "thin", color: { rgb: "000000" } };
 const BORDER_OBJ = { top: BORDER_THIN, bottom: BORDER_THIN, left: BORDER_THIN, right: BORDER_THIN };
