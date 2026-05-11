@@ -1,7 +1,7 @@
 // @ts-nocheck
 // Edge Function: gera 1 Google Sheet com 1 aba por turma — Listas de Frequência preenchidas do mês.
 // Datas vêm de turma.dias_semana; preenchido com P/A/J a partir de relatorios_atividade + relatorio_presenca.
-// Salvo em SYSCFV/{MES} - {ANO}/04_Listas_Presenca/.
+// Salvo em SYSCFV/{MES} - {ANO}/05_Listas_Frequencia_Preenchidas/.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -132,7 +132,7 @@ function buildTurmaSheet(turma: any, members: any[], presencasMap: Record<string
   rows.push(fillRow(plainCell("Centro de Atenção Integral ao Adolescente | Serviço de Convivência e Fortalecimento de Vínculos", subHeaderInstFmt), totalCols - 1, subHeaderInstFmt));
   rows.push(fillRow(plainCell("Termo de Colaboração 001/2022", subHeaderItalicFmt), totalCols - 1, subHeaderItalicFmt));
   rows.push(fillRow(plainCell("", baseFmt), totalCols - 1, baseFmt));
-  rows.push(fillRow(plainCell(`LISTA DE FREQUÊNCIA — ${MESES[mesNum - 1].toUpperCase()} / ${anoNum}`, titleFmt), totalCols - 1, titleFmt));
+  rows.push(fillRow(plainCell(`LISTA DE PRESENÇA — ${MESES[mesNum - 1].toUpperCase()} / ${anoNum}`, titleFmt), totalCols - 1, titleFmt));
   rows.push(fillRow(plainCell(turma.nome, turmaNameFmt), totalCols - 1, turmaNameFmt));
   const infoRuns = [
     { text: "Período: ", bold: true }, { text: periodoStr },
