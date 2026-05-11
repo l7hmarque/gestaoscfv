@@ -255,7 +255,7 @@ Deno.serve(async (req) => {
         if (r?.url) {
           const buf = new Uint8Array(await (await fetch(r.url)).arrayBuffer());
           const base = `SysCFV_RelatorioMensal_${periodoLabel}`;
-          const target = subs["05_Relatorios_Mensais"].id;
+          const target = subs["06_Relatorios_Mensais"].id;
           const { nome, skip, toTrash } = await resolveNome(base, "gsheet", target, modo);
           if (!skip) {
             for (const id of toTrash) await trashFile(id);
@@ -457,7 +457,7 @@ Deno.serve(async (req) => {
         XLSX.utils.book_append_sheet(wb, wsR, "Relatos Pedagógicos");
 
         const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-        const target = subs["07_Roteiros_Equipe_Tecnica"].id;
+        const target = subs["08_Roteiros_Equipe_Tecnica"].id;
         const base = `SysCFV_EquipeTecnica_${periodoLabel}`;
         const { nome, skip, toTrash } = await resolveNome(base, "gsheet", target, modo);
         if (!skip) {
@@ -482,7 +482,7 @@ Deno.serve(async (req) => {
     // ===== TIPO: reo (DOCX → Google Doc + XLSX → Google Sheet) =====
     if (currentTipo === "reo") {
       try {
-        const target = subs["06_REO"].id;
+        const target = subs["07_REO"].id;
         // DOCX
         if (part === 0) try {
           const rDoc = await invokeFn("generate-reo", { mes, ano, formato: "docx" }, authHeader);
