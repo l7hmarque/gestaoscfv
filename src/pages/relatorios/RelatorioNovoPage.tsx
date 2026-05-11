@@ -442,14 +442,6 @@ const RelatorioNovoPage = () => {
 
       toast.success("Relatório salvo!");
 
-      // Recalcular busca ativa para os participantes desta turma (fire-and-forget leve)
-      try {
-        const ids = participantesTurma.map(p => p.id);
-        if (ids.length > 0) {
-          (supabase as any).rpc("recalcular_busca_ativa", { _participante_ids: ids }).then(() => {});
-        }
-      } catch {}
-
       // Fire-and-forget: generate AI results + auto-post to feed + check conquistas
       (async () => {
         try {

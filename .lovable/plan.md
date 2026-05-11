@@ -1,66 +1,48 @@
-# Correções Hub de Exportação Drive
+## Objetivo
 
-## 1. Listas de Presença no Relatório Mensal Consolidado (formato antigo)
+Tornar a classificação de **Busca Ativa (BA)** exclusivamente **manual**, removendo toda lógica automática que hoje promove ou rebaixa participantes para esse status.
 
-**Diagnóstico:** O `generate-relatorio-mensal` ainda gera abas "Matriz de Frequência" usando marcador `■` por turma. O modelo enviado (sheet `12taeg34kh…`) usa **P / A / J** com cabeçalho institucional + linha "Educador/Oficineiro · Oficina" e título "LISTA DE PRESENCA".
+## O que muda
 
-**Decisão:** Gerar como **arquivo separado** (já existe `generate-listas-frequencia-mes-gsheet`, basta alinhar formato ao modelo) e **remover as abas de chamada de dentro do consolidado**, mantendo o consolidado focado em indicadores/atividades.
+Hoje, a função `recalcular_busca_ativa()` (criada na migration `20260430183028`) roda automaticamente e:
 
-**Mudanças:**
-- `supabase/functions/generate-relatorio-mensal/index.ts`: remover o bloco `for (const t of turmas)` que cria as abas por turma (linhas ~621–716). O consolidado deixa de ter abas de presença por turma.
-- `supabase/functions/generate-listas-frequencia-mes-gsheet/index.ts`: ajustar layout para casar com o modelo:
-  - Título: `LISTA DE PRESENCA` (linha 5).
-  - Linha 6: `Turma: NOME | Bairro: X | Período: Y`.
-  - Linha 7: legenda P/A/J/D/BA/*.
-  - Linha 8: `Educador/Oficineiro: …  ·  Oficina: …`.
-  - Linha 9: cabeçalho `Nº | Nome | DD/MM…`.
-  - Células: `P` (presente), `A` (ausente), `J` (justificado), `*` (fora do vínculo). Remover uso de `■`.
-- O Card "1. Relatório Mensal Consolidado" no hub passa a abrir 2 links (Consolidado + Listas de Frequência). O Card 5 já existe e gera o arquivo separado — manter.
+- Marca como `busca_ativa` quem tem 3 faltas consecutivas OU mais de 14 dias sem presença.
+- Reverte para `ativo` quem volta a ter presença recente.
 
-## 2. Erro `column planejamentos.data does not exist`
+Além disso, o `PresencaPage.tsx` também faz auto-reversão de `busca_ativa → ativo` ao salvar presença, e cria registros automáticos em `busca_ativa_registros`.
 
-**Diagnóstico:** Em `src/pages/relatorios/ExportarRelatoriosPage.tsx` linha 902, a query usa `.gte("data", …)`. A coluna correta em `planejamentos` é `data_aplicacao` (já confirmado no próprio arquivo, linha 207).
+Tudo isso será desativado. A classificação BA passará a depender 100% de ação manual da equipe técnica/coordenação (via tela do participante, painel de busca ativa, etc.).
 
-**Mudança:**
-- Trocar a coluna do filtro conforme o tipo:
-  ```ts
-  const col = tipo === "relatorio" ? "data" : "data_aplicacao";
-  await supabase.from(tabela).select("id").gte(col, dataIniMes).lt(col, proxMesIso);
-  ```
+## Implementação
 
-## 3. Pastas separadas no Drive: chamada em branco × frequência preenchida
+### 1. Migration (banco)
 
-**Diagnóstico:** Ambas funções (`generate-listas-chamada-mes-gsheet` e `generate-listas-frequencia-mes-gsheet`) movem o arquivo para `04_Listas_Presenca`.
+- Remover/desabilitar qualquer **trigger** ou **cron job** (`pg_cron`) que chame `recalcular_busca_ativa()`.
+- Substituir o corpo da função `recalcular_busca_ativa()` por um `no-op` (retorna 0) — mantém compatibilidade caso algum código ainda invoque, mas não altera mais status.
+- Manter as tabelas `busca_ativa_registros` e os campos `status` em `participantes` intactos (sem perda de dados).
 
-**Mudanças:**
-- `generate-listas-chamada-mes-gsheet/index.ts`: subpasta passa a ser `04_Listas_Chamada_Em_Branco`.
-- `generate-listas-frequencia-mes-gsheet/index.ts`: subpasta passa a ser `05_Listas_Frequencia_Preenchidas`.
-- Aplicar o mesmo nas funções single (`generate-lista-chamada-gsheet` e `generate-lista-frequencia-gsheet`) para coerência.
+### 2. Frontend — `src/pages/presenca/PresencaPage.tsx`
 
-## 4. Batch "Relatórios de Atividade do Mês" não aparece no Drive
+- Remover o bloco "Auto-revert busca_ativa → ativo" (linhas ~115-130) que altera status e insere registros automáticos ao salvar presença.
 
-**Diagnóstico (logs do worker):**
-- `MAX_JOBS_PER_RUN = 3` e o worker NÃO se reinvoca após terminar — restantes ficam pendurados na fila.
-- Erros 429 da API do Google Docs (`WriteRequestsPerMinutePerUser = 60`) marcam jobs como `erro` sem backoff exponencial.
-- Erros 503 transitórios também derrubam jobs.
-- Não há cron agendado processando a fila.
+### 3. Verificação
 
-**Mudanças (`supabase/functions/drive-sync-worker/index.ts`):**
-- Após `processQueue()`, se ainda existirem jobs com `status in ('pendente','erro') and tentativas < MAX_TENTATIVAS`, **re-invocar a própria função** via `fetch` HTTP em background (`EdgeRuntime.waitUntil`) com pequeno delay (`setTimeout` 4s) para encadear lotes sem estourar 150s de idle.
-- Em `docsBatch`/`cloneFromTemplate`/`getDocFull` adicionar **retry com backoff exponencial** quando a resposta for `429` ou `503` (até 4 tentativas, esperando 2/4/8/16s, respeitando `Retry-After` se houver). Só marca o job como `erro` se todas as retentativas falharem.
-- Reduzir paralelismo: manter `MAX_JOBS_PER_RUN = 2` para garantir respeito ao limite de 60 writes/min/user (cada relatório faz vários `batchUpdate`).
-- Adicionar **cron job** (pg_cron) chamando `drive-sync-worker` a cada 1 minuto via `net.http_post`, garantindo que filas grandes sejam drenadas mesmo sem invocação manual.
+- Buscar no código outras chamadas a `recalcular_busca_ativa` ou auto-mudanças de `status = 'busca_ativa'` (edge functions, hooks) e remover/neutralizar.
 
-**Mudança no UI (`ExportarRelatoriosPage.tsx`):**
-- Após enfileirar o lote, mostrar contador real consultando `drive_sync_queue` filtrado por `tipo` + intervalo de `created_at`, com estados `pendente/processando/sincronizado/erro` (já temos `DriveSyncBadge`, basta um resumo agregado: "X de Y sincronizados").
+## Não muda
 
-## Ordem de implementação
+- Botões manuais para marcar/desmarcar BA na ficha do participante e no painel de Busca Ativa continuam funcionando normalmente.
+- Histórico já existente em `busca_ativa_registros` é preservado.
+- Marcador `(BA)` em listagens e relatórios continua refletindo o status atual (apenas a fonte do status muda para 100% manual).
 
-1. Migration: criar cron job 1/min para `drive-sync-worker` (pg_cron + pg_net).
-2. Editar `drive-sync-worker` (retry 429/503 + chain self-invoke + MAX_JOBS=2).
-3. Editar `ExportarRelatoriosPage.tsx` (corrigir coluna + indicador de progresso da fila).
-4. Editar `generate-relatorio-mensal` (remover abas de presença).
-5. Editar `generate-listas-frequencia-mes-gsheet` (formato P/A/J + nova pasta).
-6. Editar `generate-listas-chamada-mes-gsheet` + funções single (nova pasta).
+## Confirmação necessária
 
-Sem novas tabelas. Apenas 1 migration (cron) + 6 arquivos de função/UI.
+Posso prosseguir com:
+
+1. Desligar cron/trigger automáticos
+2. Neutralizar a função `recalcular_busca_ativa()`
+3. Remover auto-reversão no `PresencaPage`
+
+`Remover (BA) atuais das listas de chamada e listas de presenca.`
+
+Quer manter algum dos dois critérios automáticos ativos como sugestão (sem alterar status, só sinalizando na UI)? Ou remoção total?

@@ -116,24 +116,7 @@ const PresencaPage = () => {
       const { error } = await supabase.from("presenca").insert(rows);
       if (error) throw error;
 
-      // Auto-revert busca_ativa → ativo
-      try {
-        const presentesBA = participantes.filter(p => presenca[p.id] && p.status === "busca_ativa").map(p => p.id);
-        if (presentesBA.length > 0) {
-          await supabase.from("participantes").update({ status: "ativo" } as any).in("id", presentesBA);
-          const baRows = presentesBA.map(pid => ({
-            participante_id: pid,
-            profissional_id: user?.id || null,
-            tipo_contato: "presenca_atividade",
-            descricao: `Retorno automático: marcado como presente em ${dataStr}`,
-            resultado: "vai_retornar",
-            data_registro: dataStr,
-          }));
-          await (supabase.from as any)("busca_ativa_registros").insert(baRows);
-          toast.info(`${presentesBA.length} retornaram da busca ativa`);
-        }
-      } catch (e) { console.warn(e); }
-
+      // Busca Ativa é 100% manual — sem auto-reversão ao registrar presença.
       const allPresentes = participantes.filter(p => presenca[p.id]).length;
       const allAusentes = participantes.length - allPresentes;
       toast.success(`Presença salva! ${allPresentes} presentes, ${allAusentes} ausentes.`);

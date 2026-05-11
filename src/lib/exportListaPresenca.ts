@@ -136,12 +136,11 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   const orderedMembers = [...activeMembers, ...transferidoMembers, ...desligadoMembers];
 
   orderedMembers.forEach((m, i) => {
-    const baTag = m.busca_ativa && !m.desligado && !m.transferido ? " (BA)" : "";
     const label = m.desligado
       ? `${m.nome} (D${m.data_desligamento ? " " + m.data_desligamento : ""})`
       : m.transferido
         ? `${m.nome} (T${m.data_transferencia ? " " + m.data_transferencia : ""})`
-        : `${m.nome}${baTag}`;
+        : m.nome;
     rows.push([i + 1, label, ...datas.map(() => (m.desligado || m.transferido) ? "—" : "")]);
   });
 
@@ -152,7 +151,7 @@ function buildSheet(turma: TurmaInfo, members: MemberInfo[], mesNum: number, ano
   // Legend row
   rows.push([""]);
   const legendRow = signRow + 2;
-  rows.push(["", "Legenda: (BA) = Em busca ativa  ·  (D) = Desligado  ·  (T) = Transferido"]);
+  rows.push(["", "Legenda: (D) = Desligado  ·  (T) = Transferido"]);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
 

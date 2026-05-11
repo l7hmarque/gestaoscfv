@@ -1481,9 +1481,6 @@ const EquipeTecnicaPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button variant="default" size="sm" onClick={handleRecalcularBA} disabled={recalculando} className="gap-1">
-                <Activity className="h-3.5 w-3.5" />{recalculando ? "Recalculando..." : "Recalcular Busca Ativa"}
-              </Button>
               <Button variant="outline" size="sm" onClick={exportRelatorioBuscaAtiva} disabled={filteredBA.length === 0} className="gap-1">
                 <Download className="h-3.5 w-3.5" />Exportar Relatório
               </Button>
