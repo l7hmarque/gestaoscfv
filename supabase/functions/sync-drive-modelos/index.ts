@@ -15,11 +15,12 @@ const SUBFOLDERS = [
   "01_Modelos_Institucionais",
   "02_Relatorios_Atividade",
   "03_Planejamentos",
-  "04_Listas_Presenca",
-  "05_Relatorios_Mensais",
-  "06_REO",
-  "07_Roteiros_Equipe_Tecnica",
-  "08_Cronogramas",
+  "04_Listas_Chamada_Em_Branco",
+  "05_Listas_Frequencia_Preenchidas",
+  "06_Relatorios_Mensais",
+  "07_REO",
+  "08_Roteiros_Equipe_Tecnica",
+  "09_Cronogramas",
 ];
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -298,7 +299,7 @@ Deno.serve(async (req) => {
         }
         const turmasIds = Array.from(turmasSet);
         const lote = turmasIds.slice(offset, offset + batchSize);
-        const target = subs["04_Listas_Presenca"].id;
+        const target = subs["04_Listas_Chamada_Em_Branco"].id;
         for (const turmaId of lote) {
           try {
             const r = await invokeFn("generate-lista-chamada-gsheet", { turma_id: turmaId, mes, ano }, authHeader);
