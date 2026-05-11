@@ -19,6 +19,20 @@ const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Ag
 const MESES_UPPER = MESES.map(m => m.toUpperCase());
 const PERIODO_LABEL: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const FAIXA_LABEL: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
+// Mapa dias_semana (turmas) -> getDay() do JS (0=dom .. 6=sab)
+const DIA_SEMANA_MAP: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
+
+function diasDoMesPorSemana(ano: number, mes: number, diasSemana: string[]): string[] {
+  const targets = new Set((diasSemana || []).map(d => DIA_SEMANA_MAP[String(d).toLowerCase()]).filter(n => n !== undefined));
+  if (!targets.size) return [];
+  const out: string[] = [];
+  const last = new Date(ano, mes, 0).getDate();
+  for (let d = 1; d <= last; d++) {
+    const dow = new Date(ano, mes - 1, d).getDay();
+    if (targets.has(dow)) out.push(`${ano}-${pad2(mes)}-${pad2(d)}`);
+  }
+  return out;
+}
 
 function safeName(s: string): string {
   return (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w\s\-]/g, "").trim().slice(0, 80);
