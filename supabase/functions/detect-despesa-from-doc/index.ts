@@ -52,8 +52,7 @@ REGRAS CRÍTICAS:
 3) Para comprovantes de transferência bancária pareados com holerite, use a DATA DA TRANSFERÊNCIA como data_lancamento e o NR.DOCUMENTO da transferência como numero_doc_pagamento.
 3.1) REGRA OBRIGATÓRIA PARA HOLERITES/FOLHAS DE PAGAMENTO:
    - numero_documento e sit_numero_doc_despesa = "MM/AAAA" onde MM = mês ANTERIOR à data do comprovante de pagamento e AAAA = ano do pagamento. Exemplo: pagamento em 01/04/2026 → "03/2026".
-   - data_lancamento e sit_data_doc_despesa = ÚLTIMO DIA do mês anterior ao pagamento (ex.: 2026-02-28 quando pagamento for em 01/04/2026 → mês de competência março, mas a regra do sistema é usar fevereiro: pagamento 01/04/2026 → competência 03/2026, último dia = 2026-03-31).
-   - IMPORTANTE: o "mês anterior" é em relação à data do COMPROVANTE DE PAGAMENTO. Para pagamento em 01/04/2026, o código fica "03/2026" e a data fica 2026-03-31. Para pagamento em 05/05/2026 → código "04/2026", data 2026-04-30.
+   - data_lancamento e sit_data_doc_despesa = ÚLTIMO DIA do mês ANTERIOR ao mês do código. Exemplo: código "03/2026" → data 2026-02-28 (último dia de fevereiro/2026). Código "04/2026" → data 2026-03-31. Código "01/2026" → data 2025-12-31.
    - sit_data_emissao_pagamento continua sendo a data real da transferência bancária.
 4) PAREAMENTO MULTI-PÁGINA (CRÍTICO — não duplique despesas):
    - Um PDF pode conter, em páginas DIFERENTES, documentos que compõem UMA MESMA despesa. Antes de listar, percorra todas as páginas e identifique os pareamentos.
