@@ -1492,7 +1492,7 @@ export default function FinanceiroPage() {
                     <Card key={idx} className="border-dashed">
                       <CardContent className="pt-3 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium truncate max-w-[200px]">{doc.file.name}</span>
+                          <span className="text-xs font-medium truncate max-w-[200px]">{doc.fileName || doc.file?.name || "documento"}</span>
                           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setDocFiles(prev => prev.filter((_, i) => i !== idx))}>
                             <Trash2 className="h-3 w-3 text-destructive" />
                           </Button>
