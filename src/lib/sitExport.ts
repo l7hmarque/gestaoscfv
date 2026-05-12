@@ -18,10 +18,23 @@ const fmtDate = (d: string | null | undefined) => {
   try { return format(new Date(d + "T12:00:00"), "dd-MM-yyyy"); } catch { return ""; }
 };
 const fmtVal = (v: number | string | null | undefined) => {
-  const n = Number(v); return Number.isFinite(n) ? n.toFixed(2) : "0.00";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "0.00";
+  // TRUNCA (não arredonda) para 2 casas decimais — evita divergir com o documento original.
+  return (Math.trunc(n * 100) / 100).toFixed(2);
 };
-const trunc = (s: string | null | undefined, n: number) =>
-  (s || "").toString().substring(0, n);
+/** Sanitiza texto para o layout SIT: remove acentos, pipes e quebras de linha,
+ *  depois trunca em N caracteres. TCE-PR rejeita acentos e pipes internos. */
+const trunc = (s: string | null | undefined, n: number) => {
+  const raw = (s || "").toString();
+  const cleaned = raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove acentos
+    .replace(/[\r\n\t|]+/g, " ")     // remove quebras e pipes
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.substring(0, n);
+};
 
 export function buildDespesaTxtLine(d: any, cfg: SitConfig): string {
   const cnpjFav = onlyDigits(d.cnpj_cpf);
