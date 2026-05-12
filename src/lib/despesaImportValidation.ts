@@ -210,6 +210,10 @@ export function validateDespesa(
     if (!e.rubrica_codigo) {
       e.rubrica_codigo = /\binss\b/.test(descLower) ? "3.1.90.13.02" : "3.3.90.47.99";
     }
+  } else if (e.marcado_orcamento === true) {
+    // Marca-texto amarelo no PDF → Pesquisa de Preço (modalidade 7).
+    // Tributos têm precedência (já tratados acima) e ignoram a marca.
+    e.sit_modalidade_compra = 7;
   }
 
   const cnpjcpf = (e.cnpj_cpf || "").replace(/\D/g, "");
@@ -401,6 +405,7 @@ export function validateDespesa(
     sit_completo: obrigatoriosOk,
     pendente_comprovante: !temComprovante,
     lote_origem_pdf: ctx.storageUrl || null,
+    marcado_orcamento: e.marcado_orcamento === true,
   };
 
   return { row, warnings, missing };
