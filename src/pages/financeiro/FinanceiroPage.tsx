@@ -1127,7 +1127,7 @@ export default function FinanceiroPage() {
 
         <TabsContent value="caixa">
           <div className="space-y-3">
-            <CaixaEntradaTab mesRef={mesRef} onProcessed={load} />
+            <CaixaEntradaTab mesRef={mesRef} onProcessed={load} onRequestReview={handleCaixaReview} />
             <ConciliacaoExtratoCard mesRef={mesRef} />
           </div>
         </TabsContent>
