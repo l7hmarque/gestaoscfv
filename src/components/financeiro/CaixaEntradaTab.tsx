@@ -243,11 +243,12 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRequestReview }
     }
   };
 
-  const handleFiles = useCallback(async (files: FileList | null) => {
-    if (!files?.length) return;
+  const handleFiles = useCallback(async (files: FileList | File[] | null) => {
+    const selectedFiles = Array.from(files ?? []);
+    if (!selectedFiles.length) return;
     const { data: userData } = await supabase.auth.getUser();
     const created_by = userData?.user?.id ?? null;
-    const novos: ClassifiedDoc[] = Array.from(files).map((f) => ({
+    const novos: ClassifiedDoc[] = selectedFiles.map((f) => ({
       id: crypto.randomUUID(),
       file: f,
       fileName: f.name,
@@ -347,7 +348,7 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRequestReview }
             multiple
             accept="image/*,application/pdf"
             className="hidden"
-            onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }}
+            onChange={(e) => { handleFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }}
           />
         </label>
 
