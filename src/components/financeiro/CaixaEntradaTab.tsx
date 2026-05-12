@@ -7,8 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Inbox, Loader2, Receipt, AlertTriangle, CheckCircle2, Trash2, Upload, FileText, Eye } from "lucide-react";
 import { toast } from "sonner";
-import { validateDespesa } from "@/lib/despesaImportValidation";
-import { applyOrcamentoMatching } from "@/lib/orcamentoMatcher";
 import { analyzePdf } from "@/lib/pdfTextAnalyzer";
 import ConciliacaoExtratoCard from "./ConciliacaoExtratoCard";
 
@@ -70,9 +68,11 @@ interface Props {
   mesRef: string;
   onProcessed?: () => void;
   onRouteToTab?: (tab: "despesas" | "orcamentos" | "bancario", payload?: any) => void;
+  /** Disparado quando o usuário clica em "Revisar e Lançar" — entrega os docs ao pipeline do ImportReviewDialog na FinanceiroPage. */
+  onRequestReview?: (caixaDocs: Array<{ id: string; fileName: string; storageUrl?: string; despesas: any[] }>) => void;
 }
 
-export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
+export default function CaixaEntradaTab({ mesRef, onProcessed, onRequestReview }: Props) {
   const [docs, setDocs] = useState<ClassifiedDoc[]>([]);
   const [running, setRunning] = useState(false);
   const [launching, setLaunching] = useState(false);
@@ -127,29 +127,6 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
     } catch (e) { console.warn("persistDoc fail", e); }
   };
 
-  // Insere as despesas extraídas de UM documento direto na tabela `despesas`.
-  // Reaproveita `validateDespesa` + `applyOrcamentoMatching` já existentes.
-  const launchDespesasFromDoc = async (
-    docId: string,
-    storageUrl: string | undefined,
-    despesasExtraidas: any[],
-  ): Promise<number> => {
-    const { data: cats } = await supabase.from("categorias_financeiras").select("id, codigo");
-    const rubricaToCategoriaId: Record<string, string> = {};
-    (cats || []).forEach((c: any) => { rubricaToCategoriaId[String(c.codigo).trim()] = c.id; });
-    const rawRows = despesasExtraidas.map((e) => {
-      const { row } = validateDespesa(e, { mesRef, storageUrl, rubricaToCategoriaId });
-      return row;
-    });
-    const lote_id = docId; // 1 doc = 1 lote, facilita auditoria
-    const { rows } = await applyOrcamentoMatching(rawRows, mesRef);
-    const cleanRows = rows.map(({ marcado_orcamento, ...rest }: any) => ({ ...rest, lote_id }));
-    const { error } = await supabase.from("despesas").insert(cleanRows as any);
-    if (error) throw error;
-    onProcessed?.();
-    return cleanRows.length;
-  };
-
   const processOne = async (d: ClassifiedDoc) => {
     if (!d.file) return; // doc carregado de sessão anterior — não reprocessa
     setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "processando" } : x)));
@@ -188,7 +165,13 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
       // 2) Monta partes (texto: 1 chamada só; visão: chunks de N páginas em base64).
       let partes: { kind: "text"; pages: string[] }[] | { kind: "vision"; b64: string }[];
       if (pagesText) {
-        partes = [{ kind: "text", pages: pagesText }] as any;
+        // Quebra em lotes para não estourar memória/contexto da edge function em PDFs grandes.
+        const TEXT_PAGES_PER_BATCH = 8;
+        const lotes: { kind: "text"; pages: string[] }[] = [];
+        for (let i = 0; i < pagesText.length; i += TEXT_PAGES_PER_BATCH) {
+          lotes.push({ kind: "text", pages: pagesText.slice(i, i + TEXT_PAGES_PER_BATCH) });
+        }
+        partes = lotes as any;
       } else if (isPdf) {
         const chunks = await splitPdfIntoChunks(d.file, PAGES_PER_CHUNK);
         partes = chunks.map((b64) => ({ kind: "vision", b64 })) as any;
@@ -223,21 +206,10 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
         : ultimaResposta;
       setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "ok", resultado } : x)));
       void persistDoc(d.id, { status: "ok", despesas_json: resultado?.despesas ?? [] });
-      // Lança automaticamente as despesas extraídas (sem revisão manual).
+      // Sem auto-lançamento: o documento permanece na Caixa de Entrada aguardando "Revisar e Lançar".
       const despesasExtraidas = resultado?.despesas ?? [];
       if (despesasExtraidas.length > 0) {
-        try {
-          const inserted = await launchDespesasFromDoc(d.id, d.storageUrl, despesasExtraidas);
-          if (inserted > 0) {
-            // Remove da Caixa de Entrada — já está em Despesas.
-            try { await supabase.from("caixa_entrada_documentos" as any).delete().eq("id", d.id); } catch {}
-            setDocs((p) => p.filter((x) => x.id !== d.id));
-            toast.success(`${inserted} despesa(s) lançada(s) de ${d.file.name}`);
-          }
-        } catch (e: any) {
-          console.error("auto-launch fail", e);
-          toast.error(`Extraído mas falhou ao lançar (${d.file.name}): ${e?.message || "erro"}`);
-        }
+        toast.success(`${d.file.name}: ${despesasExtraidas.length} despesa(s) extraída(s) — clique em Revisar para conferir e lançar.`);
       } else {
         toast.warning(`${d.file.name}: nenhuma despesa identificada — confira o documento.`);
       }
@@ -282,15 +254,20 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
       mimeType: f.type,
       status: "fila",
     }));
-    // Persiste imediatamente — sobrevive a HMR/refresh/troca de aba
-    try {
-      await supabase.from("caixa_entrada_documentos" as any).insert(
+    // Persiste imediatamente — sobrevive a HMR/refresh/troca de aba.
+    // Erros aqui são exibidos para o usuário (antes ficavam ocultos).
+    {
+      const { error } = await supabase.from("caixa_entrada_documentos" as any).insert(
         novos.map((n) => ({
           id: n.id, mes_ref: mesRef, file_name: n.fileName,
           mime_type: n.mimeType, status: "fila", created_by,
         }))
       );
-    } catch (e) { console.warn("insert caixa fail", e); }
+      if (error) {
+        console.error("insert caixa_entrada falhou:", error);
+        toast.error(`Falha ao registrar na Caixa de Entrada: ${error.message}`);
+      }
+    }
     setDocs((p) => [...p, ...novos]);
     // Estimativa inicial: 1 unidade por arquivo (ajustamos quando sabemos o nº de páginas)
     setTotalUnits((u) => u + novos.length);
@@ -325,39 +302,21 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
 
   const totaisExtraidos = docs.reduce((acc, d) => acc + (d.resultado?.despesas?.length ?? 0), 0);
 
-  const lancarTudoAgora = async () => {
-    const prontos = docs.filter((d) => d.status === "ok" && (d.resultado?.despesas?.length ?? 0) > 0);
-    if (prontos.length === 0) { toast.error("Nenhuma despesa pronta para lançar"); return; }
-    setLaunching(true);
-    try {
-      const { data: cats } = await supabase.from("categorias_financeiras").select("id, codigo");
-      const rubricaToCategoriaId: Record<string, string> = {};
-      (cats || []).forEach((c: any) => { rubricaToCategoriaId[String(c.codigo).trim()] = c.id; });
+  const requestReviewForDoc = (d: ClassifiedDoc) => {
+    const despesas = (d.resultado?.despesas ?? []) as any[];
+    if (!despesas.length) { toast.error("Nenhuma despesa extraída neste documento"); return; }
+    if (!onRequestReview) { toast.error("Revisão indisponível neste contexto"); return; }
+    onRequestReview([{ id: d.id, fileName: d.fileName, storageUrl: d.storageUrl, despesas }]);
+  };
 
-      const rawRows: any[] = [];
-      for (const d of prontos) {
-        for (const e of (d.resultado.despesas as any[])) {
-          const { row } = validateDespesa(e, { mesRef, storageUrl: d.storageUrl, rubricaToCategoriaId });
-          rawRows.push(row);
-        }
-      }
-      const lote_id = crypto.randomUUID();
-      const { rows } = await applyOrcamentoMatching(rawRows, mesRef);
-      const cleanRows = rows.map(({ marcado_orcamento, ...rest }: any) => ({ ...rest, lote_id }));
-      const { error } = await supabase.from("despesas").insert(cleanRows as any);
-      if (error) { toast.error(`Erro ao lançar: ${error.message}`); return; }
-      toast.success(`${cleanRows.length} despesa(s) lançada(s) sem revisão`);
-      const launchedIds = prontos.map((d) => d.id);
-      try { await supabase.from("caixa_entrada_documentos" as any).delete().in("id", launchedIds); } catch {}
-      setDocs((p) => p.filter((d) => !launchedIds.includes(d.id)));
-      setTotalUnits(0); setDoneUnits(0);
-      onProcessed?.();
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e?.message || "Falha ao lançar despesas");
-    } finally {
-      setLaunching(false);
-    }
+  const requestReviewForAll = () => {
+    const prontos = docs.filter((d) => d.status === "ok" && (d.resultado?.despesas?.length ?? 0) > 0);
+    if (!prontos.length) { toast.error("Nenhuma despesa pronta para revisar"); return; }
+    if (!onRequestReview) { toast.error("Revisão indisponível neste contexto"); return; }
+    onRequestReview(prontos.map((d) => ({
+      id: d.id, fileName: d.fileName, storageUrl: d.storageUrl,
+      despesas: d.resultado.despesas as any[],
+    })));
   };
 
   return (
@@ -399,15 +358,15 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
               <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 border-blue-500/30">
                 Despesas extraídas: {totaisExtraidos}
               </Badge>
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-1">
                 {totaisExtraidos > 0 && !running && (
                   <Button
                     size="sm"
-                    className="h-7 text-xs mr-1"
-                    onClick={lancarTudoAgora}
+                    className="h-7 text-xs"
+                    onClick={requestReviewForAll}
                     disabled={launching}
                   >
-                    {launching ? (<><Loader2 className="h-3 w-3 mr-1 animate-spin" />Lançando…</>) : `Lançar ${totaisExtraidos} no SIT agora (sem revisar)`}
+                    Revisar e lançar {totaisExtraidos} despesa(s)
                   </Button>
                 )}
                 <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={clearAll} disabled={running}>Limpar</Button>
@@ -474,6 +433,16 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
                       {d.status === "ok" && <Badge variant="outline" className="text-[9px] border-emerald-400 text-emerald-700 gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />pronto</Badge>}
                       {d.status === "erro" && <Badge variant="destructive" className="text-[9px]" title={d.erro}>erro</Badge>}
                     </div>
+                    {d.status === "ok" && (d.resultado?.despesas?.length ?? 0) > 0 && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="h-6 text-[10px] px-2"
+                        onClick={() => requestReviewForDoc(d)}
+                      >
+                        Revisar ({d.resultado.despesas.length})
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => remove(d.id)} disabled={d.status === "processando"}>
                       <Trash2 className="h-3 w-3 text-destructive" />
                     </Button>
@@ -483,7 +452,7 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
             </div>
 
             <div className="rounded-md border bg-muted/30 p-2 text-[10px] text-muted-foreground">
-              Cada documento processado é lançado automaticamente na aba <b>Despesas</b>. Use o botão <b>Lançar agora</b> apenas para reprocessar arquivos que já estavam aqui de sessões anteriores.
+              Após o processamento, clique em <b>Revisar</b> para conferir as despesas extraídas, editar campos e então lançar no SIT. Nada é lançado automaticamente.
             </div>
           </>
         )}

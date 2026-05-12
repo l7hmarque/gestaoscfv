@@ -63,7 +63,9 @@ interface LoteLine {
 }
 
 interface DetectedDoc {
-  file: File;
+  file?: File;                       // pode estar ausente para docs vindos da Caixa de Entrada (sem o blob original)
+  fileName?: string;                 // usado quando `file` não está disponível
+  caixaDocId?: string;               // id em caixa_entrada_documentos (para deletar após confirmar)
   uploading: boolean;
   extracted: any | null;            // legado (1ª despesa) - mantido p/ compat
   extractedList: any[];             // NOVO: todas as despesas detectadas no PDF
@@ -511,7 +513,7 @@ export default function FinanceiroPage() {
   })();
   const validatedDocs = docFiles.map((d, docIdx) => ({
     docIdx,
-    fileName: d.file.name,
+    fileName: d.fileName || d.file?.name || "documento",
     storageUrl: d.storageUrl,
     items: d.extractedList.map((e, despIdx) => ({
       despIdx,
@@ -646,10 +648,37 @@ export default function FinanceiroPage() {
       `${rows.length} despesa(s) importada(s)` +
         (matchedCount > 0 ? ` — ${matchedCount} vinculada(s) automaticamente a orçamentos aprovados (modalidade 7)` : "")
     );
+    // Limpa Caixa de Entrada para os documentos que foram efetivamente lançados.
+    const caixaIds = docFiles.map((d) => d.caixaDocId).filter(Boolean) as string[];
+    if (caixaIds.length) {
+      try { await supabase.from("caixa_entrada_documentos" as any).delete().in("id", caixaIds); } catch {}
+    }
     setReviewOpen(false);
     setDocFiles([]);
     setDialogOpen(null);
     load();
+  };
+
+  // Disparado pela Caixa de Entrada quando o usuário clica em "Revisar e Lançar".
+  // Carrega as despesas extraídas no pipeline existente do ImportReviewDialog.
+  const handleCaixaReview = (caixaDocs: Array<{
+    id: string;
+    fileName: string;
+    storageUrl?: string;
+    despesas: any[];
+  }>) => {
+    if (!caixaDocs.length) return;
+    const novos: DetectedDoc[] = caixaDocs.map((c) => ({
+      caixaDocId: c.id,
+      fileName: c.fileName,
+      uploading: false,
+      extracted: c.despesas[0] ?? null,
+      extractedList: c.despesas,
+      confirmed: false,
+      storageUrl: c.storageUrl,
+    }));
+    setDocFiles(novos);
+    setReviewOpen(true);
   };
 
   // === RCA ===
@@ -1098,7 +1127,7 @@ export default function FinanceiroPage() {
 
         <TabsContent value="caixa">
           <div className="space-y-3">
-            <CaixaEntradaTab mesRef={mesRef} onProcessed={load} />
+            <CaixaEntradaTab mesRef={mesRef} onProcessed={load} onRequestReview={handleCaixaReview} />
             <ConciliacaoExtratoCard mesRef={mesRef} />
           </div>
         </TabsContent>
@@ -1115,7 +1144,7 @@ export default function FinanceiroPage() {
           open={reviewOpen}
           onOpenChange={(v) => !savingDocs && setReviewOpen(v)}
           docs={docFiles.map((d) => ({
-            fileName: d.file.name,
+            fileName: d.fileName || d.file?.name || "documento",
             storageUrl: d.storageUrl,
             extractedList: d.extractedList,
           }))}
@@ -1490,7 +1519,7 @@ export default function FinanceiroPage() {
                     <Card key={idx} className="border-dashed">
                       <CardContent className="pt-3 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium truncate max-w-[200px]">{doc.file.name}</span>
+                          <span className="text-xs font-medium truncate max-w-[200px]">{doc.fileName || doc.file?.name || "documento"}</span>
                           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setDocFiles(prev => prev.filter((_, i) => i !== idx))}>
                             <Trash2 className="h-3 w-3 text-destructive" />
                           </Button>
