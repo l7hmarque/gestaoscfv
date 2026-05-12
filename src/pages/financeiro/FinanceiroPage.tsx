@@ -137,6 +137,14 @@ export default function FinanceiroPage() {
   const [rcaLoading, setRcaLoading] = useState(false);
   const [pcLoading, setPcLoading] = useState(false);
   const [reoLoading, setReoLoading] = useState(false);
+  const [pdfConsolidadoLoading, setPdfConsolidadoLoading] = useState(false);
+
+  // Controle Bancário
+  const [cbFile, setCbFile] = useState<File | null>(null);
+  const [cbUploading, setCbUploading] = useState(false);
+  const [cbLancamentos, setCbLancamentos] = useState<any[]>([]);
+  const [cbSaving, setCbSaving] = useState(false);
+  const [cbExisting, setCbExisting] = useState<any[]>([]);
 
   // Pipeline filter
   const [despFilter, setDespFilter] = useState<"all" | "pendente" | "aguardando" | "completa">("all");
