@@ -1086,6 +1086,7 @@ export default function FinanceiroPage() {
             <span className="mx-1 self-center h-5 w-px bg-border" />
             <TabsTrigger value="documentos" className="text-xs gap-1"><FolderOpen className="h-3 w-3" />Documentos</TabsTrigger>
             <TabsTrigger value="lotes" className="text-xs gap-1"><FileSpreadsheet className="h-3 w-3" />Lotes</TabsTrigger>
+            <TabsTrigger value="importar" className="text-xs gap-1"><Upload className="h-3 w-3" />Revisão Detalhada</TabsTrigger>
             <span className="mx-1 self-center h-5 w-px bg-border" />
             <TabsTrigger value="cadastros" className="text-xs gap-1"><Layers className="h-3 w-3" />Cadastros</TabsTrigger>
             <TabsTrigger value="auditoria" className="text-xs gap-1"><ShieldCheck className="h-3 w-3" />Auditoria</TabsTrigger>
