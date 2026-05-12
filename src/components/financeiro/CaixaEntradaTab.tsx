@@ -123,6 +123,29 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
     } catch (e) { console.warn("persistDoc fail", e); }
   };
 
+  // Insere as despesas extraídas de UM documento direto na tabela `despesas`.
+  // Reaproveita `validateDespesa` + `applyOrcamentoMatching` já existentes.
+  const launchDespesasFromDoc = async (
+    docId: string,
+    storageUrl: string | undefined,
+    despesasExtraidas: any[],
+  ): Promise<number> => {
+    const { data: cats } = await supabase.from("categorias_financeiras").select("id, codigo");
+    const rubricaToCategoriaId: Record<string, string> = {};
+    (cats || []).forEach((c: any) => { rubricaToCategoriaId[String(c.codigo).trim()] = c.id; });
+    const rawRows = despesasExtraidas.map((e) => {
+      const { row } = validateDespesa(e, { mesRef, storageUrl, rubricaToCategoriaId });
+      return row;
+    });
+    const lote_id = docId; // 1 doc = 1 lote, facilita auditoria
+    const { rows } = await applyOrcamentoMatching(rawRows, mesRef);
+    const cleanRows = rows.map(({ marcado_orcamento, ...rest }: any) => ({ ...rest, lote_id }));
+    const { error } = await supabase.from("despesas").insert(cleanRows as any);
+    if (error) throw error;
+    onProcessed?.();
+    return cleanRows.length;
+  };
+
   const processOne = async (d: ClassifiedDoc) => {
     if (!d.file) return; // doc carregado de sessão anterior — não reprocessa
     setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "processando" } : x)));
