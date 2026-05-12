@@ -706,6 +706,13 @@ export default function FinanceiroPage() {
       const { data: allDesp } = await supabase.from("despesas").select("*").order("data_lancamento");
       const allDespesas = (allDesp || []) as Despesa[];
       const despMes = allDespesas.filter(d => d.mes_referencia === mesRef);
+      const sortPrest = (a: any, b: any) => {
+        const oa = a.ordem_prestacao, ob = b.ordem_prestacao;
+        if (oa != null && ob != null) return oa - ob;
+        if (oa != null) return -1;
+        if (ob != null) return 1;
+        return (a.data_lancamento || "").localeCompare(b.data_lancamento || "");
+      };
 
       const totalRec = parcelas.reduce((s, p) => s + Number(p.valor), 0);
       const totalDesp = despMes.reduce((s, d) => s + Number(d.valor), 0);
@@ -735,7 +742,7 @@ export default function FinanceiroPage() {
 
         // Despesas
         const despRows = [["Código", "Descrição", "Fornecedor", "CNPJ/CPF", "Tipo Doc", "Nº Doc", "Valor", "Data", "Status", "Comprovante", "NF", "Boleto"]];
-        despMes.sort((a, b) => a.data_lancamento.localeCompare(b.data_lancamento)).forEach(d => {
+        despMes.sort(sortPrest).forEach(d => {
           despRows.push([
             d.codigo_lancamento || "", d.descricao, d.fornecedor || "", d.cnpj_cpf || "",
             TIPOS_DOCUMENTO.find(t => t.value === d.tipo_documento)?.label || "",
@@ -763,7 +770,7 @@ export default function FinanceiroPage() {
 
         // Documentos
         const docRows = [["Despesa", "Data", "Comprovante", "Nota Fiscal", "Boleto"]];
-        despMes.sort((a, b) => a.data_lancamento.localeCompare(b.data_lancamento)).forEach(d => {
+        despMes.sort(sortPrest).forEach(d => {
           docRows.push([d.descricao, d.data_lancamento, d.comprovante_url ? "Anexado" : "", d.nota_url ? "Anexado" : "", d.boleto_url ? "Anexado" : ""]);
         });
         const wsDoc = XLSX.utils.aoa_to_sheet(docRows);
@@ -802,7 +809,7 @@ export default function FinanceiroPage() {
         autoTable(doc, {
           startY: lastY + 12,
           head: [["Cód.", "Descrição", "Fornecedor", "Valor", "Data", "Status", "Docs"]],
-          body: despMes.sort((a, b) => a.data_lancamento.localeCompare(b.data_lancamento)).map(d => [
+          body: despMes.sort(sortPrest).map(d => [
             d.codigo_lancamento || "—", d.descricao, d.fornecedor || "—",
             fmtVal(Number(d.valor)),
             d.data_lancamento ? format(new Date(d.data_lancamento + "T12:00:00"), "dd/MM/yyyy") : "—",
