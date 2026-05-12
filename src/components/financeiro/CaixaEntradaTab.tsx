@@ -1,9 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { PDFDocument } from "pdf-lib";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Inbox, Loader2, FileText, Banknote, ClipboardList, FileSpreadsheet, Receipt, AlertTriangle, CheckCircle2, Trash2, Sparkles, Upload } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,6 +20,8 @@ interface ClassifiedDoc {
   storageUrl?: string;
   resultado?: any;
   erro?: string;
+  totalChunks?: number;
+  doneChunks?: number;
 }
 
 const TIPO_META: Record<DocTipo, { label: string; icon: any; color: string }> = {
@@ -74,6 +77,19 @@ interface Props {
 export default function CaixaEntradaTab({ mesRef, onProcessed, onRouteToTab }: Props) {
   const [docs, setDocs] = useState<ClassifiedDoc[]>([]);
   const [running, setRunning] = useState(false);
+  // Progresso global (em "unidades de chunk")
+  const [totalUnits, setTotalUnits] = useState(0);
+  const [doneUnits, setDoneUnits] = useState(0);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const tickRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (running) {
+      tickRef.current = window.setInterval(() => setNow(Date.now()), 500);
+      return () => { if (tickRef.current) window.clearInterval(tickRef.current); };
+    }
+  }, [running]);
 
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files?.length) return;
@@ -129,22 +145,48 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRouteToTab }: P
     const ordem: DocTipo[] = ["orcamento", "controle_bancario", "despesa", "tributo", "folha"];
     const fila = docs.filter((d) => d.status === "fila").sort((a, b) => ordem.indexOf(a.tipo) - ordem.indexOf(b.tipo));
 
+    // Pré-cálculo de unidades (chunks) para barra de progresso
+    const planos = await Promise.all(
+      fila.map(async (d) => {
+        const isPdf = (d.file.type || "").toLowerCase().includes("pdf");
+        const fnName =
+          d.tipo === "despesa" || d.tipo === "tributo" || d.tipo === "folha" ? "detect-despesa-from-doc"
+          : d.tipo === "orcamento" ? "detect-orcamento-from-doc"
+          : d.tipo === "controle_bancario" ? "detect-controle-bancario" : null;
+        const podeChunk = fnName === "detect-despesa-from-doc" && isPdf;
+        let total = 1;
+        if (podeChunk) {
+          try {
+            const buf = await d.file.arrayBuffer();
+            const pdf = await PDFDocument.load(buf);
+            total = Math.max(1, Math.ceil(pdf.getPageCount() / 5));
+          } catch { total = 1; }
+        }
+        return { id: d.id, fnName, podeChunk, total };
+      })
+    );
+    const unitsTotal = planos.reduce((a, p) => a + p.total, 0);
+    setTotalUnits(unitsTotal);
+    setDoneUnits(0);
+    setStartedAt(Date.now());
+    setDocs((p) => p.map((x) => {
+      const plano = planos.find((pl) => pl.id === x.id);
+      return plano ? { ...x, totalChunks: plano.total, doneChunks: 0 } : x;
+    }));
+
     for (const d of fila) {
+      const plano = planos.find((pl) => pl.id === d.id);
       setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "processando" } : x)));
       try {
-        let fnName: string | null = null;
-        if (d.tipo === "despesa" || d.tipo === "tributo" || d.tipo === "folha") fnName = "detect-despesa-from-doc";
-        else if (d.tipo === "orcamento") fnName = "detect-orcamento-from-doc";
-        else if (d.tipo === "controle_bancario") fnName = "detect-controle-bancario";
-
+        const fnName = plano?.fnName ?? null;
         if (!fnName) {
           setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "erro", erro: "Tipo desconhecido" } : x)));
+          if (plano) setDoneUnits((u) => u + plano.total);
           continue;
         }
 
         // Para detect-despesa em PDFs, dividir em lotes de 5 páginas para evitar IDLE_TIMEOUT (150s).
-        const isPdf = (d.file.type || "").toLowerCase().includes("pdf");
-        const podeChunk = fnName === "detect-despesa-from-doc" && isPdf;
+        const podeChunk = !!plano?.podeChunk;
         const partes = podeChunk ? await splitPdfIntoChunks(d.file, 5) : [await fileToBase64(d.file)];
 
         const despesasAcc: any[] = [];
@@ -156,6 +198,8 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRouteToTab }: P
           if (error) throw error;
           ultimaResposta = data;
           if (Array.isArray(data?.despesas)) despesasAcc.push(...data.despesas);
+          setDoneUnits((u) => u + 1);
+          setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, doneChunks: (x.doneChunks ?? 0) + 1 } : x)));
         }
         const resultado = podeChunk
           ? { despesas: despesasAcc, extracted: despesasAcc[0] ?? null, total: despesasAcc.length }
@@ -164,9 +208,15 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRouteToTab }: P
       } catch (e: any) {
         console.error(e);
         setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "erro", erro: e?.message || "Falha" } : x)));
+        // Marca o restante das unidades dessa fila como concluídas para a barra avançar.
+        if (plano) {
+          const restante = plano.total - (docs.find((x) => x.id === d.id)?.doneChunks ?? 0);
+          if (restante > 0) setDoneUnits((u) => u + restante);
+        }
       }
     }
     setRunning(false);
+    setStartedAt(null);
     toast.success("Processamento concluído. Revise nas abas específicas para confirmar o lançamento.");
     onProcessed?.();
   };
@@ -178,6 +228,17 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRouteToTab }: P
     acc[d.tipo] = (acc[d.tipo] || 0) + 1;
     return acc;
   }, {} as Record<DocTipo, number>);
+
+  const progressPct = totalUnits > 0 ? Math.min(100, Math.round((doneUnits / totalUnits) * 100)) : 0;
+  const elapsedMs = startedAt ? now - startedAt : 0;
+  const avgMs = doneUnits > 0 ? elapsedMs / doneUnits : 0;
+  const restanteMs = avgMs > 0 ? avgMs * (totalUnits - doneUnits) : 0;
+  const fmtTime = (ms: number) => {
+    const s = Math.max(0, Math.round(ms / 1000));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m > 0 ? `${m}m${r.toString().padStart(2, "0")}s` : `${r}s`;
+  };
 
   return (
     <Card>
@@ -229,6 +290,22 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRouteToTab }: P
               </div>
             </div>
 
+            {(running || (totalUnits > 0 && doneUnits >= totalUnits)) && totalUnits > 0 && (
+              <div className="rounded-md border bg-muted/30 p-2 space-y-1">
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span className="font-medium text-foreground/80">
+                    {running ? "Processando…" : "Concluído"} {doneUnits}/{totalUnits} lotes ({progressPct}%)
+                  </span>
+                  <span>
+                    {running
+                      ? (doneUnits > 0 ? `restam ~${fmtTime(restanteMs)} • decorrido ${fmtTime(elapsedMs)}` : `decorrido ${fmtTime(elapsedMs)}`)
+                      : `tempo total ${fmtTime(elapsedMs)}`}
+                  </span>
+                </div>
+                <Progress value={progressPct} className="h-1.5" />
+              </div>
+            )}
+
             <div className="space-y-1.5">
               {docs.map((d) => {
                 const meta = TIPO_META[d.tipo] || TIPO_META.desconhecido;
@@ -244,7 +321,15 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRouteToTab }: P
                           <span className="text-[9px] text-muted-foreground">{Math.round(d.confianca * 100)}%</span>
                         )}
                         {d.motivo && <span className="text-[9px] text-muted-foreground truncate">— {d.motivo}</span>}
+                        {d.status === "processando" && d.totalChunks && d.totalChunks > 1 && (
+                          <span className="text-[9px] text-muted-foreground">
+                            lote {d.doneChunks ?? 0}/{d.totalChunks}
+                          </span>
+                        )}
                       </div>
+                      {d.status === "processando" && d.totalChunks && d.totalChunks > 1 && (
+                        <Progress value={Math.round(((d.doneChunks ?? 0) / d.totalChunks) * 100)} className="h-1 mt-1" />
+                      )}
                     </div>
                     <div className="shrink-0">
                       {d.status === "classificando" && <Badge variant="secondary" className="text-[9px] gap-0.5"><Loader2 className="h-2.5 w-2.5 animate-spin" />classificando</Badge>}
