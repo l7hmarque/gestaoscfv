@@ -1073,19 +1073,28 @@ export default function FinanceiroPage() {
 
       <ExportacaoSitCard />
 
-      <Tabs defaultValue="despesas">
-        <TabsList className="grid grid-cols-10 w-full">
-          <TabsTrigger value="despesas" className="text-xs gap-1"><Receipt className="h-3 w-3 hidden sm:block" />Despesas</TabsTrigger>
-          <TabsTrigger value="parcelas" className="text-xs gap-1"><DollarSign className="h-3 w-3 hidden sm:block" />Parcelas</TabsTrigger>
-          <TabsTrigger value="categorias" className="text-xs gap-1"><Layers className="h-3 w-3 hidden sm:block" />Categorias</TabsTrigger>
-          <TabsTrigger value="estornos" className="text-xs gap-1"><Undo2 className="h-3 w-3 hidden sm:block" />Estornos</TabsTrigger>
-          <TabsTrigger value="orcamentos" className="text-xs gap-1"><ClipboardList className="h-3 w-3 hidden sm:block" />Orçamentos</TabsTrigger>
-          <TabsTrigger value="documentos" className="text-xs gap-1"><FolderOpen className="h-3 w-3 hidden sm:block" />Documentos</TabsTrigger>
-          <TabsTrigger value="importar" className="text-xs gap-1"><Upload className="h-3 w-3 hidden sm:block" />Importar</TabsTrigger>
-          <TabsTrigger value="bancario" className="text-xs gap-1"><Banknote className="h-3 w-3 hidden sm:block" />Bancário</TabsTrigger>
-          <TabsTrigger value="lotes" className="text-xs gap-1"><FileSpreadsheet className="h-3 w-3 hidden sm:block" />Lotes</TabsTrigger>
-          <TabsTrigger value="auditoria" className="text-xs gap-1"><ShieldCheck className="h-3 w-3 hidden sm:block" />Auditoria</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="caixa">
+        <div className="rounded-md border bg-card p-1 overflow-x-auto">
+          <TabsList className="bg-transparent gap-0.5 h-auto p-0 flex-wrap justify-start">
+            <TabsTrigger value="caixa" className="text-xs gap-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Inbox className="h-3 w-3" />Caixa de Entrada
+            </TabsTrigger>
+            <span className="mx-1 self-center h-5 w-px bg-border" />
+            <TabsTrigger value="despesas" className="text-xs gap-1"><Receipt className="h-3 w-3" />Despesas</TabsTrigger>
+            <TabsTrigger value="orcamentos" className="text-xs gap-1"><ClipboardList className="h-3 w-3" />Orçamentos</TabsTrigger>
+            <TabsTrigger value="bancario" className="text-xs gap-1"><Banknote className="h-3 w-3" />Bancário</TabsTrigger>
+            <span className="mx-1 self-center h-5 w-px bg-border" />
+            <TabsTrigger value="documentos" className="text-xs gap-1"><FolderOpen className="h-3 w-3" />Documentos</TabsTrigger>
+            <TabsTrigger value="lotes" className="text-xs gap-1"><FileSpreadsheet className="h-3 w-3" />Lotes</TabsTrigger>
+            <span className="mx-1 self-center h-5 w-px bg-border" />
+            <TabsTrigger value="cadastros" className="text-xs gap-1"><Layers className="h-3 w-3" />Cadastros</TabsTrigger>
+            <TabsTrigger value="auditoria" className="text-xs gap-1"><ShieldCheck className="h-3 w-3" />Auditoria</TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="caixa">
+          <CaixaEntradaTab mesRef={mesRef} onProcessed={load} />
+        </TabsContent>
 
         <RegularizarSitDialog
           open={!!regularizarTarget}
