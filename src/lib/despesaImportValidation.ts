@@ -318,6 +318,22 @@ export function validateDespesa(
 
   const obrigatoriosOk = missing.length === 0;
 
+  // Anexos: a IA marca quais papéis (NF, boleto, comprovante) estão no PDF importado.
+  // Como o storageUrl é o PDF inteiro, todos os papéis presentes apontam para o mesmo arquivo.
+  const anexos = e.anexos || {};
+  const url = ctx.storageUrl || null;
+  const temNF = url && (anexos.tem_nf !== false); // default true (compat)
+  const temBoleto = url && anexos.tem_boleto === true;
+  const temComprovante = url && anexos.tem_comprovante === true;
+
+  // Código de lançamento:
+  // - Holerite: usa o sit_numero_doc_despesa "MM/AAAA" gerado pela IA.
+  // - Demais: usa o numero_documento (ou vazio para o usuário preencher).
+  const codigoLancamento =
+    (e.tipo_documento === "folha_pagamento" || tipoDocDespesa === 6)
+      ? (numDocDespesa || e.sit_numero_doc_despesa || e.numero_documento || null)
+      : (e.numero_documento || numDocDespesa || null);
+
   const row = {
     descricao: e.descricao || "Sem descrição",
     valor: Number(e.valor) || 0,
@@ -329,7 +345,11 @@ export function validateDespesa(
     cnpj_cpf: e.cnpj_cpf || null,
     numero_documento: e.numero_documento || e.sit_numero_doc_despesa || null,
     tipo_documento: e.tipo_documento || "nota_fiscal",
-    nota_url: ctx.storageUrl || null,
+    codigo_lancamento: codigoLancamento,
+    nota_url: temNF ? url : null,
+    boleto_url: temBoleto ? url : null,
+    comprovante_url: temComprovante ? url : null,
+    status_sit: temComprovante ? "pago" : "aguardando_pagamento",
     sit_tipo_doc_favorecido: tipoFav,
     sit_nome_favorecido: nomeFav,
     sit_tipo_doc_despesa: tipoDocDespesa,
@@ -345,7 +365,7 @@ export function validateDespesa(
     sit_modalidade_compra: modalidadeCompra ?? e.sit_modalidade_compra ?? null,
     sit_descricao_item: e.sit_descricao_item || e.descricao || null,
     sit_completo: obrigatoriosOk,
-    pendente_comprovante: !ctx.storageUrl,
+    pendente_comprovante: !temComprovante,
     lote_origem_pdf: ctx.storageUrl || null,
   };
 

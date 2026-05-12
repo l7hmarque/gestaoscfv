@@ -17,10 +17,23 @@ serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, serviceKey);
 
+    const TIPO_LABEL: Record<string, string> = {
+      nota_fiscal: "Nota Fiscal",
+      recibo: "Recibo",
+      cupom_fiscal: "Cupom Fiscal",
+      boleto: "Boleto",
+      folha_pagamento: "Folha Pagamento/Holerite",
+      darf: "DARF",
+      gps: "GPS",
+      rpa: "RPA",
+      outro: "Outro",
+    };
+
     const { data: despesas } = await sb
       .from("despesas")
       .select("*, categorias_financeiras(codigo, descricao)")
       .eq("mes_referencia", mesRef)
+      .order("ordem_prestacao", { ascending: true, nullsFirst: false })
       .order("data_lancamento");
 
     if (!despesas || despesas.length === 0) {
@@ -37,7 +50,7 @@ serve(async (req) => {
         i + 1,
         d.data_lancamento,
         d.numero_documento || "",
-        d.tipo_documento || "nota_fiscal",
+        TIPO_LABEL[d.tipo_documento || "nota_fiscal"] || d.tipo_documento || "Nota Fiscal",
         d.fornecedor || "",
         d.cnpj_cpf || "",
         `"${(d.descricao || "").replace(/"/g, '""')}"`,
