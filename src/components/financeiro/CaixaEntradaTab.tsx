@@ -438,7 +438,7 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
             </div>
 
             <div className="rounded-md border bg-muted/30 p-2 text-[10px] text-muted-foreground">
-              Após processar, abra a aba <b>Despesas</b> para revisar e confirmar o lançamento no SIT. Nenhum dado é gravado sem sua aprovação.
+              Cada documento processado é lançado automaticamente na aba <b>Despesas</b>. Use o botão <b>Lançar agora</b> apenas para reprocessar arquivos que já estavam aqui de sessões anteriores.
             </div>
           </>
         )}
