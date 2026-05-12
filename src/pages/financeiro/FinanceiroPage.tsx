@@ -638,7 +638,10 @@ export default function FinanceiroPage() {
     }
 
     setSavingDocs(false);
-    toast.success(`${rows.length} despesa(s) importada(s)`);
+    toast.success(
+      `${rows.length} despesa(s) importada(s)` +
+        (matchedCount > 0 ? ` — ${matchedCount} vinculada(s) automaticamente a orçamentos aprovados (modalidade 7)` : "")
+    );
     setReviewOpen(false);
     setDocFiles([]);
     setDialogOpen(null);
