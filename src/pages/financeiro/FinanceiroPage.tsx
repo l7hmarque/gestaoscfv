@@ -598,17 +598,79 @@ export default function FinanceiroPage() {
     const rawRows = validatedDocs.flatMap((d) =>
       d.items.map((it) => ({ ...it.row, lote_id }))
     );
-    // Vincula automaticamente cada despesa a um orçamento aprovado do mês (CNPJ ou nome do fornecedor)
-    // e marca modalidade de compra 7 (Cotação prévia / Pesquisa de preço).
-    const { rows, matchedCount } = await applyOrcamentoMatching(rawRows, mesRef);
-    // Remove campo auxiliar `marcado_orcamento` (não existe no schema de despesas — usado apenas pelo matcher).
+
+    // Snapshot local de segurança ANTES do envio — permite recuperar caso o backend trave/timeout.
+    try {
+      localStorage.setItem(
+        `syscfv:despesas-pendentes:${lote_id}`,
+        JSON.stringify({ mesRef, criadoEm: new Date().toISOString(), rows: rawRows })
+      );
+    } catch {}
+
+    // Vincula automaticamente cada despesa a um orçamento aprovado do mês.
+    let rows: any[] = rawRows;
+    let matchedCount = 0;
+    try {
+      const r = await applyOrcamentoMatching(rawRows, mesRef);
+      rows = r.rows;
+      matchedCount = r.matchedCount;
+    } catch (e) {
+      console.error("Falha no matching de orçamento, prosseguindo sem vínculo automático:", e);
+    }
     const cleanRows = rows.map(({ marcado_orcamento, ...rest }: any) => rest);
-    const { error } = await supabase.from("despesas").insert(cleanRows as any);
-    if (error) {
+
+    // Insere em CHUNKS para evitar payloads/locks longos e dar progresso ao usuário.
+    const CHUNK_SIZE = 5;
+    let inserted = 0;
+    let failedChunks = 0;
+    let firstError: string | null = null;
+    try {
+      for (let i = 0; i < cleanRows.length; i += CHUNK_SIZE) {
+        const chunk = cleanRows.slice(i, i + CHUNK_SIZE);
+        try {
+          const { error: chunkErr } = await supabase.from("despesas").insert(chunk as any);
+          if (chunkErr) {
+            failedChunks++;
+            if (!firstError) firstError = chunkErr.message;
+            console.error(`[ImportDespesas] chunk ${i}-${i + chunk.length} falhou:`, chunkErr);
+          } else {
+            inserted += chunk.length;
+            // Atualiza snapshot removendo as já gravadas
+            try {
+              const remaining = cleanRows.slice(i + chunk.length);
+              if (remaining.length === 0) {
+                localStorage.removeItem(`syscfv:despesas-pendentes:${lote_id}`);
+              } else {
+                localStorage.setItem(
+                  `syscfv:despesas-pendentes:${lote_id}`,
+                  JSON.stringify({ mesRef, criadoEm: new Date().toISOString(), rows: remaining })
+                );
+              }
+            } catch {}
+            // Feedback de progresso a cada chunk
+            toast.message(`Lançando despesas... ${inserted}/${cleanRows.length}`);
+          }
+        } catch (e: any) {
+          failedChunks++;
+          if (!firstError) firstError = e?.message || String(e);
+          console.error(`[ImportDespesas] exceção no chunk ${i}:`, e);
+        }
+      }
+    } finally {
+      // garante que nunca travamos o spinner
+    }
+
+    if (inserted === 0) {
       setSavingDocs(false);
-      console.error("Erro ao lançar despesa:", error);
-      toast.error(`Erro ao lançar: ${error.message}`);
+      toast.error(
+        `Falha ao lançar despesas: ${firstError || "erro desconhecido"}. Os dados foram preservados localmente (lote ${lote_id.slice(0, 8)}).`
+      );
       return;
+    }
+    if (failedChunks > 0) {
+      toast.warning(
+        `${inserted}/${cleanRows.length} despesa(s) lançadas. ${cleanRows.length - inserted} falharam — preservadas localmente para nova tentativa.`
+      );
     }
 
     // Grava histórico do lote (best-effort — não bloqueia o usuário se falhar)
@@ -628,7 +690,7 @@ export default function FinanceiroPage() {
         confirmado_por: user?.id,
         confirmado_por_nome: nome,
         mes_referencia: mesRef,
-        total_despesas: rows.length,
+        total_despesas: inserted,
         total_ok: totalOk,
         total_ajustes: totalAjustes,
         total_bloqueadas: totalBloqueadas,
@@ -645,17 +707,19 @@ export default function FinanceiroPage() {
 
     setSavingDocs(false);
     toast.success(
-      `${rows.length} despesa(s) importada(s)` +
+      `${inserted} despesa(s) importada(s)` +
         (matchedCount > 0 ? ` — ${matchedCount} vinculada(s) automaticamente a orçamentos aprovados (modalidade 7)` : "")
     );
-    // Limpa Caixa de Entrada para os documentos que foram efetivamente lançados.
-    const caixaIds = docFiles.map((d) => d.caixaDocId).filter(Boolean) as string[];
-    if (caixaIds.length) {
-      try { await supabase.from("caixa_entrada_documentos" as any).delete().in("id", caixaIds); } catch {}
+    // Limpa Caixa de Entrada apenas se TODAS foram gravadas (evita perder docs que falharam).
+    if (failedChunks === 0) {
+      const caixaIds = docFiles.map((d) => d.caixaDocId).filter(Boolean) as string[];
+      if (caixaIds.length) {
+        try { await supabase.from("caixa_entrada_documentos" as any).delete().in("id", caixaIds); } catch {}
+      }
+      setReviewOpen(false);
+      setDocFiles([]);
+      setDialogOpen(null);
     }
-    setReviewOpen(false);
-    setDocFiles([]);
-    setDialogOpen(null);
     load();
   };
 
