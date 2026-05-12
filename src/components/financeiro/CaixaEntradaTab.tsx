@@ -167,7 +167,13 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRequestReview }
       // 2) Monta partes (texto: 1 chamada só; visão: chunks de N páginas em base64).
       let partes: { kind: "text"; pages: string[] }[] | { kind: "vision"; b64: string }[];
       if (pagesText) {
-        partes = [{ kind: "text", pages: pagesText }] as any;
+        // Quebra em lotes para não estourar memória/contexto da edge function em PDFs grandes.
+        const TEXT_PAGES_PER_BATCH = 8;
+        const lotes: { kind: "text"; pages: string[] }[] = [];
+        for (let i = 0; i < pagesText.length; i += TEXT_PAGES_PER_BATCH) {
+          lotes.push({ kind: "text", pages: pagesText.slice(i, i + TEXT_PAGES_PER_BATCH) });
+        }
+        partes = lotes as any;
       } else if (isPdf) {
         const chunks = await splitPdfIntoChunks(d.file, PAGES_PER_CHUNK);
         partes = chunks.map((b64) => ({ kind: "vision", b64 })) as any;
