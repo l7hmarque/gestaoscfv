@@ -49,6 +49,24 @@ async function bytesToBase64(bytes: Uint8Array) {
   return btoa(binary);
 }
 
+/** Extrai apenas a 1ª página do PDF como base64 (usado para classificação rápida). */
+async function firstPagePdfBase64(file: File): Promise<{ base64: string; mime: string }> {
+  const isPdf = (file.type || "").toLowerCase().includes("pdf");
+  if (!isPdf) return { base64: await fileToBase64(file), mime: file.type };
+  try {
+    const buf = await file.arrayBuffer();
+    const src = await PDFDocument.load(buf);
+    if (src.getPageCount() <= 1) return { base64: await fileToBase64(file), mime: file.type };
+    const dest = await PDFDocument.create();
+    const [p0] = await dest.copyPages(src, [0]);
+    dest.addPage(p0);
+    const bytes = await dest.save();
+    return { base64: await bytesToBase64(bytes), mime: "application/pdf" };
+  } catch {
+    return { base64: await fileToBase64(file), mime: file.type };
+  }
+}
+
 /** Quebra um PDF em pedaços de N páginas (default 5). Retorna lista de base64. */
 async function splitPdfIntoChunks(file: File, pagesPerChunk = 5): Promise<string[]> {
   const buf = await file.arrayBuffer();
@@ -115,9 +133,9 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRouteToTab }: P
             if (upErr) throw upErr;
             const { data: urlData } = await supabase.storage.from("documentos").getPublicUrl(path);
 
-            const base64 = await fileToBase64(d.file);
+            const { base64, mime } = await firstPagePdfBase64(d.file);
             const { data, error } = await supabase.functions.invoke("classify-financeiro-doc", {
-              body: { file_base64: base64, mime_type: d.file.type },
+              body: { file_base64: base64, mime_type: mime },
             });
             if (error) throw error;
             const tipo: DocTipo = (data?.tipo as DocTipo) || "desconhecido";
