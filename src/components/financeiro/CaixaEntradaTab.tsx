@@ -7,8 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Inbox, Loader2, Receipt, AlertTriangle, CheckCircle2, Trash2, Upload, FileText, Eye } from "lucide-react";
 import { toast } from "sonner";
-import { validateDespesa } from "@/lib/despesaImportValidation";
-import { applyOrcamentoMatching } from "@/lib/orcamentoMatcher";
 import { analyzePdf } from "@/lib/pdfTextAnalyzer";
 import ConciliacaoExtratoCard from "./ConciliacaoExtratoCard";
 
@@ -256,15 +254,20 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRequestReview }
       mimeType: f.type,
       status: "fila",
     }));
-    // Persiste imediatamente — sobrevive a HMR/refresh/troca de aba
-    try {
-      await supabase.from("caixa_entrada_documentos" as any).insert(
+    // Persiste imediatamente — sobrevive a HMR/refresh/troca de aba.
+    // Erros aqui são exibidos para o usuário (antes ficavam ocultos).
+    {
+      const { error } = await supabase.from("caixa_entrada_documentos" as any).insert(
         novos.map((n) => ({
           id: n.id, mes_ref: mesRef, file_name: n.fileName,
           mime_type: n.mimeType, status: "fila", created_by,
         }))
       );
-    } catch (e) { console.warn("insert caixa fail", e); }
+      if (error) {
+        console.error("insert caixa_entrada falhou:", error);
+        toast.error(`Falha ao registrar na Caixa de Entrada: ${error.message}`);
+      }
+    }
     setDocs((p) => [...p, ...novos]);
     // Estimativa inicial: 1 unidade por arquivo (ajustamos quando sabemos o nº de páginas)
     setTotalUnits((u) => u + novos.length);
