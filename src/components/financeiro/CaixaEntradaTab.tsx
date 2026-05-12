@@ -123,6 +123,29 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
     } catch (e) { console.warn("persistDoc fail", e); }
   };
 
+  // Insere as despesas extraídas de UM documento direto na tabela `despesas`.
+  // Reaproveita `validateDespesa` + `applyOrcamentoMatching` já existentes.
+  const launchDespesasFromDoc = async (
+    docId: string,
+    storageUrl: string | undefined,
+    despesasExtraidas: any[],
+  ): Promise<number> => {
+    const { data: cats } = await supabase.from("categorias_financeiras").select("id, codigo");
+    const rubricaToCategoriaId: Record<string, string> = {};
+    (cats || []).forEach((c: any) => { rubricaToCategoriaId[String(c.codigo).trim()] = c.id; });
+    const rawRows = despesasExtraidas.map((e) => {
+      const { row } = validateDespesa(e, { mesRef, storageUrl, rubricaToCategoriaId });
+      return row;
+    });
+    const lote_id = docId; // 1 doc = 1 lote, facilita auditoria
+    const { rows } = await applyOrcamentoMatching(rawRows, mesRef);
+    const cleanRows = rows.map(({ marcado_orcamento, ...rest }: any) => ({ ...rest, lote_id }));
+    const { error } = await supabase.from("despesas").insert(cleanRows as any);
+    if (error) throw error;
+    onProcessed?.();
+    return cleanRows.length;
+  };
+
   const processOne = async (d: ClassifiedDoc) => {
     if (!d.file) return; // doc carregado de sessão anterior — não reprocessa
     setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "processando" } : x)));
@@ -168,6 +191,24 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
         : ultimaResposta;
       setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "ok", resultado } : x)));
       void persistDoc(d.id, { status: "ok", despesas_json: resultado?.despesas ?? [] });
+      // Lança automaticamente as despesas extraídas (sem revisão manual).
+      const despesasExtraidas = resultado?.despesas ?? [];
+      if (despesasExtraidas.length > 0) {
+        try {
+          const inserted = await launchDespesasFromDoc(d.id, d.storageUrl, despesasExtraidas);
+          if (inserted > 0) {
+            // Remove da Caixa de Entrada — já está em Despesas.
+            try { await supabase.from("caixa_entrada_documentos" as any).delete().eq("id", d.id); } catch {}
+            setDocs((p) => p.filter((x) => x.id !== d.id));
+            toast.success(`${inserted} despesa(s) lançada(s) de ${d.file.name}`);
+          }
+        } catch (e: any) {
+          console.error("auto-launch fail", e);
+          toast.error(`Extraído mas falhou ao lançar (${d.file.name}): ${e?.message || "erro"}`);
+        }
+      } else {
+        toast.warning(`${d.file.name}: nenhuma despesa identificada — confira o documento.`);
+      }
     } catch (e: any) {
       console.error(e);
       setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "erro", erro: e?.message || "Falha" } : x)));
@@ -397,7 +438,7 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
             </div>
 
             <div className="rounded-md border bg-muted/30 p-2 text-[10px] text-muted-foreground">
-              Após processar, abra a aba <b>Despesas</b> para revisar e confirmar o lançamento no SIT. Nenhum dado é gravado sem sua aprovação.
+              Cada documento processado é lançado automaticamente na aba <b>Despesas</b>. Use o botão <b>Lançar agora</b> apenas para reprocessar arquivos que já estavam aqui de sessões anteriores.
             </div>
           </>
         )}

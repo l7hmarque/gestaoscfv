@@ -19,8 +19,18 @@ function mesAtualStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export default function ExportacaoSitCard() {
-  const [mesRef, setMesRef] = useState(mesAtualStr());
+interface ExportacaoSitCardProps {
+  mesRef?: string;
+  onMesChange?: (m: string) => void;
+}
+
+export default function ExportacaoSitCard({ mesRef: mesRefProp, onMesChange }: ExportacaoSitCardProps = {}) {
+  const [mesRefLocal, setMesRefLocal] = useState(mesAtualStr());
+  const mesRef = mesRefProp ?? mesRefLocal;
+  const setMesRef = (m: string) => {
+    if (onMesChange) onMesChange(m);
+    else setMesRefLocal(m);
+  };
   const [cfg, setCfg] = useState<SitConfig | null>(null);
   const [despesas, setDespesas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
