@@ -32,6 +32,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
 import { validateDespesa, missingFieldLabel, type DespesaWarning } from "@/lib/despesaImportValidation";
+import { applyOrcamentoMatching } from "@/lib/orcamentoMatcher";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 
@@ -590,9 +591,12 @@ export default function FinanceiroPage() {
     console.groupEnd();
     /* eslint-enable no-console */
 
-    const rows = validatedDocs.flatMap((d) =>
+    const rawRows = validatedDocs.flatMap((d) =>
       d.items.map((it) => ({ ...it.row, lote_id }))
     );
+    // Vincula automaticamente cada despesa a um orçamento aprovado do mês (CNPJ ou nome do fornecedor)
+    // e marca modalidade de compra 7 (Cotação prévia / Pesquisa de preço).
+    const { rows, matchedCount } = await applyOrcamentoMatching(rawRows, mesRef);
     const { error } = await supabase.from("despesas").insert(rows as any);
     if (error) {
       setSavingDocs(false);
