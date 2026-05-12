@@ -1,98 +1,131 @@
-## Diagnóstico
+## Visão geral
 
-Analisei o fluxo `detect-despesa-from-doc` → `validateDespesa` → `insert despesas` → exportações (RCA/SIT/Prestação XLSX).
-
-**Causas dos problemas relatados:**
-
-1. **Aba Despesas (planilha) com Código/Boleto/Comprovante vazios:**
-   - Na importação, `validateDespesa` só preenche `nota_url = storageUrl`. Nunca grava `boleto_url` nem `comprovante_url`, e **não gera `codigo_lancamento`** (campo fica null).
-   - O gerador da Prestação (`generatePrestacaoContas` em `FinanceiroPage.tsx`, linhas 740–744) lê esses três campos → todos vazios.
-
-2. **"folha_pagamento" cru no RCA/SIT:**
-   - `TIPOS_DOCUMENTO` (FinanceiroPage.tsx l.71) não contém `folha_pagamento`.
-   - Quando a IA classifica como `folha_pagamento`, o lookup por `label` retorna o valor cru (ou vazio) → aparece "folha_pagamento" no SIT/RCA.
-
-3. **Valores arredondados:** prompt da IA pede "número decimal com ponto" mas não proíbe arredondamento. Modelo às vezes trunca `1.419,35` → `1419`.
-
-4. **Boleto + comprovante na mesma página:** IA hoje retorna 1 despesa, mas frontend só salva 1 URL (`nota_url`). Falta marcar que aquele PDF cumpre os 3 papéis (NF separada, boleto+comprovante juntos).
-
-5. **Holerites sem código/data padronizados:** prompt não define a regra `mm/aaaa` (mês anterior ao pagamento) nem último dia do mês anterior.
-
-6. **Ordem da Prestação de Contas / Controle Bancário:** hoje despesas são ordenadas por `data_lancamento`. Não existe upload nem extração do Controle Bancário, nem campo de ordenação a partir dele.
+Hoje existem 3 categorias de upload financeiro que rodam em fluxos separados (Despesas, Controle Bancário, Orçamentos). A proposta cria **um único hub de importação** ("Caixa de Entrada Financeira") onde a IA classifica cada PDF por tipo (Despesa comum, Tributo, Folha, Orçamento/Mapa, Controle Bancário) e decide o destino + modalidade. Inclui regras específicas de tributos federais e classificação automática de modalidade de compra a partir de orçamentos previamente importados.
 
 ---
 
-## Plano de implementação
+## 1. Tributos federais (DARF / GFIP)
 
-### 1. Novo tipo de documento "Folha Pagamento/Holerite"
+Acrescentar regras dedicadas ao prompt do `detect-despesa-from-doc`:
 
-- Em `src/pages/financeiro/FinanceiroPage.tsx` adicionar `{ value: "folha_pagamento", label: "Folha Pagamento/Holerite" }` em `TIPOS_DOCUMENTO`.
-- Validar/garantir que `src/lib/sitCodeMappings.ts` mapeia `folha_pagamento → 6` (já existe; revisar `describeSitTipoDocDespesa` para retornar "Folha Pagamento/Holerite").
-- RCA (`generate-rca/index.ts`) e SIT (`generateDespesaTxt`) passam a usar `TIPOS_DOCUMENTO.label` corrigido.
+**Detecção:** documento contém "DARF", "GPS", "GFIP", "FGTS", "INSS", "PIS", "COFINS", "Receita Federal", "Caixa Econômica".
 
-### 2. IA: regras adicionais em `detect-despesa-from-doc`
+**Mapeamento automático por tributo (preenchido pela IA, sem digitação):**
 
-Acrescentar ao SYSTEM_PROMPT:
+| Tributo | tipo_documento | sit_tipo_doc_despesa | Fornecedor (forçado) | CNPJ (forçado) | Rubrica |
+|---|---|---|---|---|---|
+| INSS / GPS | `darf` | 8 (DARF) | MINISTERIO DA FAZENDA - ATUAL | 00.394.460/0001-41 | 3.1.90.13.02 |
+| PIS | `darf` | 8 (DARF) | MINISTERIO DA FAZENDA - ATUAL | 00.394.460/0001-41 | 3.3.90.47.99 |
+| FGTS | `gfip` | 10 (GFIP) | CAIXA ECONOMICA FEDERAL - BRASILIA | 00.360.305/0001-04 | 3.1.90.13.01 |
+| Outros DARFs | `darf` | 8 | MINISTERIO DA FAZENDA - ATUAL | 00.394.460/0001-41 | 3.3.90.47.99 |
 
-- **Valores BRL sem arredondamento:** "Extraia o valor EXATAMENTE como aparece no documento, preservando todos os centavos. Nunca arredonde. Converta `1.419,35` → `1419.35` (decimal com ponto, 2 casas)."
-- **Regra de holerite/folha:**
-  - `tipo_documento = "folha_pagamento"`, `sit_tipo_doc_despesa = 6`.
-  - `numero_documento` / `sit_numero_doc_despesa` = `MM/AAAA` onde `MM` = mês ANTERIOR à data do comprovante de pagamento, `AAAA` = ano do pagamento (no exemplo, pagamento 01/04/2026 → código `03/2026`).
-  - `data_lancamento` / `sit_data_doc_despesa` = ÚLTIMO DIA do mês anterior (ex.: `2026-02-28`).
-  - `sit_data_emissao_pagamento` continua sendo a data da transferência.
-- **Pareamento boleto+comprovante mesma página:** quando boleto e comprovante de pagamento aparecem JUNTOS na mesma página, retornar novo flag `anexos: { tem_nf, tem_boleto, tem_comprovante }` para o item, indicando os 3 papéis presentes no PDF importado.
+**Datas:** a IA extrai a data de **emissão do pagamento** do canto superior direito do documento (autenticação bancária / data de pagamento) e usa esse valor para `sit_data_emissao_pagamento` e `sit_data_debito`. `sit_data_doc_despesa` = mesma data (DARF/GFIP não têm data de "emissão de NF" separada).
 
-### 3. Persistência de anexos na importação
+**Modalidade:** todos os tributos recebem `sit_modalidade_compra = 8` (Tributos/Pessoal — aquisição direta). Adicionar esse código ao `sitCodeMappings.ts` se ainda não existir.
 
-Em `src/lib/despesaImportValidation.ts` (`row` final):
-
-- Continuar salvando `nota_url = storageUrl` quando `anexos.tem_nf` (default true).
-- Quando `anexos.tem_boleto` → também gravar `boleto_url = storageUrl`.
-- Quando `anexos.tem_comprovante` → também gravar `comprovante_url = storageUrl` e marcar `status_sit = "pago"`.
-- Gerar `codigo_lancamento` automaticamente:
-  - Holerite: usa o `MM/AAAA` derivado pela IA.
-  - Demais: usa `numero_documento` (ou sequencial `mesRef-NNN` se vazio).
-
-### 4. Aba "Despesas" da Prestação (XLSX/PDF)
-
-`generatePrestacaoContas`:
-
-- Após persistência correta dos campos, as colunas Código/Comprovante/NF/Boleto passam a ser preenchidas automaticamente.
-- Reordenar despesas na ordem do Controle Bancário (ver passo 6) quando disponível; fallback para `data_lancamento`.
-
-### 5. Armazenamento ordenado para PDF consolidado
-
-- Já existem `comprovante_url`, `nota_url`, `boleto_url` na tabela `despesas` (bucket `prestacao-contas`).
-- Adicionar coluna `ordem_prestacao integer` (default null) em `despesas`.
-- Novo botão "Gerar PDF Consolidado da Prestação" no FinanceiroPage:
-  - Para cada despesa em `ordem_prestacao` ASC (fallback data), baixar `nota_url`, `boleto_url`, `comprovante_url` (deduplicando quando apontam para o mesmo arquivo) e mesclar tudo num PDF único usando `pdf-lib` (já no projeto via export REO? Caso não, adicionar `pdf-lib`).
-  - Capa = sumário das despesas, ordem = Controle Bancário.
-
-### 6. Controle Bancário (novo upload + IA)
-
-- Adicionar nova categoria de upload na importação financeira: "Controle Bancário".
-- Nova edge function `detect-controle-bancario` (ou novo modo dentro de `detect-despesa-from-doc`) que extrai linhas: `data, descricao, valor, identificador` (NR.DOCUMENTO ou hash).
-- Salvar em nova tabela `controle_bancario_lancamentos` (mes_referencia, data, descricao, valor, nr_documento, ordem).
-- Após importar Controle Bancário, rodar matcher (valor + data + nr_documento) que atribui `ordem_prestacao` em `despesas`.
-- Exibir status "Conciliado com Controle Bancário ✓" na lista.
-
-### 7. Migração / banco
-
-- `ALTER TABLE despesas ADD COLUMN ordem_prestacao integer;`
-- `CREATE TABLE controle_bancario_lancamentos (...)` + RLS coordenação (igual a `despesas`).
+**Adicionar em `TIPOS_DOCUMENTO`** (FinanceiroPage.tsx) os labels "DARF — Federal" e "GFIP — FGTS".
 
 ---
 
-## Detalhes técnicos
+## 2. Classificação automática de Modalidade de Compra
 
-**Arquivos a editar:**
-- `supabase/functions/detect-despesa-from-doc/index.ts` — prompt + schema (`anexos`, regras BRL/holerite).
-- `src/lib/despesaImportValidation.ts` — gravar `boleto_url`, `comprovante_url`, `codigo_lancamento`, `status_sit` a partir dos `anexos`.
-- `src/pages/financeiro/FinanceiroPage.tsx` — adicionar `folha_pagamento` em `TIPOS_DOCUMENTO`; novo card "Controle Bancário"; novo botão "PDF Consolidado".
-- `src/lib/sitCodeMappings.ts` — descrição "Folha Pagamento/Holerite".
-- `supabase/functions/generate-rca/index.ts` — usar label correto.
-- Nova edge function `detect-controle-bancario` (espelho do `detect-despesa-from-doc`).
-- Nova migração (`ordem_prestacao` + tabela `controle_bancario_lancamentos`).
-- `pdf-lib` para mesclar PDFs (verificar se já está nas deps; se não, `bun add pdf-lib`).
+**Regra padrão:** toda despesa nova entra com `sit_modalidade_compra = 6` (Tributos/Pessoal — aquisição direta), exceto quando vinculada a um orçamento aprovado → `5` (Pesquisa de preço).
 
-**Compatibilidade:** despesas antigas continuam funcionando (campos novos opcionais; ordenação cai para `data_lancamento`).
+**Como vincular despesa ↔ orçamento:**
+
+a) **Vínculo manual já existente** no módulo Orçamentos (campo `orcamento_id` na despesa, quando o usuário cria a despesa a partir de um item de orçamento aprovado) → mantém-se e força modalidade 5.
+
+b) **Novo vínculo via IA na importação:** após o `detect-despesa-from-doc`, rodar um *matcher* (no servidor) que compara cada despesa extraída com itens de **orçamentos APROVADOS no mesmo mês** usando:
+   - CNPJ do fornecedor vencedor + valor (±2%) + descrição (similaridade trigram > 0.4)
+   - Score ≥ 0.7 → vincula `orcamento_id` automaticamente e marca modalidade 5
+   - Score 0.4–0.7 → mostra sugestão no `ImportReviewDialog` ("Possível vínculo com orçamento X — confirmar?")
+   - Sem match → modalidade 6 padrão
+
+c) **Upload de mapa comparativo:** novo tipo de documento "Mapa Comparativo / Orçamento". A IA extrai os 3 fornecedores com seus valores e cria/atualiza um `orcamento` na tabela existente. Reutiliza a estrutura de `OrcamentosTab.tsx`, com edge function nova `detect-orcamento-from-doc`. Campo extra: `vencedor_cnpj` para alimentar o matcher do item (b).
+
+---
+
+## 3. Hub de Importação Unificado ("Caixa de Entrada")
+
+Substitui as 3 abas separadas por **1 dropzone única** que aceita múltiplos arquivos. Para cada arquivo, a IA decide o tipo:
+
+```text
+                    ┌─────────────────────────┐
+                    │  Upload (1..N arquivos) │
+                    └───────────┬─────────────┘
+                                ▼
+                    ┌─────────────────────────┐
+                    │ classify-financeiro-doc │  (nova edge function)
+                    │  → tipo + confiança     │
+                    └───────────┬─────────────┘
+                                ▼
+       ┌────────────────┬──────────────┬─────────────┬──────────────┐
+       ▼                ▼              ▼             ▼              ▼
+ detect-despesa   detect-orcamento  detect-controle  (folha)     (tributo)
+       │                │              │             │              │
+       └────────────────┴──────────────┴─────────────┴──────────────┘
+                                ▼
+                    ┌─────────────────────────┐
+                    │ ImportReviewDialog v2   │
+                    │ - lista por categoria   │
+                    │ - vínculos sugeridos    │
+                    │ - status SIT por linha  │
+                    └─────────────────────────┘
+```
+
+**Nova edge function `classify-financeiro-doc`:** chamada barata (gemini-flash-lite) que retorna `{ tipo: "despesa" | "tributo" | "folha" | "orcamento" | "controle_bancario", confidence }` analisando 1ª página. Em paralelo dispara o detector específico.
+
+**Ordem recomendada (UX):** o usuário pode jogar tudo de uma vez; o backend processa em ordem otimizada:
+1. **Orçamentos** (precisam existir antes para o matcher)
+2. **Controle Bancário** (define `ordem_prestacao`)
+3. **Despesas, Folha, Tributos** (usam orçamentos + controle bancário para classificar)
+
+Exibido na UI como "Etapa 1/3 — Processando orçamentos…".
+
+---
+
+## 4. Garantia de conformidade do Despesa.txt (SIT)
+
+Auditoria do `sitExport.ts` para garantir layout oficial do TCE-PR antes do release:
+
+- **Campos obrigatórios** (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 20, 21, 22, 23) já cobertos; reforçar validação **bloqueante** quando algum estiver vazio.
+- **CNPJ do concedente:** sempre 14 dígitos com zero-padding ✓ (já existe).
+- **Datas:** `dd-MM-aaaa` ✓.
+- **Decimal:** ponto com 2 casas ✓; reforçar truncamento (não arredondar) — alterar `fmtVal` para `Math.trunc(n*100)/100`.
+- **Sem acentuação** nos campos de texto: aplicar `.normalize("NFD").replace(/[\u0300-\u036f]/g, "")` em `nmFavorecido` e `dsItemDespesa` (TCE-PR rejeita acentos).
+- **Sem pipe interno:** já filtrado em `dsItemDespesa`; estender para todos os campos texto.
+- **Quebra de linha CRLF** ✓.
+- **Sem cabeçalho** ✓ (já confirmado em memory).
+- **`sit_codigo_tipo_despesa` (campo 5):** validar que está preenchido (vinha sendo opcional para tributos — agora derivado da rubrica).
+- **Tributos:** garantir que `sit_tipo_doc_despesa` = 8 ou 10, `sit_modalidade_compra` = 8, e `nrDocumentoDespesa` use o nº de autenticação da DARF/GFIP (até 10 chars).
+
+Adicionar **dry-run validator** que roda 100% das despesas do mês antes de gerar o ZIP e bloqueia exportação se houver erro crítico, com link direto para a linha problemática.
+
+---
+
+## 5. Detalhes técnicos
+
+**Arquivos a editar/criar:**
+
+- `supabase/functions/detect-despesa-from-doc/index.ts` — adicionar regras de tributos no SYSTEM_PROMPT, forçar fornecedor/CNPJ por tipo de tributo, mapear modalidade 8.
+- `supabase/functions/classify-financeiro-doc/index.ts` *(nova)* — classificador leve gemini-flash-lite.
+- `supabase/functions/detect-orcamento-from-doc/index.ts` *(nova)* — extrai 3 fornecedores + valores + vencedor.
+- `supabase/functions/match-despesa-orcamento/index.ts` *(nova, opcional)* — RPC alternativa: matcher SQL via pg_trgm.
+- `src/lib/sitCodeMappings.ts` — adicionar modalidade 8 (Tributos/Pessoal), confirmar mapeamento DARF=8 e GFIP=10.
+- `src/lib/sitExport.ts` — sanitização de acentos, truncamento (não arredondamento), pipe-strip global.
+- `src/lib/despesaImportValidation.ts` — derivar modalidade 5 quando `orcamento_id` presente; padrão 6/8 conforme tipo.
+- `src/pages/financeiro/FinanceiroPage.tsx` — substituir 3 cards de upload por um único hub; adicionar TIPOS_DOCUMENTO darf/gfip/orcamento.
+- `src/components/financeiro/ImportReviewDialog.tsx` — agrupar por categoria (Despesas / Tributos / Folha / Orçamentos / Bancário); coluna "Vínculo orçamento" com sugestões.
+- Migration: `ALTER TABLE despesas ADD COLUMN orcamento_id uuid REFERENCES orcamentos(id);` (se não existir) + índice trigram em `orcamentos.descricao` e `orcamentos_itens.fornecedor_nome`.
+
+**Compatibilidade:** os 3 botões antigos de upload continuam funcionando (redirecionam para o hub) por 1 release antes de serem removidos.
+
+---
+
+## Resposta direta às perguntas
+
+1. **Identificar/classificar despesas via orçamento:** matcher automático CNPJ+valor+similaridade após upload, com sugestão visível no review. Manual também continua disponível.
+2. **Upload de orçamentos/mapas comparativos:** sim — novo tipo "Mapa Comparativo" extraído por IA, alimenta a tabela `orcamentos` e o matcher.
+3. **Ordem das importações:** Orçamentos → Controle Bancário → Despesas/Folha/Tributos. O hub unificado faz isso sozinho mesmo com upload simultâneo.
+4. **Despesa.txt conforme SIT:** auditoria + sanitização + dry-run validator antes do ZIP.
+5. **Importar tudo de uma vez:** sim — Hub de Caixa de Entrada com classificador IA roteando cada arquivo automaticamente.
