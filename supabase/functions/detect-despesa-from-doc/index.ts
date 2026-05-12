@@ -50,6 +50,11 @@ REGRAS CRÍTICAS:
    - Várias NFs no mesmo PDF → 1 despesa por NF
 2) Para folhas de pagamento, cada funcionário é uma despesa cujo valor é o LÍQUIDO pago, fornecedor é o nome do funcionário, tipo_documento é "folha_pagamento" e tipo_doc_despesa SIT é 6.
 3) Para comprovantes de transferência bancária pareados com holerite, use a DATA DA TRANSFERÊNCIA como data_lancamento e o NR.DOCUMENTO da transferência como numero_doc_pagamento.
+3.1) REGRA OBRIGATÓRIA PARA HOLERITES/FOLHAS DE PAGAMENTO:
+   - numero_documento e sit_numero_doc_despesa = "MM/AAAA" onde MM = mês ANTERIOR à data do comprovante de pagamento e AAAA = ano do pagamento. Exemplo: pagamento em 01/04/2026 → "03/2026".
+   - data_lancamento e sit_data_doc_despesa = ÚLTIMO DIA do mês anterior ao pagamento (ex.: 2026-02-28 quando pagamento for em 01/04/2026 → mês de competência março, mas a regra do sistema é usar fevereiro: pagamento 01/04/2026 → competência 03/2026, último dia = 2026-03-31).
+   - IMPORTANTE: o "mês anterior" é em relação à data do COMPROVANTE DE PAGAMENTO. Para pagamento em 01/04/2026, o código fica "03/2026" e a data fica 2026-03-31. Para pagamento em 05/05/2026 → código "04/2026", data 2026-04-30.
+   - sit_data_emissao_pagamento continua sendo a data real da transferência bancária.
 4) PAREAMENTO MULTI-PÁGINA (CRÍTICO — não duplique despesas):
    - Um PDF pode conter, em páginas DIFERENTES, documentos que compõem UMA MESMA despesa. Antes de listar, percorra todas as páginas e identifique os pareamentos.
    - Combinações típicas:
@@ -62,10 +67,17 @@ REGRAS CRÍTICAS:
    - Se o pagamento for PIX: sit_tipo_doc_pagamento = 3 (TED/DOC/PIX). NÃO marque como boleto. sit_tipo_doc_despesa segue a NF (1) quando houver.
    - Se houver boleto/fatura + comprovante mas NÃO houver NF, sit_tipo_doc_despesa = 5 (Boleto) ou 3 (Fatura), conforme o documento.
    - NUNCA gere uma despesa só com a NF e outra só com o boleto/comprovante para o mesmo valor — eles são a MESMA despesa.
-5) Valores no padrão brasileiro (1.019,23) devem virar número decimal com ponto (1019.23).
+5) VALORES — CRÍTICO: extraia o valor EXATAMENTE como aparece no documento, preservando todos os centavos. NUNCA arredonde, NUNCA trunque casas decimais. Padrão BRL "1.419,35" → número 1419.35 (decimal com ponto, sempre 2 casas). "151,77" → 151.77. "1.019,23" → 1019.23. Se o valor tem 2 centavos no documento, o JSON também precisa ter 2 centavos.
 6) Datas devem virar YYYY-MM-DD.
 7) Se o documento mencionar "TERMO DE FOMENTO/COLABORAÇÃO Nº XXX/AAAA", extraia para sit_numero_instrumento (XXX) e sit_ano_transferencia (AAAA).
 8) CLASSIFIQUE CADA DESPESA EM UMA RUBRICA OFICIAL escolhendo o código mais ESPECÍFICO da lista abaixo (campo rubrica_codigo). Use apenas códigos exatos desta lista — não invente. Heurísticas: holerite/salário líquido → 3.1.90.11.01; 13º salário → 3.1.90.11.43; férias/abono → 3.1.90.11.45; FGTS → 3.1.90.13.01; INSS/GPS → 3.1.90.13.02; vale-transporte → 3.1.90.49.00; rescisão/indenização trabalhista → 3.1.90.94.00; combustível/posto → 3.3.90.30.01; alimentos/mercado/açougue → 3.3.90.30.07; material pedagógico/esportivo → 3.3.90.30.14; papelaria/expediente → 3.3.90.30.16; produtos de limpeza/higiene → 3.3.90.30.22; uniformes/tecidos → 3.3.90.30.23; aluguel de imóvel → 3.3.90.36.15; serviços domésticos (PF) → 3.3.90.36.26; serviços profissionais (contabilidade, jurídico, consultoria PJ) → 3.3.90.39.05; oficina/manutenção de veículo → 3.3.90.39.19; conta de luz → 3.3.90.39.43; conta de água/esgoto → 3.3.90.39.44; seguros (auto, predial) → 3.3.90.39.69; tarifas bancárias → 3.3.90.39.81; outros serviços PJ não classificados → 3.3.90.39.99; internet/telefonia/telecom → 3.3.90.40.97; tributos (DARF, ISS) genéricos → 3.3.90.47.99; compra de veículo → 4.4.90.52.52; equipamento/mobiliário permanente → 4.4.90.52.99.
+9) ANEXOS — para CADA despesa, retorne o objeto "anexos" indicando quais papéis estão presentes nas páginas que compõem aquela despesa:
+   - tem_nf: true se há Nota Fiscal/Cupom Fiscal entre as páginas dessa despesa.
+   - tem_boleto: true se há Boleto/Fatura entre as páginas dessa despesa.
+   - tem_comprovante: true se há comprovante de pagamento (transferência bancária, PIX, recibo de quitação) entre as páginas dessa despesa.
+   - Quando boleto e comprovante aparecem JUNTOS na mesma página, marque AMBOS como true.
+   - Para PIX (sem boleto): tem_nf=true (se houver NF), tem_boleto=false, tem_comprovante=true.
+   - Para holerite + transferência: tem_nf=false, tem_boleto=false, tem_comprovante=true (o próprio holerite NÃO é boleto nem NF para o SIT).
 
 RUBRICAS OFICIAIS DISPONÍVEIS:
 ${RUBRICAS_TXT}`;
@@ -103,6 +115,17 @@ const PARAMS_SCHEMA = {
           sit_ano_transferencia: { type: "number", description: "Ano do termo (ex: 2022)" },
           sit_descricao_item: { type: "string", description: "Descrição detalhada do item/serviço (até 2000 chars)" },
           rubrica_codigo: { type: "string", enum: RUBRICA_CODES, description: "Código da rubrica oficial SIT/TCE-PR mais específica para esta despesa." },
+          anexos: {
+            type: "object",
+            description: "Marque quais papéis (NF, boleto, comprovante de pagamento) estão presentes nas páginas dessa despesa dentro do PDF importado.",
+            properties: {
+              tem_nf: { type: "boolean" },
+              tem_boleto: { type: "boolean" },
+              tem_comprovante: { type: "boolean" },
+            },
+            required: ["tem_nf", "tem_boleto", "tem_comprovante"],
+            additionalProperties: false,
+          },
         },
         required: ["descricao"],
         additionalProperties: false,
