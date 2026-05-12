@@ -4121,6 +4121,13 @@ export type Database = {
           user_id: string
         }[]
       }
+      match_controle_bancario_to_despesas: {
+        Args: { p_mes: string }
+        Returns: {
+          matched: number
+          total: number
+        }[]
+      }
       projeto_member_papel: {
         Args: { _projeto_id: string; _user_id: string }
         Returns: string

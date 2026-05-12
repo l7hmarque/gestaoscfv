@@ -14,8 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Plus, Trash2, DollarSign, Receipt, Undo2, Layers,
-  Upload, FileText, ShieldCheck, Download, Loader2, AlertTriangle, CheckCircle2, Info, ListPlus, ClipboardList, FolderOpen, Paperclip, FileSpreadsheet
+  Upload, FileText, ShieldCheck, Download, Loader2, AlertTriangle, CheckCircle2, Info, ListPlus, ClipboardList, FolderOpen, Paperclip, FileSpreadsheet, Banknote, Link2, FileStack
 } from "lucide-react";
+import { PDFDocument } from "pdf-lib";
 import OrcamentosTab from "./OrcamentosTab";
 import DocumentosPrestacaoTab from "./DocumentosPrestacaoTab";
 import ExportacaoSitCard from "@/components/financeiro/ExportacaoSitCard";
@@ -136,6 +137,14 @@ export default function FinanceiroPage() {
   const [rcaLoading, setRcaLoading] = useState(false);
   const [pcLoading, setPcLoading] = useState(false);
   const [reoLoading, setReoLoading] = useState(false);
+  const [pdfConsolidadoLoading, setPdfConsolidadoLoading] = useState(false);
+
+  // Controle Bancário
+  const [cbFile, setCbFile] = useState<File | null>(null);
+  const [cbUploading, setCbUploading] = useState(false);
+  const [cbLancamentos, setCbLancamentos] = useState<any[]>([]);
+  const [cbSaving, setCbSaving] = useState(false);
+  const [cbExisting, setCbExisting] = useState<any[]>([]);
 
   // Pipeline filter
   const [despFilter, setDespFilter] = useState<"all" | "pendente" | "aguardando" | "completa">("all");
@@ -158,16 +167,18 @@ export default function FinanceiroPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [c, p, d, e] = await Promise.all([
+    const [c, p, d, e, cb] = await Promise.all([
       supabase.from("categorias_financeiras").select("*").order("codigo"),
       supabase.from("parcelas_financeiras").select("*").order("numero_parcela"),
       supabase.from("despesas").select("*").eq("mes_referencia", mesRef).order("data_lancamento"),
       supabase.from("estornos").select("*").eq("mes_referencia", mesRef).order("created_at"),
+      supabase.from("controle_bancario_lancamentos").select("*").eq("mes_referencia", mesRef).order("ordem"),
     ]);
     setCategorias((c.data as Categoria[]) || []);
     setParcelas((p.data as Parcela[]) || []);
     setDespesas((d.data as Despesa[]) || []);
     setEstornos((e.data as Estorno[]) || []);
+    setCbExisting((cb.data as any[]) || []);
     setLoading(false);
   }, [mesRef]);
 
@@ -831,6 +842,149 @@ export default function FinanceiroPage() {
     }
   };
 
+  // === CONTROLE BANCÁRIO ===
+  const handleCbFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCbFile(file);
+    setCbUploading(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      const chunkSize = 8192;
+      for (let j = 0; j < bytes.length; j += chunkSize) binary += String.fromCharCode(...bytes.subarray(j, j + chunkSize));
+      const base64 = btoa(binary);
+      const { data, error } = await supabase.functions.invoke("detect-controle-bancario", {
+        body: { file_base64: base64, mime_type: file.type },
+      });
+      if (error) throw error;
+      const list = Array.isArray(data?.lancamentos) ? data.lancamentos : [];
+      setCbLancamentos(list);
+      toast.success(`${list.length} lançamentos extraídos`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Erro ao extrair: " + (err?.message || ""));
+    } finally {
+      setCbUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const saveControleBancario = async () => {
+    if (cbLancamentos.length === 0) return;
+    setCbSaving(true);
+    try {
+      // Substitui lançamentos do mês
+      await supabase.from("controle_bancario_lancamentos").delete().eq("mes_referencia", mesRef);
+      const rows = cbLancamentos
+        .filter((l) => l.tipo === "debito") // apenas saídas conciliam com despesas
+        .map((l, i) => ({
+          mes_referencia: mesRef,
+          ordem: l.ordem ?? i + 1,
+          data: l.data,
+          descricao: l.descricao || "",
+          valor: Number(l.valor) || 0,
+          nr_documento: l.nr_documento || null,
+          origem_arquivo: cbFile?.name || null,
+        }));
+      if (rows.length > 0) {
+        const { error } = await supabase.from("controle_bancario_lancamentos").insert(rows as any);
+        if (error) throw error;
+      }
+      // Roda matcher
+      const { data: matchRes, error: mErr } = await (supabase as any).rpc("match_controle_bancario_to_despesas", { p_mes: mesRef });
+      if (mErr) throw mErr;
+      const m = Array.isArray(matchRes) ? matchRes[0] : matchRes;
+      toast.success(`Controle Bancário salvo. Conciliados: ${m?.matched ?? 0}/${m?.total ?? rows.length}`);
+      setCbLancamentos([]);
+      setCbFile(null);
+      load();
+    } catch (err: any) {
+      toast.error("Erro ao salvar: " + (err?.message || ""));
+    } finally {
+      setCbSaving(false);
+    }
+  };
+
+  const reconciliar = async () => {
+    setCbSaving(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("match_controle_bancario_to_despesas", { p_mes: mesRef });
+      if (error) throw error;
+      const m = Array.isArray(data) ? data[0] : data;
+      toast.success(`Reconciliação: ${m?.matched ?? 0}/${m?.total ?? 0}`);
+      load();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || ""));
+    } finally {
+      setCbSaving(false);
+    }
+  };
+
+  // === PDF CONSOLIDADO DA PRESTAÇÃO ===
+  const generatePdfConsolidado = async () => {
+    setPdfConsolidadoLoading(true);
+    try {
+      const sortPrest = (a: any, b: any) => {
+        const oa = a.ordem_prestacao, ob = b.ordem_prestacao;
+        if (oa != null && ob != null) return oa - ob;
+        if (oa != null) return -1;
+        if (ob != null) return 1;
+        return (a.data_lancamento || "").localeCompare(b.data_lancamento || "");
+      };
+      const ordered = [...despesas].sort(sortPrest);
+      if (ordered.length === 0) { toast.error("Nenhuma despesa para consolidar"); return; }
+
+      const merged = await PDFDocument.create();
+      const seenUrls = new Set<string>();
+      let okCount = 0;
+      let errCount = 0;
+
+      for (const d of ordered) {
+        const urls = [d.nota_url, d.boleto_url, d.comprovante_url].filter((u): u is string => !!u);
+        for (const url of urls) {
+          if (seenUrls.has(url)) continue;
+          seenUrls.add(url);
+          try {
+            const res = await fetch(url);
+            if (!res.ok) { errCount++; continue; }
+            const ct = res.headers.get("content-type") || "";
+            const buf = await res.arrayBuffer();
+            if (ct.includes("pdf") || url.toLowerCase().endsWith(".pdf")) {
+              const src = await PDFDocument.load(buf, { ignoreEncryption: true });
+              const pages = await merged.copyPages(src, src.getPageIndices());
+              pages.forEach(p => merged.addPage(p));
+              okCount++;
+            } else if (ct.includes("image") || /\.(jpe?g|png)$/i.test(url)) {
+              const isPng = ct.includes("png") || /\.png$/i.test(url);
+              const img = isPng ? await merged.embedPng(buf) : await merged.embedJpg(buf);
+              const page = merged.addPage([img.width, img.height]);
+              page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+              okCount++;
+            } else {
+              errCount++;
+            }
+          } catch (e) {
+            console.warn("Falha em", url, e);
+            errCount++;
+          }
+        }
+      }
+
+      if (okCount === 0) { toast.error("Nenhum anexo pôde ser mesclado"); return; }
+      const bytes = await merged.save();
+      const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
+      saveAs(blob, sysCfvFileName("PrestacaoContas_Consolidado", "pdf", mesRef));
+      toast.success(`PDF consolidado gerado (${okCount} anexos${errCount ? `, ${errCount} ignorados` : ""})`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Erro ao consolidar PDF: " + (err?.message || ""));
+    } finally {
+      setPdfConsolidadoLoading(false);
+    }
+  };
+
   const severityIcon = (s: string) => {
     if (s === "erro") return <AlertTriangle className="h-4 w-4 text-destructive" />;
     if (s === "alerta") return <Info className="h-4 w-4 text-amber-500" />;
@@ -866,6 +1020,10 @@ export default function FinanceiroPage() {
             <Button variant="outline" size="sm" onClick={async () => { await Promise.all([generatePrestacaoContas("pdf"), generatePrestacaoContas("xlsx")]); }} disabled={pcLoading} className="gap-1">
               {pcLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
               Prest. Contas (PDF + XLSX)
+            </Button>
+            <Button variant="outline" size="sm" onClick={generatePdfConsolidado} disabled={pdfConsolidadoLoading} className="gap-1">
+              {pdfConsolidadoLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileStack className="h-3 w-3" />}
+              PDF Consolidado
             </Button>
             <div className="w-px h-6 bg-border self-center" />
             <Button variant="outline" size="sm" onClick={generateDespesaTxt} className="gap-1">
@@ -907,7 +1065,7 @@ export default function FinanceiroPage() {
       <ExportacaoSitCard />
 
       <Tabs defaultValue="despesas">
-        <TabsList className="grid grid-cols-9 w-full">
+        <TabsList className="grid grid-cols-10 w-full">
           <TabsTrigger value="despesas" className="text-xs gap-1"><Receipt className="h-3 w-3 hidden sm:block" />Despesas</TabsTrigger>
           <TabsTrigger value="parcelas" className="text-xs gap-1"><DollarSign className="h-3 w-3 hidden sm:block" />Parcelas</TabsTrigger>
           <TabsTrigger value="categorias" className="text-xs gap-1"><Layers className="h-3 w-3 hidden sm:block" />Categorias</TabsTrigger>
@@ -915,6 +1073,7 @@ export default function FinanceiroPage() {
           <TabsTrigger value="orcamentos" className="text-xs gap-1"><ClipboardList className="h-3 w-3 hidden sm:block" />Orçamentos</TabsTrigger>
           <TabsTrigger value="documentos" className="text-xs gap-1"><FolderOpen className="h-3 w-3 hidden sm:block" />Documentos</TabsTrigger>
           <TabsTrigger value="importar" className="text-xs gap-1"><Upload className="h-3 w-3 hidden sm:block" />Importar</TabsTrigger>
+          <TabsTrigger value="bancario" className="text-xs gap-1"><Banknote className="h-3 w-3 hidden sm:block" />Bancário</TabsTrigger>
           <TabsTrigger value="lotes" className="text-xs gap-1"><FileSpreadsheet className="h-3 w-3 hidden sm:block" />Lotes</TabsTrigger>
           <TabsTrigger value="auditoria" className="text-xs gap-1"><ShieldCheck className="h-3 w-3 hidden sm:block" />Auditoria</TabsTrigger>
         </TabsList>
@@ -1449,7 +1608,108 @@ export default function FinanceiroPage() {
           </Card>
         </TabsContent>
 
-        {/* =================== AUDITORIA =================== */}
+        {/* =================== CONTROLE BANCÁRIO =================== */}
+        <TabsContent value="bancario">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2"><Banknote className="h-4 w-4" /> Controle Bancário — {mesRef}</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Importe o extrato/controle bancário (PDF ou imagem). A IA extrai os lançamentos em ordem e o sistema concilia automaticamente com as despesas (preenche <code>ordem_prestacao</code> usada na Prestação, RCA, REO e SIT).
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Input type="file" accept="image/*,application/pdf" onChange={handleCbFile} className="text-xs" disabled={cbUploading} />
+                {cbUploading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                {cbExisting.length > 0 && (
+                  <Button size="sm" variant="outline" onClick={reconciliar} disabled={cbSaving} className="gap-1">
+                    <Link2 className="h-3 w-3" /> Reconciliar
+                  </Button>
+                )}
+              </div>
+
+              {cbLancamentos.length > 0 && (
+                <div className="space-y-2 border rounded p-2 bg-muted/20">
+                  <div className="flex items-center justify-between">
+                    <div className="text-[11px] font-medium">{cbLancamentos.length} lançamentos extraídos ({cbLancamentos.filter(l => l.tipo === "debito").length} débitos)</div>
+                    <Button size="sm" onClick={saveControleBancario} disabled={cbSaving}>
+                      {cbSaving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                      Salvar e conciliar
+                    </Button>
+                  </div>
+                  <div className="max-h-[300px] overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-[10px]">#</TableHead>
+                          <TableHead className="text-[10px]">Data</TableHead>
+                          <TableHead className="text-[10px]">Descrição</TableHead>
+                          <TableHead className="text-[10px]">Nº Doc</TableHead>
+                          <TableHead className="text-[10px] text-right">Valor</TableHead>
+                          <TableHead className="text-[10px]">Tipo</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {cbLancamentos.map((l, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="text-[10px]">{l.ordem ?? i + 1}</TableCell>
+                            <TableCell className="text-[10px]">{l.data}</TableCell>
+                            <TableCell className="text-[10px] max-w-[280px] truncate">{l.descricao}</TableCell>
+                            <TableCell className="text-[10px]">{l.nr_documento || "—"}</TableCell>
+                            <TableCell className="text-[10px] text-right">{Number(l.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-[10px]">
+                              <Badge variant={l.tipo === "credito" ? "outline" : "destructive"} className="text-[9px]">{l.tipo}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {cbExisting.length > 0 && cbLancamentos.length === 0 && (
+                <div className="space-y-1">
+                  <div className="text-[11px] font-medium text-muted-foreground">
+                    Lançamentos salvos: {cbExisting.length} ({cbExisting.filter((l: any) => l.despesa_id).length} conciliados)
+                  </div>
+                  <div className="max-h-[300px] overflow-auto border rounded">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-[10px]">#</TableHead>
+                          <TableHead className="text-[10px]">Data</TableHead>
+                          <TableHead className="text-[10px]">Descrição</TableHead>
+                          <TableHead className="text-[10px]">Nº Doc</TableHead>
+                          <TableHead className="text-[10px] text-right">Valor</TableHead>
+                          <TableHead className="text-[10px]">Concil.</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {cbExisting.map((l: any) => (
+                          <TableRow key={l.id}>
+                            <TableCell className="text-[10px]">{l.ordem}</TableCell>
+                            <TableCell className="text-[10px]">{l.data}</TableCell>
+                            <TableCell className="text-[10px] max-w-[280px] truncate">{l.descricao}</TableCell>
+                            <TableCell className="text-[10px]">{l.nr_documento || "—"}</TableCell>
+                            <TableCell className="text-[10px] text-right">{Number(l.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-[10px]">
+                              {l.despesa_id
+                                ? <Badge variant="outline" className="text-[9px] border-emerald-400 text-emerald-700 gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />ok</Badge>
+                                : <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700">—</Badge>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* =================== AUDITORIA (real) =================== */}
         <TabsContent value="auditoria">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
