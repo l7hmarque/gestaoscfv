@@ -179,19 +179,38 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { file_url, file_base64, mime_type } = await req.json();
+    const { file_url, file_base64, mime_type, pages_text } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+
+    // Modo texto-puro (mais barato): cliente já extraiu OCR/texto nativo do PDF.
+    const textMode = Array.isArray(pages_text) && pages_text.length > 0;
 
     const userContent: any[] = [
       {
         type: "text",
-        text: "Analise TODAS as páginas (sem exceção) deste PDF. ANTES de listar despesas, percorra página por página e identifique os pareamentos: NF (página separada) ↔ Boleto/Fatura+Comprovante (mesma página) ou NF ↔ Comprovante PIX (sem boleto). Cada TRANSAÇÃO REAL = 1 despesa, mesmo que a evidência esteja distribuída em 2 ou 3 páginas. NUNCA duplique uma despesa criando uma entrada para a NF e outra para o boleto/comprovante do mesmo valor. Folhas de pagamento têm UMA despesa POR FUNCIONÁRIO; comprovantes bancários pareados com holerites também são UMA despesa por par. Se houver tabelas de lançamentos contábeis/financeiros, gere UMA despesa POR LINHA da tabela. Use a função extract_despesas.",
+        text: textMode
+          ? `Você está recebendo o TEXTO já extraído de cada página de um PDF financeiro (separados por marcadores "=== PÁGINA N ===").
+
+IMPORTANTE: o texto pode ter pequenos erros de OCR (0/O, 1/I, 5/S). Se um valor numérico parecer inconsistente, prefira a leitura mais coerente com o contexto (Total = Vencimentos − Descontos, Valor Líquido bate com o comprovante, etc).
+
+ANTES de listar despesas, percorra página por página e identifique os pareamentos: NF (página A) ↔ Boleto/Fatura+Comprovante (página B) ou NF ↔ Comprovante PIX (sem boleto). Cada TRANSAÇÃO REAL = 1 despesa, mesmo distribuída em 2-3 páginas. NUNCA duplique. Folhas de pagamento = 1 despesa por funcionário; holerite + comprovante = 1 despesa por par.
+
+Como você não está vendo a imagem do PDF, NÃO há marca-texto amarelo detectável: sempre marcado_orcamento=false (a modalidade segue regras normais; não force 7).
+
+Use a função extract_despesas.
+
+--- INÍCIO DO TEXTO ---
+${pages_text.map((t: string, i: number) => `=== PÁGINA ${i + 1} ===\n${t}`).join("\n\n")}
+--- FIM DO TEXTO ---`
+          : "Analise TODAS as páginas (sem exceção) deste PDF. ANTES de listar despesas, percorra página por página e identifique os pareamentos: NF (página separada) ↔ Boleto/Fatura+Comprovante (mesma página) ou NF ↔ Comprovante PIX (sem boleto). Cada TRANSAÇÃO REAL = 1 despesa, mesmo que a evidência esteja distribuída em 2 ou 3 páginas. NUNCA duplique uma despesa criando uma entrada para a NF e outra para o boleto/comprovante do mesmo valor. Folhas de pagamento têm UMA despesa POR FUNCIONÁRIO; comprovantes bancários pareados com holerites também são UMA despesa por par. Se houver tabelas de lançamentos contábeis/financeiros, gere UMA despesa POR LINHA da tabela. Use a função extract_despesas.",
       },
     ];
 
     const isPdf = (mime_type || "").toLowerCase().includes("pdf");
-    if (file_base64 && mime_type) {
+    if (textMode) {
+      // texto puro: nada a anexar.
+    } else if (file_base64 && mime_type) {
       if (isPdf) {
         // OpenAI-compatible PDF input (multi-page) — Lovable AI Gateway maps to Gemini inline_data
         userContent.push({
@@ -245,11 +264,13 @@ serve(async (req) => {
       }),
     });
 
-    // Use flash by default — pro frequently exceeds the 150s edge timeout on multi-page PDFs.
-    let response = await callModel("google/gemini-2.5-flash");
+    // Texto puro é leve → flash-lite (5–10x mais barato/rápido). Visão → flash (qualidade).
+    const primaryModel = textMode ? "google/gemini-2.5-flash-lite" : "google/gemini-2.5-flash";
+    const fallbackModel = textMode ? "google/gemini-2.5-flash" : "google/gemini-2.5-flash-lite";
+    let response = await callModel(primaryModel);
     if (response.status === 429) {
-      console.warn("[detect-despesa] Flash rate-limited, fallback to flash-lite");
-      response = await callModel("google/gemini-2.5-flash-lite");
+      console.warn(`[detect-despesa] ${primaryModel} rate-limited, fallback to ${fallbackModel}`);
+      response = await callModel(fallbackModel);
     }
 
     if (!response.ok) {

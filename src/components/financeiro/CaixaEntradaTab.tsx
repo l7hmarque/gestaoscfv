@@ -5,10 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Inbox, Loader2, Receipt, AlertTriangle, CheckCircle2, Trash2, Upload } from "lucide-react";
+import { Inbox, Loader2, Receipt, AlertTriangle, CheckCircle2, Trash2, Upload, FileText, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { validateDespesa } from "@/lib/despesaImportValidation";
 import { applyOrcamentoMatching } from "@/lib/orcamentoMatcher";
+import { analyzePdf } from "@/lib/pdfTextAnalyzer";
+import ConciliacaoExtratoCard from "./ConciliacaoExtratoCard";
 
 interface ClassifiedDoc {
   id: string;
@@ -23,6 +25,8 @@ interface ClassifiedDoc {
   totalChunks?: number;
   doneChunks?: number;
   persisted?: boolean;
+  rota?: "texto" | "visao";
+  rotaMotivo?: string;
 }
 
 const PAGES_PER_CHUNK = 5;
@@ -155,29 +159,57 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
       const ext = d.file.name.split(".").pop() || "pdf";
       const path = `financeiro/caixa/${Date.now()}_${d.id}.${ext}`;
       const isPdf = (d.file.type || "").toLowerCase().includes("pdf");
-      const [, partes] = await Promise.all([
-        supabase.storage.from("documentos").upload(path, d.file).then(async (r) => {
-          if (r.error) throw r.error;
-          const { data: urlData } = await supabase.storage.from("documentos").getPublicUrl(path);
-          setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, storageUrl: urlData?.publicUrl, storagePath: path } : x)));
-          void persistDoc(d.id, { storage_url: urlData?.publicUrl, storage_path: path });
-        }),
-        isPdf ? splitPdfIntoChunks(d.file, PAGES_PER_CHUNK) : (async () => [await fileToBase64(d.file)])(),
-      ]);
+
+      // 1) Sobe o arquivo (paralelo) e, para PDFs, analisa camada de texto + marca amarela.
+      const uploadPromise = supabase.storage.from("documentos").upload(path, d.file).then(async (r) => {
+        if (r.error) throw r.error;
+        const { data: urlData } = await supabase.storage.from("documentos").getPublicUrl(path);
+        setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, storageUrl: urlData?.publicUrl, storagePath: path } : x)));
+        void persistDoc(d.id, { storage_url: urlData?.publicUrl, storage_path: path });
+      });
+
+      let pagesText: string[] | null = null;
+      let rota: "texto" | "visao" = "visao";
+      let rotaMotivo = "";
+      if (isPdf) {
+        try {
+          const an = await analyzePdf(d.file);
+          rota = an.mode === "text" ? "texto" : "visao";
+          rotaMotivo = an.reason;
+          if (an.mode === "text") pagesText = an.pagesText;
+          setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, rota, rotaMotivo } : x)));
+        } catch (e) {
+          console.warn("analyzePdf falhou, usando visão:", e);
+          rota = "visao";
+          rotaMotivo = "análise de texto falhou — usando visão";
+        }
+      }
+
+      // 2) Monta partes (texto: 1 chamada só; visão: chunks de N páginas em base64).
+      let partes: { kind: "text"; pages: string[] }[] | { kind: "vision"; b64: string }[];
+      if (pagesText) {
+        partes = [{ kind: "text", pages: pagesText }] as any;
+      } else if (isPdf) {
+        const chunks = await splitPdfIntoChunks(d.file, PAGES_PER_CHUNK);
+        partes = chunks.map((b64) => ({ kind: "vision", b64 })) as any;
+      } else {
+        partes = [{ kind: "vision", b64: await fileToBase64(d.file) }] as any;
+      }
+      await uploadPromise;
 
       const totalChunks = partes.length;
       setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, totalChunks, doneChunks: 0 } : x)));
       void persistDoc(d.id, { total_chunks: totalChunks, done_chunks: 0 });
-      // Ajusta unidades totais agora que sabemos os chunks reais (estimamos como 1 antes)
       setTotalUnits((u) => u + (totalChunks - 1));
 
       const despesasAcc: any[] = [];
       let ultimaResposta: any = null;
-      // Chunks do mesmo PDF processados sequencialmente (preserva ordem das despesas)
       for (let idx = 0; idx < partes.length; idx++) {
-        const { data, error } = await supabase.functions.invoke("detect-despesa-from-doc", {
-          body: { file_base64: partes[idx], mime_type: d.file.type },
-        });
+        const parte: any = partes[idx];
+        const body = parte.kind === "text"
+          ? { pages_text: parte.pages, mime_type: d.file.type }
+          : { file_base64: parte.b64, mime_type: d.file.type };
+        const { data, error } = await supabase.functions.invoke("detect-despesa-from-doc", { body });
         if (error) throw error;
         ultimaResposta = data;
         if (Array.isArray(data?.despesas)) despesasAcc.push(...data.despesas);
@@ -409,6 +441,19 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
                       <div className="flex flex-wrap items-center gap-1 mt-0.5">
                         {d.status === "ok" && (
                           <span className="text-[9px] text-emerald-700">{qtd} despesa{qtd === 1 ? "" : "s"} extraída{qtd === 1 ? "" : "s"}</span>
+                        )}
+                        {d.rota && (
+                          <span
+                            title={d.rotaMotivo}
+                            className={`text-[9px] inline-flex items-center gap-0.5 px-1 py-px rounded border ${
+                              d.rota === "texto"
+                                ? "bg-blue-500/10 text-blue-700 border-blue-500/30"
+                                : "bg-purple-500/10 text-purple-700 border-purple-500/30"
+                            }`}
+                          >
+                            {d.rota === "texto" ? <FileText className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
+                            {d.rota === "texto" ? "texto" : "visão"}
+                          </span>
                         )}
                         {d.status === "processando" && d.totalChunks && d.totalChunks > 1 && (
                           <span className="text-[9px] text-muted-foreground">
