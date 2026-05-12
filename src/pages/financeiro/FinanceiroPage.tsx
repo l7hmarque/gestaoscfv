@@ -974,7 +974,7 @@ export default function FinanceiroPage() {
 
       if (okCount === 0) { toast.error("Nenhum anexo pôde ser mesclado"); return; }
       const bytes = await merged.save();
-      const blob = new Blob([bytes], { type: "application/pdf" });
+      const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
       saveAs(blob, sysCfvFileName("PrestacaoContas_Consolidado", "pdf", mesRef));
       toast.success(`PDF consolidado gerado (${okCount} anexos${errCount ? `, ${errCount} ignorados` : ""})`);
     } catch (err: any) {
