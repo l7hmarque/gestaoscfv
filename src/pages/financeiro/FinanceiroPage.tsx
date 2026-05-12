@@ -842,8 +842,6 @@ export default function FinanceiroPage() {
     }
   };
 
-  const severityIcon = (s: string) => {
-
   // === CONTROLE BANCÁRIO ===
   const handleCbFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -987,7 +985,7 @@ export default function FinanceiroPage() {
     }
   };
 
-  const severityIconV2 = (s: string) => {
+  const severityIcon = (s: string) => {
     if (s === "erro") return <AlertTriangle className="h-4 w-4 text-destructive" />;
     if (s === "alerta") return <Info className="h-4 w-4 text-amber-500" />;
     return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
