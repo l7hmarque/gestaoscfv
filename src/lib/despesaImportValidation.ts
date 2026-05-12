@@ -178,6 +178,40 @@ export function validateDespesa(
   const warnings: DespesaWarning[] = [];
   const missing: string[] = [];
 
+  // === REGRAS DE TRIBUTOS FEDERAIS — força fornecedor/CNPJ/modalidade
+  // mesmo que a IA não tenha aplicado completamente.
+  const tipoDocLower = String(e.tipo_documento || "").toLowerCase();
+  const descLower = String(e.descricao || "").toLowerCase();
+  const isFGTS = tipoDocLower === "gfip" || /\bfgts\b/.test(descLower) || /\bgfip\b/.test(descLower);
+  const isINSSouPIS =
+    !isFGTS &&
+    (tipoDocLower === "darf" || tipoDocLower === "gps" ||
+      /\binss\b/.test(descLower) || /\bpis\b/.test(descLower) ||
+      /\bdarf\b/.test(descLower) || /\bgps\b/.test(descLower) ||
+      /receita federal/.test(descLower));
+
+  if (isFGTS) {
+    e.tipo_documento = "gfip";
+    e.sit_tipo_doc_despesa = e.sit_tipo_doc_despesa || 10;
+    e.fornecedor = "CAIXA ECONOMICA FEDERAL - BRASILIA";
+    e.sit_nome_favorecido = "CAIXA ECONOMICA FEDERAL - BRASILIA";
+    e.cnpj_cpf = "00360305000104";
+    e.sit_tipo_doc_favorecido = "CNPJ";
+    e.sit_modalidade_compra = e.sit_modalidade_compra || 8;
+    if (!e.rubrica_codigo) e.rubrica_codigo = "3.1.90.13.01";
+  } else if (isINSSouPIS) {
+    e.tipo_documento = "darf";
+    e.sit_tipo_doc_despesa = e.sit_tipo_doc_despesa || 8;
+    e.fornecedor = "MINISTERIO DA FAZENDA - ATUAL";
+    e.sit_nome_favorecido = "MINISTERIO DA FAZENDA - ATUAL";
+    e.cnpj_cpf = "00394460000141";
+    e.sit_tipo_doc_favorecido = "CNPJ";
+    e.sit_modalidade_compra = e.sit_modalidade_compra || 8;
+    if (!e.rubrica_codigo) {
+      e.rubrica_codigo = /\binss\b/.test(descLower) ? "3.1.90.13.02" : "3.3.90.47.99";
+    }
+  }
+
   const cnpjcpf = (e.cnpj_cpf || "").replace(/\D/g, "");
   const tipoFavSource = e.sit_tipo_doc_favorecido
     ? "ai.sit_tipo_doc_favorecido"
