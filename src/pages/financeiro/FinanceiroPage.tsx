@@ -648,6 +648,11 @@ export default function FinanceiroPage() {
       `${rows.length} despesa(s) importada(s)` +
         (matchedCount > 0 ? ` — ${matchedCount} vinculada(s) automaticamente a orçamentos aprovados (modalidade 7)` : "")
     );
+    // Limpa Caixa de Entrada para os documentos que foram efetivamente lançados.
+    const caixaIds = docFiles.map((d) => d.caixaDocId).filter(Boolean) as string[];
+    if (caixaIds.length) {
+      try { await supabase.from("caixa_entrada_documentos" as any).delete().in("id", caixaIds); } catch {}
+    }
     setReviewOpen(false);
     setDocFiles([]);
     setDialogOpen(null);
