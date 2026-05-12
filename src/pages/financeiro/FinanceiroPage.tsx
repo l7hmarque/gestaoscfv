@@ -598,7 +598,9 @@ export default function FinanceiroPage() {
     // Vincula automaticamente cada despesa a um orçamento aprovado do mês (CNPJ ou nome do fornecedor)
     // e marca modalidade de compra 7 (Cotação prévia / Pesquisa de preço).
     const { rows, matchedCount } = await applyOrcamentoMatching(rawRows, mesRef);
-    const { error } = await supabase.from("despesas").insert(rows as any);
+    // Remove campo auxiliar `marcado_orcamento` (não existe no schema de despesas — usado apenas pelo matcher).
+    const cleanRows = rows.map(({ marcado_orcamento, ...rest }: any) => rest);
+    const { error } = await supabase.from("despesas").insert(cleanRows as any);
     if (error) {
       setSavingDocs(false);
       console.error("Erro ao lançar despesa:", error);
