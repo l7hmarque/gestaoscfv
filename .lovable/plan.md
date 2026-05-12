@@ -1,53 +1,98 @@
-## Objetivo
+## Diagnóstico
 
-Ajustar a importação de Documentos Fiscais para que a IA entenda corretamente como as páginas de um PDF se relacionam, evitando duplicar despesas quando NF, boleto/fatura e comprovante aparecem em páginas distintas.
+Analisei o fluxo `detect-despesa-from-doc` → `validateDespesa` → `insert despesas` → exportações (RCA/SIT/Prestação XLSX).
 
-## Regra de negócio a ensinar à IA
+**Causas dos problemas relatados:**
 
-Cada despesa pode ser montada a partir de páginas separadas dentro do mesmo PDF:
+1. **Aba Despesas (planilha) com Código/Boleto/Comprovante vazios:**
+   - Na importação, `validateDespesa` só preenche `nota_url = storageUrl`. Nunca grava `boleto_url` nem `comprovante_url`, e **não gera `codigo_lancamento`** (campo fica null).
+   - O gerador da Prestação (`generatePrestacaoContas` em `FinanceiroPage.tsx`, linhas 740–744) lê esses três campos → todos vazios.
 
-- **Boleto bancário ou Fatura**: frequentemente está na MESMA página do comprovante de pagamento (print do banco impresso logo abaixo, ou comprovante anexado ao boleto). Tratar como UM único conjunto pagamento+cobrança.
-- **Nota Fiscal**: vem em página SEPARADA. Deve ser pareada com o boleto/fatura+comprovante correspondente pelo valor, fornecedor (CNPJ) e/ou número do documento citado no boleto.
-- **Pagamento via PIX**: NÃO existe boleto/fatura. Há apenas a Nota Fiscal (uma página) + Comprovante PIX (outra página). Pareie pelo valor, data e favorecido.
-- **Folha de pagamento**: regra atual mantida (1 despesa por funcionário, par holerite + comprovante de transferência).
+2. **"folha_pagamento" cru no RCA/SIT:**
+   - `TIPOS_DOCUMENTO` (FinanceiroPage.tsx l.71) não contém `folha_pagamento`.
+   - Quando a IA classifica como `folha_pagamento`, o lookup por `label` retorna o valor cru (ou vazio) → aparece "folha_pagamento" no SIT/RCA.
 
-Resultado esperado: **1 despesa por transação real**, mesmo que a evidência esteja distribuída em 2–3 páginas. Não criar despesas duplicadas (uma para a NF, outra para o boleto, outra para o comprovante).
+3. **Valores arredondados:** prompt da IA pede "número decimal com ponto" mas não proíbe arredondamento. Modelo às vezes trunca `1.419,35` → `1419`.
 
-## Mudanças
+4. **Boleto + comprovante na mesma página:** IA hoje retorna 1 despesa, mas frontend só salva 1 URL (`nota_url`). Falta marcar que aquele PDF cumpre os 3 papéis (NF separada, boleto+comprovante juntos).
 
-### 1. `supabase/functions/detect-despesa-from-doc/index.ts`
+5. **Holerites sem código/data padronizados:** prompt não define a regra `mm/aaaa` (mês anterior ao pagamento) nem último dia do mês anterior.
 
-Adicionar nova seção de regras no `SYSTEM_PROMPT` (após a regra 3, renumerando) explicando o pareamento multi-página:
+6. **Ordem da Prestação de Contas / Controle Bancário:** hoje despesas são ordenadas por `data_lancamento`. Não existe upload nem extração do Controle Bancário, nem campo de ordenação a partir dele.
 
-```text
-PAREAMENTO MULTI-PÁGINA (CRÍTICO — não duplique despesas):
-- Um PDF pode conter, em páginas diferentes, os documentos que compõem UMA MESMA despesa.
-- Combinações típicas:
-  a) Nota Fiscal (página A) + Boleto/Fatura com comprovante de pagamento impresso junto (página B) → 1 despesa.
-  b) Nota Fiscal (página A) + Comprovante PIX (página B), SEM boleto → 1 despesa (pagamento via PIX).
-  c) Boleto/Fatura sozinho com comprovante na mesma página, SEM NF → 1 despesa (ex: contas de consumo).
-  d) Holerite (página A) + Comprovante de transferência bancária (página B) → 1 despesa por funcionário.
-- Pareamento: use VALOR (idêntico ou muito próximo), FORNECEDOR/CNPJ, DATA de vencimento × data do pagamento, e número do documento referenciado no boleto/PIX.
-- Quando houver NF, priorize seus dados (sit_numero_doc_despesa, sit_data_doc_despesa, descrição do item) e use o comprovante para sit_numero_doc_pagamento, sit_data_emissao_pagamento e sit_tipo_doc_pagamento.
-- Se o comprovante for PIX, sit_tipo_doc_pagamento = 3 (TED/DOC/PIX) e NÃO marque como boleto.
-- Se houver boleto + comprovante mas NÃO houver NF correspondente, sit_tipo_doc_despesa = 5 (Boleto) ou 3 (Fatura), conforme o caso.
-- NUNCA gere uma despesa só com a NF e outra só com o boleto/comprovante para o mesmo valor — eles são a mesma despesa.
-```
+---
 
-Ajustar também a mensagem do usuário (`userContent[0].text`) para reforçar:
+## Plano de implementação
 
-> "Antes de listar as despesas, percorra TODAS as páginas e identifique os pareamentos NF↔boleto/fatura↔comprovante (e NF↔PIX). Cada transação real = 1 despesa, mesmo que a evidência esteja em 2 ou 3 páginas distintas."
+### 1. Novo tipo de documento "Folha Pagamento/Holerite"
 
-### 2. Sem mudanças de schema, banco ou frontend
+- Em `src/pages/financeiro/FinanceiroPage.tsx` adicionar `{ value: "folha_pagamento", label: "Folha Pagamento/Holerite" }` em `TIPOS_DOCUMENTO`.
+- Validar/garantir que `src/lib/sitCodeMappings.ts` mapeia `folha_pagamento → 6` (já existe; revisar `describeSitTipoDocDespesa` para retornar "Folha Pagamento/Holerite").
+- RCA (`generate-rca/index.ts`) e SIT (`generateDespesaTxt`) passam a usar `TIPOS_DOCUMENTO.label` corrigido.
 
-O `PARAMS_SCHEMA`, a tabela `despesas` e o `ImportReviewDialog.tsx` já suportam todos os campos necessários (`sit_tipo_doc_pagamento`, `sit_tipo_doc_despesa`, `sit_numero_doc_pagamento`, etc.). A mudança é puramente de prompt/instrução para a IA.
+### 2. IA: regras adicionais em `detect-despesa-from-doc`
 
-### 3. Deploy
+Acrescentar ao SYSTEM_PROMPT:
 
-Redeploy da edge function `detect-despesa-from-doc` (automático).
+- **Valores BRL sem arredondamento:** "Extraia o valor EXATAMENTE como aparece no documento, preservando todos os centavos. Nunca arredonde. Converta `1.419,35` → `1419.35` (decimal com ponto, 2 casas)."
+- **Regra de holerite/folha:**
+  - `tipo_documento = "folha_pagamento"`, `sit_tipo_doc_despesa = 6`.
+  - `numero_documento` / `sit_numero_doc_despesa` = `MM/AAAA` onde `MM` = mês ANTERIOR à data do comprovante de pagamento, `AAAA` = ano do pagamento (no exemplo, pagamento 01/04/2026 → código `03/2026`).
+  - `data_lancamento` / `sit_data_doc_despesa` = ÚLTIMO DIA do mês anterior (ex.: `2026-02-28`).
+  - `sit_data_emissao_pagamento` continua sendo a data da transferência.
+- **Pareamento boleto+comprovante mesma página:** quando boleto e comprovante de pagamento aparecem JUNTOS na mesma página, retornar novo flag `anexos: { tem_nf, tem_boleto, tem_comprovante }` para o item, indicando os 3 papéis presentes no PDF importado.
 
-## Fora de escopo
+### 3. Persistência de anexos na importação
 
-- Não alterar a lista de 28 rubricas oficiais.
-- Não alterar a UI de revisão (continua mostrando 1 linha por despesa retornada).
-- Não alterar regras de folha de pagamento já existentes.
+Em `src/lib/despesaImportValidation.ts` (`row` final):
+
+- Continuar salvando `nota_url = storageUrl` quando `anexos.tem_nf` (default true).
+- Quando `anexos.tem_boleto` → também gravar `boleto_url = storageUrl`.
+- Quando `anexos.tem_comprovante` → também gravar `comprovante_url = storageUrl` e marcar `status_sit = "pago"`.
+- Gerar `codigo_lancamento` automaticamente:
+  - Holerite: usa o `MM/AAAA` derivado pela IA.
+  - Demais: usa `numero_documento` (ou sequencial `mesRef-NNN` se vazio).
+
+### 4. Aba "Despesas" da Prestação (XLSX/PDF)
+
+`generatePrestacaoContas`:
+
+- Após persistência correta dos campos, as colunas Código/Comprovante/NF/Boleto passam a ser preenchidas automaticamente.
+- Reordenar despesas na ordem do Controle Bancário (ver passo 6) quando disponível; fallback para `data_lancamento`.
+
+### 5. Armazenamento ordenado para PDF consolidado
+
+- Já existem `comprovante_url`, `nota_url`, `boleto_url` na tabela `despesas` (bucket `prestacao-contas`).
+- Adicionar coluna `ordem_prestacao integer` (default null) em `despesas`.
+- Novo botão "Gerar PDF Consolidado da Prestação" no FinanceiroPage:
+  - Para cada despesa em `ordem_prestacao` ASC (fallback data), baixar `nota_url`, `boleto_url`, `comprovante_url` (deduplicando quando apontam para o mesmo arquivo) e mesclar tudo num PDF único usando `pdf-lib` (já no projeto via export REO? Caso não, adicionar `pdf-lib`).
+  - Capa = sumário das despesas, ordem = Controle Bancário.
+
+### 6. Controle Bancário (novo upload + IA)
+
+- Adicionar nova categoria de upload na importação financeira: "Controle Bancário".
+- Nova edge function `detect-controle-bancario` (ou novo modo dentro de `detect-despesa-from-doc`) que extrai linhas: `data, descricao, valor, identificador` (NR.DOCUMENTO ou hash).
+- Salvar em nova tabela `controle_bancario_lancamentos` (mes_referencia, data, descricao, valor, nr_documento, ordem).
+- Após importar Controle Bancário, rodar matcher (valor + data + nr_documento) que atribui `ordem_prestacao` em `despesas`.
+- Exibir status "Conciliado com Controle Bancário ✓" na lista.
+
+### 7. Migração / banco
+
+- `ALTER TABLE despesas ADD COLUMN ordem_prestacao integer;`
+- `CREATE TABLE controle_bancario_lancamentos (...)` + RLS coordenação (igual a `despesas`).
+
+---
+
+## Detalhes técnicos
+
+**Arquivos a editar:**
+- `supabase/functions/detect-despesa-from-doc/index.ts` — prompt + schema (`anexos`, regras BRL/holerite).
+- `src/lib/despesaImportValidation.ts` — gravar `boleto_url`, `comprovante_url`, `codigo_lancamento`, `status_sit` a partir dos `anexos`.
+- `src/pages/financeiro/FinanceiroPage.tsx` — adicionar `folha_pagamento` em `TIPOS_DOCUMENTO`; novo card "Controle Bancário"; novo botão "PDF Consolidado".
+- `src/lib/sitCodeMappings.ts` — descrição "Folha Pagamento/Holerite".
+- `supabase/functions/generate-rca/index.ts` — usar label correto.
+- Nova edge function `detect-controle-bancario` (espelho do `detect-despesa-from-doc`).
+- Nova migração (`ordem_prestacao` + tabela `controle_bancario_lancamentos`).
+- `pdf-lib` para mesclar PDFs (verificar se já está nas deps; se não, `bun add pdf-lib`).
+
+**Compatibilidade:** despesas antigas continuam funcionando (campos novos opcionais; ordenação cai para `data_lancamento`).
