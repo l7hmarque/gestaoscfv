@@ -301,6 +301,57 @@ export type Database = {
           },
         ]
       }
+      caixa_entrada_documentos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          despesas_json: Json | null
+          done_chunks: number | null
+          erro: string | null
+          file_name: string
+          id: string
+          mes_ref: string
+          mime_type: string | null
+          status: string
+          storage_path: string | null
+          storage_url: string | null
+          total_chunks: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          despesas_json?: Json | null
+          done_chunks?: number | null
+          erro?: string | null
+          file_name: string
+          id?: string
+          mes_ref: string
+          mime_type?: string | null
+          status?: string
+          storage_path?: string | null
+          storage_url?: string | null
+          total_chunks?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          despesas_json?: Json | null
+          done_chunks?: number | null
+          erro?: string | null
+          file_name?: string
+          id?: string
+          mes_ref?: string
+          mime_type?: string | null
+          status?: string
+          storage_path?: string | null
+          storage_url?: string | null
+          total_chunks?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       categorias_financeiras: {
         Row: {
           codigo: string
