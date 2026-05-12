@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Plus, Trash2, DollarSign, Receipt, Undo2, Layers,
-  Upload, FileText, ShieldCheck, Download, Loader2, AlertTriangle, CheckCircle2, Info, ListPlus, ClipboardList, FolderOpen, Paperclip, FileSpreadsheet, Banknote, Link2, FileStack
+  Upload, FileText, ShieldCheck, Download, Loader2, AlertTriangle, CheckCircle2, Info, ListPlus, ClipboardList, FolderOpen, Paperclip, FileSpreadsheet, Banknote, Link2, FileStack, Inbox
 } from "lucide-react";
 import { PDFDocument } from "pdf-lib";
 import OrcamentosTab from "./OrcamentosTab";
@@ -23,6 +23,7 @@ import ExportacaoSitCard from "@/components/financeiro/ExportacaoSitCard";
 import RegularizarSitDialog from "@/components/financeiro/RegularizarSitDialog";
 import ImportReviewDialog from "@/components/financeiro/ImportReviewDialog";
 import LotesImportadosTab from "@/components/financeiro/LotesImportadosTab";
+import CaixaEntradaTab from "@/components/financeiro/CaixaEntradaTab";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { sysCfvFileName } from "@/lib/fileNaming";
