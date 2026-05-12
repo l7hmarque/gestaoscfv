@@ -274,7 +274,10 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
       const { error } = await supabase.from("despesas").insert(cleanRows as any);
       if (error) { toast.error(`Erro ao lançar: ${error.message}`); return; }
       toast.success(`${cleanRows.length} despesa(s) lançada(s) sem revisão`);
-      setDocs([]); setTotalUnits(0); setDoneUnits(0);
+      const launchedIds = prontos.map((d) => d.id);
+      try { await supabase.from("caixa_entrada_documentos" as any).delete().in("id", launchedIds); } catch {}
+      setDocs((p) => p.filter((d) => !launchedIds.includes(d.id)));
+      setTotalUnits(0); setDoneUnits(0);
       onProcessed?.();
     } catch (e: any) {
       console.error(e);
