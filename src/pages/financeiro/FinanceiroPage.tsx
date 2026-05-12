@@ -1608,10 +1608,6 @@ export default function FinanceiroPage() {
           </Card>
         </TabsContent>
 
-        {/* =================== AUDITORIA =================== */}
-        <TabsContent value="auditoria">
-          {/* placeholder anchor */}
-        </TabsContent>
         {/* =================== CONTROLE BANCÁRIO =================== */}
         <TabsContent value="bancario">
           <Card>
