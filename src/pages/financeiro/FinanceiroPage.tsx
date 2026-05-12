@@ -167,16 +167,18 @@ export default function FinanceiroPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [c, p, d, e] = await Promise.all([
+    const [c, p, d, e, cb] = await Promise.all([
       supabase.from("categorias_financeiras").select("*").order("codigo"),
       supabase.from("parcelas_financeiras").select("*").order("numero_parcela"),
       supabase.from("despesas").select("*").eq("mes_referencia", mesRef).order("data_lancamento"),
       supabase.from("estornos").select("*").eq("mes_referencia", mesRef).order("created_at"),
+      supabase.from("controle_bancario_lancamentos").select("*").eq("mes_referencia", mesRef).order("ordem"),
     ]);
     setCategorias((c.data as Categoria[]) || []);
     setParcelas((p.data as Parcela[]) || []);
     setDespesas((d.data as Despesa[]) || []);
     setEstornos((e.data as Estorno[]) || []);
+    setCbExisting((cb.data as any[]) || []);
     setLoading(false);
   }, [mesRef]);
 
