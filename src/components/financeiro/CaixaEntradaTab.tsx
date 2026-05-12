@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { PDFDocument } from "pdf-lib";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,32 @@ async function fileToBase64(file: File) {
   const chunk = 8192;
   for (let j = 0; j < bytes.length; j += chunk) binary += String.fromCharCode(...bytes.subarray(j, j + chunk));
   return btoa(binary);
+}
+
+async function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  const chunk = 8192;
+  for (let j = 0; j < bytes.length; j += chunk) binary += String.fromCharCode(...bytes.subarray(j, j + chunk));
+  return btoa(binary);
+}
+
+/** Quebra um PDF em pedaços de N páginas (default 5). Retorna lista de base64. */
+async function splitPdfIntoChunks(file: File, pagesPerChunk = 5): Promise<string[]> {
+  const buf = await file.arrayBuffer();
+  const src = await PDFDocument.load(buf);
+  const total = src.getPageCount();
+  if (total <= pagesPerChunk) return [await fileToBase64(file)];
+  const out: string[] = [];
+  for (let start = 0; start < total; start += pagesPerChunk) {
+    const end = Math.min(start + pagesPerChunk, total);
+    const dest = await PDFDocument.create();
+    const indices = Array.from({ length: end - start }, (_, i) => start + i);
+    const copied = await dest.copyPages(src, indices);
+    copied.forEach((p) => dest.addPage(p));
+    const bytes = await dest.save();
+    out.push(await bytesToBase64(bytes));
+  }
+  return out;
 }
 
 interface Props {
@@ -105,7 +132,6 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRouteToTab }: P
     for (const d of fila) {
       setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "processando" } : x)));
       try {
-        const base64 = await fileToBase64(d.file);
         let fnName: string | null = null;
         if (d.tipo === "despesa" || d.tipo === "tributo" || d.tipo === "folha") fnName = "detect-despesa-from-doc";
         else if (d.tipo === "orcamento") fnName = "detect-orcamento-from-doc";
@@ -115,11 +141,26 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRouteToTab }: P
           setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "erro", erro: "Tipo desconhecido" } : x)));
           continue;
         }
-        const { data, error } = await supabase.functions.invoke(fnName, {
-          body: { file_base64: base64, mime_type: d.file.type },
-        });
-        if (error) throw error;
-        setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "ok", resultado: data } : x)));
+
+        // Para detect-despesa em PDFs, dividir em lotes de 5 páginas para evitar IDLE_TIMEOUT (150s).
+        const isPdf = (d.file.type || "").toLowerCase().includes("pdf");
+        const podeChunk = fnName === "detect-despesa-from-doc" && isPdf;
+        const partes = podeChunk ? await splitPdfIntoChunks(d.file, 5) : [await fileToBase64(d.file)];
+
+        const despesasAcc: any[] = [];
+        let ultimaResposta: any = null;
+        for (let idx = 0; idx < partes.length; idx++) {
+          const { data, error } = await supabase.functions.invoke(fnName, {
+            body: { file_base64: partes[idx], mime_type: d.file.type },
+          });
+          if (error) throw error;
+          ultimaResposta = data;
+          if (Array.isArray(data?.despesas)) despesasAcc.push(...data.despesas);
+        }
+        const resultado = podeChunk
+          ? { despesas: despesasAcc, extracted: despesasAcc[0] ?? null, total: despesasAcc.length }
+          : ultimaResposta;
+        setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "ok", resultado } : x)));
       } catch (e: any) {
         console.error(e);
         setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "erro", erro: e?.message || "Falha" } : x)));
