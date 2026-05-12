@@ -1021,6 +1021,10 @@ export default function FinanceiroPage() {
               {pcLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
               Prest. Contas (PDF + XLSX)
             </Button>
+            <Button variant="outline" size="sm" onClick={generatePdfConsolidado} disabled={pdfConsolidadoLoading} className="gap-1">
+              {pdfConsolidadoLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileStack className="h-3 w-3" />}
+              PDF Consolidado
+            </Button>
             <div className="w-px h-6 bg-border self-center" />
             <Button variant="outline" size="sm" onClick={generateDespesaTxt} className="gap-1">
               <Download className="h-3 w-3" />Exportar SIT
