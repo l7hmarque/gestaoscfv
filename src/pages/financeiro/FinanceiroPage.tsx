@@ -1340,8 +1340,15 @@ export default function FinanceiroPage() {
           </Dialog>
         </TabsContent>
 
-        {/* =================== PARCELAS =================== */}
-        <TabsContent value="parcelas">
+        {/* =================== CADASTROS (Parcelas + Categorias + Estornos) =================== */}
+        <TabsContent value="cadastros">
+          <Tabs defaultValue="parcelas">
+            <TabsList className="bg-muted/50">
+              <TabsTrigger value="parcelas" className="text-xs gap-1"><DollarSign className="h-3 w-3" />Parcelas</TabsTrigger>
+              <TabsTrigger value="categorias" className="text-xs gap-1"><Layers className="h-3 w-3" />Categorias</TabsTrigger>
+              <TabsTrigger value="estornos" className="text-xs gap-1"><Undo2 className="h-3 w-3" />Estornos</TabsTrigger>
+            </TabsList>
+            <TabsContent value="parcelas">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm">Parcelas Recebidas</CardTitle>
@@ -1375,10 +1382,8 @@ export default function FinanceiroPage() {
               </TableBody></Table>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* =================== CATEGORIAS =================== */}
-        <TabsContent value="categorias">
+            </TabsContent>
+            <TabsContent value="categorias">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm">Categorias / Rubricas</CardTitle>
@@ -1412,10 +1417,8 @@ export default function FinanceiroPage() {
               </TableBody></Table>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* =================== ESTORNOS =================== */}
-        <TabsContent value="estornos">
+            </TabsContent>
+            <TabsContent value="estornos">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm">Estornos — {mesRef}</CardTitle>
@@ -1451,6 +1454,8 @@ export default function FinanceiroPage() {
               </TableBody></Table>
             </CardContent>
           </Card>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         {/* =================== IMPORTAR DOCUMENTOS =================== */}
