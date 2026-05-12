@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Loader2, CheckCircle2, Download, Eye, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, Loader2, CheckCircle2, Download, Eye, ArrowLeft, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { exportOrcamentoXLSX, exportMapaComparativoXLSX } from "@/hooks/useOrcamentoExport";
 
@@ -52,8 +52,97 @@ export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; 
   const [cotacoes, setCotacoes] = useState<Cotacao[]>([]);
   const [precos, setPrecos] = useState<Preco[]>([]);
   const [saving, setSaving] = useState(false);
+  const [importingAI, setImportingAI] = useState(false);
+  const aiFileInput = useRef<HTMLInputElement>(null);
 
   const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  // === IMPORTAR MAPA COMPARATIVO COM IA ===
+  const handleAIImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportingAI(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let bin = "";
+      for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode(...bytes.subarray(i, i + 8192));
+      const base64 = btoa(bin);
+
+      const { data, error } = await supabase.functions.invoke("detect-orcamento-from-doc", {
+        body: { file_base64: base64, mime_type: file.type },
+      });
+      if (error || !data?.orcamento) {
+        toast.error("IA não conseguiu extrair o orçamento");
+        return;
+      }
+      const o = data.orcamento;
+      const itens: { descricao: string; unidade_medida: string; quantidade: number }[] = o.itens || [];
+      const cotacoes: { fornecedor_nome: string; cnpj?: string; data_emissao?: string; data_validade?: string; precos: number[] }[] = o.cotacoes || [];
+
+      // 1. Cria orçamento (rascunho — usuário aprova depois)
+      const { data: orcInsert, error: orcErr } = await supabase
+        .from("orcamentos")
+        .insert({
+          titulo: o.titulo || "Orçamento importado",
+          objeto: o.objeto || null,
+          mes_referencia: mesRef,
+          status: "cotacao",
+          fornecedor_vencedor: o.fornecedor_vencedor || null,
+          cnpj_vencedor: o.cnpj_vencedor || null,
+        } as any)
+        .select("id")
+        .single();
+      if (orcErr || !orcInsert) throw orcErr || new Error("Falha ao criar orçamento");
+      const orcamentoId = (orcInsert as any).id as string;
+
+      // 2. Itens
+      const itemRows = itens.map((it, idx) => ({
+        orcamento_id: orcamentoId,
+        item_num: idx + 1,
+        descricao: it.descricao || `Item ${idx + 1}`,
+        unidade_medida: it.unidade_medida || "UN",
+        quantidade: Number(it.quantidade) || 1,
+      }));
+      const { data: itemRet } = await supabase.from("orcamento_itens").insert(itemRows).select("id, item_num");
+      const itemIds: string[] = (itemRet || []).sort((a: any, b: any) => a.item_num - b.item_num).map((r: any) => r.id);
+
+      // 3. Cotações + preços
+      for (const c of cotacoes) {
+        const { data: cotRet } = await supabase
+          .from("orcamento_cotacoes")
+          .insert({
+            orcamento_id: orcamentoId,
+            fornecedor_nome: c.fornecedor_nome,
+            cnpj: c.cnpj || null,
+            data_emissao: c.data_emissao || null,
+            data_validade: c.data_validade || null,
+          } as any)
+          .select("id")
+          .single();
+        const cotacaoId = (cotRet as any)?.id;
+        if (!cotacaoId) continue;
+        const precoRows = (c.precos || [])
+          .map((p, idx) => ({
+            cotacao_id: cotacaoId,
+            item_id: itemIds[idx],
+            preco_unitario: Number(p),
+          }))
+          .filter((r) => r.item_id && Number.isFinite(r.preco_unitario) && r.preco_unitario > 0);
+        if (precoRows.length) await supabase.from("orcamento_precos").insert(precoRows);
+      }
+
+      toast.success(`Orçamento "${o.titulo}" importado: ${itens.length} itens × ${cotacoes.length} fornecedores. Revise e aprove.`);
+      load();
+      loadDetail(orcamentoId);
+    } catch (err: any) {
+      console.error("Erro IA orçamento:", err);
+      toast.error(`Erro ao importar: ${err?.message || err}`);
+    } finally {
+      setImportingAI(false);
+      if (aiFileInput.current) aiFileInput.current.value = "";
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -396,7 +485,27 @@ export default function OrcamentosTab({ mesRef, categorias }: { mesRef: string; 
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm">Orçamentos — {mesRef}</CardTitle>
-        <Button size="sm" className="gap-1" onClick={() => setShowNew(true)}><Plus className="h-3 w-3" />Novo</Button>
+        <div className="flex gap-2">
+          <input
+            ref={aiFileInput}
+            type="file"
+            accept="application/pdf,image/*"
+            className="hidden"
+            onChange={handleAIImport}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1"
+            onClick={() => aiFileInput.current?.click()}
+            disabled={importingAI}
+            title="Importar mapa comparativo / orçamento via IA"
+          >
+            {importingAI ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+            Importar com IA
+          </Button>
+          <Button size="sm" className="gap-1" onClick={() => setShowNew(true)}><Plus className="h-3 w-3" />Novo</Button>
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (
