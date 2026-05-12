@@ -75,8 +75,9 @@ const TIPOS_DOCUMENTO = [
   { value: "cupom_fiscal", label: "Cupom Fiscal" },
   { value: "boleto", label: "Boleto" },
   { value: "folha_pagamento", label: "Folha Pagamento/Holerite" },
-  { value: "darf", label: "DARF" },
+  { value: "darf", label: "DARF — Federal (INSS/PIS/Receita)" },
   { value: "gps", label: "GPS" },
+  { value: "gfip", label: "GFIP — FGTS (Caixa)" },
   { value: "outro", label: "Outro" },
 ];
 

@@ -78,6 +78,36 @@ REGRAS CRÍTICAS:
    - Para PIX (sem boleto): tem_nf=true (se houver NF), tem_boleto=false, tem_comprovante=true.
    - Para holerite + transferência: tem_nf=false, tem_boleto=false, tem_comprovante=true (o próprio holerite NÃO é boleto nem NF para o SIT).
 
+10) TRIBUTOS FEDERAIS (DARF, GPS, GFIP, INSS, PIS, FGTS) — REGRAS OBRIGATÓRIAS:
+   - Identifique pelo cabeçalho/descrição do documento ou pela presença de termos: "DARF", "GPS", "GFIP", "FGTS", "INSS", "PIS", "Receita Federal", "Caixa Econômica", "Guia de Recolhimento".
+   - DATA DE PAGAMENTO: extraia do canto superior direito do documento (autenticação bancária / data de pagamento). Use essa data para sit_data_emissao_pagamento, sit_data_debito E sit_data_doc_despesa (tributos não têm "emissão de NF" separada). data_lancamento = mesma data.
+   - sit_modalidade_compra = 8 (Tributos/Pessoal — Aquisição Direta) para QUALQUER tributo.
+   - rubrica_codigo: INSS/GPS → "3.1.90.13.02"; FGTS/GFIP → "3.1.90.13.01"; PIS/COFINS/outros DARF → "3.3.90.47.99".
+   - Por tributo, force os campos abaixo (sobrescrevendo o que estiver no documento se necessário):
+     a) FGTS / GFIP:
+        tipo_documento = "gfip"
+        sit_tipo_doc_despesa = 10
+        fornecedor = "CAIXA ECONOMICA FEDERAL - BRASILIA"
+        sit_nome_favorecido = "CAIXA ECONOMICA FEDERAL - BRASILIA"
+        cnpj_cpf = "00360305000104"
+        sit_tipo_doc_favorecido = "CNPJ"
+     b) INSS / GPS:
+        tipo_documento = "darf"
+        sit_tipo_doc_despesa = 8
+        fornecedor = "MINISTERIO DA FAZENDA - ATUAL"
+        sit_nome_favorecido = "MINISTERIO DA FAZENDA - ATUAL"
+        cnpj_cpf = "00394460000141"
+        sit_tipo_doc_favorecido = "CNPJ"
+     c) PIS / COFINS / outros DARF:
+        tipo_documento = "darf"
+        sit_tipo_doc_despesa = 8
+        fornecedor = "MINISTERIO DA FAZENDA - ATUAL"
+        sit_nome_favorecido = "MINISTERIO DA FAZENDA - ATUAL"
+        cnpj_cpf = "00394460000141"
+        sit_tipo_doc_favorecido = "CNPJ"
+   - sit_numero_doc_despesa = nº de autenticação do tributo (até 10 caracteres). Se ausente, use o código de barras truncado em 10 dígitos.
+   - anexos.tem_comprovante = true (a guia paga já é o próprio comprovante).
+
 RUBRICAS OFICIAIS DISPONÍVEIS:
 ${RUBRICAS_TXT}`;
 

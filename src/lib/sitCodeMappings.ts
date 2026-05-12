@@ -63,6 +63,7 @@ export const SIT_MODALIDADE_COMPRA: Record<number, { label: string; aliases: str
   5: { label: "Dispensa", aliases: ["DISPENSA", "DISPENSA DE LICITACAO"] },
   6: { label: "Inexigibilidade", aliases: ["INEXIGIBILIDADE", "INEXIGIVEL"] },
   7: { label: "Cotação prévia de preços", aliases: ["COTACAO", "COTACAO PREVIA", "COTACAO DE PRECOS", "TRES ORCAMENTOS", "3 ORCAMENTOS"] },
+  8: { label: "Tributos/Pessoal — Aquisição Direta", aliases: ["TRIBUTOS", "TRIBUTOS PESSOAL", "AQUISICAO DIRETA", "TRIBUTO", "FOLHA", "FGTS", "INSS", "PIS", "DARF", "GFIP", "GPS"] },
   9: { label: "Não se aplica", aliases: ["NSA", "NAO SE APLICA", "N A", "NA"] },
 };
 
