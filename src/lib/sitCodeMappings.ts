@@ -22,6 +22,7 @@ export const SIT_TIPO_DOC_DESPESA: Record<number, { label: string; aliases: stri
   3: { label: "Cupom Fiscal", aliases: ["CUPOM", "CUPOM FISCAL", "SAT", "CFE", "ECF"] },
   4: { label: "Boleto", aliases: ["BOLETO", "BOLETO BANCARIO", "FATURA", "DAM"] },
   5: { label: "DARF/GPS", aliases: ["DARF", "GPS", "GUIA", "GUIA RECOLHIMENTO", "DAS", "GRU", "GARE", "GUIA INSS", "GUIA FGTS"] },
+  6: { label: "Folha Pagamento/Holerite", aliases: ["FOLHA", "FOLHA PAGAMENTO", "FOLHA DE PAGAMENTO", "HOLERITE", "CONTRACHEQUE", "FOLHA_PAGAMENTO", "PAYROLL"] },
   9: { label: "Outro", aliases: ["OUTRO", "OUTROS", "DIVERSOS"] },
 };
 
