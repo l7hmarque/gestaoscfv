@@ -423,6 +423,56 @@ export type Database = {
           },
         ]
       }
+      controle_bancario_lancamentos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data: string
+          descricao: string
+          despesa_id: string | null
+          id: string
+          mes_referencia: string
+          nr_documento: string | null
+          ordem: number
+          origem_arquivo: string | null
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data: string
+          descricao: string
+          despesa_id?: string | null
+          id?: string
+          mes_referencia: string
+          nr_documento?: string | null
+          ordem: number
+          origem_arquivo?: string | null
+          valor: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          descricao?: string
+          despesa_id?: string | null
+          id?: string
+          mes_referencia?: string
+          nr_documento?: string | null
+          ordem?: number
+          origem_arquivo?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "controle_bancario_lancamentos_despesa_id_fkey"
+            columns: ["despesa_id"]
+            isOneToOne: false
+            referencedRelation: "despesas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coordenacao_atividades: {
         Row: {
           categoria: string
@@ -891,6 +941,7 @@ export type Database = {
           nota_url: string | null
           numero_documento: string | null
           orcamento_id: string | null
+          ordem_prestacao: number | null
           pendente_comprovante: boolean
           sit_ano_transferencia: number | null
           sit_codigo_tipo_despesa: number | null
@@ -935,6 +986,7 @@ export type Database = {
           nota_url?: string | null
           numero_documento?: string | null
           orcamento_id?: string | null
+          ordem_prestacao?: number | null
           pendente_comprovante?: boolean
           sit_ano_transferencia?: number | null
           sit_codigo_tipo_despesa?: number | null
@@ -979,6 +1031,7 @@ export type Database = {
           nota_url?: string | null
           numero_documento?: string | null
           orcamento_id?: string | null
+          ordem_prestacao?: number | null
           pendente_comprovante?: boolean
           sit_ano_transferencia?: number | null
           sit_codigo_tipo_despesa?: number | null
