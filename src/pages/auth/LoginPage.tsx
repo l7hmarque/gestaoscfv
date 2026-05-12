@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -16,18 +16,26 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
   const [showVisitante, setShowVisitante] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, user } = useAuth();
   const navigate = useNavigate();
+
+  // Se já houver sessão, redireciona para a home (evita ficar preso na tela de login)
+  useEffect(() => {
+    if (user) navigate("/", { replace: true });
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
-    if (error) {
-      toast.error("Erro ao entrar: " + error.message);
-    } else {
-      navigate("/");
+    try {
+      const { error } = await signIn(email, password);
+      if (error) {
+        toast.error("Erro ao entrar: " + error.message);
+      } else {
+        navigate("/");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -38,13 +46,16 @@ const LoginPage = () => {
       return;
     }
     setDemoLoading(true);
-    const { error } = await signIn("visitante@syselo.demo", "leoleoleo");
-    setDemoLoading(false);
-    if (error) {
-      toast.error("Conta de visitante não disponível. Contate o administrador.");
-    } else {
-      toast.info("Modo demonstração ativo — alterações não serão salvas");
-      navigate("/");
+    try {
+      const { error } = await signIn("visitante@syselo.demo", "leoleoleo");
+      if (error) {
+        toast.error("Conta de visitante indisponível: " + error.message);
+      } else {
+        toast.info("Modo demonstração ativo — alterações não serão salvas");
+        navigate("/");
+      }
+    } finally {
+      setDemoLoading(false);
     }
   };
 
