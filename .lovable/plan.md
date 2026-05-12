@@ -1,51 +1,42 @@
-# Marca-texto amarelo → Modalidade 7 (Pesquisa de Preço)
+## Problema
 
-## Objetivo
+1. A IA está classificando errado (PDF de despesas vira "controle bancário").
+2. A etapa de classificação é uma chamada extra à IA por arquivo — isso atrasa tudo sem gerar valor real, já que todo PDF que entra pela Caixa de Entrada de despesas vai pro mesmo destino: extração para o SIT.
 
-Permitir que o usuário, antes de subir o PDF de despesas, marque com **marca-texto amarelo** os valores/linhas que pertencem à modalidade de **orçamento (Pesquisa de Preço — modalidade SIT 7)**. A IA reconhece o destaque visual e classifica automaticamente apenas essas despesas, sem alterar as demais.
+## Solução
 
-## Como vai funcionar para o usuário
+**Eliminar a etapa de classificação por IA.** Tratar todo upload na Caixa de Entrada como `despesa` direto, indo para o `detect-despesa-from-doc`, que já sabe identificar despesa, tributo, folha, NF, boleto, holerite e PIX dentro do mesmo PDF.
 
-1. No PDF (ex: Adobe Reader, Foxit, Preview), o usuário usa a ferramenta de **destaque amarelo** sobre o valor ou a linha da despesa que veio de orçamento aprovado.
-2. Sobe o PDF normalmente pela **Caixa de Entrada** ou pela aba **Despesas → Importar**.
-3. A IA, ao analisar a imagem da página, identifica regiões com fundo amarelo e marca aquelas despesas com `sit_modalidade_compra = 7`.
-4. O matcher de orçamentos já existente (`orcamentoMatcher.ts`) tenta vincular essas despesas ao orçamento aprovado correspondente (por CNPJ + mês). Se encontrar, preenche `orcamento_id`.
-5. Se não houver marca amarela, a modalidade segue a regra atual (8 para tributos, 1 padrão, etc.).
+Para os outros tipos (orçamento, controle bancário), o usuário continua tendo abas dedicadas — eles não precisam passar pelo mesmo funil.
 
-Indicação visual no resultado da importação: badge **"Marcado (Pesquisa de Preço)"** nas linhas detectadas.
+### Mudanças em `src/components/financeiro/CaixaEntradaTab.tsx`
 
-## Mudanças técnicas
+1. **Remover a etapa "classificando"**:
+  - Apagar a chamada `supabase.functions.invoke("classify-financeiro-doc", …)` no `handleFiles`.
+  - Apagar o helper `firstPagePdfBase64` (não será mais usado).
+  - Remover o status `"classificando"` do tipo `ClassifiedDoc["status"]`.
+  - Manter só upload no storage + setar tipo fixo `"despesa"` na fila.
+2. **Simplificar tipos**:
+  - Reduzir `DocTipo` a `"despesa" | "desconhecido"` (mantém o badge visual minimalista) ou remover de vez o conceito e tirar o filtro/contador por tipo.
+  - Atualizar `TIPO_META`, badges de contagem e ordenação em `processarTodos` (a fila vira só "despesa", então some o `sort`).
+3. **Otimizar performance**:
+  - **Iniciar processamento automático** quando arquivos forem soltos (sem precisar do botão "Processar todos") — o usuário caiu numa fila desnecessária, já que a classificação foi removida. *Opcional, ver pergunta abaixo.*
+  - **Paralelizar arquivos**: hoje o loop em `processarTodos` é sequencial (`for (const d of fila)`). Trocar por `Promise.all` com limite de concorrência (ex: 3 arquivos simultâneos), mantendo os chunks de 5 páginas por arquivo.
+  - **Reduzir chunks**: como o `detect-despesa-from-doc` já usa `gemini-2.5-flash` e o problema do timeout sumiu, manter os chunks de 5 páginas (já está bom).
+4. **Atualizar texto da UI**:
+  - Mudar o copy do header pra refletir que a Caixa só recebe despesas/tributos/folha/comprovantes.
+  - Manter o aviso do marca-texto amarelo (modalidade 7).
 
-### 1) `supabase/functions/detect-despesa-from-doc/index.ts`
-Adicionar regra **11) MARCA-TEXTO AMARELO** ao `SYSTEM_PROMPT`:
+### Mudanças em `supabase/functions/`
 
-- Examine cada página em busca de regiões com **destaque/realce amarelo** (highlight) sobre valores monetários, nomes de fornecedor ou linhas de itens.
-- Para cada despesa cuja **linha, valor ou bloco esteja sob marca amarela**, force:
-  - `sit_modalidade_compra = 7` (Pesquisa de Preço)
-  - novo campo `marcado_orcamento: true` no JSON de retorno
-- Se a marca amarela aparece sobre **uma linha específica de uma folha/lista**, aplique somente àquela despesa, não às demais do mesmo PDF.
-- Tributos (FGTS/INSS/PIS) **ignoram a marca amarela** — modalidade continua 8.
+5. **Não excluir** `classify-financeiro-doc` (pode ser usada em outro lugar futuramente). Apenas deixa de ser chamada pelo cliente.
 
-Adicionar `marcado_orcamento: boolean` ao schema de resposta documentado no prompt.
+### Resultado esperado
 
-### 2) `src/lib/despesaImportValidation.ts`
-- Após validar, se `marcado_orcamento === true` e não for tributo, garantir `sit_modalidade_compra = 7`.
-- Propagar `marcado_orcamento` para a linha exibida na revisão.
+- Upload de PDF de despesas → sobe pro storage → entra direto na fila como `despesa` → roda `detect-despesa-from-doc` em chunks paralelos.
+- Tempo total cai aprox. pela metade (sem a chamada de classificação por arquivo + processamento paralelo de até 3 arquivos).
+- Sem mais erro de classificação, porque não há mais classificação.
 
-### 3) `src/lib/orcamentoMatcher.ts`
-- Quando `marcado_orcamento === true` e o match por CNPJ/nome **falhar**, ainda assim manter `sit_modalidade_compra = 7` (apenas `orcamento_id` fica nulo). Hoje a função só seta modalidade 7 quando há match — vamos preservar a marca do usuário mesmo sem orçamento aprovado encontrado.
+## Pergunta antes de implementar
 
-### 4) UI — revisão da importação (`FinanceiroPage.tsx` + `CaixaEntradaTab.tsx`)
-- Mostrar **badge amarelo "Pesquisa de Preço (marcado)"** nas linhas com `marcado_orcamento`.
-- Adicionar bloco curto de **instrução** acima da dropzone:
-  > Dica: marque com **marca-texto amarelo** no PDF os valores que vieram de orçamento aprovado. A IA classifica essas despesas como Pesquisa de Preço (modalidade 7) automaticamente.
-
-### 5) Sem mudanças de banco
-O campo `marcado_orcamento` é apenas auxiliar durante a importação; o que persiste é `sit_modalidade_compra` e `orcamento_id` (já existentes).
-
-## Fora do escopo
-- Detecção de outras cores (rosa, verde) — pode ser adicionado depois se houver demanda para outras modalidades.
-- Edição de PDF dentro do app — o usuário continua marcando no leitor de PDF de sua preferência.
-
-## Deploy
-Após aprovação: redeploy de `detect-despesa-from-doc`. Sem migração de banco.
+Quero confirmar uma coisa só: você quer que a Caixa de Entrada **inicie o processamento automaticamente** assim que os arquivos forem soltos (sem precisar clicar em "Processar todos"), ou prefere manter o botão pra você revisar a lista antes? INICIE AUTOMATICO.
