@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Inbox, Loader2, Receipt, AlertTriangle, CheckCircle2, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { validateDespesa } from "@/lib/despesaImportValidation";
+import { applyOrcamentoMatching } from "@/lib/orcamentoMatcher";
 
 interface ClassifiedDoc {
   id: string;
@@ -65,6 +67,7 @@ interface Props {
 export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
   const [docs, setDocs] = useState<ClassifiedDoc[]>([]);
   const [running, setRunning] = useState(false);
+  const [launching, setLaunching] = useState(false);
   const [totalUnits, setTotalUnits] = useState(0);
   const [doneUnits, setDoneUnits] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -182,6 +185,38 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
 
   const totaisExtraidos = docs.reduce((acc, d) => acc + (d.resultado?.despesas?.length ?? 0), 0);
 
+  const lancarTudoAgora = async () => {
+    const prontos = docs.filter((d) => d.status === "ok" && (d.resultado?.despesas?.length ?? 0) > 0);
+    if (prontos.length === 0) { toast.error("Nenhuma despesa pronta para lançar"); return; }
+    setLaunching(true);
+    try {
+      const { data: cats } = await supabase.from("categorias_financeiras").select("id, codigo");
+      const rubricaToCategoriaId: Record<string, string> = {};
+      (cats || []).forEach((c: any) => { rubricaToCategoriaId[String(c.codigo).trim()] = c.id; });
+
+      const rawRows: any[] = [];
+      for (const d of prontos) {
+        for (const e of (d.resultado.despesas as any[])) {
+          const { row } = validateDespesa(e, { mesRef, storageUrl: d.storageUrl, rubricaToCategoriaId });
+          rawRows.push(row);
+        }
+      }
+      const lote_id = crypto.randomUUID();
+      const { rows } = await applyOrcamentoMatching(rawRows, mesRef);
+      const cleanRows = rows.map(({ marcado_orcamento, ...rest }: any) => ({ ...rest, lote_id }));
+      const { error } = await supabase.from("despesas").insert(cleanRows as any);
+      if (error) { toast.error(`Erro ao lançar: ${error.message}`); return; }
+      toast.success(`${cleanRows.length} despesa(s) lançada(s) sem revisão`);
+      setDocs([]); setTotalUnits(0); setDoneUnits(0);
+      onProcessed?.();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "Falha ao lançar despesas");
+    } finally {
+      setLaunching(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -222,6 +257,16 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
                 Despesas extraídas: {totaisExtraidos}
               </Badge>
               <div className="ml-auto">
+                {totaisExtraidos > 0 && !running && (
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs mr-1"
+                    onClick={lancarTudoAgora}
+                    disabled={launching}
+                  >
+                    {launching ? (<><Loader2 className="h-3 w-3 mr-1 animate-spin" />Lançando…</>) : `Lançar ${totaisExtraidos} no SIT agora (sem revisar)`}
+                  </Button>
+                )}
                 <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={clearAll} disabled={running}>Limpar</Button>
               </div>
             </div>
