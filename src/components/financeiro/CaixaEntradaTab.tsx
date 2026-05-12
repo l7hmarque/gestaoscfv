@@ -168,6 +168,24 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
         : ultimaResposta;
       setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "ok", resultado } : x)));
       void persistDoc(d.id, { status: "ok", despesas_json: resultado?.despesas ?? [] });
+      // Lança automaticamente as despesas extraídas (sem revisão manual).
+      const despesasExtraidas = resultado?.despesas ?? [];
+      if (despesasExtraidas.length > 0) {
+        try {
+          const inserted = await launchDespesasFromDoc(d.id, d.storageUrl, despesasExtraidas);
+          if (inserted > 0) {
+            // Remove da Caixa de Entrada — já está em Despesas.
+            try { await supabase.from("caixa_entrada_documentos" as any).delete().eq("id", d.id); } catch {}
+            setDocs((p) => p.filter((x) => x.id !== d.id));
+            toast.success(`${inserted} despesa(s) lançada(s) de ${d.file.name}`);
+          }
+        } catch (e: any) {
+          console.error("auto-launch fail", e);
+          toast.error(`Extraído mas falhou ao lançar (${d.file.name}): ${e?.message || "erro"}`);
+        }
+      } else {
+        toast.warning(`${d.file.name}: nenhuma despesa identificada — confira o documento.`);
+      }
     } catch (e: any) {
       console.error(e);
       setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "erro", erro: e?.message || "Falha" } : x)));
