@@ -299,39 +299,21 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRequestReview }
 
   const totaisExtraidos = docs.reduce((acc, d) => acc + (d.resultado?.despesas?.length ?? 0), 0);
 
-  const lancarTudoAgora = async () => {
-    const prontos = docs.filter((d) => d.status === "ok" && (d.resultado?.despesas?.length ?? 0) > 0);
-    if (prontos.length === 0) { toast.error("Nenhuma despesa pronta para lançar"); return; }
-    setLaunching(true);
-    try {
-      const { data: cats } = await supabase.from("categorias_financeiras").select("id, codigo");
-      const rubricaToCategoriaId: Record<string, string> = {};
-      (cats || []).forEach((c: any) => { rubricaToCategoriaId[String(c.codigo).trim()] = c.id; });
+  const requestReviewForDoc = (d: ClassifiedDoc) => {
+    const despesas = (d.resultado?.despesas ?? []) as any[];
+    if (!despesas.length) { toast.error("Nenhuma despesa extraída neste documento"); return; }
+    if (!onRequestReview) { toast.error("Revisão indisponível neste contexto"); return; }
+    onRequestReview([{ id: d.id, fileName: d.fileName, storageUrl: d.storageUrl, despesas }]);
+  };
 
-      const rawRows: any[] = [];
-      for (const d of prontos) {
-        for (const e of (d.resultado.despesas as any[])) {
-          const { row } = validateDespesa(e, { mesRef, storageUrl: d.storageUrl, rubricaToCategoriaId });
-          rawRows.push(row);
-        }
-      }
-      const lote_id = crypto.randomUUID();
-      const { rows } = await applyOrcamentoMatching(rawRows, mesRef);
-      const cleanRows = rows.map(({ marcado_orcamento, ...rest }: any) => ({ ...rest, lote_id }));
-      const { error } = await supabase.from("despesas").insert(cleanRows as any);
-      if (error) { toast.error(`Erro ao lançar: ${error.message}`); return; }
-      toast.success(`${cleanRows.length} despesa(s) lançada(s) sem revisão`);
-      const launchedIds = prontos.map((d) => d.id);
-      try { await supabase.from("caixa_entrada_documentos" as any).delete().in("id", launchedIds); } catch {}
-      setDocs((p) => p.filter((d) => !launchedIds.includes(d.id)));
-      setTotalUnits(0); setDoneUnits(0);
-      onProcessed?.();
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e?.message || "Falha ao lançar despesas");
-    } finally {
-      setLaunching(false);
-    }
+  const requestReviewForAll = () => {
+    const prontos = docs.filter((d) => d.status === "ok" && (d.resultado?.despesas?.length ?? 0) > 0);
+    if (!prontos.length) { toast.error("Nenhuma despesa pronta para revisar"); return; }
+    if (!onRequestReview) { toast.error("Revisão indisponível neste contexto"); return; }
+    onRequestReview(prontos.map((d) => ({
+      id: d.id, fileName: d.fileName, storageUrl: d.storageUrl,
+      despesas: d.resultado.despesas as any[],
+    })));
   };
 
   return (
