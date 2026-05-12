@@ -12,13 +12,17 @@ import { applyOrcamentoMatching } from "@/lib/orcamentoMatcher";
 
 interface ClassifiedDoc {
   id: string;
-  file: File;
+  file?: File;
+  fileName: string;
   status: "fila" | "processando" | "ok" | "erro";
   storageUrl?: string;
+  storagePath?: string;
+  mimeType?: string;
   resultado?: any;
   erro?: string;
   totalChunks?: number;
   doneChunks?: number;
+  persisted?: boolean;
 }
 
 const PAGES_PER_CHUNK = 5;
