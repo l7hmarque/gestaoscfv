@@ -513,7 +513,7 @@ export default function FinanceiroPage() {
   })();
   const validatedDocs = docFiles.map((d, docIdx) => ({
     docIdx,
-    fileName: d.file.name,
+    fileName: d.fileName || d.file?.name || "documento",
     storageUrl: d.storageUrl,
     items: d.extractedList.map((e, despIdx) => ({
       despIdx,
@@ -1117,7 +1117,7 @@ export default function FinanceiroPage() {
           open={reviewOpen}
           onOpenChange={(v) => !savingDocs && setReviewOpen(v)}
           docs={docFiles.map((d) => ({
-            fileName: d.file.name,
+            fileName: d.fileName || d.file?.name || "documento",
             storageUrl: d.storageUrl,
             extractedList: d.extractedList,
           }))}
