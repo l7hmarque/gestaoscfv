@@ -14,8 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Plus, Trash2, DollarSign, Receipt, Undo2, Layers,
-  Upload, FileText, ShieldCheck, Download, Loader2, AlertTriangle, CheckCircle2, Info, ListPlus, ClipboardList, FolderOpen, Paperclip, FileSpreadsheet
+  Upload, FileText, ShieldCheck, Download, Loader2, AlertTriangle, CheckCircle2, Info, ListPlus, ClipboardList, FolderOpen, Paperclip, FileSpreadsheet, Banknote, Link2, FileStack
 } from "lucide-react";
+import { PDFDocument } from "pdf-lib";
 import OrcamentosTab from "./OrcamentosTab";
 import DocumentosPrestacaoTab from "./DocumentosPrestacaoTab";
 import ExportacaoSitCard from "@/components/financeiro/ExportacaoSitCard";
