@@ -70,9 +70,11 @@ interface Props {
   mesRef: string;
   onProcessed?: () => void;
   onRouteToTab?: (tab: "despesas" | "orcamentos" | "bancario", payload?: any) => void;
+  /** Disparado quando o usuário clica em "Revisar e Lançar" — entrega os docs ao pipeline do ImportReviewDialog na FinanceiroPage. */
+  onRequestReview?: (caixaDocs: Array<{ id: string; fileName: string; storageUrl?: string; despesas: any[] }>) => void;
 }
 
-export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
+export default function CaixaEntradaTab({ mesRef, onProcessed, onRequestReview }: Props) {
   const [docs, setDocs] = useState<ClassifiedDoc[]>([]);
   const [running, setRunning] = useState(false);
   const [launching, setLaunching] = useState(false);
