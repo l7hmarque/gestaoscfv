@@ -12,13 +12,17 @@ import { applyOrcamentoMatching } from "@/lib/orcamentoMatcher";
 
 interface ClassifiedDoc {
   id: string;
-  file: File;
+  file?: File;
+  fileName: string;
   status: "fila" | "processando" | "ok" | "erro";
   storageUrl?: string;
+  storagePath?: string;
+  mimeType?: string;
   resultado?: any;
   erro?: string;
   totalChunks?: number;
   doneChunks?: number;
+  persisted?: boolean;
 }
 
 const PAGES_PER_CHUNK = 5;
@@ -83,8 +87,46 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
     }
   }, [running]);
 
+  // Carrega documentos persistidos do mês (sobrevive a HMR/refresh/troca de aba)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("caixa_entrada_documentos" as any)
+        .select("*")
+        .eq("mes_ref", mesRef)
+        .order("created_at", { ascending: true });
+      if (cancelled || error || !data) return;
+      const carregados: ClassifiedDoc[] = (data as any[]).map((r) => ({
+        id: r.id,
+        fileName: r.file_name,
+        status: r.status,
+        storageUrl: r.storage_url ?? undefined,
+        storagePath: r.storage_path ?? undefined,
+        mimeType: r.mime_type ?? undefined,
+        totalChunks: r.total_chunks ?? undefined,
+        doneChunks: r.done_chunks ?? 0,
+        resultado: Array.isArray(r.despesas_json) && r.despesas_json.length > 0
+          ? { despesas: r.despesas_json, total: r.despesas_json.length }
+          : undefined,
+        erro: r.erro ?? undefined,
+        persisted: true,
+      }));
+      setDocs(carregados);
+    })();
+    return () => { cancelled = true; };
+  }, [mesRef]);
+
+  const persistDoc = async (id: string, patch: Record<string, any>) => {
+    try {
+      await supabase.from("caixa_entrada_documentos" as any).update(patch).eq("id", id);
+    } catch (e) { console.warn("persistDoc fail", e); }
+  };
+
   const processOne = async (d: ClassifiedDoc) => {
+    if (!d.file) return; // doc carregado de sessão anterior — não reprocessa
     setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "processando" } : x)));
+    void persistDoc(d.id, { status: "processando" });
     try {
       // Upload em paralelo com a divisão em chunks
       const ext = d.file.name.split(".").pop() || "pdf";
@@ -94,13 +136,15 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
         supabase.storage.from("documentos").upload(path, d.file).then(async (r) => {
           if (r.error) throw r.error;
           const { data: urlData } = await supabase.storage.from("documentos").getPublicUrl(path);
-          setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, storageUrl: urlData?.publicUrl } : x)));
+          setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, storageUrl: urlData?.publicUrl, storagePath: path } : x)));
+          void persistDoc(d.id, { storage_url: urlData?.publicUrl, storage_path: path });
         }),
         isPdf ? splitPdfIntoChunks(d.file, PAGES_PER_CHUNK) : (async () => [await fileToBase64(d.file)])(),
       ]);
 
       const totalChunks = partes.length;
       setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, totalChunks, doneChunks: 0 } : x)));
+      void persistDoc(d.id, { total_chunks: totalChunks, done_chunks: 0 });
       // Ajusta unidades totais agora que sabemos os chunks reais (estimamos como 1 antes)
       setTotalUnits((u) => u + (totalChunks - 1));
 
@@ -116,15 +160,18 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
         if (Array.isArray(data?.despesas)) despesasAcc.push(...data.despesas);
         setDoneUnits((u) => u + 1);
         setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, doneChunks: (x.doneChunks ?? 0) + 1 } : x)));
+        void persistDoc(d.id, { done_chunks: idx + 1 });
       }
 
       const resultado = isPdf
         ? { despesas: despesasAcc, extracted: despesasAcc[0] ?? null, total: despesasAcc.length }
         : ultimaResposta;
       setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "ok", resultado } : x)));
+      void persistDoc(d.id, { status: "ok", despesas_json: resultado?.despesas ?? [] });
     } catch (e: any) {
       console.error(e);
       setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status: "erro", erro: e?.message || "Falha" } : x)));
+      void persistDoc(d.id, { status: "erro", erro: e?.message || "Falha" });
       // Avança a barra para os chunks que faltavam
       const cur = docs.find((x) => x.id === d.id);
       const restante = (cur?.totalChunks ?? 1) - (cur?.doneChunks ?? 0);
@@ -153,23 +200,43 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
 
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files?.length) return;
+    const { data: userData } = await supabase.auth.getUser();
+    const created_by = userData?.user?.id ?? null;
     const novos: ClassifiedDoc[] = Array.from(files).map((f) => ({
       id: crypto.randomUUID(),
       file: f,
+      fileName: f.name,
+      mimeType: f.type,
       status: "fila",
     }));
+    // Persiste imediatamente — sobrevive a HMR/refresh/troca de aba
+    try {
+      await supabase.from("caixa_entrada_documentos" as any).insert(
+        novos.map((n) => ({
+          id: n.id, mes_ref: mesRef, file_name: n.fileName,
+          mime_type: n.mimeType, status: "fila", created_by,
+        }))
+      );
+    } catch (e) { console.warn("insert caixa fail", e); }
     setDocs((p) => [...p, ...novos]);
     // Estimativa inicial: 1 unidade por arquivo (ajustamos quando sabemos o nº de páginas)
     setTotalUnits((u) => u + novos.length);
     queueRef.current.push(...novos);
     void drainQueue();
-  }, []);
+  }, [mesRef]);
 
-  const remove = (id: string) => setDocs((p) => p.filter((x) => x.id !== id));
-  const clearAll = () => {
+  const remove = async (id: string) => {
+    setDocs((p) => p.filter((x) => x.id !== id));
+    try { await supabase.from("caixa_entrada_documentos" as any).delete().eq("id", id); } catch {}
+  };
+  const clearAll = async () => {
+    const ids = docs.map((d) => d.id);
     setDocs([]);
     setTotalUnits(0);
     setDoneUnits(0);
+    if (ids.length) {
+      try { await supabase.from("caixa_entrada_documentos" as any).delete().in("id", ids); } catch {}
+    }
   };
 
   const progressPct = totalUnits > 0 ? Math.min(100, Math.round((doneUnits / totalUnits) * 100)) : 0;
@@ -207,7 +274,10 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
       const { error } = await supabase.from("despesas").insert(cleanRows as any);
       if (error) { toast.error(`Erro ao lançar: ${error.message}`); return; }
       toast.success(`${cleanRows.length} despesa(s) lançada(s) sem revisão`);
-      setDocs([]); setTotalUnits(0); setDoneUnits(0);
+      const launchedIds = prontos.map((d) => d.id);
+      try { await supabase.from("caixa_entrada_documentos" as any).delete().in("id", launchedIds); } catch {}
+      setDocs((p) => p.filter((d) => !launchedIds.includes(d.id)));
+      setTotalUnits(0); setDoneUnits(0);
       onProcessed?.();
     } catch (e: any) {
       console.error(e);
@@ -294,7 +364,7 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
                   <div key={d.id} className="flex items-center gap-2 rounded-md border bg-card p-2">
                     <Receipt className="h-4 w-4 text-muted-foreground shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium truncate">{d.file.name}</div>
+                      <div className="text-xs font-medium truncate">{d.fileName}</div>
                       <div className="flex flex-wrap items-center gap-1 mt-0.5">
                         {d.status === "ok" && (
                           <span className="text-[9px] text-emerald-700">{qtd} despesa{qtd === 1 ? "" : "s"} extraída{qtd === 1 ? "" : "s"}</span>
