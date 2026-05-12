@@ -73,6 +73,7 @@ const TIPOS_DOCUMENTO = [
   { value: "recibo", label: "Recibo" },
   { value: "cupom_fiscal", label: "Cupom Fiscal" },
   { value: "boleto", label: "Boleto" },
+  { value: "folha_pagamento", label: "Folha Pagamento/Holerite" },
   { value: "darf", label: "DARF" },
   { value: "gps", label: "GPS" },
   { value: "outro", label: "Outro" },
