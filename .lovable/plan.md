@@ -1,49 +1,72 @@
-## Problema identificado
+Diagnóstico encontrado:
 
-O fluxo atual da Caixa de Entrada **auto-lança** as despesas extraídas direto na tabela `despesas` e **deleta o documento da Caixa**. Quando o insert falha (ou retorna 0 linhas após validação), o doc some e nada aparece em lugar nenhum — o usuário só vê o toast "processamento concluído". Verificado no banco: 0 linhas em `despesas` e 0 em `caixa_entrada_documentos` após o upload de hoje.
+1. Causa direta do loading infinito no botão de login
 
-## Solução: revisão manual obrigatória antes de lançar
+- Arquivo: `src/pages/auth/LoginPage.tsx`
+- O botão entra em loading com `setLoading(true)` antes de chamar `signIn(email, password)`.
+- Arquivo: `src/contexts/AuthContext.tsx`
+- `signIn()` chama `supabase.auth.signInWithPassword(...)` sem `try/catch`.
+- Na reprodução pelo browser, essa chamada rejeitou com `TypeError: Failed to fetch` dentro de `signInWithPassword`.
+- Como a Promise rejeita antes de retornar `{ error }`, o código em `LoginPage` nunca chega em `setLoading(false)`. Resultado: o botão fica em “Entrando...” para sempre.
 
-### 1. Remover auto-lançamento em `CaixaEntradaTab.tsx`
+2. Causa provável do travamento ao entrar no sistema
 
-No final de `processOne` (linhas 226–243), substituir o bloco que chama `launchDespesasFromDoc` + delete por:
+- O login em si está falhando no fetch para o endpoint de autenticação no ambiente de preview.
+- Evidência: console do browser mostrou `TypeError: Failed to fetch` em `signInWithPassword`, passando por `src/contexts/AuthContext.tsx` e `src/pages/auth/LoginPage.tsx`.
+- A Cloud respondeu como saudável, e os logs de autenticação vieram vazios, o que indica que a requisição nem chegou corretamente ao backend de autenticação.
+- Isso bate com um problema conhecido do preview: o script/proxy do ambiente Lovable pode interceptar/quebrar requisições de auth. O teste mais seguro é validar o login no domínio publicado/custom domain.
 
-- Apenas marcar `status: "ok"` e gravar `despesas_json` extraídas
-- Toast informativo: `"{N} despesa(s) extraída(s) de {arquivo} — clique em Revisar para conferir"`
-- Documento **permanece** na lista da Caixa de Entrada com badge "Pronto p/ revisão" e contador de despesas
+3. Outro ponto que pode gerar spinner infinito em rotas protegidas
 
-### 2. Botão "Revisar e Lançar" por documento
+- Arquivo: `src/contexts/AuthContext.tsx`
+- `getSession()` também não tem `catch` nem timeout/fallback.
+- Se `getSession()` rejeitar ou ficar pendurado, `loading` permanece `true` e `ProtectedRoute` fica mostrando o spinner central indefinidamente.
 
-Em cada item da lista de docs com `status === "ok"`:
+4. Consultas disparadas após sessão existente
 
-- Botão primário **"Revisar e lançar (N)"** abre o `ImportReviewDialog` já existente, populado com `doc.resultado.despesas`
-- Reusar `validateDespesa` + `applyOrcamentoMatching` dentro do dialog (já é o padrão do componente)
-- Ao confirmar no dialog: insert em `despesas` + delete da Caixa de Entrada + toast de sucesso
-- Em caso de erro de insert, manter doc na Caixa e exibir o erro real (não engolir)
+- Ao abrir `/login` com sessão já existente, havia várias requisições `profiles`, `user_roles`, `participantes`, `recados`, `mural_posts` abortadas (`ERR_ABORTED`).
+- Isso parece efeito colateral de navegação/abort de página, não a causa primária do botão travado.
+- Ainda assim, o app dispara muitas consultas iniciais após login, o que pode piorar a percepção de travamento quando a rede/backend está lento.
 
-### 3. Botão "Revisar Todos" no header da Caixa
+5. Relação com o travamento anterior em “Confirmar e lançar 37 despesas”
 
-Quando houver 2+ docs com `status === "ok"`, mostrar **"Revisar todos (N docs)"** que abre o `ImportReviewDialog` com a união das despesas, mantendo o `lote_id` por documento. Já existe lógica parecida em `handleLaunchSelected` (linhas 340–360) — adaptar para abrir o dialog ao invés de inserir direto.
+- Arquivo: `src/pages/financeiro/FinanceiroPage.tsx`
+- A função `confirmAndSaveImportedDocs()` coloca `savingDocs = true`, faz matching de orçamento e grava todas as despesas em um único `.insert(cleanRows)`.
+- Ela não usa `try/finally`, não tem timeout, não grava em chunks e não preserva snapshot local antes do envio.
+- Se `applyOrcamentoMatching()` ou a requisição de insert travar/rejeitar fora do caminho previsto, o loading fica preso e o usuário não tem confirmação se gravou ou não.
+- A tentativa de consulta direta aos lançamentos recentes também retornou timeout de conexão, então é possível que o lote tenha ficado preso por latência/conexão no backend naquele momento.
 
-### 4. Tratamento do arquivo grande (546 WORKER_RESOURCE_LIMIT)
+Plano de correção recomendado:
 
-O `Despesas_OCR.pdf` (PDF grande com OCR) estourou memória da edge function porque o split em chunks só roda quando NÃO tem texto. Quando `pagesText` existe, o código manda **todas as páginas em uma única chamada** (linha 191). Ajuste:
+1. Tornar autenticação resiliente
 
-- Se `pagesText.length > 8` páginas, dividir o array em lotes de 8 e fazer chamadas sequenciais ao edge (igual o fluxo de visão)
-- Concatenar os `despesas[]` retornados
+- Envolver `signIn`, `signUp`, `signOut` e `getSession()` com `try/catch/finally`.
+- Garantir que qualquer falha de rede retorne erro controlado e nunca deixe loading infinito.
+- Adicionar timeout de segurança para `getSession()` e `signInWithPassword()`.
 
-### 5. Mensagens de erro visíveis
+2. Melhorar o feedback do login
 
-Nos `try/catch` que hoje só fazem `console.warn` (linhas 287–293, 303), exibir `toast.error` quando a operação realmente falhar (ex: insert da Caixa). O usuário precisa saber que algo deu errado em vez de assumir que funcionou.
+- Em falha `Failed to fetch`, mostrar mensagem clara: falha de conexão/autenticação temporária, tentar novamente ou usar o domínio publicado.
+- Destravar o botão sempre.
+- Se já houver sessão válida e o usuário acessar `/login`, redirecionar de forma segura ou exibir opção de sair/trocar conta.
 
-## Arquivos afetados
+3. Blindar rotas protegidas contra spinner eterno
 
-- `src/components/financeiro/CaixaEntradaTab.tsx` — remover auto-launch, adicionar botões de revisão, dividir `pages_text` em lotes, corrigir engolimento de erros
-- (opcional) `src/components/financeiro/ImportReviewDialog.tsx` — só se precisar aceitar o array `despesas[]` direto + `lote_id` por linha (provavelmente já aceita)
+- Em `AuthProvider`, se a sessão inicial falhar, finalizar `loading` e tratar como usuário não autenticado.
+- Em `ProtectedRoute`, manter fallback seguro para erro de auth em vez de spinner infinito.
 
-## O que NÃO muda
+4. Corrigir lançamento financeiro em lote
 
-- Edge function `detect-despesa-from-doc` — mantém comportamento atual
-- Schema do banco — sem migrations
-- Detecção híbrida texto/visão e detecção de marca-texto amarela — preservadas
-- Card de Conciliação do Extrato — preservado
+- Alterar `confirmAndSaveImportedDocs()` para usar `try/catch/finally`.
+- Salvar snapshot local temporário do lote antes de enviar.
+- Inserir despesas em chunks pequenos, por exemplo 5 por vez.
+- Exibir progresso real: “Lançando 10/37”.
+- Após cada chunk, confirmar sucesso e manter controle dos itens já gravados.
+- Só apagar documentos da Caixa de Entrada depois de todos os chunks confirmados.
+
+5. Verificação pós-correção
+
+- Testar login no preview e no domínio publicado.
+- Testar falha simulada de rede para confirmar que o botão destrava.
+- Testar lote pequeno e lote grande no financeiro, validando que não há loading infinito e que o usuário recebe resultado claro.
+- Analisar cloud usage e querys para otimizacao

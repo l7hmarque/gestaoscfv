@@ -27,31 +27,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // Failsafe: nunca prender o app em loading se getSession travar (504/timeout do backend)
+    const failsafe = setTimeout(() => setLoading(false), 8000);
 
-    return () => subscription.unsubscribe();
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+      })
+      .catch((err) => {
+        console.error("[Auth] getSession falhou:", err);
+      })
+      .finally(() => {
+        clearTimeout(failsafe);
+        setLoading(false);
+      });
+
+    return () => {
+      clearTimeout(failsafe);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return { error };
+    } catch (err: any) {
+      console.error("[Auth] signIn falhou:", err);
+      const msg = String(err?.message || "");
+      const friendly =
+        msg.includes("Failed to fetch") || msg.includes("NetworkError")
+          ? new Error("Falha de conexão com o servidor de autenticação. Tente novamente em instantes.")
+          : (err instanceof Error ? err : new Error(msg || "Erro desconhecido ao entrar"));
+      return { error: friendly };
+    }
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName }, emailRedirectTo: window.location.origin },
-    });
-    return { error };
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: fullName }, emailRedirectTo: window.location.origin },
+      });
+      return { error };
+    } catch (err: any) {
+      console.error("[Auth] signUp falhou:", err);
+      return { error: err instanceof Error ? err : new Error(String(err?.message || err)) };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("[Auth] signOut falhou:", err);
+    } finally {
+      // Garantir que estado local seja limpo mesmo se backend falhar
+      setSession(null);
+      setUser(null);
+    }
   };
 
   return (
