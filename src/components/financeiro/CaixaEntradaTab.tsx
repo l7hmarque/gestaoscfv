@@ -147,6 +147,9 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRouteToTab }: P
         <p className="text-xs text-muted-foreground">
           Envie qualquer documento (despesa, tributo, folha, orçamento, extrato bancário). A IA classifica e direciona para o detector correto. Ordem ideal: <b>Orçamentos → Bancário → Despesas/Tributos/Folha</b>.
         </p>
+        <p className="text-[11px] mt-1 px-2 py-1 rounded bg-yellow-200/40 border border-yellow-400/40 text-foreground/80">
+          💡 Antes de subir o PDF de despesas, use o <b>marca-texto amarelo</b> do leitor de PDF nos valores que vieram de orçamento aprovado. A IA detecta o destaque e classifica essas despesas como <b>Pesquisa de Preço (modalidade 7)</b> automaticamente.
+        </p>
       </CardHeader>
       <CardContent className="space-y-3">
         <label

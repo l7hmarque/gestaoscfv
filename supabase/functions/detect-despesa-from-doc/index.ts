@@ -108,6 +108,15 @@ REGRAS CRÍTICAS:
    - sit_numero_doc_despesa = nº de autenticação do tributo (até 10 caracteres). Se ausente, use o código de barras truncado em 10 dígitos.
    - anexos.tem_comprovante = true (a guia paga já é o próprio comprovante).
 
+11) MARCA-TEXTO AMARELO (modalidade Pesquisa de Preço — código 7):
+   - Examine cada página em busca de regiões com fundo/realce AMARELO (highlight feito pelo usuário no leitor de PDF) cobrindo valores monetários, nomes de fornecedor, números de NF ou linhas inteiras de tabela.
+   - Para CADA despesa cuja linha, valor ou bloco esteja sob marca amarela, force:
+       sit_modalidade_compra = 7
+       marcado_orcamento = true
+   - Se a marca amarela cobre apenas UMA linha de uma tabela/folha com várias linhas, aplique somente naquela despesa — as demais linhas seguem regras normais (marcado_orcamento = false).
+   - TRIBUTOS FEDERAIS (regra 10) IGNORAM a marca amarela: continuam com sit_modalidade_compra = 8 e marcado_orcamento = false.
+   - Quando NÃO houver marca amarela, marcado_orcamento = false e a modalidade segue as demais regras.
+
 RUBRICAS OFICIAIS DISPONÍVEIS:
 ${RUBRICAS_TXT}`;
 
@@ -144,6 +153,7 @@ const PARAMS_SCHEMA = {
           sit_ano_transferencia: { type: "number", description: "Ano do termo (ex: 2022)" },
           sit_descricao_item: { type: "string", description: "Descrição detalhada do item/serviço (até 2000 chars)" },
           rubrica_codigo: { type: "string", enum: RUBRICA_CODES, description: "Código da rubrica oficial SIT/TCE-PR mais específica para esta despesa." },
+          marcado_orcamento: { type: "boolean", description: "true quando a linha/valor desta despesa estiver coberta por marca-texto amarelo no PDF (indica modalidade 7 - Pesquisa de Preço)." },
           anexos: {
             type: "object",
             description: "Marque quais papéis (NF, boleto, comprovante de pagamento) estão presentes nas páginas dessa despesa dentro do PDF importado.",
