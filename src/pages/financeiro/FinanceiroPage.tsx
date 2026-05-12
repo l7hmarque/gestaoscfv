@@ -63,7 +63,9 @@ interface LoteLine {
 }
 
 interface DetectedDoc {
-  file: File;
+  file?: File;                       // pode estar ausente para docs vindos da Caixa de Entrada (sem o blob original)
+  fileName?: string;                 // usado quando `file` não está disponível
+  caixaDocId?: string;               // id em caixa_entrada_documentos (para deletar após confirmar)
   uploading: boolean;
   extracted: any | null;            // legado (1ª despesa) - mantido p/ compat
   extractedList: any[];             // NOVO: todas as despesas detectadas no PDF
