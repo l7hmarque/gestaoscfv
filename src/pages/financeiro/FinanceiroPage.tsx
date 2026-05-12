@@ -1610,6 +1610,111 @@ export default function FinanceiroPage() {
 
         {/* =================== AUDITORIA =================== */}
         <TabsContent value="auditoria">
+          {/* placeholder anchor */}
+        </TabsContent>
+        {/* =================== CONTROLE BANCÁRIO =================== */}
+        <TabsContent value="bancario">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2"><Banknote className="h-4 w-4" /> Controle Bancário — {mesRef}</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Importe o extrato/controle bancário (PDF ou imagem). A IA extrai os lançamentos em ordem e o sistema concilia automaticamente com as despesas (preenche <code>ordem_prestacao</code> usada na Prestação, RCA, REO e SIT).
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Input type="file" accept="image/*,application/pdf" onChange={handleCbFile} className="text-xs" disabled={cbUploading} />
+                {cbUploading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                {cbExisting.length > 0 && (
+                  <Button size="sm" variant="outline" onClick={reconciliar} disabled={cbSaving} className="gap-1">
+                    <Link2 className="h-3 w-3" /> Reconciliar
+                  </Button>
+                )}
+              </div>
+
+              {cbLancamentos.length > 0 && (
+                <div className="space-y-2 border rounded p-2 bg-muted/20">
+                  <div className="flex items-center justify-between">
+                    <div className="text-[11px] font-medium">{cbLancamentos.length} lançamentos extraídos ({cbLancamentos.filter(l => l.tipo === "debito").length} débitos)</div>
+                    <Button size="sm" onClick={saveControleBancario} disabled={cbSaving}>
+                      {cbSaving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                      Salvar e conciliar
+                    </Button>
+                  </div>
+                  <div className="max-h-[300px] overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-[10px]">#</TableHead>
+                          <TableHead className="text-[10px]">Data</TableHead>
+                          <TableHead className="text-[10px]">Descrição</TableHead>
+                          <TableHead className="text-[10px]">Nº Doc</TableHead>
+                          <TableHead className="text-[10px] text-right">Valor</TableHead>
+                          <TableHead className="text-[10px]">Tipo</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {cbLancamentos.map((l, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="text-[10px]">{l.ordem ?? i + 1}</TableCell>
+                            <TableCell className="text-[10px]">{l.data}</TableCell>
+                            <TableCell className="text-[10px] max-w-[280px] truncate">{l.descricao}</TableCell>
+                            <TableCell className="text-[10px]">{l.nr_documento || "—"}</TableCell>
+                            <TableCell className="text-[10px] text-right">{Number(l.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-[10px]">
+                              <Badge variant={l.tipo === "credito" ? "outline" : "destructive"} className="text-[9px]">{l.tipo}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {cbExisting.length > 0 && cbLancamentos.length === 0 && (
+                <div className="space-y-1">
+                  <div className="text-[11px] font-medium text-muted-foreground">
+                    Lançamentos salvos: {cbExisting.length} ({cbExisting.filter((l: any) => l.despesa_id).length} conciliados)
+                  </div>
+                  <div className="max-h-[300px] overflow-auto border rounded">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-[10px]">#</TableHead>
+                          <TableHead className="text-[10px]">Data</TableHead>
+                          <TableHead className="text-[10px]">Descrição</TableHead>
+                          <TableHead className="text-[10px]">Nº Doc</TableHead>
+                          <TableHead className="text-[10px] text-right">Valor</TableHead>
+                          <TableHead className="text-[10px]">Concil.</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {cbExisting.map((l: any) => (
+                          <TableRow key={l.id}>
+                            <TableCell className="text-[10px]">{l.ordem}</TableCell>
+                            <TableCell className="text-[10px]">{l.data}</TableCell>
+                            <TableCell className="text-[10px] max-w-[280px] truncate">{l.descricao}</TableCell>
+                            <TableCell className="text-[10px]">{l.nr_documento || "—"}</TableCell>
+                            <TableCell className="text-[10px] text-right">{Number(l.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-[10px]">
+                              {l.despesa_id
+                                ? <Badge variant="outline" className="text-[9px] border-emerald-400 text-emerald-700 gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />ok</Badge>
+                                : <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700">—</Badge>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* =================== AUDITORIA (real) =================== */}
+        <TabsContent value="auditoria">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
