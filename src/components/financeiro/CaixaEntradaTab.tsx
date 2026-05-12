@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Inbox, Loader2, Receipt, AlertTriangle, CheckCircle2, Trash2, Upload } from "lucide-react";
+import { Inbox, Loader2, Receipt, AlertTriangle, CheckCircle2, Trash2, Upload, FileText, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { validateDespesa } from "@/lib/despesaImportValidation";
 import { applyOrcamentoMatching } from "@/lib/orcamentoMatcher";
@@ -441,6 +441,19 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
                       <div className="flex flex-wrap items-center gap-1 mt-0.5">
                         {d.status === "ok" && (
                           <span className="text-[9px] text-emerald-700">{qtd} despesa{qtd === 1 ? "" : "s"} extraída{qtd === 1 ? "" : "s"}</span>
+                        )}
+                        {d.rota && (
+                          <span
+                            title={d.rotaMotivo}
+                            className={`text-[9px] inline-flex items-center gap-0.5 px-1 py-px rounded border ${
+                              d.rota === "texto"
+                                ? "bg-blue-500/10 text-blue-700 border-blue-500/30"
+                                : "bg-purple-500/10 text-purple-700 border-purple-500/30"
+                            }`}
+                          >
+                            {d.rota === "texto" ? <FileText className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
+                            {d.rota === "texto" ? "texto" : "visão"}
+                          </span>
                         )}
                         {d.status === "processando" && d.totalChunks && d.totalChunks > 1 && (
                           <span className="text-[9px] text-muted-foreground">
