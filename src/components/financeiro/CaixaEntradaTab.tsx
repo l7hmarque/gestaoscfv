@@ -364,7 +364,7 @@ export default function CaixaEntradaTab({ mesRef, onProcessed }: Props) {
                   <div key={d.id} className="flex items-center gap-2 rounded-md border bg-card p-2">
                     <Receipt className="h-4 w-4 text-muted-foreground shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium truncate">{d.file.name}</div>
+                      <div className="text-xs font-medium truncate">{d.fileName}</div>
                       <div className="flex flex-wrap items-center gap-1 mt-0.5">
                         {d.status === "ok" && (
                           <span className="text-[9px] text-emerald-700">{qtd} despesa{qtd === 1 ? "" : "s"} extraída{qtd === 1 ? "" : "s"}</span>
