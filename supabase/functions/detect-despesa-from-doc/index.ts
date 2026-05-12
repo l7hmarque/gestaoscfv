@@ -245,10 +245,11 @@ serve(async (req) => {
       }),
     });
 
-    let response = await callModel("google/gemini-2.5-pro");
+    // Use flash by default — pro frequently exceeds the 150s edge timeout on multi-page PDFs.
+    let response = await callModel("google/gemini-2.5-flash");
     if (response.status === 429) {
-      console.warn("[detect-despesa] Pro rate-limited, fallback to flash");
-      response = await callModel("google/gemini-2.5-flash");
+      console.warn("[detect-despesa] Flash rate-limited, fallback to flash-lite");
+      response = await callModel("google/gemini-2.5-flash-lite");
     }
 
     if (!response.ok) {
