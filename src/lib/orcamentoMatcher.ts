@@ -46,7 +46,15 @@ export async function applyOrcamentoMatching(
       const nomeOrc = norm(o.fornecedor_vencedor);
       return !!nomeOrc && !!nomeDesp && (nomeOrc === nomeDesp || nomeOrc.includes(nomeDesp) || nomeDesp.includes(nomeOrc));
     });
-    if (!hit) return r;
+    if (!hit) {
+      // Sem orçamento aprovado correspondente: se o usuário marcou
+      // o PDF com marca-texto amarelo, ainda assim mantém modalidade 7
+      // (Pesquisa de Preço) — apenas o vínculo `orcamento_id` fica nulo.
+      if (r.marcado_orcamento === true) {
+        return { ...r, sit_modalidade_compra: 7 };
+      }
+      return r;
+    }
     matched++;
     return {
       ...r,
