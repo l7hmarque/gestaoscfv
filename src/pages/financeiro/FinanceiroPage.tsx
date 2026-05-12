@@ -1065,7 +1065,7 @@ export default function FinanceiroPage() {
       <ExportacaoSitCard />
 
       <Tabs defaultValue="despesas">
-        <TabsList className="grid grid-cols-9 w-full">
+        <TabsList className="grid grid-cols-10 w-full">
           <TabsTrigger value="despesas" className="text-xs gap-1"><Receipt className="h-3 w-3 hidden sm:block" />Despesas</TabsTrigger>
           <TabsTrigger value="parcelas" className="text-xs gap-1"><DollarSign className="h-3 w-3 hidden sm:block" />Parcelas</TabsTrigger>
           <TabsTrigger value="categorias" className="text-xs gap-1"><Layers className="h-3 w-3 hidden sm:block" />Categorias</TabsTrigger>
@@ -1073,6 +1073,7 @@ export default function FinanceiroPage() {
           <TabsTrigger value="orcamentos" className="text-xs gap-1"><ClipboardList className="h-3 w-3 hidden sm:block" />Orçamentos</TabsTrigger>
           <TabsTrigger value="documentos" className="text-xs gap-1"><FolderOpen className="h-3 w-3 hidden sm:block" />Documentos</TabsTrigger>
           <TabsTrigger value="importar" className="text-xs gap-1"><Upload className="h-3 w-3 hidden sm:block" />Importar</TabsTrigger>
+          <TabsTrigger value="bancario" className="text-xs gap-1"><Banknote className="h-3 w-3 hidden sm:block" />Bancário</TabsTrigger>
           <TabsTrigger value="lotes" className="text-xs gap-1"><FileSpreadsheet className="h-3 w-3 hidden sm:block" />Lotes</TabsTrigger>
           <TabsTrigger value="auditoria" className="text-xs gap-1"><ShieldCheck className="h-3 w-3 hidden sm:block" />Auditoria</TabsTrigger>
         </TabsList>
