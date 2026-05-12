@@ -1073,7 +1073,7 @@ export default function FinanceiroPage() {
         </CardContent></Card>
       </div>
 
-      <ExportacaoSitCard />
+      <ExportacaoSitCard mesRef={mesRef} onMesChange={setMesRef} />
 
       <Tabs defaultValue="caixa">
         <div className="rounded-md border bg-card p-1 overflow-x-auto">
