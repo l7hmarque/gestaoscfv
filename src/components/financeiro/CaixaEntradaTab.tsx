@@ -355,15 +355,15 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRequestReview }
               <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 border-blue-500/30">
                 Despesas extraídas: {totaisExtraidos}
               </Badge>
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-1">
                 {totaisExtraidos > 0 && !running && (
                   <Button
                     size="sm"
-                    className="h-7 text-xs mr-1"
-                    onClick={lancarTudoAgora}
+                    className="h-7 text-xs"
+                    onClick={requestReviewForAll}
                     disabled={launching}
                   >
-                    {launching ? (<><Loader2 className="h-3 w-3 mr-1 animate-spin" />Lançando…</>) : `Lançar ${totaisExtraidos} no SIT agora (sem revisar)`}
+                    Revisar e lançar {totaisExtraidos} despesa(s)
                   </Button>
                 )}
                 <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={clearAll} disabled={running}>Limpar</Button>
@@ -430,6 +430,16 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRequestReview }
                       {d.status === "ok" && <Badge variant="outline" className="text-[9px] border-emerald-400 text-emerald-700 gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />pronto</Badge>}
                       {d.status === "erro" && <Badge variant="destructive" className="text-[9px]" title={d.erro}>erro</Badge>}
                     </div>
+                    {d.status === "ok" && (d.resultado?.despesas?.length ?? 0) > 0 && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="h-6 text-[10px] px-2"
+                        onClick={() => requestReviewForDoc(d)}
+                      >
+                        Revisar ({d.resultado.despesas.length})
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => remove(d.id)} disabled={d.status === "processando"}>
                       <Trash2 className="h-3 w-3 text-destructive" />
                     </Button>
@@ -439,7 +449,7 @@ export default function CaixaEntradaTab({ mesRef, onProcessed, onRequestReview }
             </div>
 
             <div className="rounded-md border bg-muted/30 p-2 text-[10px] text-muted-foreground">
-              Cada documento processado é lançado automaticamente na aba <b>Despesas</b>. Use o botão <b>Lançar agora</b> apenas para reprocessar arquivos que já estavam aqui de sessões anteriores.
+              Após o processamento, clique em <b>Revisar</b> para conferir as despesas extraídas, editar campos e então lançar no SIT. Nada é lançado automaticamente.
             </div>
           </>
         )}
