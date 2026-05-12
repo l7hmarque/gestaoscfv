@@ -843,6 +843,151 @@ export default function FinanceiroPage() {
   };
 
   const severityIcon = (s: string) => {
+
+  // === CONTROLE BANCÁRIO ===
+  const handleCbFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCbFile(file);
+    setCbUploading(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      const chunkSize = 8192;
+      for (let j = 0; j < bytes.length; j += chunkSize) binary += String.fromCharCode(...bytes.subarray(j, j + chunkSize));
+      const base64 = btoa(binary);
+      const { data, error } = await supabase.functions.invoke("detect-controle-bancario", {
+        body: { file_base64: base64, mime_type: file.type },
+      });
+      if (error) throw error;
+      const list = Array.isArray(data?.lancamentos) ? data.lancamentos : [];
+      setCbLancamentos(list);
+      toast.success(`${list.length} lançamentos extraídos`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Erro ao extrair: " + (err?.message || ""));
+    } finally {
+      setCbUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const saveControleBancario = async () => {
+    if (cbLancamentos.length === 0) return;
+    setCbSaving(true);
+    try {
+      // Substitui lançamentos do mês
+      await supabase.from("controle_bancario_lancamentos").delete().eq("mes_referencia", mesRef);
+      const rows = cbLancamentos
+        .filter((l) => l.tipo === "debito") // apenas saídas conciliam com despesas
+        .map((l, i) => ({
+          mes_referencia: mesRef,
+          ordem: l.ordem ?? i + 1,
+          data: l.data,
+          descricao: l.descricao || "",
+          valor: Number(l.valor) || 0,
+          nr_documento: l.nr_documento || null,
+          origem_arquivo: cbFile?.name || null,
+        }));
+      if (rows.length > 0) {
+        const { error } = await supabase.from("controle_bancario_lancamentos").insert(rows as any);
+        if (error) throw error;
+      }
+      // Roda matcher
+      const { data: matchRes, error: mErr } = await (supabase as any).rpc("match_controle_bancario_to_despesas", { p_mes: mesRef });
+      if (mErr) throw mErr;
+      const m = Array.isArray(matchRes) ? matchRes[0] : matchRes;
+      toast.success(`Controle Bancário salvo. Conciliados: ${m?.matched ?? 0}/${m?.total ?? rows.length}`);
+      setCbLancamentos([]);
+      setCbFile(null);
+      load();
+    } catch (err: any) {
+      toast.error("Erro ao salvar: " + (err?.message || ""));
+    } finally {
+      setCbSaving(false);
+    }
+  };
+
+  const reconciliar = async () => {
+    setCbSaving(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("match_controle_bancario_to_despesas", { p_mes: mesRef });
+      if (error) throw error;
+      const m = Array.isArray(data) ? data[0] : data;
+      toast.success(`Reconciliação: ${m?.matched ?? 0}/${m?.total ?? 0}`);
+      load();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || ""));
+    } finally {
+      setCbSaving(false);
+    }
+  };
+
+  // === PDF CONSOLIDADO DA PRESTAÇÃO ===
+  const generatePdfConsolidado = async () => {
+    setPdfConsolidadoLoading(true);
+    try {
+      const sortPrest = (a: any, b: any) => {
+        const oa = a.ordem_prestacao, ob = b.ordem_prestacao;
+        if (oa != null && ob != null) return oa - ob;
+        if (oa != null) return -1;
+        if (ob != null) return 1;
+        return (a.data_lancamento || "").localeCompare(b.data_lancamento || "");
+      };
+      const ordered = [...despesas].sort(sortPrest);
+      if (ordered.length === 0) { toast.error("Nenhuma despesa para consolidar"); return; }
+
+      const merged = await PDFDocument.create();
+      const seenUrls = new Set<string>();
+      let okCount = 0;
+      let errCount = 0;
+
+      for (const d of ordered) {
+        const urls = [d.nota_url, d.boleto_url, d.comprovante_url].filter((u): u is string => !!u);
+        for (const url of urls) {
+          if (seenUrls.has(url)) continue;
+          seenUrls.add(url);
+          try {
+            const res = await fetch(url);
+            if (!res.ok) { errCount++; continue; }
+            const ct = res.headers.get("content-type") || "";
+            const buf = await res.arrayBuffer();
+            if (ct.includes("pdf") || url.toLowerCase().endsWith(".pdf")) {
+              const src = await PDFDocument.load(buf, { ignoreEncryption: true });
+              const pages = await merged.copyPages(src, src.getPageIndices());
+              pages.forEach(p => merged.addPage(p));
+              okCount++;
+            } else if (ct.includes("image") || /\.(jpe?g|png)$/i.test(url)) {
+              const isPng = ct.includes("png") || /\.png$/i.test(url);
+              const img = isPng ? await merged.embedPng(buf) : await merged.embedJpg(buf);
+              const page = merged.addPage([img.width, img.height]);
+              page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+              okCount++;
+            } else {
+              errCount++;
+            }
+          } catch (e) {
+            console.warn("Falha em", url, e);
+            errCount++;
+          }
+        }
+      }
+
+      if (okCount === 0) { toast.error("Nenhum anexo pôde ser mesclado"); return; }
+      const bytes = await merged.save();
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      saveAs(blob, sysCfvFileName("PrestacaoContas_Consolidado", "pdf", mesRef));
+      toast.success(`PDF consolidado gerado (${okCount} anexos${errCount ? `, ${errCount} ignorados` : ""})`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Erro ao consolidar PDF: " + (err?.message || ""));
+    } finally {
+      setPdfConsolidadoLoading(false);
+    }
+  };
+
+  const severityIconV2 = (s: string) => {
     if (s === "erro") return <AlertTriangle className="h-4 w-4 text-destructive" />;
     if (s === "alerta") return <Info className="h-4 w-4 text-amber-500" />;
     return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
