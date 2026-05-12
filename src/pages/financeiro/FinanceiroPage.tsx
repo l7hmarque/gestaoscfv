@@ -654,6 +654,28 @@ export default function FinanceiroPage() {
     load();
   };
 
+  // Disparado pela Caixa de Entrada quando o usuário clica em "Revisar e Lançar".
+  // Carrega as despesas extraídas no pipeline existente do ImportReviewDialog.
+  const handleCaixaReview = (caixaDocs: Array<{
+    id: string;
+    fileName: string;
+    storageUrl?: string;
+    despesas: any[];
+  }>) => {
+    if (!caixaDocs.length) return;
+    const novos: DetectedDoc[] = caixaDocs.map((c) => ({
+      caixaDocId: c.id,
+      fileName: c.fileName,
+      uploading: false,
+      extracted: c.despesas[0] ?? null,
+      extractedList: c.despesas,
+      confirmed: false,
+      storageUrl: c.storageUrl,
+    }));
+    setDocFiles(novos);
+    setReviewOpen(true);
+  };
+
   // === RCA ===
   const generateRCA = async () => {
     setRcaLoading(true);
