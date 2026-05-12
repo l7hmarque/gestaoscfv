@@ -24,6 +24,7 @@ import RegularizarSitDialog from "@/components/financeiro/RegularizarSitDialog";
 import ImportReviewDialog from "@/components/financeiro/ImportReviewDialog";
 import LotesImportadosTab from "@/components/financeiro/LotesImportadosTab";
 import CaixaEntradaTab from "@/components/financeiro/CaixaEntradaTab";
+import ConciliacaoExtratoCard from "@/components/financeiro/ConciliacaoExtratoCard";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { sysCfvFileName } from "@/lib/fileNaming";
@@ -1096,7 +1097,10 @@ export default function FinanceiroPage() {
         </div>
 
         <TabsContent value="caixa">
-          <CaixaEntradaTab mesRef={mesRef} onProcessed={load} />
+          <div className="space-y-3">
+            <CaixaEntradaTab mesRef={mesRef} onProcessed={load} />
+            <ConciliacaoExtratoCard mesRef={mesRef} />
+          </div>
         </TabsContent>
 
         <RegularizarSitDialog
