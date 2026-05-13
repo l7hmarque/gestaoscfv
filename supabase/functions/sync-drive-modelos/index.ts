@@ -478,62 +478,6 @@ Deno.serve(async (req) => {
       return respond(nextCategory());
     }
 
-    // ===== TIPO: reo (DOCX → Google Doc + XLSX → Google Sheet) =====
-    if (currentTipo === "reo") {
-      try {
-        const target = subs["07_REO"].id;
-        // DOCX
-        if (part === 0) try {
-          const rDoc = await invokeFn("generate-reo", { mes, ano, formato: "docx" }, authHeader);
-          if (rDoc?.url) {
-            const buf = new Uint8Array(await (await fetch(rDoc.url)).arrayBuffer());
-            const base = `SysCFV_REO_${periodoLabel}`;
-            const { nome, skip, toTrash } = await resolveNome(base, "gdoc", target, modo);
-            if (!skip) {
-              for (const id of toTrash) await trashFile(id);
-              const cleanName = nome.replace(/\.gdoc$/, "");
-              const fid = await uploadBytes(
-                cleanName,
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                buf,
-                target,
-                "application/vnd.google-apps.document",
-              );
-              result.sincronizados.reo = { ...(result.sincronizados.reo || {}), doc: { nome: cleanName, fileId: fid, url: `https://docs.google.com/document/d/${fid}/edit` } };
-            }
-          }
-        } catch (e: any) { result.erros.push({ tipo: "reo:docx", msg: e.message }); }
-        if (part === 0) {
-          result.batch.processed = 1;
-          result.batch.total = 2;
-          return respond({ tipoIndex, offset: 0, part: 1 });
-        }
-        // XLSX (anexo)
-        if (part === 1) try {
-          const rXls = await invokeFn("generate-reo", { mes, ano, formato: "xlsx" }, authHeader);
-          if (rXls?.url) {
-            const buf = new Uint8Array(await (await fetch(rXls.url)).arrayBuffer());
-            const base = `SysCFV_REO_Anexo_${periodoLabel}`;
-            const { nome, skip, toTrash } = await resolveNome(base, "gsheet", target, modo);
-            if (!skip) {
-              for (const id of toTrash) await trashFile(id);
-              const cleanName = nome.replace(/\.gsheet$/, "");
-              const fid = await uploadBytes(
-                cleanName,
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                buf,
-                target,
-                "application/vnd.google-apps.spreadsheet",
-              );
-              result.sincronizados.reo = { ...(result.sincronizados.reo || {}), sheet: { nome: cleanName, fileId: fid, url: `https://docs.google.com/spreadsheets/d/${fid}/edit` } };
-            }
-          }
-        } catch (e: any) { result.erros.push({ tipo: "reo:xlsx", msg: e.message }); }
-        result.batch.processed = 1;
-        result.batch.total = 2;
-        return respond(nextCategory());
-      } catch (e: any) { result.erros.push({ tipo: "reo", msg: e.message }); return respond(nextCategory()); }
-    }
     return respond(null);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
