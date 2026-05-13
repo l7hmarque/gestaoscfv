@@ -164,7 +164,6 @@ export default function ExportarRelatoriosPage() {
     });
   }, []);
 
-  // ===================== REO =====================
   const downloadFromUrl = async (url: string, filename: string) => {
     try {
       const response = await fetch(url);
@@ -175,8 +174,6 @@ export default function ExportarRelatoriosPage() {
       window.open(url, "_blank");
     }
   };
-
-  // REO removido desta tela. Ver módulo de Relatório de Execução do Objeto.
 
   // ===================== Relatório Mensal (XLSX + PDF) =====================
   const exportarRelatorioMensal = async () => {
