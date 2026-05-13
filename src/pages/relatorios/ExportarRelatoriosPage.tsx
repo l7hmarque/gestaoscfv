@@ -130,7 +130,6 @@ export default function ExportarRelatoriosPage() {
   const [anoAnual, setAnoAnual] = useState(String(now.getFullYear()));
 
   const [loadingRelMensal, setLoadingRelMensal] = useState(false);
-  const [loadingPC, setLoadingPC] = useState(false);
   const [loadingAnual, setLoadingAnual] = useState(false);
   const [loadingAtividades, setLoadingAtividades] = useState(false);
   const [loadingAtendimentos, setLoadingAtendimentos] = useState(false);
