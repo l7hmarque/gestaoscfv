@@ -54,11 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     // Failsafe: nunca prender o app em loading se getSession travar (504/timeout do backend)
-    const failsafe = setTimeout(() => setLoading(false), 8000);
+    const failsafe = setTimeout(() => setLoading(false), 4000);
 
     withTimeout(
       supabase.auth.getSession(),
-      8000,
+      4000,
       "Tempo esgotado ao verificar a sessão. Tente novamente."
     )
       .then(({ data: { session } }) => {

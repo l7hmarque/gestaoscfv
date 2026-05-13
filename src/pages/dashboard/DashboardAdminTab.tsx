@@ -179,7 +179,6 @@ export default function DashboardAdminTab() {
               { k: "relatorios", label: "Relatórios de Atividade do mês" },
               { k: "planejamentos", label: "Planejamentos do mês" },
               { k: "equipe_tecnica", label: "Equipe Técnica (atendimentos + relatos)" },
-              { k: "reo", label: "REO — Relatório de Execução do Objeto" },
             ].map((opt) => (
               <label key={opt.k} className="flex items-center gap-2 text-xs cursor-pointer">
                 <Checkbox checked={!!syncTipos[opt.k]} onCheckedChange={() => toggleTipo(opt.k)} />
