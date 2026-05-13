@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Users, GraduationCap, BookOpen, FileText, Pin, Bell, AlertTriangle, CalendarDays, Newspaper, ClipboardCheck, LayoutDashboard, FileDown, HeartHandshake, Bus, DollarSign, MessageSquare } from "lucide-react";
+import { Users, GraduationCap, BookOpen, FileText, Pin, Bell, AlertTriangle, CalendarDays, Newspaper, ClipboardCheck, LayoutDashboard, FileDown, HeartHandshake, Bus, MessageSquare } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +40,6 @@ const shortcutGroups = [
       { title: "Equipe Técnica", description: "Acompanhamento social", icon: HeartHandshake, url: "/equipe-tecnica", border: "border-l-[hsl(280,40%,55%)]" },
       { title: "Cronograma", description: "Agenda semanal", icon: CalendarDays, url: "/cronograma", border: "border-l-secondary" },
       { title: "Transporte", description: "Embarques e rotas", icon: Bus, url: "/transporte", border: "border-l-primary" },
-      { title: "Financeiro", description: "Orçamentos e despesas", icon: DollarSign, url: "/financeiro", border: "border-l-[hsl(150,45%,45%)]" },
     ],
   },
 ];
