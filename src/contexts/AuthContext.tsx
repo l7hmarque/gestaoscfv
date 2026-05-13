@@ -15,6 +15,19 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 export const useAuth = () => useContext(AuthContext);
 
+const withTimeout = async <T,>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), ms);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -30,8 +43,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Failsafe: nunca prender o app em loading se getSession travar (504/timeout do backend)
     const failsafe = setTimeout(() => setLoading(false), 8000);
 
-    supabase.auth
-      .getSession()
+    withTimeout(
+      supabase.auth.getSession(),
+      8000,
+      "Tempo esgotado ao verificar a sessão. Tente novamente."
+    )
       .then(({ data: { session } }) => {
         setSession(session);
         setUser(session?.user ?? null);
@@ -52,7 +68,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        10000,
+        "Tempo esgotado ao entrar. Se estiver no Preview, teste pelo domínio publicado."
+      );
       return { error };
     } catch (err: any) {
       console.error("[Auth] signIn falhou:", err);
