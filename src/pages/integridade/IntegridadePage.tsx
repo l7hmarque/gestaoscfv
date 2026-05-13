@@ -402,7 +402,7 @@ function SemDataNascimentoSection({ items, onRefresh }: { items: Detalhes["sem_d
       icon={Calendar}
       title="Participantes sem data de nascimento"
       count={items.length}
-      description="Necessário para faixa etária correta nos indicadores e REO."
+      description="Necessário para faixa etária correta nos indicadores."
     >
       <Table>
         <TableHeader>
