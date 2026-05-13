@@ -10,7 +10,7 @@ import { Loader2, Search, ShieldCheck } from "lucide-react";
 
 const ROLES: Array<{ key: string; label: string; descr: string }> = [
   { key: "coordenacao", label: "Coordenação", descr: "Acesso total — gestão, exclusões, permissões." },
-  { key: "tecnico", label: "Técnico", descr: "Atendimentos, prontuários, encaminhamentos, financeiro." },
+  { key: "tecnico", label: "Técnico", descr: "Atendimentos, prontuários, encaminhamentos." },
   { key: "educador", label: "Educador", descr: "Relatórios, planejamentos, presença e participantes." },
   { key: "motorista", label: "Motorista", descr: "Painel de transporte e rotas." },
   { key: "cozinheiro", label: "Cozinheiro", descr: "Visualização operacional restrita." },
