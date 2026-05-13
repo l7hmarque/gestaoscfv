@@ -18,14 +18,13 @@ const SUBFOLDERS = [
   "04_Listas_Chamada_Em_Branco",
   "05_Listas_Frequencia_Preenchidas",
   "06_Relatorios_Mensais",
-  "07_REO",
   "08_Roteiros_Equipe_Tecnica",
   "09_Cronogramas",
 ];
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
-type Tipo = "mensal" | "listas" | "relatorios" | "planejamentos" | "equipe_tecnica" | "reo";
+type Tipo = "mensal" | "listas" | "relatorios" | "planejamentos" | "equipe_tecnica";
 type Modo = "versionar" | "sobrescrever" | "pular";
 
 interface DriveFile {
