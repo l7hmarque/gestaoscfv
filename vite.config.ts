@@ -57,4 +57,25 @@ export default defineConfig(({ mode }) => ({
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          "radix": [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-popover",
+            "@radix-ui/react-tabs",
+            "@radix-ui/react-select",
+            "@radix-ui/react-tooltip",
+          ],
+          "charts": ["recharts"],
+          "xlsx": ["xlsx", "xlsx-js-style"],
+          "pdf": ["jspdf", "jspdf-autotable", "pdf-lib", "pdfjs-dist"],
+          "docx": ["docx", "docxtemplater", "pizzip"],
+        },
+      },
+    },
+  },
 }));
