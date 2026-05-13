@@ -912,54 +912,6 @@ export type Database = {
         }
         Relationships: []
       }
-      documentos_prestacao_contas: {
-        Row: {
-          arquivo_url: string
-          categoria: string
-          created_at: string | null
-          descricao: string | null
-          drive_file_id: string | null
-          drive_url: string | null
-          id: string
-          nome_arquivo: string
-          titulo: string
-          uploaded_by: string | null
-          versao: number
-          vigencia_fim: string | null
-          vigencia_inicio: string | null
-        }
-        Insert: {
-          arquivo_url: string
-          categoria: string
-          created_at?: string | null
-          descricao?: string | null
-          drive_file_id?: string | null
-          drive_url?: string | null
-          id?: string
-          nome_arquivo: string
-          titulo: string
-          uploaded_by?: string | null
-          versao?: number
-          vigencia_fim?: string | null
-          vigencia_inicio?: string | null
-        }
-        Update: {
-          arquivo_url?: string
-          categoria?: string
-          created_at?: string | null
-          descricao?: string | null
-          drive_file_id?: string | null
-          drive_url?: string | null
-          id?: string
-          nome_arquivo?: string
-          titulo?: string
-          uploaded_by?: string | null
-          versao?: number
-          vigencia_fim?: string | null
-          vigencia_inicio?: string | null
-        }
-        Relationships: []
-      }
       drive_folder_cache: {
         Row: {
           chave: string
