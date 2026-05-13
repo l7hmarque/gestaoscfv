@@ -1,72 +1,112 @@
-Diagnóstico encontrado:
+## Validação concluída — Plano revisado
 
-1. Causa direta do loading infinito no botão de login
+Diferenças vs. plano anterior (achados na validação):
+- `generate-rca` é puramente financeira → entra na lista de exclusão
+- `drive-sync-worker` tem branch `processOrcamento` + dispatch `tipo === "orcamento"` → precisa ser podado (não excluído, pois sincroniza outros tipos)
+- `sync-drive-modelos` tem template de orçamento → remover só o template
+- Bucket de Storage `prestacao-contas` + policies → entram na migration de drop
+- Memórias financeiras existentes em arquivo: apenas `financeiro-rubricas-oficiais.md` e `financeiro-audit-sync` (referenciadas no índice). Demais entradas do índice serão removidas como links órfãos
 
-- Arquivo: `src/pages/auth/LoginPage.tsx`
-- O botão entra em loading com `setLoading(true)` antes de chamar `signIn(email, password)`.
-- Arquivo: `src/contexts/AuthContext.tsx`
-- `signIn()` chama `supabase.auth.signInWithPassword(...)` sem `try/catch`.
-- Na reprodução pelo browser, essa chamada rejeitou com `TypeError: Failed to fetch` dentro de `signInWithPassword`.
-- Como a Promise rejeita antes de retornar `{ error }`, o código em `LoginPage` nunca chega em `setLoading(false)`. Resultado: o botão fica em “Entrando...” para sempre.
+---
 
-2. Causa provável do travamento ao entrar no sistema
+## Parte 1 — Remoção total do módulo Financeiro
 
-- O login em si está falhando no fetch para o endpoint de autenticação no ambiente de preview.
-- Evidência: console do browser mostrou `TypeError: Failed to fetch` em `signInWithPassword`, passando por `src/contexts/AuthContext.tsx` e `src/pages/auth/LoginPage.tsx`.
-- A Cloud respondeu como saudável, e os logs de autenticação vieram vazios, o que indica que a requisição nem chegou corretamente ao backend de autenticação.
-- Isso bate com um problema conhecido do preview: o script/proxy do ambiente Lovable pode interceptar/quebrar requisições de auth. O teste mais seguro é validar o login no domínio publicado/custom domain.
+### 1.1 Pastas e arquivos a EXCLUIR
+- `src/pages/financeiro/` (4 arquivos)
+- `src/components/financeiro/` (6 arquivos)
+- `src/lib/sitExport.ts`, `sitZipPackage.ts`, `sitCodeMappings.ts`, `despesaImportValidation.ts`, `orcamentoMatcher.ts`, `rubricasOficiais.ts`
+- `src/hooks/useOrcamentoExport.ts`
+- `src/pages/configuracoes/ConfiguracoesSitTab.tsx`
+- `.lovable/memory/funcionalidades/financeiro-rubricas-oficiais.md`
 
-3. Outro ponto que pode gerar spinner infinito em rotas protegidas
+### 1.2 Edge Functions a deletar (supabase--delete_edge_functions)
+`audit-financeiro`, `classify-financeiro-doc`, `detect-controle-bancario`, `detect-despesa-from-doc`, `detect-orcamento-from-doc`, `generate-reo`, **`generate-rca`** (adicionada na validação)
 
-- Arquivo: `src/contexts/AuthContext.tsx`
-- `getSession()` também não tem `catch` nem timeout/fallback.
-- Se `getSession()` rejeitar ou ficar pendurado, `loading` permanece `true` e `ProtectedRoute` fica mostrando o spinner central indefinidamente.
+### 1.3 Edge Functions a EDITAR (manter, podar trecho financeiro)
+- `supabase/functions/drive-sync-worker/index.ts` — remover `processOrcamento` (linhas ~850–900), o `else if (job.tipo === "orcamento")` e qualquer enfileiramento de jobs de orçamento
+- `supabase/functions/sync-drive-modelos/index.ts` — remover template financeiro/orçamento
 
-4. Consultas disparadas após sessão existente
+### 1.4 Pontos de integração no front a LIMPAR
+- `src/App.tsx` — remover lazy imports e rotas `/financeiro` e `/financeiro/arquivos`
+- `src/components/AppSidebar.tsx` — remover item "Financeiro"
+- `src/components/FloatingActionButton.tsx` — remover atalho "Financeiro"
+- `src/pages/Index.tsx` — remover tile "Financeiro"
+- `src/pages/preview/DesignPreviewPage.tsx` — remover entrada "Financeiro"
+- `src/pages/coordenacao/PermissoesTab.tsx` — limpar texto "financeiro" do papel Técnico
+- `src/pages/configuracoes/ConfiguracoesPage.tsx` — remover aba SIT (TabsTrigger e TabsContent `value="sit"`) e o import de `ConfiguracoesSitTab`
+- `src/pages/banco-dados/BancoDadosPage.tsx` — remover abas/colunas/queries/states de despesas, despesa_historico, estornos, orcamentos, orcamento_itens, orcamento_cotacoes, categorias_financeiras, parcelas_financeiras
+- `src/pages/dashboard/DashboardRelatorioMensalTab.tsx` — remover botão/lógica "generate-reo" e textos "financeiro"
+- `src/pages/relatorios/ExportarRelatoriosPage.tsx` — remover bloco "6. REO" + função `exportarPrestacaoContas` (linhas ~581–800) e cards UI correspondentes
+- `src/hooks/useRelatorioGestao.ts` — remover seção "6. Financeiro" (campos `despesas/estornos/parcelas/categorias_financeiras` no fetch + aba "Financeiro" do XLSX + `despesasByCat`); manter as outras 9 seções
+- `src/test/security.test.ts` e `src/test/security-auth.test.ts` — remover asserts de tabelas financeiras e do bucket `prestacao-contas`
 
-- Ao abrir `/login` com sessão já existente, havia várias requisições `profiles`, `user_roles`, `participantes`, `recados`, `mural_posts` abortadas (`ERR_ABORTED`).
-- Isso parece efeito colateral de navegação/abort de página, não a causa primária do botão travado.
-- Ainda assim, o app dispara muitas consultas iniciais após login, o que pode piorar a percepção de travamento quando a rede/backend está lento.
+### 1.5 Banco de dados (migration única, ordem segura)
+Drop em cascata (com `IF EXISTS`):
+- Tabelas: `despesa_historico`, `despesas`, `estornos`, `orcamento_precos`, `orcamento_cotacoes`, `orcamento_itens`, `orcamentos`, `categorias_financeiras`, `parcelas_financeiras`
+- Policies de Storage referenciando `bucket_id = 'prestacao-contas'`
+- `DELETE FROM storage.objects WHERE bucket_id = 'prestacao-contas'` e `DELETE FROM storage.buckets WHERE id = 'prestacao-contas'`
+- Drop de funções/triggers SQL exclusivamente financeiras (verificar via `supabase--linter` antes de aplicar)
 
-5. Relação com o travamento anterior em “Confirmar e lançar 37 despesas”
+### 1.6 Memórias do projeto
+- Apagar arquivo `mem://funcionalidades/financeiro-rubricas-oficiais`
+- Atualizar `mem://index.md` removendo bullets: `financeiro-audit-sync`, `modulo-orcamentos-mapas-comparativos`, `financeiro-prestacao-contas`, `financeiro-gestao-pipeline`, `gestao-dados-financeiros-banco`, `formato-exportacao-sit`, `relatorio-execucao-objeto-reo`, `financeiro-rubricas-oficiais`
 
-- Arquivo: `src/pages/financeiro/FinanceiroPage.tsx`
-- A função `confirmAndSaveImportedDocs()` coloca `savingDocs = true`, faz matching de orçamento e grava todas as despesas em um único `.insert(cleanRows)`.
-- Ela não usa `try/finally`, não tem timeout, não grava em chunks e não preserva snapshot local antes do envio.
-- Se `applyOrcamentoMatching()` ou a requisição de insert travar/rejeitar fora do caminho previsto, o loading fica preso e o usuário não tem confirmação se gravou ou não.
-- A tentativa de consulta direta aos lançamentos recentes também retornou timeout de conexão, então é possível que o lote tenha ficado preso por latência/conexão no backend naquele momento.
+---
 
-Plano de correção recomendado:
+## Parte 2 — Auditoria de performance e higienização
 
-1. Tornar autenticação resiliente
+### 2.1 Achados relevantes
 
-- Envolver `signIn`, `signUp`, `signOut` e `getSession()` com `try/catch/finally`.
-- Garantir que qualquer falha de rede retorne erro controlado e nunca deixe loading infinito.
-- Adicionar timeout de segurança para `getSession()` e `signInWithPassword()`.
+```text
+[A] Lazy de rotas: OK
+[B] QueryClient: staleTime 5min, refetchOnWindowFocus:false — OK
+[C] Toaster + Sonner duplicados em App.tsx
+[D] Bibliotecas pesadas (xlsx, jspdf, jspdf-autotable, docx,
+    docxtemplater, pdf-lib, pdfjs-dist, html2canvas, recharts,
+    canvas-confetti, pizzip) importadas top-level em várias páginas
+    inflam o chunk inicial mesmo com lazy de rota
+[E] BancoDadosPage carrega TUDO no mount
+[F] Dashboard monta todas as abas de uma vez
+[G] AuthContext.getSession failsafe 8s atrasa primeiro paint quando
+    Cloud está instável
+[H] Console.log de produção espalhados
+[I] Sem manualChunks no Vite — bundle inicial monolítico
+[J] Várias páginas usam .select("*") sem necessidade
+[K] Algumas Edge Functions têm awaits sequenciais que podem
+    virar Promise.all
+```
 
-2. Melhorar o feedback do login
+### 2.2 Otimizações SEGURAS (zero impacto funcional)
+1. **Code-splitting de libs pesadas** via `await import(...)` dentro das funções de export (xlsx, jspdf, docx, html2canvas, pdf-lib, pdfjs-dist).
+2. **`vite.config.ts`** — `build.rollupOptions.output.manualChunks`: separar `react-vendor`, `radix`, `charts`, `pdf`, `xlsx`, `editor`.
+3. **Dashboard**: lazy-load por aba (Admin, Profissionais, RelatorioMensal, Transporte) com `React.lazy` + `Suspense`.
+4. **AuthContext**: failsafe de 8s → 4s; renderizar shell público enquanto valida (gate só em `ProtectedRoute`).
+5. **Toaster duplicado**: manter apenas `Sonner` em App.tsx.
+6. **Memoização**: `useMemo` em derivações pesadas dos dashboards e `React.memo` em linhas grandes do DataTable.
+7. **`select` enxuto**: trocar `select("*")` por colunas necessárias em listagens grandes (Participantes, Relatórios, BancoDados restante).
+8. **Edge Functions**: `Promise.all` em `generate-relatorio-mensal`, `drive-sync-worker` e demais com awaits independentes.
+9. **Imagens**: `loading="lazy"` + `decoding="async"` em `<img>` não-LCP; preload do logo.
+10. **Console**: remover `console.log` (manter `console.error`).
+11. **Dependências órfãs após Parte 1**: revisar e remover do `package.json` apenas o que ficou sem uso (provavelmente `pizzip` permanece em outro export).
 
-- Em falha `Failed to fetch`, mostrar mensagem clara: falha de conexão/autenticação temporária, tentar novamente ou usar o domínio publicado.
-- Destravar o botão sempre.
-- Se já houver sessão válida e o usuário acessar `/login`, redirecionar de forma segura ou exibir opção de sair/trocar conta.
+### 2.3 NÃO será alterado
+RLS, roles, permissões, lógica de busca ativa/ELO/presença/matrícula, schema de tabelas remanescentes, payload das Edge Functions, comportamento visível ao usuário.
 
-3. Blindar rotas protegidas contra spinner eterno
+---
 
-- Em `AuthProvider`, se a sessão inicial falhar, finalizar `loading` e tratar como usuário não autenticado.
-- Em `ProtectedRoute`, manter fallback seguro para erro de auth em vez de spinner infinito.
+## Parte 3 — Ordem de execução
 
-4. Corrigir lançamento financeiro em lote
+1. **Migration de drop** (tabelas + storage `prestacao-contas`) → aprovação obrigatória
+2. **Delete edge functions** (7 funções)
+3. **Editar** `drive-sync-worker` e `sync-drive-modelos` (poda)
+4. **Excluir arquivos** front (pastas financeiro, libs SIT, hook, ConfiguracoesSitTab)
+5. **Limpar referências** cruzadas (App, sidebar, FAB, Index, Configuracoes, BancoDados, Dashboard, ExportarRelatorios, useRelatorioGestao, PermissoesTab, DesignPreview, tests)
+6. **Atualizar `mem://index.md`** + apagar memória financeira
+7. **Aplicar otimizações** 2.2 (code-splitting, manualChunks, Suspense por aba, AuthContext, Toaster, console.log)
+8. **`supabase--linter`** + build para confirmar zero referências quebradas
 
-- Alterar `confirmAndSaveImportedDocs()` para usar `try/catch/finally`.
-- Salvar snapshot local temporário do lote antes de enviar.
-- Inserir despesas em chunks pequenos, por exemplo 5 por vez.
-- Exibir progresso real: “Lançando 10/37”.
-- Após cada chunk, confirmar sucesso e manter controle dos itens já gravados.
-- Só apagar documentos da Caixa de Entrada depois de todos os chunks confirmados.
-
-5. Verificação pós-correção
-
-- Testar login no preview e no domínio publicado.
-- Testar falha simulada de rede para confirmar que o botão destrava.
-- Testar lote pequeno e lote grande no financeiro, validando que não há loading infinito e que o usuário recebe resultado claro.
-- Analisar cloud usage e querys para otimizacao
+### Critério de aceite
+- Build verde, sem imports órfãos
+- `rg "financeiro|despesas|orcamentos|estornos|categorias_financeiras|parcelas_financeiras|sit_|REO|prestacao-contas"` retorna apenas migrations antigas (read-only)
+- Dashboard, Relatórios, Banco de Dados, Cronograma, Cozinha, Transporte, Coordenação, Equipe Técnica, Matrícula, Família, Feed, Mural, Site Público — 100% funcionais
+- Bundle inicial reduzido (verificável no output do build)

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SysCFVLogo } from "@/components/SysCFVLogo";
 import {
-  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, DollarSign, Globe, FileDown, Settings, User, CalendarDays, Briefcase, ChefHat, Bus,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, Globe, FileDown, Settings, User, CalendarDays, Briefcase, ChefHat, Bus,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -43,7 +43,6 @@ const menuGroups = [
       { title: "Equipe Técnica", url: "/equipe-tecnica", icon: HeartHandshake },
       { title: "Cronograma", url: "/cronograma", icon: CalendarDays },
       { title: "Transporte", url: "/transporte", icon: Bus },
-      { title: "Financeiro", url: "/financeiro", icon: DollarSign },
       { title: "Site Público", url: "/site-admin", icon: Globe },
       { title: "Banco de Dados", url: "/banco-de-dados", icon: Database },
       { title: "Configurações", url: "/configuracoes", icon: Settings },

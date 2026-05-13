@@ -97,11 +97,6 @@ describe("Segurança: usuário autenticado (visitante) respeita RLS", () => {
     }
   });
 
-  it("sit_configuracao — visitante NÃO acessa CNPJ/dados bancários", async () => {
-    if (!authenticated) return;
-    const { data, error } = await client.from("sit_configuracao").select("*").limit(1);
-    expectNoLeak(data, error);
-  });
 
   it("user_roles — visitante só enxerga o próprio papel (nunca de outros)", async () => {
     if (!authenticated) return;
@@ -158,13 +153,6 @@ describe("Segurança: usuário autenticado (visitante) respeita RLS", () => {
     } else {
       expect(error).toBeTruthy();
     }
-  });
-
-  it("storage prestacao-contas — visitante NÃO lista", async () => {
-    if (!authenticated) return;
-    const { data, error } = await client.storage.from("prestacao-contas").list("", { limit: 1 });
-    if (error) expect(error.message).toBeTruthy();
-    else expect(data ?? []).toEqual([]);
   });
 
   it("storage documentos — visitante NÃO lista pasta de outro usuário", async () => {

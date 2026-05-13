@@ -130,7 +130,6 @@ export default function ExportarRelatoriosPage() {
   const [anoAnual, setAnoAnual] = useState(String(now.getFullYear()));
 
   const [loadingRelMensal, setLoadingRelMensal] = useState(false);
-  const [loadingPC, setLoadingPC] = useState(false);
   const [loadingAnual, setLoadingAnual] = useState(false);
   const [loadingAtividades, setLoadingAtividades] = useState(false);
   const [loadingAtendimentos, setLoadingAtendimentos] = useState(false);
@@ -151,7 +150,6 @@ export default function ExportarRelatoriosPage() {
   const [atendDateTo, setAtendDateTo] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
 
   // Format selectors
-  const [pcFormats, setPcFormats] = useState<ExportFormat[]>(["xlsx", "pdf"]);
   const [atendFormats, setAtendFormats] = useState<ExportFormat[]>(["xlsx", "pdf"]);
   const [gestaoFormats, setGestaoFormats] = useState<ExportFormat[]>(["pdf", "xlsx"]);
   const [ativFormats, setAtivFormats] = useState<ExportFormat[]>(["docx", "pdf", "xlsx"]);
@@ -578,121 +576,6 @@ export default function ExportarRelatoriosPage() {
     }
   };
 
-  // ===================== Prestação de Contas =====================
-  const exportarPrestacaoContas = async () => {
-    if (!pcFormats.length) { toast.error("Selecione ao menos um formato"); return; }
-    setLoadingPC(true);
-    try {
-      const fmtVal = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const mesLabel = MESES_NOMES[mesNum - 1] + " " + ano;
-
-      const [catRes, parRes, despRes, estRes] = await Promise.all([
-        supabase.from("categorias_financeiras").select("*").order("codigo"),
-        supabase.from("parcelas_financeiras").select("*").order("numero_parcela"),
-        supabase.from("despesas").select("*").order("data_lancamento"),
-        supabase.from("estornos").select("*").eq("mes_referencia", mesRef).order("created_at"),
-      ]);
-
-      const categorias = catRes.data || [];
-      const parcelas = parRes.data || [];
-      const allDespesas = despRes.data || [];
-      const estornos = estRes.data || [];
-      const despMes = allDespesas.filter((d: any) => d.mes_referencia === mesRef);
-
-      const totalRec = parcelas.reduce((s: number, p: any) => s + Number(p.valor), 0);
-      const totalDesp = despMes.reduce((s: number, d: any) => s + Number(d.valor), 0);
-      const totalEst = estornos.reduce((s: number, e: any) => s + Number(e.valor), 0);
-      const saldoPC = totalRec - allDespesas.reduce((s: number, d: any) => s + Number(d.valor), 0) + totalEst;
-
-      // XLSX
-      const wb = XLSX.utils.book_new();
-      const { data: pcData } = addInstHeader([
-        ["Item", "Valor"],
-        ["Total Recebido (Parcelas)", totalRec],
-        ["Despesas no Mês", totalDesp],
-        ["Estornos no Mês", totalEst],
-        ["Saldo Acumulado", saldoPC],
-      ], "PRESTAÇÃO DE CONTAS — " + mesLabel);
-      const wsResumoPC = XLSX.utils.aoa_to_sheet(pcData);
-      wsResumoPC["!cols"] = [{ wch: 35 }, { wch: 20 }];
-      autoFitColumns(wsResumoPC);
-      applyInstStyle(wsResumoPC);
-      XLSX.utils.book_append_sheet(wb, wsResumoPC, "Resumo");
-
-      const despRows: any[] = [["Código", "Descrição", "Fornecedor", "CNPJ/CPF", "Tipo Doc", "Nº Doc", "Valor", "Data", "Status"]];
-      despMes.sort((a: any, b: any) => a.data_lancamento.localeCompare(b.data_lancamento)).forEach((d: any) => {
-        despRows.push([
-          d.codigo_lancamento || "", d.descricao, d.fornecedor || "", d.cnpj_cpf || "",
-          TIPOS_DOCUMENTO.find(t => t.value === d.tipo_documento)?.label || "",
-          d.numero_documento || "", Number(d.valor),
-          d.data_lancamento ? format(new Date(d.data_lancamento + "T12:00:00"), "dd/MM/yyyy") : "",
-          d.comprovante_url ? "Pago ✓" : "Aguardando ⏳",
-        ]);
-      });
-      const wsD = XLSX.utils.aoa_to_sheet(despRows);
-      wsD["!cols"] = [{ wch: 12 }, { wch: 30 }, { wch: 20 }, { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 16 }];
-      autoFitColumns(wsD);
-      XLSX.utils.book_append_sheet(wb, wsD, "Despesas");
-
-      const catRows: any[] = [["Código", "Descrição", "Previsto", "Gasto", "Estornado", "Saldo"]];
-      categorias.forEach((c: any) => {
-        const gasto = allDespesas.filter((d: any) => d.categoria_id === c.id).reduce((s: number, d: any) => s + Number(d.valor), 0);
-        const est = estornos.filter((e: any) => e.categoria_id === c.id).reduce((s: number, e: any) => s + Number(e.valor), 0);
-        const prev = Number(c.valor_previsto || 0);
-        catRows.push([c.codigo, c.descricao, prev, gasto, est, prev - gasto + est]);
-      });
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(catRows), "Categorias");
-
-      if (pcFormats.includes("xlsx")) {
-        const bufXlsx = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-        saveAs(new Blob([bufXlsx], { type: "application/octet-stream" }), sysCfvFileName("PrestacaoContas", "xlsx", mesRef));
-      }
-
-      // PDF
-      if (pcFormats.includes("pdf")) {
-      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-      doc.setFontSize(16);
-      doc.text("PRESTAÇÃO DE CONTAS — " + mesLabel, 14, 15);
-      doc.setFontSize(8);
-      doc.text("Gerado em: " + new Date().toLocaleString("pt-BR"), 14, 21);
-      autoTable(doc, {
-        startY: 26,
-        head: [["Item", "Valor (R$)"]],
-        body: [
-          ["Total Recebido (Parcelas)", fmtVal(totalRec)],
-          ["Despesas no Mês", fmtVal(totalDesp)],
-          ["Estornos no Mês", fmtVal(totalEst)],
-          ["Saldo Acumulado", fmtVal(saldoPC)],
-        ],
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255] },
-      });
-      const lastY = (doc as any).lastAutoTable?.finalY || 60;
-      doc.setFontSize(11);
-      doc.text("Despesas Detalhadas", 14, lastY + 8);
-      autoTable(doc, {
-        startY: lastY + 12,
-        head: [["Cód.", "Descrição", "Fornecedor", "Valor", "Data", "Status"]],
-        body: despMes.sort((a: any, b: any) => a.data_lancamento.localeCompare(b.data_lancamento)).map((d: any) => [
-          d.codigo_lancamento || "—", d.descricao, d.fornecedor || "—",
-          fmtVal(Number(d.valor)),
-          d.data_lancamento ? format(new Date(d.data_lancamento + "T12:00:00"), "dd/MM/yyyy") : "—",
-          d.comprovante_url ? "Pago ✓" : "Aguardando ⏳",
-        ]),
-        styles: { fontSize: 7 },
-        headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 7 },
-      });
-      doc.save(sysCfvFileName("PrestacaoContas", "pdf", mesRef));
-      }
-
-      toast.success(`Prestação de Contas gerada (${pcFormats.map(f => f.toUpperCase()).join(" + ")})!`);
-    } catch (err: any) {
-      toast.error("Erro ao gerar prestação de contas: " + (err.message || ""));
-    } finally {
-      setLoadingPC(false);
-    }
-  };
-
   // ===================== Relatório Completo Anual =====================
   const exportarAnual = async () => {
     setLoadingAnual(true);
@@ -872,7 +755,7 @@ export default function ExportarRelatoriosPage() {
     }
   };
 
-  const anyLoading = loadingRelMensal || loadingPC || loadingAnual || loadingAtividades || loadingAtendimentos || loadingGestao;
+  const anyLoading = loadingRelMensal || loadingAnual || loadingAtividades || loadingAtendimentos || loadingGestao;
 
   // ===== Drive (Padrão) — lotes mensais via drive-sync-worker =====
   const [driveLoading, setDriveLoading] = useState<null | "mensal" | "rel" | "plan" | "chamada" | "freq">(null);
@@ -973,10 +856,9 @@ export default function ExportarRelatoriosPage() {
       </Card>
 
       <Tabs defaultValue="drive" className="space-y-4">
-        <TabsList className="grid grid-cols-7 w-full">
+        <TabsList className="grid grid-cols-6 w-full">
           <TabsTrigger value="drive">📁 Drive (Padrão)</TabsTrigger>
           <TabsTrigger value="mensal">Rel. Mensal</TabsTrigger>
-          <TabsTrigger value="pc">Prest. Contas</TabsTrigger>
           <TabsTrigger value="atividades">Atividades</TabsTrigger>
           <TabsTrigger value="atendimentos">Atend. Técnicos</TabsTrigger>
           <TabsTrigger value="anual">Anual</TabsTrigger>
@@ -1076,21 +958,6 @@ export default function ExportarRelatoriosPage() {
             }
           />
 
-          <DriveCard
-            icon={<FileText className="h-4 w-4" />}
-            title="6. Relatório de Execução do Objeto (REO)"
-            badge={<Badge variant="outline" className="ml-1 text-[10px]">em breve</Badge>}
-            desc="Será integrado ao pipeline Drive."
-            action={<Button disabled variant="outline">Em breve</Button>}
-          />
-
-          <DriveCard
-            icon={<FileText className="h-4 w-4" />}
-            title="7. Prestação de Contas"
-            badge={<Badge variant="outline" className="ml-1 text-[10px]">em breve</Badge>}
-            desc="Será integrada ao pipeline Drive."
-            action={<Button disabled variant="outline">Em breve</Button>}
-          />
         </TabsContent>
 
         {/* Relatório Mensal */}
@@ -1110,32 +977,6 @@ export default function ExportarRelatoriosPage() {
               <Button onClick={exportarRelatorioMensal} disabled={anyLoading} className="gap-2">
                 {loadingRelMensal ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 Exportar Relatório Mensal
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Prestação de Contas */}
-        <TabsContent value="pc">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-5 w-5" /> Prestação de Contas
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Resumo financeiro, despesas detalhadas com status de comprovação e saldos por categoria.
-                Gera <strong>XLSX + PDF</strong> simultaneamente.
-              </p>
-              <FormatPicker
-                available={["pdf", "xlsx"]}
-                value={pcFormats}
-                onChange={setPcFormats}
-              />
-              <Button onClick={exportarPrestacaoContas} disabled={anyLoading || !pcFormats.length} className="gap-2">
-                {loadingPC ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Exportar Prestação de Contas
               </Button>
             </CardContent>
           </Card>

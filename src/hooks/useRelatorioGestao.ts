@@ -53,10 +53,6 @@ interface GestaoData {
   planejamentos: any[];
   atendimentos: any[];
   buscaAtiva: any[];
-  categorias: any[];
-  despesas: any[];
-  parcelas: any[];
-  estornos: any[];
   pontosTransporte: any[];
   turmaParticipantes: any[];
   relatorioTurmas: any[];
@@ -68,7 +64,7 @@ interface GestaoData {
 
 async function fetchGestaoData(startDate: string, endDate: string): Promise<GestaoData> {
   const [participantes, turmas, bairros, profiles, presencas_raw, relatorios, planejamentos,
-    atendimentos, buscaAtiva, categorias, despesas, parcelas, estornos, pontosTransporte,
+    atendimentos, buscaAtiva, pontosTransporte,
     turmaParticipantes, relatorioTurmas, relatorioPresencas, relatorioFotos, transferencias, userRoles] = await Promise.all([
     fetchAllRows("participantes", { select: "*" }),
     fetchAllRows("turmas", { select: "*" }),
@@ -79,10 +75,6 @@ async function fetchGestaoData(startDate: string, endDate: string): Promise<Gest
     fetchAllRows("planejamentos", { select: "*" }),
     fetchAllRows("atendimentos", { select: "*" }),
     fetchAllRows("busca_ativa_registros", { select: "*" }),
-    fetchAllRows("categorias_financeiras", { select: "*" }),
-    fetchAllRows("despesas", { select: "*" }),
-    fetchAllRows("parcelas_financeiras", { select: "*" }),
-    fetchAllRows("estornos", { select: "*" }),
     fetchAllRows("pontos_transporte", { select: "*" }),
     fetchAllRows("turma_participantes", { select: "*" }),
     fetchAllRows("relatorio_turmas", { select: "*" }),
@@ -104,10 +96,6 @@ async function fetchGestaoData(startDate: string, endDate: string): Promise<Gest
     planejamentos: planejamentos || [],
     atendimentos: (atendimentos || []).filter((a: any) => a.data_atendimento >= startDate && a.data_atendimento < endDate),
     buscaAtiva: (buscaAtiva || []).filter((b: any) => b.data_registro >= startDate && b.data_registro < endDate),
-    categorias: categorias || [],
-    despesas: (despesas || []).filter((d: any) => d.data_lancamento >= startDate && d.data_lancamento < endDate),
-    parcelas: parcelas || [],
-    estornos: estornos || [],
     pontosTransporte: pontosTransporte || [],
     turmaParticipantes: turmaParticipantes || [],
     relatorioTurmas: relatorioTurmas || [],
@@ -218,20 +206,6 @@ function computeMetrics(data: GestaoData, startDate: string) {
   });
 
   // Financial
-  const catMap = new Map(data.categorias.map(c => [c.id, c]));
-  const despesasByCat: Record<string, { previsto: number; executado: number; codigo: string; descricao: string }> = {};
-  data.categorias.forEach(c => {
-    despesasByCat[c.id] = { previsto: c.valor_previsto || 0, executado: 0, codigo: c.codigo, descricao: c.descricao };
-  });
-  data.despesas.forEach(d => {
-    if (d.categoria_id && despesasByCat[d.categoria_id]) {
-      despesasByCat[d.categoria_id].executado += d.valor;
-    }
-  });
-  const totalReceitas = data.parcelas.reduce((a, p) => a + p.valor, 0);
-  const totalDespesas = data.despesas.reduce((a, d) => a + d.valor, 0);
-  const totalEstornos = data.estornos.reduce((a, e) => a + e.valor, 0);
-
   // Transport
   const pontoParticipantes: Record<string, number> = {};
   activeParticipants.forEach(p => {
@@ -269,7 +243,6 @@ function computeMetrics(data: GestaoData, startDate: string) {
   const desligamentos = data.participantes.filter(p => p.data_desligamento && p.data_desligamento >= startDate);
 
   // Indicators
-  const custoAtendido = activeParticipants.length > 0 ? totalDespesas / activeParticipants.length : 0;
   const taxaPermanencia = data.participantes.filter(p => p.status === "ativo").length > 0
     ? Math.round((data.participantes.filter(p => p.status === "ativo").length / (data.participantes.filter(p => p.status === "ativo").length + desligamentos.length)) * 100)
     : 0;
@@ -280,10 +253,9 @@ function computeMetrics(data: GestaoData, startDate: string) {
     tipoAtivCount, avgElo, competencias, avgAdesao, objetivoCount,
     atendByTipo, sigilosoCount, encaminhamentoCount,
     buscaByTipo, buscaByResultado,
-    despesasByCat, totalReceitas, totalDespesas, totalEstornos,
     pontoParticipantes, activeTeam, roleMap, bairroMetas,
-    ingressos, desligamentos, custoAtendido, taxaPermanencia,
-    partMap, bairroMap, profileMap, turmaMap, catMap,
+    ingressos, desligamentos, taxaPermanencia,
+    partMap, bairroMap, profileMap, turmaMap,
   };
 }
 
@@ -473,29 +445,9 @@ export async function exportRelatorioGestaoPDF(mesInicio: number, anoInicio: num
     );
   }
 
-  // === 6. EXECUÇÃO FINANCEIRA ===
+  // === 6. TRANSPORTE ===
   y += 4;
-  sectionTitle("6. EXECUÇÃO FINANCEIRA");
-  doc.text(`Receitas (parcelas recebidas): R$ ${m.totalReceitas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, y); y += 4;
-  doc.text(`Despesas no período: R$ ${m.totalDespesas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, y); y += 4;
-  doc.text(`Estornos/devoluções: R$ ${m.totalEstornos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, y); y += 4;
-  const saldo = m.totalReceitas - m.totalDespesas + m.totalEstornos;
-  doc.text(`Saldo: R$ ${saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, y); y += 6;
-
-  const finRows = Object.values(m.despesasByCat).filter(c => c.previsto > 0 || c.executado > 0)
-    .sort((a, b) => a.codigo.localeCompare(b.codigo))
-    .map(c => {
-      const saldoCat = c.previsto - c.executado;
-      const pct = c.previsto > 0 ? Math.round((c.executado / c.previsto) * 100) : 0;
-      return [c.codigo, c.descricao, `R$ ${c.previsto.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, `R$ ${c.executado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, `R$ ${saldoCat.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, `${pct}%`];
-    });
-  if (finRows.length > 0) {
-    addTable([["Código", "Rubrica", "Previsto", "Executado", "Saldo", "% Exec."]], finRows);
-  }
-
-  // === 7. TRANSPORTE ===
-  y += 4;
-  sectionTitle("7. TRANSPORTE");
+  sectionTitle("6. TRANSPORTE");
   const activePontos = data.pontosTransporte.filter(p => p.ativo !== false);
   if (activePontos.length > 0) {
     const pontoRows = activePontos.map(p => {
@@ -508,13 +460,12 @@ export async function exportRelatorioGestaoPDF(mesInicio: number, anoInicio: num
     doc.text("Nenhum ponto de transporte cadastrado.", 14, y); y += 6;
   }
 
-  // === 8. INDICADORES ===
+  // === 7. INDICADORES ===
   y += 4;
-  sectionTitle("8. INDICADORES DE RESULTADO");
+  sectionTitle("7. INDICADORES DE RESULTADO");
   addTable(
     [["Indicador", "Valor"]],
     [
-      ["Custo por atendido/mês", `R$ ${m.custoAtendido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`],
       ["Taxa de permanência", `${m.taxaPermanencia}%`],
       ["Score ELO médio", String(m.avgElo)],
       ["Taxa de frequência", `${m.attendanceRate}%`],
@@ -591,7 +542,6 @@ export async function exportRelatorioGestaoXLSX(mesInicio: number, anoInicio: nu
     ["Ingressos", String(m.ingressos.length)],
     ["Desligamentos", String(m.desligamentos.length)],
     ["Transferências", String(data.transferencias.length)],
-    ["Custo por atendido", `R$ ${m.custoAtendido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`],
     ["Taxa de permanência", `${m.taxaPermanencia}%`],
   ];
   XLSX.utils.book_append_sheet(wb, makeSheet("Resumo", ["Indicador", "Valor"], resumoRows), "Resumo");
@@ -625,14 +575,7 @@ export async function exportRelatorioGestaoXLSX(mesInicio: number, anoInicio: nu
   atendRows.push(["Com encaminhamento", String(m.encaminhamentoCount)]);
   XLSX.utils.book_append_sheet(wb, makeSheet("Atendimentos", ["Tipo", "Quantidade"], atendRows), "Atendimentos");
 
-  // 6. Financeiro
-  const finRows = Object.values(m.despesasByCat).filter(c => c.previsto > 0 || c.executado > 0)
-    .sort((a, b) => a.codigo.localeCompare(b.codigo))
-    .map(c => [c.codigo, c.descricao, c.previsto, c.executado, c.previsto - c.executado, c.previsto > 0 ? Math.round((c.executado / c.previsto) * 100) : 0]);
-  finRows.push(["", "TOTAL", m.totalReceitas, m.totalDespesas, m.totalReceitas - m.totalDespesas + m.totalEstornos, ""]);
-  XLSX.utils.book_append_sheet(wb, makeSheet("Financeiro", ["Código", "Rubrica", "Previsto", "Executado", "Saldo", "% Exec."], finRows), "Financeiro");
-
-  // 7. Transporte
+  // 6. Transporte
   const transpRows = data.pontosTransporte.filter(p => p.ativo !== false).map(p => {
     const bairro = p.bairro_id ? (m.bairroMap.get(p.bairro_id)?.nome || "—") : "—";
     return [san(p.nome), bairro, san(p.horario_manha), san(p.horario_tarde), m.pontoParticipantes[p.id] || 0];

@@ -7,29 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileSpreadsheet, Download, FileText, Loader2, ExternalLink } from "lucide-react";
+import { FileSpreadsheet, Download, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { FormatPicker, ExportFormat } from "@/components/FormatPicker";
 import { sysCfvFileName } from "@/lib/fileNaming";
 
 const MESES = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
 /**
- * Tab simplificada — toda a lógica pesada de geração de relatórios mensais
- * vive agora nas Edge Functions `generate-relatorio-mensal` e `generate-reo`,
- * e a UI completa está em /relatorios/exportar (Hub Unificado).
- *
- * Esta aba mantém atalhos rápidos para os 2 documentos mais usados (Relatório
- * Mensal XLSX e REO DOCX+XLSX) e linka para o hub para opções avançadas.
+ * Tab simplificada — atalho rápido para o Relatório Mensal Consolidado.
+ * UI completa em /relatorios/exportar (Hub Unificado).
  */
 export default function DashboardRelatorioMensalTab() {
   const now = new Date();
   const [ano, setAno] = useState(String(now.getFullYear()));
   const [mes, setMes] = useState(String(now.getMonth() + 1).padStart(2, "0"));
   const [loadingMensal, setLoadingMensal] = useState(false);
-  const [loadingReo, setLoadingReo] = useState(false);
-  const [reoFormats, setReoFormats] = useState<ExportFormat[]>(["docx", "xlsx"]);
   const [mensalDriveUrl, setMensalDriveUrl] = useState<string | null>(null);
 
   const downloadFromUrl = async (url: string, filename: string) => {
@@ -61,38 +54,7 @@ export default function DashboardRelatorioMensalTab() {
     }
   };
 
-  const exportarReo = async () => {
-    if (!reoFormats.length) {
-      toast.error("Selecione ao menos um formato");
-      return;
-    }
-    setLoadingReo(true);
-    try {
-      const downloads: Promise<void>[] = [];
-      let ok = 0;
-      for (const formato of reoFormats) {
-        const result = await supabase.functions.invoke("generate-reo", { body: { mes, ano, formato } });
-        if (!result.error && result.data?.url) {
-          ok++;
-          downloads.push(
-            downloadFromUrl(
-              result.data.url,
-              result.data.fileName || sysCfvFileName("REO", formato, `${ano}-${mes}`),
-            ),
-          );
-        }
-      }
-      await Promise.all(downloads);
-      if (ok > 0) toast.success(`REO gerado em ${ok} formato(s)!`);
-      else throw new Error("Nenhum formato retornou arquivo");
-    } catch (err: any) {
-      toast.error("Erro REO: " + (err?.message || "Erro desconhecido"));
-    } finally {
-      setLoadingReo(false);
-    }
-  };
-
-  const anyLoading = loadingMensal || loadingReo;
+  const anyLoading = loadingMensal;
 
   return (
     <div className="space-y-4">
@@ -100,7 +62,7 @@ export default function DashboardRelatorioMensalTab() {
         <div>
           <h2 className="text-lg font-semibold text-foreground">Relatórios Mensais</h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Atalhos rápidos. Para mais opções (Atividades, Atendimentos, Gestão, Anual, Prestação de Contas)
+            Atalho rápido. Para mais opções (Atividades, Atendimentos, Gestão, Anual)
             acesse o hub completo.
           </p>
         </div>
@@ -156,30 +118,6 @@ export default function DashboardRelatorioMensalTab() {
               <ExternalLink className="h-3 w-3" /> Abrir no Drive
             </a>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <FileText className="h-4 w-4" /> Relatório de Execução do Objeto (REO)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Documento institucional com atividades, equipe técnica, metas, RH,
-            monitoramento, financeiro, fotos e listas de presença preenchidas.
-          </p>
-          <FormatPicker
-            available={["docx", "xlsx"]}
-            value={reoFormats}
-            onChange={setReoFormats}
-          />
-          <Button onClick={exportarReo} disabled={anyLoading || !reoFormats.length}>
-            {loadingReo
-              ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Gerando REO...</>
-              : <><Download className="h-4 w-4 mr-1" />Exportar REO</>}
-          </Button>
         </CardContent>
       </Card>
     </div>

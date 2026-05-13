@@ -31,11 +31,6 @@ describe("Segurança: tabelas sensíveis bloqueadas para anônimos", () => {
     }
   });
 
-  it("sit_configuracao — anônimo não acessa CNPJ/dados bancários", async () => {
-    const { data, error } = await anon.from("sit_configuracao").select("*").limit(1);
-    if (!error) expect(data ?? []).toEqual([]);
-    else expect(error.code).toBeDefined();
-  });
 
   it("user_roles — anônimo não enumera papéis de outros usuários", async () => {
     const { data, error } = await anon.from("user_roles").select("*").limit(5);
@@ -140,12 +135,6 @@ describe("Segurança: edge functions privilegiadas exigem autenticação", () =>
 });
 
 describe("Segurança: storage privado bloqueado para anônimos", () => {
-  it("Bucket prestacao-contas — anônimo não lista arquivos", async () => {
-    const { data, error } = await anon.storage.from("prestacao-contas").list("", { limit: 1 });
-    if (!error) expect(data ?? []).toEqual([]);
-    else expect(error.message).toBeTruthy();
-  });
-
   it("Bucket documentos — anônimo não lista arquivos privados", async () => {
     const { data, error } = await anon.storage.from("documentos").list("", { limit: 1 });
     if (!error) expect(data ?? []).toEqual([]);

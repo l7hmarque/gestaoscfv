@@ -26,7 +26,6 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { sysCfvFileName } from "@/lib/fileNaming";
 import { autoFitColumns } from "@/lib/xlsxAutoFit";
-import ConfiguracoesSitTab from "./ConfiguracoesSitTab";
 
 const CONFIG_KEYS = [
   { key: "nome_entidade", label: "Nome da Entidade", default: "Sociedade Civil Nossa Senhora Aparecida" },
@@ -326,7 +325,6 @@ export default function ConfiguracoesPage() {
           <TabsTrigger value="bairros"><MapPin className="h-4 w-4 mr-1" />Bairros</TabsTrigger>
           <TabsTrigger value="transporte"><Bus className="h-4 w-4 mr-1" />Transporte</TabsTrigger>
           <TabsTrigger value="equipe"><Users className="h-4 w-4 mr-1" />Equipe</TabsTrigger>
-          <TabsTrigger value="sit"><FileCode2 className="h-4 w-4 mr-1" />SIT</TabsTrigger>
           <TabsTrigger value="auditoria"><History className="h-4 w-4 mr-1" />Auditoria</TabsTrigger>
           <TabsTrigger value="sistema"><Shield className="h-4 w-4 mr-1" />Sistema</TabsTrigger>
         </TabsList>
@@ -603,11 +601,6 @@ export default function ConfiguracoesPage() {
               </p>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* SIT */}
-        <TabsContent value="sit">
-          <ConfiguracoesSitTab />
         </TabsContent>
 
         {/* AUDITORIA */}
