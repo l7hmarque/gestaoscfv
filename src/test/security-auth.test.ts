@@ -155,10 +155,6 @@ describe("Segurança: usuário autenticado (visitante) respeita RLS", () => {
     }
   });
 
-    if (error) expect(error.message).toBeTruthy();
-    else expect(data ?? []).toEqual([]);
-  });
-
   it("storage documentos — visitante NÃO lista pasta de outro usuário", async () => {
     if (!authenticated) return;
     const { data, error } = await client.storage
