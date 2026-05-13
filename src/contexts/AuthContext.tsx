@@ -15,6 +15,16 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 export const useAuth = () => useContext(AuthContext);
 
+const clearAuthStorage = () => {
+  try {
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith("sb-") && key.includes("auth-token"))
+      .forEach((key) => localStorage.removeItem(key));
+  } catch (err) {
+    console.warn("[Auth] não foi possível limpar localStorage:", err);
+  }
+};
+
 const withTimeout = async <T,>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -34,7 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let sessionChecked = false;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (_event === "INITIAL_SESSION" && !sessionChecked) return;
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -49,11 +62,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       "Tempo esgotado ao verificar a sessão. Tente novamente."
     )
       .then(({ data: { session } }) => {
+        sessionChecked = true;
         setSession(session);
         setUser(session?.user ?? null);
       })
       .catch((err) => {
+        sessionChecked = true;
         console.error("[Auth] getSession falhou:", err);
+        clearAuthStorage();
+        setSession(null);
+        setUser(null);
       })
       .finally(() => {
         clearTimeout(failsafe);
@@ -68,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
+      clearAuthStorage();
       const { error } = await withTimeout(
         supabase.auth.signInWithPassword({ email, password }),
         10000,
@@ -101,11 +120,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      await withTimeout(supabase.auth.signOut({ scope: "global" }), 5000, "Tempo esgotado ao sair");
     } catch (err) {
       console.error("[Auth] signOut falhou:", err);
     } finally {
       // Garantir que estado local seja limpo mesmo se backend falhar
+      clearAuthStorage();
       setSession(null);
       setUser(null);
     }
