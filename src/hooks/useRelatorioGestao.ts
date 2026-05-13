@@ -445,29 +445,9 @@ export async function exportRelatorioGestaoPDF(mesInicio: number, anoInicio: num
     );
   }
 
-  // === 6. EXECUÇÃO FINANCEIRA ===
+  // === 6. TRANSPORTE ===
   y += 4;
-  sectionTitle("6. EXECUÇÃO FINANCEIRA");
-  doc.text(`Receitas (parcelas recebidas): R$ ${m.totalReceitas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, y); y += 4;
-  doc.text(`Despesas no período: R$ ${m.totalDespesas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, y); y += 4;
-  doc.text(`Estornos/devoluções: R$ ${m.totalEstornos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, y); y += 4;
-  const saldo = m.totalReceitas - m.totalDespesas + m.totalEstornos;
-  doc.text(`Saldo: R$ ${saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, y); y += 6;
-
-  const finRows = Object.values(m.despesasByCat).filter(c => c.previsto > 0 || c.executado > 0)
-    .sort((a, b) => a.codigo.localeCompare(b.codigo))
-    .map(c => {
-      const saldoCat = c.previsto - c.executado;
-      const pct = c.previsto > 0 ? Math.round((c.executado / c.previsto) * 100) : 0;
-      return [c.codigo, c.descricao, `R$ ${c.previsto.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, `R$ ${c.executado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, `R$ ${saldoCat.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, `${pct}%`];
-    });
-  if (finRows.length > 0) {
-    addTable([["Código", "Rubrica", "Previsto", "Executado", "Saldo", "% Exec."]], finRows);
-  }
-
-  // === 7. TRANSPORTE ===
-  y += 4;
-  sectionTitle("7. TRANSPORTE");
+  sectionTitle("6. TRANSPORTE");
   const activePontos = data.pontosTransporte.filter(p => p.ativo !== false);
   if (activePontos.length > 0) {
     const pontoRows = activePontos.map(p => {
@@ -480,13 +460,12 @@ export async function exportRelatorioGestaoPDF(mesInicio: number, anoInicio: num
     doc.text("Nenhum ponto de transporte cadastrado.", 14, y); y += 6;
   }
 
-  // === 8. INDICADORES ===
+  // === 7. INDICADORES ===
   y += 4;
-  sectionTitle("8. INDICADORES DE RESULTADO");
+  sectionTitle("7. INDICADORES DE RESULTADO");
   addTable(
     [["Indicador", "Valor"]],
     [
-      ["Custo por atendido/mês", `R$ ${m.custoAtendido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`],
       ["Taxa de permanência", `${m.taxaPermanencia}%`],
       ["Score ELO médio", String(m.avgElo)],
       ["Taxa de frequência", `${m.attendanceRate}%`],
@@ -563,7 +542,6 @@ export async function exportRelatorioGestaoXLSX(mesInicio: number, anoInicio: nu
     ["Ingressos", String(m.ingressos.length)],
     ["Desligamentos", String(m.desligamentos.length)],
     ["Transferências", String(data.transferencias.length)],
-    ["Custo por atendido", `R$ ${m.custoAtendido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`],
     ["Taxa de permanência", `${m.taxaPermanencia}%`],
   ];
   XLSX.utils.book_append_sheet(wb, makeSheet("Resumo", ["Indicador", "Valor"], resumoRows), "Resumo");
@@ -597,14 +575,7 @@ export async function exportRelatorioGestaoXLSX(mesInicio: number, anoInicio: nu
   atendRows.push(["Com encaminhamento", String(m.encaminhamentoCount)]);
   XLSX.utils.book_append_sheet(wb, makeSheet("Atendimentos", ["Tipo", "Quantidade"], atendRows), "Atendimentos");
 
-  // 6. Financeiro
-  const finRows = Object.values(m.despesasByCat).filter(c => c.previsto > 0 || c.executado > 0)
-    .sort((a, b) => a.codigo.localeCompare(b.codigo))
-    .map(c => [c.codigo, c.descricao, c.previsto, c.executado, c.previsto - c.executado, c.previsto > 0 ? Math.round((c.executado / c.previsto) * 100) : 0]);
-  finRows.push(["", "TOTAL", m.totalReceitas, m.totalDespesas, m.totalReceitas - m.totalDespesas + m.totalEstornos, ""]);
-  XLSX.utils.book_append_sheet(wb, makeSheet("Financeiro", ["Código", "Rubrica", "Previsto", "Executado", "Saldo", "% Exec."], finRows), "Financeiro");
-
-  // 7. Transporte
+  // 6. Transporte
   const transpRows = data.pontosTransporte.filter(p => p.ativo !== false).map(p => {
     const bairro = p.bairro_id ? (m.bairroMap.get(p.bairro_id)?.nome || "—") : "—";
     return [san(p.nome), bairro, san(p.horario_manha), san(p.horario_tarde), m.pontoParticipantes[p.id] || 0];
