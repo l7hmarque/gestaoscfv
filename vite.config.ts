@@ -71,7 +71,7 @@ export default defineConfig(({ mode }) => ({
             "@radix-ui/react-tooltip",
           ],
           "charts": ["recharts"],
-          "xlsx": ["xlsx", "xlsx-js-style"],
+          "xlsx": ["xlsx-js-style"],
           "pdf": ["jspdf", "jspdf-autotable", "pdf-lib", "pdfjs-dist"],
           "docx": ["docx", "docxtemplater", "pizzip"],
         },
