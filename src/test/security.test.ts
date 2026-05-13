@@ -135,10 +135,6 @@ describe("Segurança: edge functions privilegiadas exigem autenticação", () =>
 });
 
 describe("Segurança: storage privado bloqueado para anônimos", () => {
-    if (!error) expect(data ?? []).toEqual([]);
-    else expect(error.message).toBeTruthy();
-  });
-
   it("Bucket documentos — anônimo não lista arquivos privados", async () => {
     const { data, error } = await anon.storage.from("documentos").list("", { limit: 1 });
     if (!error) expect(data ?? []).toEqual([]);
