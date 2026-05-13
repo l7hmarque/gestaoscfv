@@ -118,7 +118,7 @@ export default function DashboardAdminTab() {
         <CardContent className="pt-4 flex items-start justify-between gap-3 flex-wrap">
           <div className="text-xs text-muted-foreground max-w-xl">
             A gestão de Modelos DOCX foi movida para <strong>Configurações → Documentos</strong>.
-            Os pipelines atuais de Relatórios, REO, Lista de Chamada e Planejamento usam <strong>Google Docs / Sheets</strong>.
+            Os pipelines atuais de Relatórios, Lista de Chamada e Planejamento usam <strong>Google Docs / Sheets</strong>.
           </div>
           <Button asChild variant="outline" size="sm">
             <Link to="/configuracoes">
@@ -179,7 +179,6 @@ export default function DashboardAdminTab() {
               { k: "relatorios", label: "Relatórios de Atividade do mês" },
               { k: "planejamentos", label: "Planejamentos do mês" },
               { k: "equipe_tecnica", label: "Equipe Técnica (atendimentos + relatos)" },
-              { k: "reo", label: "REO — Relatório de Execução do Objeto" },
             ].map((opt) => (
               <label key={opt.k} className="flex items-center gap-2 text-xs cursor-pointer">
                 <Checkbox checked={!!syncTipos[opt.k]} onCheckedChange={() => toggleTipo(opt.k)} />
@@ -220,9 +219,6 @@ export default function DashboardAdminTab() {
               )}
               {driveResult.sincronizados.equipe_tecnica && (
                 <p>👥 Equipe Técnica: <span className="text-muted-foreground">{driveResult.sincronizados.equipe_tecnica.nome}{driveResult.sincronizados.equipe_tecnica.skipped ? " (pulado)" : ` · ${driveResult.sincronizados.equipe_tecnica.atendimentos || 0} atendimentos, ${driveResult.sincronizados.equipe_tecnica.relatos || 0} relatos`}</span></p>
-              )}
-              {(driveResult.sincronizados.reo?.doc || driveResult.sincronizados.reo?.sheet) && (
-                <p>📑 REO: <span className="text-muted-foreground">{[driveResult.sincronizados.reo?.doc?.nome, driveResult.sincronizados.reo?.sheet?.nome].filter(Boolean).join(" + ")}</span></p>
               )}
               {driveResult.erros?.length > 0 && (
                 <details className="mt-1">

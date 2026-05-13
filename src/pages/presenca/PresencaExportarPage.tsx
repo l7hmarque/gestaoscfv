@@ -220,7 +220,7 @@ const PresencaExportarPage = () => {
         <CardHeader><CardTitle className="text-sm">Lista de Frequência (preenchida)</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Documento oficial com as presenças já lançadas no sistema. Use para anexar a relatórios, REO e prestação de contas.
+            Documento oficial com as presenças já lançadas no sistema. Use para anexar a relatórios institucionais.
             Marcadores: <strong>■</strong> presente · vazio ausente · <strong>—</strong> sem aula/desligado · <strong>(BA)</strong> em busca ativa · <strong>(D)</strong> desligado · <strong>(T)</strong> transferido.
           </p>
 

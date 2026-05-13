@@ -849,82 +849,6 @@ async function processAtendimento(origemId: string): Promise<{ drive_file_id: st
 }
 
 // -----------------------------------------------------------------------------
-// Orçamentos (Sheets — mapa comparativo) e Prestação de Contas (Docs)
-// -----------------------------------------------------------------------------
-async function processOrcamento(origemId: string): Promise<{ drive_file_id: string; drive_url: string }> {
-  const { data: orc, error } = await supabase.from("orcamentos").select("*").eq("id", origemId).maybeSingle();
-  if (error || !orc) throw new Error("orcamento nao encontrado");
-
-  const { data: itens } = await supabase
-    .from("orcamento_itens").select("id, descricao, unidade, quantidade").eq("orcamento_id", origemId).order("created_at");
-  const { data: cotacoes } = await supabase
-    .from("orcamento_cotacoes").select("id, fornecedor, cnpj").eq("orcamento_id", origemId).order("created_at");
-  const { data: precos } = await supabase
-    .from("orcamento_precos").select("item_id, cotacao_id, preco_unitario").in("cotacao_id", (cotacoes || []).map((c: any) => c.id));
-
-  const folderId = await ensureModuleFolder("Financeiro", "Orcamentos");
-  const titulo = `SysCFV_Orcamento_${fmtDate(orc.created_at)}_${safe(orc.titulo || "orcamento")}`;
-
-  let ssId = orc.drive_file_id as string | null;
-  if (!ssId) ssId = await createGoogleSheet(titulo, folderId);
-
-  const tabs = await getSheetTabs(ssId);
-  const sheetId = tabs[0].sheetId;
-  await sheetsBatchUpdate(ssId, [{ updateCells: { range: { sheetId }, fields: "userEnteredValue,userEnteredFormat" } }]);
-
-  const headers = ["#", "Descrição", "Un.", "Qtd.", ...(cotacoes || []).map((c: any) => `${c.fornecedor}${c.cnpj ? ` (${c.cnpj})` : ""}`), "Menor preço"];
-  const priceMap = new Map<string, number>();
-  for (const p of (precos || []) as any[]) priceMap.set(`${p.item_id}|${p.cotacao_id}`, Number(p.preco_unitario));
-  const rows = (itens || []).map((it: any, i: number) => {
-    const cells = (cotacoes || []).map((c: any) => {
-      const v = priceMap.get(`${it.id}|${c.id}`);
-      return v != null ? v * Number(it.quantidade || 1) : "";
-    });
-    const numericVals = cells.filter((c) => typeof c === "number") as number[];
-    const min = numericVals.length ? Math.min(...numericVals) : "";
-    return [i + 1, it.descricao, it.unidade || "—", Number(it.quantidade || 1), ...cells, min];
-  });
-  const all = [
-    [titulo],
-    [`Objeto: ${orc.objeto || "—"} • Mês: ${orc.mes_referencia || "—"} • Status: ${orc.status || "—"}`],
-    headers,
-    ...rows,
-  ];
-  await sheetsValuesUpdate(ssId, `A1`, all);
-  await sheetsBatchUpdate(ssId, buildInstitutionalSheetRequests(sheetId, titulo, orc.titulo || "", headers.length));
-
-  const url = `https://docs.google.com/spreadsheets/d/${ssId}/edit`;
-  await supabase.from("orcamentos").update({ drive_file_id: ssId, drive_url: url }).eq("id", origemId);
-  return { drive_file_id: ssId, drive_url: url };
-}
-
-async function processPrestacaoContas(origemId: string): Promise<{ drive_file_id: string; drive_url: string }> {
-  const { data: pc, error } = await supabase
-    .from("documentos_prestacao_contas").select("*").eq("id", origemId).maybeSingle();
-  if (error || !pc) throw new Error("prestacao nao encontrada");
-
-  const folderId = await ensureModuleFolder("Financeiro", "Prestacao de Contas");
-  const titulo = `SysCFV_Prestacao_${fmtDate(pc.created_at)}_${safe(pc.titulo || "documento")}`;
-
-  let docId = pc.drive_file_id as string | null;
-  if (!docId) docId = await createGoogleDoc(titulo, folderId);
-
-  const blocks: DocBlock[] = [
-    { type: "h1", text: pc.titulo || "Documento de Prestação" },
-    { type: "kv", key: "Categoria", value: pc.categoria || "—" },
-    ...(pc.versao ? [{ type: "kv" as const, key: "Versão", value: String(pc.versao) }] : []),
-    ...(pc.vigencia_inicio ? [{ type: "kv" as const, key: "Vigência Início", value: fmtDate(pc.vigencia_inicio) }] : []),
-    ...(pc.vigencia_fim ? [{ type: "kv" as const, key: "Vigência Fim", value: fmtDate(pc.vigencia_fim) }] : []),
-  ];
-  if (pc.descricao) { blocks.push({ type: "h2", text: "Descrição" }); blocks.push({ type: "p", text: pc.descricao }); }
-  if (pc.arquivo_url) { blocks.push({ type: "h2", text: "Arquivo Original" }); blocks.push({ type: "p", text: pc.arquivo_url }); }
-  await writeDoc(docId, blocks);
-  const url = `https://docs.google.com/document/d/${docId}/edit`;
-  await supabase.from("documentos_prestacao_contas").update({ drive_file_id: docId, drive_url: url }).eq("id", origemId);
-  return { drive_file_id: docId, drive_url: url };
-}
-
-// -----------------------------------------------------------------------------
 // Google Docs
 // -----------------------------------------------------------------------------
 type DocBlock =
@@ -1398,8 +1322,6 @@ async function processQueue(): Promise<{ processed: number; errors: number }> {
       else if (job.tipo === "foto") result = await processFoto(job.origem_id);
       else if (job.tipo === "roteiro_visita") result = await processRoteiroVisita(job.origem_id);
       else if (job.tipo === "atendimento") result = await processAtendimento(job.origem_id);
-      else if (job.tipo === "orcamento") result = await processOrcamento(job.origem_id);
-      else if (job.tipo === "prestacao_contas") result = await processPrestacaoContas(job.origem_id);
       else if (job.tipo === "lista_chamada_lote") result = await processListaChamadaLote(job.payload || {});
       else if (job.tipo === "lista_frequencia_lote") result = await processListaFrequenciaLote(job.payload || {});
       else throw new Error(`tipo invalido: ${job.tipo}`);
