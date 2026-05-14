@@ -1,12 +1,17 @@
 ---
 name: auto-transferencia-periodo-relatorio
-description: REMOVIDA em 17/04/2026. Relatórios NÃO alteram vínculos turma_participantes nem o período do participante.
+description: REMOVIDA. Sistema NÃO realoca turmas automaticamente — nem por relatório, nem por mudança cadastral.
 type: constraint
 ---
-**REMOVIDA em 17/04/2026.**
+**Toda transferência automática de turma foi REMOVIDA.**
 
-Antes, ao salvar relatório de atividade com `periodo_atividade` diferente do período cadastrado de um participante presente, o sistema atualizava automaticamente `participantes.periodo` e movia o vínculo em `turma_participantes` para outra turma do período correto.
+**Histórico:**
+- **17/04/2026:** removida a automação que realocava participantes ao salvar relatórios com `periodo_atividade` divergente.
+- **14/05/2026:** removida a "Automação 3" do perfil do participante (`ParticipantePerfilPage.tsx`) que abria dialog de transferência ao alterar bairro, período ou data de nascimento. Causava vínculos duplicados — o participante ficava na turma origem **e** na destino simultaneamente, bagunçando chamadas (5 casos limpos retroativamente em audit_log).
 
-**Por que removida:** quando não havia turma compatível, o aluno ficava sem nenhum vínculo ativo (sumia da chamada). Também causava aparecimento de desligados em listas de presença por inconsistências relacionadas.
+**Comportamento atual:**
+- `periodo_atividade` no relatório é apenas informativo.
+- Mudanças de bairro/período/idade no perfil **apenas atualizam o cadastro**. Nenhum vínculo de turma é alterado.
+- Realocação de turma é **manual**, feita pela coordenação via fluxo explícito (`participante_transferencias` com aprovação) ou pela aba de turmas.
 
-**Comportamento atual:** o campo `periodo_atividade` no relatório é apenas informativo. Mudanças de período do participante devem ser feitas explicitamente via perfil do participante (com aprovação da coordenação em `participante_transferencias`).
+**Por que removidas:** a realocação automática deixava participantes em múltiplas turmas, sumia alunos quando não havia turma compatível, e fazia "vinculação compatível" puxar oficinas (ex: KARATÊ) indevidamente.
