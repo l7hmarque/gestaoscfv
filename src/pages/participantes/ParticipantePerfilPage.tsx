@@ -91,9 +91,7 @@ const ParticipantePerfilPage = () => {
   // Discharge dialog
   const [showDesligDialog, setShowDesligDialog] = useState(false);
   const [desligForm, setDesligForm] = useState({ data_desligamento: new Date().toISOString().slice(0, 10), motivo_desligamento: "", justificativa_desligamento: "" });
-  // Transfer dialog
-  const [showTransferDialog, setShowTransferDialog] = useState(false);
-  const [transferInfo, setTransferInfo] = useState<{ oldTurmas: string[]; newTurmas: { id: string; nome: string }[]; payload: Record<string, unknown> } | null>(null);
+  // Transfer dialog removido: mudanças de bairro/período/idade não realocam mais turmas automaticamente.
 
   const scanner = useDocumentScanner();
 
@@ -208,25 +206,10 @@ const ParticipantePerfilPage = () => {
       }
     }
 
-    // Automação 3: Realocar turmas se bairro/período/idade mudaram e está ativo → solicitar aprovação
-    if (newStatus === "ativo" && oldStatus === "ativo") {
-      const oldFaixa = calcFaixaFromDate(oldDataNasc);
-      const newFaixa = calcFaixaFromDate(newDataNasc);
-      const changed = oldBairro !== newBairro || oldPeriodo !== newPeriodo || oldFaixa !== newFaixa;
-
-      if (changed && newBairro && newPeriodo && newFaixa) {
-        let query = supabase.from("turmas").select("id, nome").eq("ativa", true).eq("bairro_id", newBairro).eq("faixa_etaria", newFaixa as any);
-        if (newPeriodo !== "integral") query = query.eq("periodo", newPeriodo as any);
-        const { data: turmasCompativeis } = await query;
-        const oldTurmaNames = turmas.map(t => t.turma_nome);
-        if (turmasCompativeis && turmasCompativeis.length > 0) {
-          setTransferInfo({ oldTurmas: oldTurmaNames, newTurmas: turmasCompativeis.map(t => ({ id: t.id, nome: t.nome })), payload });
-          setShowTransferDialog(true);
-        } else {
-          toast.warning("Nenhuma turma compatível encontrada para os novos dados");
-        }
-      }
-    }
+    // Automação 3 removida: mudanças de bairro/período/data de nascimento NÃO realocam mais turmas
+    // automaticamente. A realocação deve ser feita manualmente pela coordenação para evitar
+    // vínculos duplicados em chamadas. Ver mem://funcionalidades/auto-transferencia-periodo-relatorio.
+    void oldBairro; void newBairro; void oldPeriodo; void newPeriodo; void oldDataNasc; void newDataNasc;
 
     setEditing(false);
     fetchAll();
@@ -764,60 +747,7 @@ const ParticipantePerfilPage = () => {
       </Dialog>
 
       {/* Transfer Dialog */}
-      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="text-base">Transferência de Turma</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">Os dados de bairro, período ou faixa etária foram alterados. Deseja transferir <strong>{participante?.nome_completo}</strong>?</p>
-          {transferInfo && (
-            <div className="space-y-2 text-sm">
-              <p><span className="font-medium">Turmas atuais:</span> {transferInfo.oldTurmas.join(", ") || "Nenhuma"}</p>
-              <p><span className="font-medium">Turmas compatíveis:</span> {transferInfo.newTurmas.map(t => t.nome).join(", ")}</p>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setShowTransferDialog(false)}>Manter nas turmas atuais</Button>
-            <Button size="sm" onClick={async () => {
-              if (!transferInfo) return;
-              const today = new Date().toISOString().split("T")[0];
-              const oldLinks = turmas.map(t => t.turma_id);
-              for (const oldId of oldLinks) {
-                for (const newT of transferInfo.newTurmas) {
-                  await supabase.from("participante_transferencias" as any).insert({
-                    participante_id: id,
-                    turma_origem_id: oldId,
-                    turma_destino_id: newT.id,
-                    motivo: "Alteração de dados cadastrais",
-                  });
-                }
-              }
-              for (const oldId of oldLinks) {
-                await supabase.from("turma_participantes")
-                  .update({ data_saida: today, motivo_saida: "Transferência por alteração cadastral" } as any)
-                  .eq("participante_id", id!)
-                  .eq("turma_id", oldId)
-                  .is("data_saida" as any, null);
-              }
-              const newLinks = transferInfo.newTurmas.map(t => ({ turma_id: t.id, participante_id: id! }));
-              await supabase.from("turma_participantes").upsert(newLinks, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
-              for (const newT of transferInfo.newTurmas) {
-                const { data: turmaData } = await supabase.from("turmas").select("educador_id").eq("id", newT.id).single();
-                if (turmaData?.educador_id && myProfileId) {
-                  await supabase.from("recados").insert({
-                    remetente_id: myProfileId,
-                    destinatario_id: turmaData.educador_id,
-                    participante_id: id,
-                    conteudo: `${participante?.nome_completo} foi transferido para sua turma ${newT.nome} em ${new Date().toLocaleDateString("pt-BR")}.`,
-                  } as any);
-                }
-              }
-              toast.success(`Transferido para ${transferInfo.newTurmas.length} turma(s). Educadores notificados.`);
-              setShowTransferDialog(false);
-              setTransferInfo(null);
-              fetchAll();
-            }}>Aprovar Transferência</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Transfer Dialog removido — realocação de turmas agora é manual via coordenação. */}
     </div>
   );
 };
