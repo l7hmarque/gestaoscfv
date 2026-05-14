@@ -91,9 +91,7 @@ const ParticipantePerfilPage = () => {
   // Discharge dialog
   const [showDesligDialog, setShowDesligDialog] = useState(false);
   const [desligForm, setDesligForm] = useState({ data_desligamento: new Date().toISOString().slice(0, 10), motivo_desligamento: "", justificativa_desligamento: "" });
-  // Transfer dialog
-  const [showTransferDialog, setShowTransferDialog] = useState(false);
-  const [transferInfo, setTransferInfo] = useState<{ oldTurmas: string[]; newTurmas: { id: string; nome: string }[]; payload: Record<string, unknown> } | null>(null);
+  // Transfer dialog removido: mudanças de bairro/período/idade não realocam mais turmas automaticamente.
 
   const scanner = useDocumentScanner();
 
@@ -208,25 +206,10 @@ const ParticipantePerfilPage = () => {
       }
     }
 
-    // Automação 3: Realocar turmas se bairro/período/idade mudaram e está ativo → solicitar aprovação
-    if (newStatus === "ativo" && oldStatus === "ativo") {
-      const oldFaixa = calcFaixaFromDate(oldDataNasc);
-      const newFaixa = calcFaixaFromDate(newDataNasc);
-      const changed = oldBairro !== newBairro || oldPeriodo !== newPeriodo || oldFaixa !== newFaixa;
-
-      if (changed && newBairro && newPeriodo && newFaixa) {
-        let query = supabase.from("turmas").select("id, nome").eq("ativa", true).eq("bairro_id", newBairro).eq("faixa_etaria", newFaixa as any);
-        if (newPeriodo !== "integral") query = query.eq("periodo", newPeriodo as any);
-        const { data: turmasCompativeis } = await query;
-        const oldTurmaNames = turmas.map(t => t.turma_nome);
-        if (turmasCompativeis && turmasCompativeis.length > 0) {
-          setTransferInfo({ oldTurmas: oldTurmaNames, newTurmas: turmasCompativeis.map(t => ({ id: t.id, nome: t.nome })), payload });
-          setShowTransferDialog(true);
-        } else {
-          toast.warning("Nenhuma turma compatível encontrada para os novos dados");
-        }
-      }
-    }
+    // Automação 3 removida: mudanças de bairro/período/data de nascimento NÃO realocam mais turmas
+    // automaticamente. A realocação deve ser feita manualmente pela coordenação para evitar
+    // vínculos duplicados em chamadas. Ver mem://funcionalidades/auto-transferencia-periodo-relatorio.
+    void oldBairro; void newBairro; void oldPeriodo; void newPeriodo; void oldDataNasc; void newDataNasc;
 
     setEditing(false);
     fetchAll();
