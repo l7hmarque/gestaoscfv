@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { isBairroSCFV, calcAge } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
+import { useFormTimer } from "@/hooks/useFormTimer";
 
 const FAIXAS: Record<string, [number, number]> = {
   "6-8": [6, 8],
@@ -93,6 +94,7 @@ const PresencaPage = () => {
   const numAusentes = filteredParticipantes.length - numPresentes;
 
   const isDemo = useIsDemo();
+  const { stop: stopTimer } = useFormTimer("presenca");
 
   const handleSave = async () => {
     if (guardDemo(isDemo)) return;
@@ -120,6 +122,7 @@ const PresencaPage = () => {
       const allPresentes = participantes.filter(p => presenca[p.id]).length;
       const allAusentes = participantes.length - allPresentes;
       toast.success(`Presença salva! ${allPresentes} presentes, ${allAusentes} ausentes.`);
+      await stopTimer(selectedTurma);
     } catch (e: any) {
       toast.error(e.message || "Erro ao salvar presença");
     } finally {

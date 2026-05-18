@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { TIPOS_ATIVIDADE } from "@/lib/constants";
+import { useFormTimer } from "@/hooks/useFormTimer";
 
 const FORMAS_AVALIACAO = [
   "Ficha de Observação", "Escala Likert", "Portfólio", "Autoavaliação",
@@ -71,6 +72,7 @@ const PlanejamentoNovoPage = () => {
   const needsDetail = form.tipo_atividade.some(v => TIPOS_ATIVIDADE.find(t => t.value === v && 'hasDetail' in t && t.hasDetail));
 
   const isDemo = useIsDemo();
+  const { stop: stopTimer } = useFormTimer("planejamento");
 
   const handleSave = async () => {
     if (guardDemo(isDemo)) return;
@@ -100,6 +102,7 @@ const PlanejamentoNovoPage = () => {
       }
 
       toast.success("Planejamento salvo!");
+      await stopTimer(data?.id);
       navigate("/planejamentos");
     } catch (e: any) {
       toast.error(e.message || "Erro ao salvar");

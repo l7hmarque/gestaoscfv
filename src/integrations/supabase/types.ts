@@ -3230,6 +3230,69 @@ export type Database = {
           },
         ]
       }
+      user_action_durations: {
+        Row: {
+          created_at: string
+          duracao_segundos: number
+          id: string
+          iniciado_em: string
+          registro_id: string | null
+          rota: string | null
+          salvo_em: string
+          tipo: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duracao_segundos: number
+          id?: string
+          iniciado_em: string
+          registro_id?: string | null
+          rota?: string | null
+          salvo_em?: string
+          tipo: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duracao_segundos?: number
+          id?: string
+          iniciado_em?: string
+          registro_id?: string | null
+          rota?: string | null
+          salvo_em?: string
+          tipo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_activity_pings: {
+        Row: {
+          archived: boolean
+          created_at: string
+          id: string
+          route: string | null
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          created_at?: string
+          id?: string
+          route?: string | null
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          created_at?: string
+          id?: string
+          route?: string | null
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -3282,6 +3345,7 @@ export type Database = {
       }
     }
     Functions: {
+      cleanup_old_pings: { Args: never; Returns: number }
       criar_projeto: {
         Args: {
           _cor?: string
@@ -3345,6 +3409,10 @@ export type Database = {
       }
       get_pendencias_integridade: { Args: never; Returns: Json }
       get_pendencias_integridade_detalhes: { Args: never; Returns: Json }
+      get_produtividade_educadores: {
+        Args: { _ano?: number; _mes?: number }
+        Returns: Json
+      }
       get_profile_full: {
         Args: { _profile_id: string }
         Returns: {
@@ -3395,6 +3463,10 @@ export type Database = {
       }
       get_projeto_stats: { Args: { _projeto_id: string }; Returns: Json }
       get_restricoes_alimentares: { Args: never; Returns: Json }
+      get_user_activity_summary: {
+        Args: { _from: string; _to: string; _user_id: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
