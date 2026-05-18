@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Users, Download, Trash2, CheckSquare, RefreshCw, Search, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -31,8 +32,7 @@ interface TurmaRow {
 }
 
 const TurmasPage = () => {
-  const [turmas, setTurmas] = useState<TurmaRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [exportOpen, setExportOpen] = useState(false);
   const [exportMes, setExportMes] = useState(String(new Date().getMonth() + 1));
   const [exportAno, setExportAno] = useState(String(new Date().getFullYear()));
@@ -59,8 +59,6 @@ const TurmasPage = () => {
 
   const isDemo = useIsDemo();
 
-  useEffect(() => { fetchTurmas(); }, []);
-
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
@@ -71,16 +69,15 @@ const TurmasPage = () => {
     });
   }, []);
 
-  const fetchTurmas = async () => {
-    setLoading(true);
-    try {
+  const turmasQuery = useQuery({
+    queryKey: ["turmas-list"],
+    queryFn: async (): Promise<TurmaRow[]> => {
       const [{ data, error: e1 }, { data: tpData, error: e2 }] = await Promise.all([
         supabase.from("turmas").select("*, profiles(nome), bairros(nome)").order("nome"),
         supabase.from("turma_participantes").select("turma_id, participantes(nome_completo)"),
       ]);
       if (e1) throw e1;
       if (e2) throw e2;
-      if (data) {
       const countMap: Record<string, number> = {};
       const nomesMap: Record<string, string[]> = {};
       (tpData || []).forEach((tp: any) => {
@@ -91,18 +88,24 @@ const TurmasPage = () => {
           nomesMap[tp.turma_id].push(nome);
         }
       });
-      setTurmas(data.map((t) => ({
+      return (data || []).map((t: any) => ({
         ...t,
         participante_count: countMap[t.id] || 0,
         participante_nomes: nomesMap[t.id] || [],
-      } as TurmaRow)));
-      }
-    } catch (err: any) {
-      toast.error("Erro ao carregar turmas: " + (err?.message || "tente novamente"));
-    } finally {
-      setLoading(false);
+      } as TurmaRow));
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+  const turmas: TurmaRow[] = turmasQuery.data || [];
+  const loading = turmasQuery.isLoading;
+  const fetchTurmas = () => queryClient.invalidateQueries({ queryKey: ["turmas-list"] });
+
+  useEffect(() => {
+    if (turmasQuery.error) {
+      toast.error("Erro ao carregar turmas: " + ((turmasQuery.error as any)?.message || "tente novamente"));
     }
-  };
+  }, [turmasQuery.error]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
