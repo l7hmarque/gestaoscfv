@@ -80,9 +80,9 @@ const RegistrosFotograficosPage = () => {
     if (!user) return;
     (async () => {
       const [{ data: profs }, { data: roles }, { data: tms }] = await Promise.all([
-        supabase.from("profiles").select("id, nome, cargo, user_id, status").eq("status", "ativo"),
+        supabase.from("profiles").select("id, nome, cargo, user_id, ativo").eq("ativo", true),
         supabase.from("user_roles").select("role").eq("user_id", user.id),
-        supabase.from("turmas").select("id, nome").eq("ativo", true).order("nome"),
+        supabase.from("turmas").select("id, nome").eq("ativa", true).order("nome"),
       ]);
       const map: Record<string, Profile> = {};
       (profs || []).forEach((p: any) => {
