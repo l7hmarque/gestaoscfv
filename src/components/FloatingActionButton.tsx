@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, FileText, ClipboardList, MapPin, Bus, Users, Megaphone } from "lucide-react";
+import { Plus, FileText, ClipboardList, MapPin, Bus, Users, Megaphone, Camera } from "lucide-react";
 
 type Action = { label: string; icon: React.ComponentType<{ className?: string }>; to: string };
 
@@ -16,6 +16,7 @@ const ACTIONS: Action[] = [
   { label: "Novo Relatório", icon: FileText, to: "/relatorios/novo" },
   { label: "Novo Planejamento", icon: ClipboardList, to: "/planejamentos/novo" },
   { label: "Novo Participante", icon: Users, to: "/participantes/novo" },
+  { label: "Registro Fotográfico", icon: Camera, to: "/registros-fotograficos" },
   { label: "Novo Roteiro Técnico", icon: MapPin, to: "/equipe-tecnica/roteiros/novo" },
   { label: "Embarques de Hoje", icon: Bus, to: "/dashboard?tab=transporte" },
   { label: "Mural / Recados", icon: Megaphone, to: "/mural" },
