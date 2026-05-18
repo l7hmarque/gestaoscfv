@@ -37,7 +37,7 @@ export default function CoordenacaoPage() {
     })();
   }, [user, navigate]);
 
-  const { data, isLoading } = useCoordenacaoData(parseInt(periodo, 10));
+  const { data, isLoading, error, refetch } = useCoordenacaoData(parseInt(periodo, 10));
 
   if (!authChecked || !allowed) {
     return (
@@ -81,8 +81,16 @@ export default function CoordenacaoPage() {
           <TabsTrigger value="relatorio">Relatório</TabsTrigger>
         </TabsList>
 
-        {isLoading || !data ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : error || !data ? (
+          <Card className="mt-6">
+            <CardContent className="p-6 space-y-3 text-sm">
+              <p className="font-medium text-destructive">Não foi possível carregar os dados da Coordenação.</p>
+              <p className="text-muted-foreground text-xs">{(error as any)?.message ?? "Resposta vazia do servidor."}</p>
+              <Button size="sm" variant="outline" onClick={() => refetch()}>Tentar novamente</Button>
+            </CardContent>
+          </Card>
         ) : (
           <>
             <TabsContent value="painel" className="mt-6"><PainelCoordenadorTab data={data} /></TabsContent>
