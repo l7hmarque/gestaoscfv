@@ -1,0 +1,2 @@
+-- Drop old overload of get_dashboard_stats (sem _apenas_ativos) para eliminar ambiguidade
+DROP FUNCTION IF EXISTS public.get_dashboard_stats(integer, integer, date, date, text, text, uuid, text, integer, integer);
