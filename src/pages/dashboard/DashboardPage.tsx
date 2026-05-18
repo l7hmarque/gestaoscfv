@@ -312,6 +312,28 @@ function IndicadoresTab() {
         />
       </div>
 
+      {/* Filtros dimensionais ativos (cross-filter por clique) */}
+      {activeChips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-md border border-primary/30 bg-primary/5">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">Filtros ativos</span>
+          {activeChips.map((c) => (
+            <Badge
+              key={c.key}
+              variant="secondary"
+              className="cursor-pointer gap-1 hover:bg-destructive/10"
+              onClick={() => setDim((p) => { const n = { ...p }; delete n[c.key]; return n; })}
+              title="Clique para remover"
+            >
+              {c.label} <X size={10} />
+            </Badge>
+          ))}
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] ml-auto" onClick={clearDim}>
+            Limpar tudo
+          </Button>
+          {loading && <span className="text-[11px] text-muted-foreground">atualizando...</span>}
+        </div>
+      )}
+
       {/* Quick shortcuts */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         {quickShortcuts.map((s) => (
