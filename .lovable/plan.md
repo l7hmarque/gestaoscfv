@@ -1,36 +1,26 @@
-## Filtro manual de faixa etária nos Indicadores
+## Reposicionar o filtro manual de idade
 
-Hoje a filtragem por faixa só permite clicar nas barras pré-definidas (6-8, 9-11, 12-17, 60+). Vou adicionar um controle manual onde o usuário escolhe um intervalo livre (idade mínima e máxima) que recalcula todos os indicadores.
+O filtro de intervalo de idade hoje está no header da aba (ao lado do filtro de período), o que o desconecta visualmente do indicador que ele afeta semanticamente. O cross-filter para os demais indicadores já funciona no backend (`_idade_min`/`_idade_max` já participam do CTE `participantes_filtrados` da RPC `get_dashboard_stats`) — então essa parte não precisa de mudança. Só falta aproximar o controle do card.
 
-### UX
-- Novo controle no cabeçalho da aba "Indicadores", ao lado do `PeriodFilter`: botão "Idade" que abre um popover com dois inputs numéricos (Mín / Máx, 0–120) + botões "Aplicar" e "Limpar".
-- Quando aplicado, aparece um chip ativo "Idade: X–Y anos" (junto dos chips de Faixa/Gênero/Bairro/Período), removível com o "x".
-- Clicar numa barra das faixas pré-definidas continua funcionando; selecionar um intervalo manual **substitui** o filtro de faixa categórica (são mutuamente exclusivos, para evitar conflito de semântica).
+### Mudança
 
-### Backend (RPC `get_dashboard_stats`)
-- Adicionar dois parâmetros opcionais: `_idade_min int default null`, `_idade_max int default null`.
-- No CTE `participantes_filtrados`, aplicar:
-  ```sql
-  AND (_idade_min IS NULL OR extract(year from age(current_date, p.data_nascimento)) >= _idade_min)
-  AND (_idade_max IS NULL OR extract(year from age(current_date, p.data_nascimento)) <= _idade_max)
-  ```
-- Quando `_idade_min`/`_idade_max` vier preenchido, ignorar `_faixa` (ou somente aplicar `_faixa` se nenhum dos dois vier — proteção no SQL).
-- Distribuições categóricas (`participantesPorFaixa` etc.) continuam mostrando todas as categorias, como já fazem com os outros filtros.
+Em `src/pages/dashboard/DashboardPage.tsx`:
 
-### Frontend
-- `useDashboardData.ts`: novos campos opcionais `idadeMin`/`idadeMax` em `DashboardDimFilters`, incluídos no `queryKey` e no payload da RPC.
-- `DashboardPage.tsx` (`IndicadoresTab`):
-  - Novo componente local `IdadeRangeFilter` (Popover + 2 inputs + ações).
-  - Estender `activeChips` com o chip "Idade".
-  - `toggleDim`/`clearDim` tratam o par min/max como uma unidade.
-  - Ao aplicar intervalo manual: limpar `dim.faixa`. Ao clicar numa barra de faixa: limpar `idadeMin/idadeMax`.
+1. **Remover** o `<IdadeRangeFilter />` do header da aba (linhas 398–403).
+2. **Adicionar suporte a um slot `action`** no `ChartCard` (linhas 177–194):
+   - Nova prop opcional `action?: React.ReactNode`.
+   - Renderizar no `CardHeader`, à esquerda do `ChartCopyButton` já existente, mantendo o mesmo alinhamento `flex-row items-center justify-between`.
+3. **Renderizar o `IdadeRangeFilter` dentro do `ChartCard "Faixa Etária"`** (linha 599) via essa nova prop `action`. O componente continua usando `applyIdadeRange` / `clearIdadeRange` / `dim.idadeMin` / `dim.idadeMax` já existentes — toda a lógica de exclusividade com `dim.faixa` e o chip "Idade: X–Y anos" no painel de "Filtros ativos" permanece igual.
+4. **Manter inalterado**: chip ativo, lógica `applyIdadeRange` (que já limpa `dim.faixa`), `toggleFaixaBar` (que já limpa `idadeMin/idadeMax`), e o cross-filter no hook/RPC.
 
-### Arquivos
-- `supabase/migrations/<novo>.sql` — atualizar `get_dashboard_stats`.
-- `src/hooks/useDashboardData.ts` — novos campos no filtro e na RPC.
-- `src/pages/dashboard/DashboardPage.tsx` — novo controle, chip, lógica de exclusividade.
+### Resultado
+
+- Botão "Idade" aparece no canto superior do card "Faixa Etária", colado ao gráfico que ele complementa.
+- Ao aplicar um intervalo, todos os outros KPIs e cards (ELO, frequência, Gênero, Bairro, Período, alertas etc.) continuam sendo refiltrados — comportamento que já existe via RPC.
+- O header da aba fica mais limpo, só com `PeriodFilter`.
 
 ### Fora de escopo
+
+- Mudar a aparência interna do `IdadeRangeFilter` (popover, inputs, copy).
 - Persistir filtro na URL.
-- Aplicar o filtro em outras abas do dashboard (somente "Indicadores").
-- Filtro por intervalo nas demais dimensões (gênero/bairro/período).
+- Adicionar filtros equivalentes para gênero/bairro.
