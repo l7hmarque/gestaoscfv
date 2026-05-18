@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { TIPOS_ATIVIDADE } from "@/lib/constants";
 import { checkConquistas } from "@/hooks/useConquistas";
+import { useFormTimer } from "@/hooks/useFormTimer";
 
 const MOTIVOS_RELATO = [
   "Conflito entre participantes",
@@ -272,6 +273,7 @@ const RelatorioNovoPage = () => {
   const needsDetail = form.tipo_atividade.some(v => TIPOS_ATIVIDADE.find(t => t.value === v && 'hasDetail' in t && t.hasDetail));
 
   const isDemo = useIsDemo();
+  const { stop: stopTimer } = useFormTimer("relatorio");
 
   const handleSave = async () => {
     if (guardDemo(isDemo)) return;
