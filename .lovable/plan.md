@@ -1,176 +1,72 @@
-## Objetivo
+## Registros Fotográficos — função comum a todos
 
-Reforçar a aba Coordenação com filtro territorial restrito, novos indicadores de qualidade do serviço, painel de produtividade dos educadores (lançamentos vs prazo), telemetria invisível de tempo na plataforma e auditoria expandida de criações/edições/exclusões. Tudo visível **somente para perfis `coordenacao**` (RLS estrita).
+Nova entrada **"Registros Fotográficos"** na seção **Principal** do menu lateral (`/registros-fotograficos`), com upload para Google Drive (pasta `MMM-AAAA` automática) + publicação automática no Feed/Mural.
 
----
+### 1. Menu lateral
 
-## 1. Cobertura Territorial — restringir a 3 bairros
+- Adicionar item em `AppSidebar.tsx` → grupo **Principal**: "Registros Fotográficos" (ícone `Camera`), rota `/registros-fotograficos`.
+- Acesso a todos os perfis autenticados (educador, oficineiro, equipe técnica, motorista, cozinheiro, coordenação).
 
-Atualizar a função `get_coordenacao_stats` para que o agregador `cobertura_metas` filtre apenas:
+### 2. Página `/registros-fotograficos`
 
-- `ALVORADA`
-- `PARQUE INDEPENDENCIA`
-- `JARDIM IRENE`
+Duas seções:
 
-A tabela na aba Qualidade já consome esse array, não exige mudança no front.
+- **Upload** (dropzone múltiplo, aceita JPG/PNG/HEIC, compressão client-side > 1600px / 85%):
+  - Campos opcionais: 
+    - Atividade/Oficina relacionada (combobox de relatórios recentes do próprio usuário, ou turma)
+    - Descrição breve (textarea, máx. 280 char)
+    - Marcar profissionais (multi-select de `profiles` ativos)
+  - Botão "Enviar" → faz upload em paralelo, mostra progresso.
+- **Galeria** (grid responsivo, paginada):
+  - Filtros: mês, autor, turma/atividade
+  - Cada card mostra thumb, autor, data, marcações; click abre modal com foto em alta + metadados + link Drive.
+  - Coordenação pode excluir; autor pode editar descrição/marcações.
 
----
+### 3. Backend — tabela `registros_fotograficos`
 
-## 2. Novos indicadores de Qualidade do Serviço
+Campos: `id`, `autor_id` (profiles), `arquivo_url` (link público Drive), `drive_file_id`, `drive_folder_id`, `nome_arquivo` (padrão `registrosFotograficos_mmm-aa_N.jpg`), `mes_ref` (text `mmm-aaaa`), `seq` (int, contagem do mês), `descricao`, `relatorio_id` (nullable), `turma_id` (nullable), `profissionais_marcados` (uuid[]), `tamanho_bytes`, `created_at`.
 
-Adicionar à seção Qualidade (todos derivados do que já existe — relatórios, presenças, planejamentos, ELO, audit):
+- RLS: SELECT para todos autenticados; INSERT autor=self; UPDATE/DELETE pelo autor ou coordenação.
+- Trigger `BEFORE INSERT` calcula `seq = COUNT(*)+1` do mesmo `mes_ref` (lock por advisory) e monta `nome_arquivo`.
 
-**Engajamento dos participantes**
+### 4. Edge Function `upload-registro-fotografico`
 
-- Taxa de presença média por bairro (últimos 30/90 dias)
-- Top 5 turmas com maior frequência e Top 5 com menor (alerta)
-- % participantes em risco (3+ faltas consecutivas) — já existe, expor por bairro
-- Tempo médio de permanência ativo (dias entre matrícula e desligamento)
-- Taxa de retenção mensal (matriculados que continuaram no mês seguinte)
+Recebe `{ file_base64, mime, descricao?, relatorio_id?, turma_id?, profissionais_marcados? }` em chunks de 8KB.
 
-**Qualidade pedagógica**
+- Garante pasta raiz "SysCFV - Registros Fotográficos" no Drive (cacheia id em `drive_folder_cache`).
+- Garante subpasta `MMM-AAAA` (ex.: `MAI-2026`) — cria se não existir.
+- Calcula próximo `seq` via INSERT na tabela (que retorna `nome_arquivo`).
+- Faz upload multipart para Drive (gateway `google_drive`), define permissão `reader/anyone`, salva `webViewLink` e `id` na linha.
+- Cria `feed_posts` (tipo `foto`, autor=mesmo profile, texto=descricao) + `feed_fotos` (url Drive) → aparece automaticamente no Feed/Mural existente.
+- Em caso de erro no Drive, faz rollback da linha.
 
-- ELO médio por educador (ranking) e por bairro
-- % relatórios com `objetivo_alcancado = 'sim'` vs `parcialmente` vs `nao`
-- % relatórios com fotos anexadas
-- % relatórios com `analise_ia` preenchida (sinal de uso da IA)
-- Distribuição de competências avaliadas (radar: iniciativa, autonomia, colaboração, comunicação, respeito)
+### 5. FAB
 
-**Operação**
+Adicionar atalho "Novo Registro Fotográfico" em `FloatingActionButton.tsx` apontando para `/registros-fotograficos`.
 
-- Nº de transferências aprovadas vs negadas no período
-- Nº de busca-ativa abertas e resolvidas
-- Tempo médio para resolver pendência de integridade
-- % turmas que cumpriram dias planejados (relatórios lançados ÷ dias úteis previstos)
+### 6. Auditoria
 
-**Família / Comunicação**
+Tabela entra no trigger `fn_audit_changes` já existente para coordenação acompanhar.
 
-- Logins do portal família no período
-- Recados técnicos respondidos vs pendentes
-- Encaminhamentos externos abertos > 30 dias (já existe — manter)
+### Estrutura técnica
 
-Todos derivados via extensão de `get_coordenacao_stats` (já é o hub) — sem novas tabelas.
+```text
+src/pages/registros-fotograficos/
+  RegistrosFotograficosPage.tsx       (upload + galeria)
+  components/UploadDropzone.tsx
+  components/RegistroCard.tsx
+src/hooks/useRegistrosFotograficos.ts
+supabase/functions/upload-registro-fotografico/index.ts
+supabase/migrations/<ts>_registros_fotograficos.sql
+```
 
----
+### Pré-requisito
 
-## 3. Painel de Lançamentos — Educadores e Oficineiros --- ESSE PAINEL E SOMENTE PARA VISUALIZACAO DO COORDENADOR E DEVE FICAR ESCONDIDO DE EDUCADORES E OFICINEIROS E DEMAIS. 
+Conexão **Google Drive** já existe no projeto (usada por `sync-drive-modelos`). A função usará o mesmo gateway via `GOOGLE_DRIVE_API_KEY`. Sem novas chaves necessárias.
 
-Nova aba **"Produtividade"** com:
+### Perguntas rápidas antes de implementar
 
-- Tabela: profissional · relatórios lançados no mês · presenças lançadas no mês · planejamentos lançados · % esperado · **dias até o prazo + TEMPO MEDIO UTILIZADO PARA PLANEJAMENTOS, RELATORIOS, PRESENCAS E SOMA TOTAL DESTES POR DIA / SEMANA / MES**
-- Esperado = nº dias úteis com turma atribuída × turmas que coordena.
-- Prazo = dia 1º do mês seguinte (configurável por tipo via `configuracoes_gerais`):
-  - `prazo_relatorios_dias_apos_mes`
-  - `prazo_presencas_dias_apos_mes`
-  - `prazo_planejamentos_dias_apos_mes`
-- Alertas visuais: verde (em dia), amarelo (≤5 dias), vermelho (atrasado).
-
-Indicadores agregados:
-
-- Total esperado vs realizado no mês
-- Profissionais com 0 lançamentos nos últimos 7 dias (alerta)
-- Top/bottom por volume e por aderência ao prazo
-
-Dados derivados de `relatorios_atividade`, `presenca`, `planejamentos` agrupados por `educador_id`/`registrado_por`.
-
----
-
-## 4. Telemetria de tempo na plataforma (invisível para usuários)
-
-**Nova tabela `user_activity_pings**` (RLS: insert para qualquer autenticado, select só `coordenacao`):
-
-- `user_id`, `created_at`, `route` (rota atual), `session_id` (uuid por aba)
-
-Hook global `useActivityPing()` montado em `AppLayout`:
-
-- Envia ping a cada **30 s** enquanto `document.visibilityState === 'visible'` (não pinga em aba background → não infla minutos)
-- Insere via `supabase.from('user_activity_pings').insert(...)` em batch (acumula 4 pings e envia 1× por 2 min para reduzir requisições)
-
-**Cálculo de minutos** (server-side, função `get_user_activity_summary(_user_id, _from, _to)`):
-
-- Agrupa pings consecutivos com gap < 2 min → soma duração da sessão
-- Retorna minutos por dia / semana / mês / rota mais usada
-
-**Nova tabela `user_action_durations**` (cronômetro invisível):
-
-- `user_id`, `tipo` ('relatorio' | 'planejamento' | 'presenca'), `registro_id`, `iniciado_em`, `salvo_em`, `duracao_segundos`
-- Front: hook `useFormTimer(tipo)` instrumenta os 3 formulários (`RelatorioNovoPage`, `PlanejamentoNovoPage`, `PresencaPage`):
-  - `useEffect` ao montar → salva `performance.now()` em ref
-  - No `onSubmit` bem-sucedido → insere linha com `duracao_segundos`
-  - Nenhuma UI exposta ao usuário
-- Edição também rastreada (mesmo hook em páginas de detalhe)
-
-**Agregado semanal "tempo burocrático"**:
-
-- Soma `duracao_segundos` dos 3 tipos por educador na semana → exibido só na Coordenação
-
----
-
-## 5. Auditoria expandida — listar tabelas críticas
-
-Vou propor a lista; você confirma antes da implementação:
-
-**Sugestão (tabelas com dados operacionais sensíveis):**
-
-- `participantes` (INSERT/UPDATE/DELETE)
-- `turmas` (UPDATE/DELETE)
-- `turma_participantes` (INSERT/DELETE)
-- `relatorios_atividade` (UPDATE/DELETE)
-- `relatorio_presenca` (UPDATE/DELETE)
-- `presenca` (UPDATE/DELETE)
-- `planejamentos` (UPDATE/DELETE)
-- `profiles` (UPDATE de campos sensíveis — salário, status ativo)
-- `user_roles` (INSERT/DELETE — escalonamento de privilégios)
-- `participante_transferencias` (INSERT/UPDATE)
-- `bairros` (UPDATE metas)
-- `configuracoes_gerais` (UPDATE)
-
-Implementação:
-
-- Trigger genérico `fn_audit_changes()` que insere em `audit_log` com:
-  - `acao` = 'INSERT' | 'UPDATE' | 'DELETE'
-  - `tabela`, `registro_id`
-  - `detalhes` = JSONB diff (apenas campos alterados em UPDATE; row completa em INSERT/DELETE)
-- Ativado por tabela via `CREATE TRIGGER ... AFTER INSERT/UPDATE/DELETE`.
-- `audit_log` precisa nova coluna `diff jsonb` (ou armazenar JSON em `detalhes` existente).
-
-Nova aba **"Auditoria"** dentro de Coordenação:
-
-- Filtros: tabela, usuário, ação, período
-- Tabela paginada com expansor mostrando diff
-- Export XLSX
-
----
-
-## 6. RLS e segurança
-
-Todas as novas tabelas e visualizações:
-
-- `user_activity_pings`: SELECT só `has_role(auth.uid(),'coordenacao')`; INSERT autenticado próprio user_id
-- `user_action_durations`: idem
-- `audit_log` ampliado: SELECT só coordenação (já é)
-- Novos RPCs com `SECURITY DEFINER` + guard `IF NOT has_role(...,'coordenacao') THEN RETURN forbidden`
-
----
-
-## 7. Etapas de entrega (sem quebrar nada)
-
-1. **Migração 1**: filtro 3 bairros em `get_coordenacao_stats` + novos campos qualidade (puro SQL, não afeta UI)
-2. **Migração 2**: tabelas `user_activity_pings`, `user_action_durations`, configs de prazo + RLS
-3. **Migração 3**: trigger de auditoria + lista de tabelas confirmada
-4. **Front**:
-  - Filtro cobertura (automático via SQL)
-  - Nova aba Produtividade
-  - Nova aba Auditoria
-  - Hook `useActivityPing` em `AppLayout`
-  - Hook `useFormTimer` em 3 formulários (Relatório, Planejamento, Presença) — invisível
-5. **Validação**: criar smoke test manual; verificar performance (pings em batch).
-
----
-
-## Confirmações antes de codar
-
-a) **Lista de tabelas auditadas** acima — aprovar/ajustar? aprovar  
-b) **Prazos padrão por tipo** — default proposto: relatórios=1º dia mês seguinte, presenças=mesmo, planejamentos=sem data definida. OK?  
-c) **Frequência do ping**: 30s ativo + batch 2min — OK ou prefere mais leve (60s)?
-d) **Retenção dos pings**: manter 90 dias rolling (auto-delete) para não inflar banco? Ou guardar tudo? manter 90 dias rolling com opcao de salvar infos manualmente se eu quiser.
+1. **Visibilidade da galeria**: todos veem tudo, ou cada usuário só vê os próprios + os em que foi marcado? (Coordenação sempre vê tudo.) todos veem tudo. 
+2. **Limite por upload**: posso limitar a 10 fotos por envio e 8MB por foto (após compressão)? sim!
+3. **Pasta Drive raiz**: posso criar/usar a pasta `SysCFV - Registros Fotográficos` na raiz do Drive conectado, ou prefere subpasta de outra pasta já existente? sim, apenas classifique por mes e ano o nome das pastas e padronize o nome das fotos.
+4. **Publicação no Feed**: cria 1 post com todas as fotos do envio (galeria), ou 1 post por foto? cria 1 pont com todas as fotos, formato de carrocel. 

@@ -56,6 +56,7 @@ const IntegridadePage = lazy(() => import("./pages/integridade/IntegridadePage")
 const CoordenacaoPage = lazy(() => import("./pages/coordenacao/CoordenacaoPage"));
 const CozinhaPage = lazy(() => import("./pages/cozinha/CozinhaPage"));
 const TransportePage = lazy(() => import("./pages/transporte/TransportePage"));
+const RegistrosFotograficosPage = lazy(() => import("./pages/registros-fotograficos/RegistrosFotograficosPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -128,6 +129,7 @@ const App = () => (
                   <Route path="/coordenacao" element={<CoordenacaoPage />} />
                   <Route path="/cozinha" element={<CozinhaPage />} />
                   <Route path="/transporte" element={<TransportePage />} />
+                  <Route path="/registros-fotograficos" element={<RegistrosFotograficosPage />} />
                   <Route path="/dev" element={<DevPage />} />
                 </Route>
                 <Route path="/matricula" element={<MatriculaPublicaPage />} />
