@@ -56,6 +56,7 @@ const IntegridadePage = lazy(() => import("./pages/integridade/IntegridadePage")
 const CoordenacaoPage = lazy(() => import("./pages/coordenacao/CoordenacaoPage"));
 const CozinhaPage = lazy(() => import("./pages/cozinha/CozinhaPage"));
 const TransportePage = lazy(() => import("./pages/transporte/TransportePage"));
+const RegistrosFotograficosPage = lazy(() => import("./pages/registros-fotograficos/RegistrosFotograficosPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
