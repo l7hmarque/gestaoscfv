@@ -3335,6 +3335,8 @@ export type Database = {
           _data_inicio?: string
           _faixa?: string
           _genero?: string
+          _idade_max?: number
+          _idade_min?: number
           _mes?: number
           _periodo?: string
         }
