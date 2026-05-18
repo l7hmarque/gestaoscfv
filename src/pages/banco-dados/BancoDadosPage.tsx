@@ -106,28 +106,41 @@ export default function BancoDadosPage() {
 
   const loadAll = async () => {
     setLoading(true);
-    const [p, t, pr, r, pl, prof] = await Promise.all([
+    const results = await Promise.allSettled([
       fetchAllRows("participantes", { select: "*", order: { column: "nome_completo" } }),
       fetchAllRows("turmas", { select: "*, profiles!turmas_educador_id_fkey(nome)", order: { column: "nome" } }),
       fetchAllRows("presenca", { select: "*, participantes(nome_completo), turmas(nome)", order: { column: "data", ascending: false } }),
       fetchAllRows("relatorios_atividade", { select: "*, profiles!relatorios_atividade_educador_id_fkey(nome)", order: { column: "data", ascending: false } }),
       fetchAllRows("planejamentos", { select: "*, profiles!planejamentos_educador_id_fkey(nome)", order: { column: "created_at", ascending: false } }),
       fetchAllRows("profiles", { select: "*", order: { column: "nome" } }),
+      supabase.from("user_roles").select("*"),
     ]);
-    const { data: roles } = await supabase.from("user_roles").select("*");
+    const pick = (i: number): any => (results[i].status === "fulfilled" ? (results[i] as any).value : null);
+    const fails = results.filter(r => r.status === "rejected").length;
+    if (fails > 0) toast.error(`${fails} consulta(s) falharam ao carregar o banco de dados`);
+
+    const p = pick(0) || [];
+    const t = pick(1) || [];
+    const pr = pick(2) || [];
+    const r = pick(3) || [];
+    const pl = pick(4) || [];
+    const prof = pick(5) || [];
+    const rolesRes = pick(6);
+    const roles = rolesRes?.data || [];
+
     const roleMap = new Map<string, string[]>();
-    (roles || []).forEach((r: any) => {
+    roles.forEach((r: any) => {
       const arr = roleMap.get(r.user_id) || [];
       arr.push(r.role);
       roleMap.set(r.user_id, arr);
     });
 
-    setParticipantes(p || []);
-    setTurmas(t || []);
-    setPresenca((pr || []).map((x: any) => ({ ...x, participante_nome: x.participantes?.nome_completo || "", turma_nome: x.turmas?.nome || "", presente_str: x.presente ? "Sim" : "Não" })));
-    setRelatorios((r || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "" })));
-    setPlanejamentos((pl || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "", avaliacao_str: x.forma_avaliacao?.join(", ") || "" })));
-    setProfissionais((prof || []).map((x: any) => ({ ...x, roles_str: (roleMap.get(x.user_id) || []).join(", "), ativo_str: x.ativo ? "Sim" : "Não" })));
+    setParticipantes(p);
+    setTurmas(t);
+    setPresenca(pr.map((x: any) => ({ ...x, participante_nome: x.participantes?.nome_completo || "", turma_nome: x.turmas?.nome || "", presente_str: x.presente ? "Sim" : "Não" })));
+    setRelatorios(r.map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "" })));
+    setPlanejamentos(pl.map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "", avaliacao_str: x.forma_avaliacao?.join(", ") || "" })));
+    setProfissionais(prof.map((x: any) => ({ ...x, roles_str: (roleMap.get(x.user_id) || []).join(", "), ativo_str: x.ativo ? "Sim" : "Não" })));
     setLoading(false);
   };
 
