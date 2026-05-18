@@ -68,6 +68,8 @@ export interface DashboardDimFilters {
   genero?: string | null;
   bairroId?: string | null;
   periodo?: string | null;
+  idadeMin?: number | null;
+  idadeMax?: number | null;
 }
 
 export function useDashboardData(
@@ -81,8 +83,10 @@ export function useDashboardData(
   const genero = dim?.genero ?? null;
   const bairroId = dim?.bairroId ?? null;
   const periodo = dim?.periodo ?? null;
+  const idadeMin = dim?.idadeMin ?? null;
+  const idadeMax = dim?.idadeMax ?? null;
   const { data, isLoading: loading, error } = useQuery({
-    queryKey: ["dashboard-data", mes, ano, dataInicio, dataFim, faixa, genero, bairroId, periodo],
+    queryKey: ["dashboard-data", mes, ano, dataInicio, dataFim, faixa, genero, bairroId, periodo, idadeMin, idadeMax],
     queryFn: async (): Promise<DashboardData> => {
       const { data: raw, error } = await supabase.rpc("get_dashboard_stats", {
         _mes: mes ?? null,
@@ -93,6 +97,8 @@ export function useDashboardData(
         _genero: genero,
         _bairro_id: bairroId,
         _periodo: periodo,
+        _idade_min: idadeMin,
+        _idade_max: idadeMax,
       } as any);
       if (error) throw error;
 

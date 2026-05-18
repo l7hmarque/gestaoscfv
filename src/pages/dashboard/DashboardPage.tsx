@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -17,7 +18,7 @@ import type { DateRange } from "react-day-picker";
 import {
   Users, GraduationCap, FileText, BookOpen, TrendingUp, Percent,
   Activity, ArrowUpRight, ArrowDownRight, CalendarDays, Newspaper,
-  ClipboardCheck, AlertTriangle, Clock, CalendarIcon, X, CalendarRange,
+  ClipboardCheck, AlertTriangle, Clock, CalendarIcon, X, CalendarRange, Cake,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -53,6 +54,66 @@ const MONTH_NAMES = [
 function toIso(d?: Date | null): string | null {
   if (!d) return null;
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function IdadeRangeFilter({
+  idadeMin,
+  idadeMax,
+  onApply,
+  onClear,
+}: {
+  idadeMin: number | null;
+  idadeMax: number | null;
+  onApply: (min: number | null, max: number | null) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [minStr, setMinStr] = useState<string>(idadeMin != null ? String(idadeMin) : "");
+  const [maxStr, setMaxStr] = useState<string>(idadeMax != null ? String(idadeMax) : "");
+  useEffect(() => {
+    setMinStr(idadeMin != null ? String(idadeMin) : "");
+    setMaxStr(idadeMax != null ? String(idadeMax) : "");
+  }, [idadeMin, idadeMax]);
+  const active = idadeMin != null || idadeMax != null;
+  const apply = () => {
+    const parseN = (s: string) => {
+      if (s.trim() === "") return null;
+      const n = parseInt(s, 10);
+      if (Number.isNaN(n)) return null;
+      return Math.min(120, Math.max(0, n));
+    };
+    let mn = parseN(minStr);
+    let mx = parseN(maxStr);
+    if (mn != null && mx != null && mn > mx) [mn, mx] = [mx, mn];
+    onApply(mn, mx);
+    setOpen(false);
+  };
+  const clear = () => { setMinStr(""); setMaxStr(""); onClear(); setOpen(false); };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant={active ? "default" : "outline"} size="sm" className="h-9 gap-1.5">
+          <Cake size={14} />
+          {active ? `${idadeMin ?? 0}–${idadeMax ?? 120} anos` : "Idade"}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-3 space-y-3" align="end">
+        <div>
+          <p className="text-xs font-semibold mb-2">Intervalo de idade (anos)</p>
+          <div className="flex items-center gap-2">
+            <Input type="number" min={0} max={120} placeholder="Mín" value={minStr} onChange={(e) => setMinStr(e.target.value)} className="h-8 text-sm" />
+            <span className="text-muted-foreground text-xs">até</span>
+            <Input type="number" min={0} max={120} placeholder="Máx" value={maxStr} onChange={(e) => setMaxStr(e.target.value)} className="h-8 text-sm" />
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1.5">Substitui o filtro de faixa categórica.</p>
+        </div>
+        <div className="flex justify-between gap-2">
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clear}>Limpar</Button>
+          <Button size="sm" className="h-7 text-xs" onClick={apply}>Aplicar</Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 const quickShortcuts = [
@@ -275,11 +336,35 @@ function IndicadoresTab() {
   const clearDim = () => setDim({});
   const bairroNomeById = (id: string) => bairros.find((b) => b.id === id)?.nome ?? id;
   const bairroIdByNome = (nome: string) => bairros.find((b) => b.nome === nome)?.id;
-  const activeChips: { key: keyof DashboardDimFilters; label: string }[] = [];
-  if (dim.faixa) activeChips.push({ key: "faixa", label: `Faixa: ${dim.faixa}` });
-  if (dim.genero) activeChips.push({ key: "genero", label: `Gênero: ${GENERO_LABELS[dim.genero] ?? dim.genero}` });
-  if (dim.bairroId) activeChips.push({ key: "bairroId", label: `Bairro: ${bairroNomeById(dim.bairroId)}` });
-  if (dim.periodo) activeChips.push({ key: "periodo", label: `Período: ${PERIODO_LABELS[dim.periodo] ?? dim.periodo}` });
+  const applyIdadeRange = (min: number | null, max: number | null) => {
+    setDim((prev) => {
+      const next = { ...prev };
+      delete next.faixa;
+      if (min == null) delete next.idadeMin; else next.idadeMin = min;
+      if (max == null) delete next.idadeMax; else next.idadeMax = max;
+      return next;
+    });
+  };
+  const clearIdadeRange = () => setDim((p) => { const n = { ...p }; delete n.idadeMin; delete n.idadeMax; return n; });
+  const toggleFaixaBar = (faixa: string) => {
+    setDim((prev) => {
+      const next = { ...prev };
+      delete next.idadeMin;
+      delete next.idadeMax;
+      if (prev.faixa === faixa) delete next.faixa;
+      else next.faixa = faixa;
+      return next;
+    });
+  };
+  const activeChips: { id: string; label: string; onRemove: () => void }[] = [];
+  if (dim.faixa) activeChips.push({ id: "faixa", label: `Faixa: ${dim.faixa}`, onRemove: () => setDim((p) => { const n = { ...p }; delete n.faixa; return n; }) });
+  if (dim.idadeMin != null || dim.idadeMax != null) {
+    const lbl = `Idade: ${dim.idadeMin ?? "0"}–${dim.idadeMax ?? "120"} anos`;
+    activeChips.push({ id: "idade", label: lbl, onRemove: clearIdadeRange });
+  }
+  if (dim.genero) activeChips.push({ id: "genero", label: `Gênero: ${GENERO_LABELS[dim.genero] ?? dim.genero}`, onRemove: () => setDim((p) => { const n = { ...p }; delete n.genero; return n; }) });
+  if (dim.bairroId) activeChips.push({ id: "bairroId", label: `Bairro: ${bairroNomeById(dim.bairroId)}`, onRemove: () => setDim((p) => { const n = { ...p }; delete n.bairroId; return n; }) });
+  if (dim.periodo) activeChips.push({ id: "periodo", label: `Período: ${PERIODO_LABELS[dim.periodo] ?? dim.periodo}`, onRemove: () => setDim((p) => { const n = { ...p }; delete n.periodo; return n; }) });
 
   if (loading && !data) return <div className="p-6 text-sm text-muted-foreground">Carregando indicadores...</div>;
   if (error) return <div className="p-6 text-sm text-destructive">Erro ao carregar indicadores: {(error as Error).message}</div>;
@@ -310,18 +395,23 @@ function IndicadoresTab() {
           range={range}
           onRangeChange={setRange}
         />
+        <IdadeRangeFilter
+          idadeMin={dim.idadeMin ?? null}
+          idadeMax={dim.idadeMax ?? null}
+          onApply={applyIdadeRange}
+          onClear={clearIdadeRange}
+        />
       </div>
 
-      {/* Filtros dimensionais ativos (cross-filter por clique) */}
       {activeChips.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-md border border-primary/30 bg-primary/5">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">Filtros ativos</span>
           {activeChips.map((c) => (
             <Badge
-              key={c.key}
+              key={c.id}
               variant="secondary"
               className="cursor-pointer gap-1 hover:bg-destructive/10"
-              onClick={() => setDim((p) => { const n = { ...p }; delete n[c.key]; return n; })}
+              onClick={c.onRemove}
               title="Clique para remover"
             >
               {c.label} <X size={10} />
@@ -514,7 +604,7 @@ function IndicadoresTab() {
                   data={data.participantesPorFaixa}
                   onClick={(e: any) => {
                     const f = e?.activePayload?.[0]?.payload?.faixa;
-                    if (f) toggleDim("faixa", f);
+                    if (f) toggleFaixaBar(f);
                   }}
                 >
                   <CartesianGrid {...gridProps} />
