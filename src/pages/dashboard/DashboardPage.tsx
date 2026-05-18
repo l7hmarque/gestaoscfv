@@ -510,12 +510,26 @@ function IndicadoresTab() {
           {() => (
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.participantesPorFaixa}>
+                <BarChart
+                  data={data.participantesPorFaixa}
+                  onClick={(e: any) => {
+                    const f = e?.activePayload?.[0]?.payload?.faixa;
+                    if (f) toggleDim("faixa", f);
+                  }}
+                >
                   <CartesianGrid {...gridProps} />
                   <XAxis dataKey="faixa" tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} width={30} allowDecimals={false} />
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="count" name="Participantes" fill="hsl(0,58%,56%)" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="count" name="Participantes" radius={[3, 3, 0, 0]} cursor="pointer">
+                    {data.participantesPorFaixa.map((row, i) => (
+                      <Cell
+                        key={i}
+                        fill="hsl(0,58%,56%)"
+                        fillOpacity={!dim.faixa || dim.faixa === row.faixa ? 1 : 0.3}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -527,8 +541,25 @@ function IndicadoresTab() {
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={data.participantesPorGenero} dataKey="count" nameKey="genero" cx="50%" cy="50%" outerRadius={65} label={({ genero, percent }) => `${genero} ${(percent * 100).toFixed(0)}%`} labelLine={false} style={{ fontSize: 10 }}>
-                    {data.participantesPorGenero.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  <Pie
+                    data={data.participantesPorGenero}
+                    dataKey="count"
+                    nameKey="genero"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={65}
+                    label={({ genero, percent }) => `${genero} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                    style={{ fontSize: 10, cursor: "pointer" }}
+                    onClick={(e: any) => { if (e?.genero) toggleDim("genero", e.genero); }}
+                  >
+                    {data.participantesPorGenero.map((row, i) => (
+                      <Cell
+                        key={i}
+                        fill={COLORS[i % COLORS.length]}
+                        fillOpacity={!dim.genero || dim.genero === row.genero ? 1 : 0.3}
+                      />
+                    ))}
                   </Pie>
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 </PieChart>
@@ -542,8 +573,25 @@ function IndicadoresTab() {
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={data.participantesPorPeriodo} dataKey="count" nameKey="periodo" cx="50%" cy="50%" outerRadius={65} label={({ periodo, percent }) => `${periodo} ${(percent * 100).toFixed(0)}%`} labelLine={false} style={{ fontSize: 10 }}>
-                    {data.participantesPorPeriodo.map((_, i) => <Cell key={i} fill={COLORS[(i + 2) % COLORS.length]} />)}
+                  <Pie
+                    data={data.participantesPorPeriodo}
+                    dataKey="count"
+                    nameKey="periodo"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={65}
+                    label={({ periodo, percent }) => `${PERIODO_LABELS[periodo] ?? periodo} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                    style={{ fontSize: 10, cursor: "pointer" }}
+                    onClick={(e: any) => { if (e?.periodo) toggleDim("periodo", e.periodo); }}
+                  >
+                    {data.participantesPorPeriodo.map((row, i) => (
+                      <Cell
+                        key={i}
+                        fill={COLORS[(i + 2) % COLORS.length]}
+                        fillOpacity={!dim.periodo || dim.periodo === row.periodo ? 1 : 0.3}
+                      />
+                    ))}
                   </Pie>
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 </PieChart>
@@ -559,12 +607,28 @@ function IndicadoresTab() {
           {() => (
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.participantesPorBairro} layout="vertical">
+                <BarChart
+                  data={data.participantesPorBairro}
+                  layout="vertical"
+                  onClick={(e: any) => {
+                    const nome = e?.activePayload?.[0]?.payload?.bairro;
+                    if (!nome) return;
+                    const id = bairroIdByNome(nome);
+                    if (id) toggleDim("bairroId", id);
+                  }}
+                >
                   <CartesianGrid {...gridProps} />
                   <XAxis type="number" tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <YAxis type="category" dataKey="bairro" tick={{ fontSize: 9, fill: chartColors.text }} width={80} axisLine={false} tickLine={false} />
                   <Tooltip content={<RichTooltip />} />
-                  <Bar dataKey="count" name="Participantes" fill="hsl(210,22%,49%)" radius={[0, 3, 3, 0]} />
+                  <Bar dataKey="count" name="Participantes" radius={[0, 3, 3, 0]} cursor="pointer">
+                    {data.participantesPorBairro.map((row, i) => {
+                      const active = dim.bairroId ? bairroNomeById(dim.bairroId) === row.bairro : true;
+                      return (
+                        <Cell key={i} fill="hsl(210,22%,49%)" fillOpacity={active ? 1 : 0.3} />
+                      );
+                    })}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
