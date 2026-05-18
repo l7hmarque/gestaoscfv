@@ -53,6 +53,7 @@ export function useCoordenacaoData(periodoDias = 30) {
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<CoordenacaoStats> => {
       const { data, error } = await (supabase.rpc as any)("get_coordenacao_stats", {
+        _user_id: user!.id,
         _periodo_dias: periodoDias,
       });
       if (error) throw error;
