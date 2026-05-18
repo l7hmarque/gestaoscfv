@@ -43,12 +43,18 @@ const PlanejamentosPage = () => {
   }, [user]);
 
   const loadData = async () => {
-    const { data } = await supabase
-      .from("planejamentos")
-      .select("*, planejamento_turmas(turma_id, turmas(nome)), profiles!planejamentos_educador_id_fkey(nome)")
-      .order("created_at", { ascending: false });
-    setItems(data || []);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from("planejamentos")
+        .select("*, planejamento_turmas(turma_id, turmas(nome)), profiles!planejamentos_educador_id_fkey(nome)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setItems(data || []);
+    } catch (err: any) {
+      toast.error("Erro ao carregar planejamentos: " + (err?.message || "tente novamente"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { loadData(); }, []);

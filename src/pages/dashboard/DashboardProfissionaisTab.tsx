@@ -70,19 +70,23 @@ export default function DashboardProfissionaisTab() {
   useEffect(() => { loadProfs(); }, []);
 
   const loadProfs = async () => {
-    const [{ data: profiles }, { data: roles }] = await Promise.all([
-      // RPC com SECURITY DEFINER — apenas coordenação retorna linhas; demais recebem vazio.
-      supabase.rpc("list_profiles_rh") as any,
-      supabase.from("user_roles").select("*"),
-    ]);
-    setProfs(profiles || []);
-    const roleMap: Record<string, string[]> = {};
-    (roles || []).forEach((r: any) => {
-      if (!roleMap[r.user_id]) roleMap[r.user_id] = [];
-      roleMap[r.user_id].push(r.role);
-    });
-    setProfRoles(roleMap);
-    setLoading(false);
+    try {
+      const [{ data: profiles }, { data: roles }] = await Promise.all([
+        supabase.rpc("list_profiles_rh") as any,
+        supabase.from("user_roles").select("*"),
+      ]);
+      setProfs(profiles || []);
+      const roleMap: Record<string, string[]> = {};
+      (roles || []).forEach((r: any) => {
+        if (!roleMap[r.user_id]) roleMap[r.user_id] = [];
+        roleMap[r.user_id].push(r.role);
+      });
+      setProfRoles(roleMap);
+    } catch (err: any) {
+      toast.error("Erro ao carregar profissionais: " + (err?.message || "tente novamente"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOpen = (prof: Profissional) => {
