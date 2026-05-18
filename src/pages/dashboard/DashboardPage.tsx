@@ -604,7 +604,7 @@ function IndicadoresTab() {
                   data={data.participantesPorFaixa}
                   onClick={(e: any) => {
                     const f = e?.activePayload?.[0]?.payload?.faixa;
-                    if (f) toggleDim("faixa", f);
+                    if (f) toggleFaixaBar(f);
                   }}
                 >
                   <CartesianGrid {...gridProps} />
