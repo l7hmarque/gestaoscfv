@@ -13,6 +13,8 @@ import { PainelCoordenadorTab } from "./PainelCoordenadorTab";
 import { RegistrosTab } from "./RegistrosTab";
 import { PermissoesTab } from "./PermissoesTab";
 import { AcessosFamiliaTab } from "./AcessosFamiliaTab";
+import { ProdutividadeTab } from "./ProdutividadeTab";
+import { AuditoriaTab } from "./AuditoriaTab";
 
 export default function CoordenacaoPage() {
   const { user } = useAuth();
@@ -69,11 +71,13 @@ export default function CoordenacaoPage() {
       </header>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-9 w-full max-w-6xl">
+        <TabsList className="grid grid-cols-11 w-full max-w-7xl">
           <TabsTrigger value="painel">Painel</TabsTrigger>
           <TabsTrigger value="acoes">Ações Pendentes</TabsTrigger>
           <TabsTrigger value="decisoes">Decisões</TabsTrigger>
           <TabsTrigger value="qualidade">Qualidade</TabsTrigger>
+          <TabsTrigger value="produtividade">Produtividade</TabsTrigger>
+          <TabsTrigger value="auditoria">Auditoria</TabsTrigger>
           <TabsTrigger value="registros">Registros</TabsTrigger>
           <TabsTrigger value="familia">Portal Família</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
@@ -132,7 +136,47 @@ export default function CoordenacaoPage() {
                 <StatCard label="Tempo médio transferência" value={`${data.gestao.qualidade.tempo_medio_transferencia_dias}d`} />
                 <StatCard label="Atividades registradas (período)" value={data.gestao.atividades_periodo?.count ?? 0} />
                 <StatCard label="Tempo dedicado (min)" value={data.gestao.atividades_periodo?.minutos_totais ?? 0} />
+                <StatCard label="% Relatórios com foto" value={`${(data as any).gestao.qualidade_extra?.pct_relatorios_com_foto ?? 0}%`} />
+                <StatCard label="% Relatórios com IA" value={`${(data as any).gestao.qualidade_extra?.pct_relatorios_com_analise_ia ?? 0}%`} />
+                <StatCard label="Acessos família (período)" value={(data as any).gestao.qualidade_extra?.acessos_familia_periodo ?? 0} />
+                <StatCard label="Permanência média (dias)" value={(data as any).gestao.qualidade_extra?.permanencia_media_dias ?? 0} />
+                <StatCard label="Recados téc. pendentes" value={(data as any).gestao.qualidade_extra?.recados_tecnicos_status?.pendentes ?? 0} />
+                <StatCard label="Recados téc. respondidos" value={(data as any).gestao.qualidade_extra?.recados_tecnicos_status?.respondidos ?? 0} />
               </div>
+              {(data as any).gestao.qualidade_extra?.presenca_por_bairro?.length > 0 && (
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Presença média por bairro (período)</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="flex gap-4 flex-wrap">
+                      {(data as any).gestao.qualidade_extra.presenca_por_bairro.map((b: any) => (
+                        <div key={b.bairro} className="text-sm">
+                          <p className="text-xs text-muted-foreground">{b.bairro}</p>
+                          <p className="text-xl font-bold">{b.pct ?? 0}%</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              {(data as any).gestao.qualidade_extra?.top_educadores_elo?.length > 0 && (
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Top educadores por ELO</CardTitle></CardHeader>
+                  <CardContent>
+                    <table className="w-full text-sm">
+                      <thead><tr className="text-xs text-muted-foreground text-left border-b"><th className="py-2">Educador</th><th>ELO médio</th><th>Relatórios</th></tr></thead>
+                      <tbody>
+                        {(data as any).gestao.qualidade_extra.top_educadores_elo.map((e: any) => (
+                          <tr key={e.nome} className="border-b last:border-0">
+                            <td className="py-2 font-medium">{e.nome}</td>
+                            <td>{e.elo_medio}</td>
+                            <td>{e.qtd}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+              )}
               <Card>
                 <CardHeader><CardTitle className="text-base">Cobertura Territorial vs Metas</CardTitle></CardHeader>
                 <CardContent>
@@ -155,6 +199,9 @@ export default function CoordenacaoPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            <TabsContent value="produtividade" className="mt-6"><ProdutividadeTab /></TabsContent>
+            <TabsContent value="auditoria" className="mt-6"><AuditoriaTab /></TabsContent>
 
             <TabsContent value="registros" className="mt-6"><RegistrosTab /></TabsContent>
             <TabsContent value="familia" className="mt-6"><AcessosFamiliaTab /></TabsContent>
