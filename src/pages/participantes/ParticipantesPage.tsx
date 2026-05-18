@@ -270,7 +270,9 @@ const ParticipantesPage = () => {
     }
 
     toast.success(`Período alterado para ${periodoLabel[newPeriodo]}`);
-    setParticipantes(prev => prev.map(x => x.id === p.id ? { ...x, periodo: newPeriodo as any } : x));
+    queryClient.setQueryData(["participantes-list"], (prev: any) =>
+      Array.isArray(prev) ? prev.map((x: any) => x.id === p.id ? { ...x, periodo: newPeriodo } : x) : prev
+    );
   };
 
   // Quick status change
@@ -289,7 +291,9 @@ const ParticipantesPage = () => {
     await auditLog({ acao: "alteração de status", tabela: "participantes", registro_id: p.id, detalhes: `Status: ${p.status} → ${newStatus}` });
     toast.success(`Status alterado para ${statusLabel[newStatus]}`);
     // Optimistic update to preserve scroll position
-    setParticipantes(prev => prev.map(x => x.id === p.id ? { ...x, status: newStatus as any } : x));
+    queryClient.setQueryData(["participantes-list"], (prev: any) =>
+      Array.isArray(prev) ? prev.map((x: any) => x.id === p.id ? { ...x, status: newStatus } : x) : prev
+    );
   };
 
   const handleDesligamento = async () => {
