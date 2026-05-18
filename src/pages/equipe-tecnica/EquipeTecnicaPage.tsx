@@ -132,12 +132,8 @@ const EquipeTecnicaPage = () => {
 
   const loadAll = async () => {
     setLoading(true);
-    const [
-      { data: atd }, { data: part }, { data: prof }, { data: pres }, { data: turm }, { data: tp },
-      { data: roles }, { data: bairrosData }, { data: baRegs }, { data: pDocs },
-      { data: recs }, { data: enc }, { data: relatos }, { data: relatoParts },
-      { data: plans }, { data: planTurmas }, { data: rels }, { data: relTurmas },
-    ] = await Promise.all([
+    try {
+    const results = await Promise.allSettled([
       supabase.from("atendimentos").select("*").order("data_atendimento", { ascending: false }),
       supabase.from("participantes").select("id, nome_completo, status, data_nascimento, bairro_id, periodo, laudo, categoria_vulnerabilidade, foto_url, responsavel1_nome, responsavel1_whatsapp, responsavel2_nome, responsavel2_whatsapp, endereco_rua, endereco_numero, endereco_bairro, escola, data_desligamento, motivo_desligamento, restricao_alimentar, serie, genero, cor_raca, created_at").order("nome_completo"),
       supabase.from("profiles").select("id, nome, cargo, user_id"),
@@ -157,6 +153,14 @@ const EquipeTecnicaPage = () => {
       supabase.from("relatorios_atividade").select("id, data, educador_id, planejamento_id, num_participantes, num_matriculados, pct_adesao, score_elo, objetivo_alcancado").gte("data", format(subDays(new Date(), 90), "yyyy-MM-dd")),
       supabase.from("relatorio_turmas").select("relatorio_id, turma_id"),
     ]);
+    const fails = results.filter(r => r.status === "rejected").length;
+    if (fails > 0) toast.error(`${fails} consulta(s) falharam ao carregar equipe técnica`);
+    const pick = (i: number) => results[i].status === "fulfilled" ? ((results[i] as any).value?.data ?? null) : null;
+    const atd = pick(0); const part = pick(1); const prof = pick(2); const pres = pick(3);
+    const turm = pick(4); const tp = pick(5); const roles = pick(6); const bairrosData = pick(7);
+    const baRegs = pick(8); const pDocs = pick(9); const recs = pick(10); const enc = pick(11);
+    const relatos = pick(12); const relatoParts = pick(13); const plans = pick(14);
+    const planTurmas = pick(15); const rels = pick(16); const relTurmas = pick(17);
     setAtendimentos(atd || []);
     setParticipantes(part || []);
     setProfiles(prof || []);
@@ -193,7 +197,11 @@ const EquipeTecnicaPage = () => {
       const me = (prof || []).find((p: any) => p.user_id === user.id);
       if (me) setMyProfileId(me.id);
     }
-    setLoading(false);
+    } catch (err: any) {
+      toast.error("Erro inesperado: " + (err?.message || "tente novamente"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const isCoordenacao = userRoles.includes("coordenacao");
