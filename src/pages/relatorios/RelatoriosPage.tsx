@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import { exportBulkRelatorios } from "@/hooks/useBulkRelatorioExport";
@@ -37,9 +38,7 @@ interface RankedActivity {
 const RelatoriosPage = () => {
   const { user } = useAuth();
   const { log: auditLog } = useAuditLog();
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [ranking, setRanking] = useState<RankedActivity[]>([]);
+  const queryClient = useQueryClient();
   const [isCoordenacao, setIsCoordenacao] = useState(false);
 
   // Bulk delete state
@@ -79,8 +78,9 @@ const RelatoriosPage = () => {
     }
   }, [user]);
 
-  const loadData = async () => {
-    try {
+  const relatoriosQuery = useQuery({
+    queryKey: ["relatorios-list"],
+    queryFn: async (): Promise<{ items: any[]; ranking: RankedActivity[] }> => {
       const [data, relElo] = await Promise.all([
         fetchAllRows("relatorios_atividade", {
           select: "*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome), planejamentos!relatorios_atividade_planejamento_id_fkey(titulo)",
@@ -91,40 +91,43 @@ const RelatoriosPage = () => {
         }),
       ]);
       const filteredElo = (relElo || []).filter((r: any) => r.score_elo != null && r.planejamento_id != null);
-      setItems(data || []);
+      const groups: Record<string, { titulo: string; totalWeightedElo: number; totalWeight: number; totalPart: number; count: number; objs: Record<string, number> }> = {};
+      filteredElo.forEach((r: any) => {
+        const pid = r.planejamento_id;
+        const np = r.num_participantes || 0;
+        if (np < 5) return;
+        if (!groups[pid]) groups[pid] = { titulo: r.planejamentos?.titulo || "—", totalWeightedElo: 0, totalWeight: 0, totalPart: 0, count: 0, objs: {} };
+        groups[pid].totalWeightedElo += (r.score_elo || 0) * np;
+        groups[pid].totalWeight += np;
+        groups[pid].totalPart += np;
+        groups[pid].count += 1;
+        if (r.objetivo_alcancado) groups[pid].objs[r.objetivo_alcancado] = (groups[pid].objs[r.objetivo_alcancado] || 0) + 1;
+      });
+      const ranking = Object.entries(groups)
+        .map(([pid, g]) => ({
+          planejamento_id: pid,
+          titulo: g.titulo,
+          avgElo: g.totalWeight > 0 ? g.totalWeightedElo / g.totalWeight : 0,
+          totalParticipantes: g.totalPart,
+          count: g.count,
+          objetivo: Object.entries(g.objs).sort((a, b) => b[1] - a[1])[0]?.[0] || "",
+        }))
+        .sort((a, b) => b.avgElo - a.avgElo);
+      return { items: data || [], ranking };
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+  const items: any[] = relatoriosQuery.data?.items || [];
+  const ranking: RankedActivity[] = relatoriosQuery.data?.ranking || [];
+  const loading = relatoriosQuery.isLoading;
+  const loadData = () => queryClient.invalidateQueries({ queryKey: ["relatorios-list"] });
 
-    const groups: Record<string, { titulo: string; totalWeightedElo: number; totalWeight: number; totalPart: number; count: number; objs: Record<string, number> }> = {};
-    (filteredElo || []).forEach((r: any) => {
-      const pid = r.planejamento_id;
-      const np = r.num_participantes || 0;
-      if (np < 5) return;
-      if (!groups[pid]) groups[pid] = { titulo: r.planejamentos?.titulo || "—", totalWeightedElo: 0, totalWeight: 0, totalPart: 0, count: 0, objs: {} };
-      groups[pid].totalWeightedElo += (r.score_elo || 0) * np;
-      groups[pid].totalWeight += np;
-      groups[pid].totalPart += np;
-      groups[pid].count += 1;
-      if (r.objetivo_alcancado) groups[pid].objs[r.objetivo_alcancado] = (groups[pid].objs[r.objetivo_alcancado] || 0) + 1;
-    });
-
-    const ranked = Object.entries(groups)
-      .map(([pid, g]) => ({
-        planejamento_id: pid,
-        titulo: g.titulo,
-        avgElo: g.totalWeight > 0 ? g.totalWeightedElo / g.totalWeight : 0,
-        totalParticipantes: g.totalPart,
-        count: g.count,
-        objetivo: Object.entries(g.objs).sort((a, b) => b[1] - a[1])[0]?.[0] || "",
-      }))
-      .sort((a, b) => b.avgElo - a.avgElo);
-      setRanking(ranked);
-    } catch (err: any) {
-      toast.error("Erro ao carregar relatórios: " + (err?.message || "tente novamente"));
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (relatoriosQuery.error) {
+      toast.error("Erro ao carregar relatórios: " + ((relatoriosQuery.error as any)?.message || "tente novamente"));
     }
-  };
-
-  useEffect(() => { loadData(); }, []);
+  }, [relatoriosQuery.error]);
 
   const handleBulkSearch = async () => {
     if (!bulkDateFrom || !bulkDateTo) { toast.error("Preencha ambas as datas"); return; }
