@@ -56,6 +56,66 @@ function toIso(d?: Date | null): string | null {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function IdadeRangeFilter({
+  idadeMin,
+  idadeMax,
+  onApply,
+  onClear,
+}: {
+  idadeMin: number | null;
+  idadeMax: number | null;
+  onApply: (min: number | null, max: number | null) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [minStr, setMinStr] = useState<string>(idadeMin != null ? String(idadeMin) : "");
+  const [maxStr, setMaxStr] = useState<string>(idadeMax != null ? String(idadeMax) : "");
+  useEffect(() => {
+    setMinStr(idadeMin != null ? String(idadeMin) : "");
+    setMaxStr(idadeMax != null ? String(idadeMax) : "");
+  }, [idadeMin, idadeMax]);
+  const active = idadeMin != null || idadeMax != null;
+  const apply = () => {
+    const parseN = (s: string) => {
+      if (s.trim() === "") return null;
+      const n = parseInt(s, 10);
+      if (Number.isNaN(n)) return null;
+      return Math.min(120, Math.max(0, n));
+    };
+    let mn = parseN(minStr);
+    let mx = parseN(maxStr);
+    if (mn != null && mx != null && mn > mx) [mn, mx] = [mx, mn];
+    onApply(mn, mx);
+    setOpen(false);
+  };
+  const clear = () => { setMinStr(""); setMaxStr(""); onClear(); setOpen(false); };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant={active ? "default" : "outline"} size="sm" className="h-9 gap-1.5">
+          <Cake size={14} />
+          {active ? `${idadeMin ?? 0}–${idadeMax ?? 120} anos` : "Idade"}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-3 space-y-3" align="end">
+        <div>
+          <p className="text-xs font-semibold mb-2">Intervalo de idade (anos)</p>
+          <div className="flex items-center gap-2">
+            <Input type="number" min={0} max={120} placeholder="Mín" value={minStr} onChange={(e) => setMinStr(e.target.value)} className="h-8 text-sm" />
+            <span className="text-muted-foreground text-xs">até</span>
+            <Input type="number" min={0} max={120} placeholder="Máx" value={maxStr} onChange={(e) => setMaxStr(e.target.value)} className="h-8 text-sm" />
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1.5">Substitui o filtro de faixa categórica.</p>
+        </div>
+        <div className="flex justify-between gap-2">
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clear}>Limpar</Button>
+          <Button size="sm" className="h-7 text-xs" onClick={apply}>Aplicar</Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 const quickShortcuts = [
   { title: "Relatórios", icon: FileText, url: "/relatorios", color: "hsl(0,58%,56%)" },
   { title: "Cronograma", icon: CalendarDays, url: "/cronograma", color: "hsl(210,22%,49%)" },
