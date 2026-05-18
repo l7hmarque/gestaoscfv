@@ -63,15 +63,36 @@ function objectOrArrayToRows<T extends string>(value: any, keyName: T): Array<Re
   return [];
 }
 
-export function useDashboardData(mes?: number | null, ano?: number | null, dataInicio?: string | null, dataFim?: string | null) {
+export interface DashboardDimFilters {
+  faixa?: string | null;
+  genero?: string | null;
+  bairroId?: string | null;
+  periodo?: string | null;
+}
+
+export function useDashboardData(
+  mes?: number | null,
+  ano?: number | null,
+  dataInicio?: string | null,
+  dataFim?: string | null,
+  dim?: DashboardDimFilters,
+) {
+  const faixa = dim?.faixa ?? null;
+  const genero = dim?.genero ?? null;
+  const bairroId = dim?.bairroId ?? null;
+  const periodo = dim?.periodo ?? null;
   const { data, isLoading: loading, error } = useQuery({
-    queryKey: ["dashboard-data", mes, ano, dataInicio, dataFim],
+    queryKey: ["dashboard-data", mes, ano, dataInicio, dataFim, faixa, genero, bairroId, periodo],
     queryFn: async (): Promise<DashboardData> => {
       const { data: raw, error } = await supabase.rpc("get_dashboard_stats", {
         _mes: mes ?? null,
         _ano: ano ?? null,
         _data_inicio: dataInicio ?? null,
         _data_fim: dataFim ?? null,
+        _faixa: faixa,
+        _genero: genero,
+        _bairro_id: bairroId,
+        _periodo: periodo,
       } as any);
       if (error) throw error;
 
