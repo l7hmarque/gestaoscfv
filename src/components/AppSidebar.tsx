@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SysCFVLogo } from "@/components/SysCFVLogo";
 import {
-  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, Globe, FileDown, Settings, User, CalendarDays, Briefcase, ChefHat, Bus,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, Globe, FileDown, Settings, User, CalendarDays, Briefcase, ChefHat, Bus, Camera,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -20,6 +20,7 @@ const menuGroups = [
       { title: "Participantes", url: "/participantes", icon: Users },
       { title: "Turmas", url: "/turmas", icon: GraduationCap },
       { title: "Presença", url: "/presenca", icon: ClipboardCheck },
+      { title: "Registros Fotográficos", url: "/registros-fotograficos", icon: Camera },
     ],
   },
   {
