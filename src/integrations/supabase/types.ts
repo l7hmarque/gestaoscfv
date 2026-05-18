@@ -3327,21 +3327,38 @@ export type Database = {
         Returns: Json
       }
       get_cozinha_stats: { Args: never; Returns: Json }
-      get_dashboard_stats: {
-        Args: {
-          _ano?: number
-          _bairro_id?: string
-          _data_fim?: string
-          _data_inicio?: string
-          _faixa?: string
-          _genero?: string
-          _idade_max?: number
-          _idade_min?: number
-          _mes?: number
-          _periodo?: string
-        }
-        Returns: Json
-      }
+      get_dashboard_stats:
+        | {
+            Args: {
+              _ano?: number
+              _bairro_id?: string
+              _data_fim?: string
+              _data_inicio?: string
+              _faixa?: string
+              _genero?: string
+              _idade_max?: number
+              _idade_min?: number
+              _mes?: number
+              _periodo?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _ano?: number
+              _apenas_ativos?: boolean
+              _bairro_id?: string
+              _data_fim?: string
+              _data_inicio?: string
+              _faixa?: string
+              _genero?: string
+              _idade_max?: number
+              _idade_min?: number
+              _mes?: number
+              _periodo?: string
+            }
+            Returns: Json
+          }
       get_pendencias_integridade: { Args: never; Returns: Json }
       get_pendencias_integridade_detalhes: { Args: never; Returns: Json }
       get_profile_full: {
