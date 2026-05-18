@@ -247,12 +247,41 @@ function IndicadoresTab() {
   const [ano, setAno] = useState<number | null>(null);
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [selectedIndicator, setSelectedIndicator] = useState<IndicadorId | null>(null);
+  const [dim, setDim] = useState<DashboardDimFilters>({});
+  const [bairros, setBairros] = useState<{ id: string; nome: string }[]>([]);
+
+  useEffect(() => {
+    supabase.from("bairros").select("id, nome").then(({ data }) => {
+      if (data) setBairros(data as { id: string; nome: string }[]);
+    });
+  }, []);
+
   const dataInicio = range?.from ? toIso(range.from) : null;
   const dataFim = range?.from ? toIso(range.to ?? range.from) : null;
-  const { data, loading, error } = useDashboardData(mes, ano, dataInicio, dataFim);
+  const { data, loading, error } = useDashboardData(mes, ano, dataInicio, dataFim, dim);
   const navigate = useNavigate();
 
-  if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando indicadores...</div>;
+  const toggleDim = <K extends keyof DashboardDimFilters>(key: K, value: NonNullable<DashboardDimFilters[K]> | null) => {
+    setDim((prev) => {
+      const cur = prev[key] ?? null;
+      if (cur === value || value === null) {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      return { ...prev, [key]: value };
+    });
+  };
+  const clearDim = () => setDim({});
+  const bairroNomeById = (id: string) => bairros.find((b) => b.id === id)?.nome ?? id;
+  const bairroIdByNome = (nome: string) => bairros.find((b) => b.nome === nome)?.id;
+  const activeChips: { key: keyof DashboardDimFilters; label: string }[] = [];
+  if (dim.faixa) activeChips.push({ key: "faixa", label: `Faixa: ${dim.faixa}` });
+  if (dim.genero) activeChips.push({ key: "genero", label: `Gênero: ${GENERO_LABELS[dim.genero] ?? dim.genero}` });
+  if (dim.bairroId) activeChips.push({ key: "bairroId", label: `Bairro: ${bairroNomeById(dim.bairroId)}` });
+  if (dim.periodo) activeChips.push({ key: "periodo", label: `Período: ${PERIODO_LABELS[dim.periodo] ?? dim.periodo}` });
+
+  if (loading && !data) return <div className="p-6 text-sm text-muted-foreground">Carregando indicadores...</div>;
   if (error) return <div className="p-6 text-sm text-destructive">Erro ao carregar indicadores: {(error as Error).message}</div>;
   if (!data) return <div className="p-6 text-sm text-muted-foreground">Nenhum indicador encontrado para o período selecionado.</div>;
 
