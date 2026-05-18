@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Upload, Search, Filter, Eye, Bell, Check, X, AlertTriangle, Merge, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Upload, Search, Filter, Eye, Bell, Check, X, AlertTriangle, Merge, ChevronDown, ChevronUp, FileSpreadsheet } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
-import { BAIRROS_SCFV, calcFaixaFromDate, displayAge, PERIODO_LABELS, STATUS_LABELS, STATUS_COLORS } from "@/lib/constants";
+import { BAIRROS_SCFV, calcAge, calcFaixaFromDate, displayAge, PERIODO_LABELS, STATUS_LABELS, STATUS_COLORS } from "@/lib/constants";
+import { exportXLSX } from "@/hooks/useDataExport";
 import { displayPhone } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
@@ -58,6 +59,9 @@ const ParticipantesPage = () => {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [periodoFilter, setPeriodoFilter] = useState<string>("");
   const [bairroFilter, setBairroFilter] = useState<string>("");
+  const [generoFilter, setGeneroFilter] = useState<string>("");
+  const [idadeMin, setIdadeMin] = useState<string>("");
+  const [idadeMax, setIdadeMax] = useState<string>("");
   const [duplicatas, setDuplicatas] = useState<DuplicatePair[]>([]);
   const [showDuplicatas, setShowDuplicatas] = useState(false);
   const [merging, setMerging] = useState<string | null>(null);
@@ -121,13 +125,19 @@ const ParticipantesPage = () => {
     setMerging(null);
   };
 
-  const hasFilters = statusFilter || periodoFilter || bairroFilter;
+  const hasFilters = statusFilter || periodoFilter || bairroFilter || generoFilter || idadeMin || idadeMax;
 
   const filtered = participantes.filter((p) => {
     if (search && !p.nome_completo.toLowerCase().includes(search.toLowerCase())) return false;
     if (statusFilter && p.status !== statusFilter) return false;
     if (periodoFilter && p.periodo !== periodoFilter) return false;
     if (bairroFilter && p.bairro_id !== bairroFilter) return false;
+    if (generoFilter && (p.genero || "") !== generoFilter) return false;
+    if (idadeMin || idadeMax) {
+      const age = calcAge(p.data_nascimento);
+      if (idadeMin && age < Number(idadeMin)) return false;
+      if (idadeMax && age > Number(idadeMax)) return false;
+    }
     return true;
   });
 
@@ -334,6 +344,66 @@ const ParticipantesPage = () => {
     setStatusFilter("");
     setPeriodoFilter("");
     setBairroFilter("");
+    setGeneroFilter("");
+    setIdadeMin("");
+    setIdadeMax("");
+  };
+
+  const handleExportXLSX = () => {
+    if (filtered.length === 0) {
+      toast.error("Nenhum participante para exportar com os filtros atuais");
+      return;
+    }
+    const bairroMap = new Map(bairros.map(b => [b.id, b.nome]));
+    const rows = filtered.map(p => ({
+      ...p,
+      bairro_nome: p.bairro_id ? (bairroMap.get(p.bairro_id) || "") : "",
+      status_label: statusLabel[p.status || ""] || p.status || "",
+      periodo_label: periodoLabel[p.periodo || ""] || p.periodo || "",
+      idade: p.data_nascimento ? calcAge(p.data_nascimento) : "",
+    }));
+    const headers = [
+      { key: "nome_completo", label: "Nome Completo" },
+      { key: "cpf", label: "CPF" },
+      { key: "data_nascimento", label: "Data de Nascimento" },
+      { key: "idade", label: "Idade" },
+      { key: "genero", label: "Gênero" },
+      { key: "cor_raca", label: "Cor/Raça" },
+      { key: "status_label", label: "Status" },
+      { key: "bairro_nome", label: "Bairro CAIA" },
+      { key: "periodo_label", label: "Período" },
+      { key: "escola", label: "Escola" },
+      { key: "serie", label: "Série" },
+      { key: "iniciou_em", label: "Iniciou em" },
+      { key: "data_desligamento", label: "Data Desligamento" },
+      { key: "motivo_desligamento", label: "Motivo Desligamento" },
+      { key: "justificativa_desligamento", label: "Justificativa Desligamento" },
+      { key: "origem_encaminhamento", label: "Origem/Encaminhamento" },
+      { key: "responsavel1_nome", label: "Responsável 1" },
+      { key: "vinculo_resp1", label: "Vínculo Resp. 1" },
+      { key: "responsavel1_cpf", label: "CPF Resp. 1" },
+      { key: "responsavel1_whatsapp", label: "WhatsApp Resp. 1" },
+      { key: "responsavel2_nome", label: "Responsável 2" },
+      { key: "vinculo_resp2", label: "Vínculo Resp. 2" },
+      { key: "responsavel2_whatsapp", label: "WhatsApp Resp. 2" },
+      { key: "endereco_rua", label: "Endereço — Rua" },
+      { key: "endereco_numero", label: "Endereço — Número" },
+      { key: "endereco_bairro", label: "Endereço — Bairro" },
+      { key: "uf_origem", label: "UF de Origem" },
+      { key: "situacao_moradia", label: "Situação de Moradia" },
+      { key: "categoria_vulnerabilidade", label: "Categoria Vulnerabilidade" },
+      { key: "laudo", label: "Laudo" },
+      { key: "remedio_continuo", label: "Remédio Contínuo" },
+      { key: "restricao_alimentar", label: "Restrição Alimentar" },
+      { key: "outras_condicoes", label: "Outras Condições" },
+      { key: "dias_contraturno", label: "Dias Contraturno" },
+      { key: "responsavel_tecnico", label: "Responsável Técnico" },
+      { key: "observacoes_sigilosas", label: "Observações Sigilosas" },
+      { key: "created_at", label: "Cadastrado em" },
+      { key: "updated_at", label: "Atualizado em" },
+    ];
+    exportXLSX(rows, headers, "Participantes");
+    toast.success(`${filtered.length} participante(s) exportado(s)`);
   };
 
   return (
@@ -440,6 +510,9 @@ const ParticipantesPage = () => {
         subtitle={`${filtered.length} participante${filtered.length !== 1 ? "s" : ""}`}
         actions={
           <>
+            <Button variant="outline" size="sm" onClick={handleExportXLSX} disabled={loading || filtered.length === 0}>
+              <FileSpreadsheet className="h-4 w-4 mr-1" />Exportar XLSX
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link to="/participantes/importar"><Upload className="h-4 w-4 mr-1" />Importar</Link>
             </Button>
@@ -479,6 +552,35 @@ const ParticipantesPage = () => {
             {bairros.filter((b) => BAIRROS_SCFV.includes(b.nome)).map((b) => <SelectItem key={b.id} value={b.id}>{b.nome}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={generoFilter} onValueChange={setGeneroFilter}>
+          <SelectTrigger className="w-[120px] h-9 text-sm"><SelectValue placeholder="Gênero" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="feminino">Feminino</SelectItem>
+            <SelectItem value="masculino">Masculino</SelectItem>
+            <SelectItem value="outro">Outro</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-1">
+          <Input
+            type="number"
+            min={0}
+            max={120}
+            placeholder="Idade min"
+            value={idadeMin}
+            onChange={(e) => setIdadeMin(e.target.value)}
+            className="w-[90px] h-9 text-sm"
+          />
+          <span className="text-xs text-muted-foreground">–</span>
+          <Input
+            type="number"
+            min={0}
+            max={120}
+            placeholder="máx"
+            value={idadeMax}
+            onChange={(e) => setIdadeMax(e.target.value)}
+            className="w-[80px] h-9 text-sm"
+          />
+        </div>
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 text-xs text-muted-foreground">
             <X className="h-3 w-3 mr-1" />Limpar
