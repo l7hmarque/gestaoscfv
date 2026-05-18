@@ -80,17 +80,18 @@ const RelatoriosPage = () => {
   }, [user]);
 
   const loadData = async () => {
-    const [data, relElo] = await Promise.all([
-      fetchAllRows("relatorios_atividade", {
-        select: "*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome), planejamentos!relatorios_atividade_planejamento_id_fkey(titulo)",
-        order: { column: "data", ascending: false },
-      }),
-      fetchAllRows("relatorios_atividade", {
-        select: "planejamento_id, score_elo, num_participantes, objetivo_alcancado, planejamentos!relatorios_atividade_planejamento_id_fkey(titulo)",
-      }),
-    ]);
-    const filteredElo = (relElo || []).filter((r: any) => r.score_elo != null && r.planejamento_id != null);
-    setItems(data || []);
+    try {
+      const [data, relElo] = await Promise.all([
+        fetchAllRows("relatorios_atividade", {
+          select: "*, relatorio_turmas(turma_id, turmas(nome)), profiles!relatorios_atividade_educador_id_fkey(nome), planejamentos!relatorios_atividade_planejamento_id_fkey(titulo)",
+          order: { column: "data", ascending: false },
+        }),
+        fetchAllRows("relatorios_atividade", {
+          select: "planejamento_id, score_elo, num_participantes, objetivo_alcancado, planejamentos!relatorios_atividade_planejamento_id_fkey(titulo)",
+        }),
+      ]);
+      const filteredElo = (relElo || []).filter((r: any) => r.score_elo != null && r.planejamento_id != null);
+      setItems(data || []);
 
     const groups: Record<string, { titulo: string; totalWeightedElo: number; totalWeight: number; totalPart: number; count: number; objs: Record<string, number> }> = {};
     (filteredElo || []).forEach((r: any) => {
@@ -115,8 +116,12 @@ const RelatoriosPage = () => {
         objetivo: Object.entries(g.objs).sort((a, b) => b[1] - a[1])[0]?.[0] || "",
       }))
       .sort((a, b) => b.avgElo - a.avgElo);
-    setRanking(ranked);
-    setLoading(false);
+      setRanking(ranked);
+    } catch (err: any) {
+      toast.error("Erro ao carregar relatórios: " + (err?.message || "tente novamente"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { loadData(); }, []);

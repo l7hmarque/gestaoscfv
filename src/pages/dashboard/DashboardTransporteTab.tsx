@@ -190,22 +190,27 @@ export default function DashboardTransporteTab() {
   const horaBR = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
 
   const loadAll = async () => {
-    const [bRes, pRes, partRes] = await Promise.all([
-      supabase.from("bairros").select("*").order("nome"),
-      supabase.from("pontos_transporte").select("*").order("ordem").order("nome") as any,
-      supabase.from("participantes").select("id, nome_completo, periodo, ponto_transporte_id").in("status", ["ativo", "busca_ativa"] as any),
-    ]);
-    setBairros(bRes.data || []);
-    setPontos(pRes.data || []);
-    const map: Record<string, { nome: string; periodo: string }[]> = {};
-    (partRes.data || []).forEach((p: any) => {
-      if (p.ponto_transporte_id) {
-        if (!map[p.ponto_transporte_id]) map[p.ponto_transporte_id] = [];
-        map[p.ponto_transporte_id].push({ nome: p.nome_completo, periodo: p.periodo || "manha" });
-      }
-    });
-    setParticipantesPorPonto(map);
-    setLoading(false);
+    try {
+      const [bRes, pRes, partRes] = await Promise.all([
+        supabase.from("bairros").select("*").order("nome"),
+        supabase.from("pontos_transporte").select("*").order("ordem").order("nome") as any,
+        supabase.from("participantes").select("id, nome_completo, periodo, ponto_transporte_id").in("status", ["ativo", "busca_ativa"] as any),
+      ]);
+      setBairros(bRes.data || []);
+      setPontos(pRes.data || []);
+      const map: Record<string, { nome: string; periodo: string }[]> = {};
+      (partRes.data || []).forEach((p: any) => {
+        if (p.ponto_transporte_id) {
+          if (!map[p.ponto_transporte_id]) map[p.ponto_transporte_id] = [];
+          map[p.ponto_transporte_id].push({ nome: p.nome_completo, periodo: p.periodo || "manha" });
+        }
+      });
+      setParticipantesPorPonto(map);
+    } catch (err: any) {
+      toast.error("Erro ao carregar transporte: " + (err?.message || "tente novamente"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const bairrosSCFV = bairros.filter(b => isBairroSCFV(b.nome));

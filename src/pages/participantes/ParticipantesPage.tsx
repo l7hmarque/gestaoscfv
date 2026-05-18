@@ -80,13 +80,18 @@ const ParticipantesPage = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    const [p, { data: b }] = await Promise.all([
-      fetchAllRows("participantes", { select: "*", order: { column: "nome_completo" } }),
-      supabase.from("bairros").select("*").order("nome"),
-    ]);
-    setParticipantes(p || []);
-    setBairros(b || []);
-    setLoading(false);
+    try {
+      const [p, { data: b }] = await Promise.all([
+        fetchAllRows("participantes", { select: "*", order: { column: "nome_completo" } }),
+        supabase.from("bairros").select("*").order("nome"),
+      ]);
+      setParticipantes(p || []);
+      setBairros(b || []);
+    } catch (err: any) {
+      toast.error("Erro ao carregar participantes: " + (err?.message || "tente novamente"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchDuplicatas = async () => {

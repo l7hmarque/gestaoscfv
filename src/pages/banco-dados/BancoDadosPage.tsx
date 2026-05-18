@@ -84,6 +84,7 @@ export default function BancoDadosPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set());
 
   // Backup
   const { doBackup, loading: backupLoading } = useBackupExport();
@@ -91,7 +92,12 @@ export default function BancoDadosPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  useEffect(() => { loadAll(); }, []);
+  // Carrega apenas a aba ativa (lazy) — evita puxar 7 tabelas inteiras no mount
+  useEffect(() => {
+    if (loadedTabs.has(tab)) return;
+    loadTab(tab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   // Check if user is coordenacao
   useEffect(() => {
@@ -104,31 +110,55 @@ export default function BancoDadosPage() {
   // Clear selection when tab changes
   useEffect(() => { setSelectedIds(new Set()); }, [tab]);
 
-  const loadAll = async () => {
+  const loadTab = async (name: string) => {
     setLoading(true);
-    const [p, t, pr, r, pl, prof] = await Promise.all([
-      fetchAllRows("participantes", { select: "*", order: { column: "nome_completo" } }),
-      fetchAllRows("turmas", { select: "*, profiles!turmas_educador_id_fkey(nome)", order: { column: "nome" } }),
-      fetchAllRows("presenca", { select: "*, participantes(nome_completo), turmas(nome)", order: { column: "data", ascending: false } }),
-      fetchAllRows("relatorios_atividade", { select: "*, profiles!relatorios_atividade_educador_id_fkey(nome)", order: { column: "data", ascending: false } }),
-      fetchAllRows("planejamentos", { select: "*, profiles!planejamentos_educador_id_fkey(nome)", order: { column: "created_at", ascending: false } }),
-      fetchAllRows("profiles", { select: "*", order: { column: "nome" } }),
-    ]);
-    const { data: roles } = await supabase.from("user_roles").select("*");
-    const roleMap = new Map<string, string[]>();
-    (roles || []).forEach((r: any) => {
-      const arr = roleMap.get(r.user_id) || [];
-      arr.push(r.role);
-      roleMap.set(r.user_id, arr);
-    });
+    try {
+      if (name === "participantes") {
+        const p = await fetchAllRows("participantes", { select: "*", order: { column: "nome_completo" } });
+        setParticipantes(p || []);
+      } else if (name === "turmas") {
+        const t = await fetchAllRows("turmas", { select: "*, profiles!turmas_educador_id_fkey(nome)", order: { column: "nome" } });
+        setTurmas(t || []);
+      } else if (name === "presenca") {
+        const pr = await fetchAllRows("presenca", { select: "*, participantes(nome_completo), turmas(nome)", order: { column: "data", ascending: false } });
+        setPresenca((pr || []).map((x: any) => ({ ...x, participante_nome: x.participantes?.nome_completo || "", turma_nome: x.turmas?.nome || "", presente_str: x.presente ? "Sim" : "Não" })));
+      } else if (name === "relatorios") {
+        const r = await fetchAllRows("relatorios_atividade", { select: "*, profiles!relatorios_atividade_educador_id_fkey(nome)", order: { column: "data", ascending: false } });
+        setRelatorios((r || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "" })));
+      } else if (name === "planejamentos") {
+        const pl = await fetchAllRows("planejamentos", { select: "*, profiles!planejamentos_educador_id_fkey(nome)", order: { column: "created_at", ascending: false } });
+        setPlanejamentos((pl || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "", avaliacao_str: x.forma_avaliacao?.join(", ") || "" })));
+      } else if (name === "profissionais") {
+        const [prof, rolesRes] = await Promise.all([
+          fetchAllRows("profiles", { select: "*", order: { column: "nome" } }),
+          supabase.from("user_roles").select("*"),
+        ]);
+        const roles = rolesRes.data || [];
+        const roleMap = new Map<string, string[]>();
+        roles.forEach((r: any) => {
+          const arr = roleMap.get(r.user_id) || [];
+          arr.push(r.role);
+          roleMap.set(r.user_id, arr);
+        });
+        setProfissionais((prof || []).map((x: any) => ({ ...x, roles_str: (roleMap.get(x.user_id) || []).join(", "), ativo_str: x.ativo ? "Sim" : "Não" })));
+      }
+      setLoadedTabs(prev => new Set(prev).add(name));
+    } catch (err: any) {
+      toast.error(`Erro ao carregar ${name}: ` + (err?.message || "tente novamente"));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    setParticipantes(p || []);
-    setTurmas(t || []);
-    setPresenca((pr || []).map((x: any) => ({ ...x, participante_nome: x.participantes?.nome_completo || "", turma_nome: x.turmas?.nome || "", presente_str: x.presente ? "Sim" : "Não" })));
-    setRelatorios((r || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "" })));
-    setPlanejamentos((pl || []).map((x: any) => ({ ...x, educador_nome: x.profiles?.nome || "", avaliacao_str: x.forma_avaliacao?.join(", ") || "" })));
-    setProfissionais((prof || []).map((x: any) => ({ ...x, roles_str: (roleMap.get(x.user_id) || []).join(", "), ativo_str: x.ativo ? "Sim" : "Não" })));
-    setLoading(false);
+  // Compat: usado pelo bulk delete para revalidar a aba atual
+  const loadAll = async () => {
+    // Invalida cache da aba atual e recarrega só ela
+    setLoadedTabs(prev => {
+      const next = new Set(prev);
+      next.delete(tab);
+      return next;
+    });
+    await loadTab(tab);
   };
 
   const toggleCat = (cat: string) => setBackupCats(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);

@@ -73,11 +73,14 @@ const TurmasPage = () => {
 
   const fetchTurmas = async () => {
     setLoading(true);
-    const [{ data }, { data: tpData }] = await Promise.all([
-      supabase.from("turmas").select("*, profiles(nome), bairros(nome)").order("nome"),
-      supabase.from("turma_participantes").select("turma_id, participantes(nome_completo)"),
-    ]);
-    if (data) {
+    try {
+      const [{ data, error: e1 }, { data: tpData, error: e2 }] = await Promise.all([
+        supabase.from("turmas").select("*, profiles(nome), bairros(nome)").order("nome"),
+        supabase.from("turma_participantes").select("turma_id, participantes(nome_completo)"),
+      ]);
+      if (e1) throw e1;
+      if (e2) throw e2;
+      if (data) {
       const countMap: Record<string, number> = {};
       const nomesMap: Record<string, string[]> = {};
       (tpData || []).forEach((tp: any) => {
@@ -93,8 +96,12 @@ const TurmasPage = () => {
         participante_count: countMap[t.id] || 0,
         participante_nomes: nomesMap[t.id] || [],
       } as TurmaRow)));
+      }
+    } catch (err: any) {
+      toast.error("Erro ao carregar turmas: " + (err?.message || "tente novamente"));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleDelete = async () => {

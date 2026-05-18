@@ -110,28 +110,34 @@ export default function ConfiguracoesPage() {
 
   const loadAll = async () => {
     setLoading(true);
-    const [{ data: cfgData }, { data: bData }, { data: ptData }, { data: profData }, { data: rolesData }] = await Promise.all([
-      supabase.from("configuracoes_gerais").select("*"),
-      supabase.from("bairros").select("*").order("nome"),
-      supabase.from("pontos_transporte").select("*, bairros(nome)").order("nome"),
-      supabase.from("profiles").select("id, nome, cargo, ativo, user_id, email, telefone, carga_horaria, data_inicio, salario, data_desligamento").order("nome"),
-      supabase.from("user_roles").select("*"),
-    ]);
+    try {
+      const [{ data: cfgData }, { data: bData }, { data: ptData }, { data: profData }, { data: rolesData }] = await Promise.all([
+        supabase.from("configuracoes_gerais").select("*"),
+        supabase.from("bairros").select("*").order("nome"),
+        supabase.from("pontos_transporte").select("*, bairros(nome)").order("nome"),
+        supabase.from("profiles").select("id, nome, cargo, ativo, user_id, email, telefone, carga_horaria, data_inicio, salario, data_desligamento").order("nome"),
+        supabase.from("user_roles").select("*"),
+      ]);
 
-    const map: Record<string, string> = {};
-    CONFIG_KEYS.forEach(k => { map[k.key] = k.default; });
-    (cfgData || []).forEach((c: any) => { map[c.chave] = c.valor || ""; });
-    setConfigs(map);
-    setBairros(bData || []);
-    setPontosTransporte(ptData || []);
-    setProfiles(profData || []);
-    setUserRoles(rolesData || []);
+      const map: Record<string, string> = {};
+      CONFIG_KEYS.forEach(k => { map[k.key] = k.default; });
+      (cfgData || []).forEach((c: any) => { map[c.chave] = c.valor || ""; });
+      setConfigs(map);
+      setBairros(bData || []);
+      setPontosTransporte(ptData || []);
+      setProfiles(profData || []);
+      setUserRoles(rolesData || []);
 
-    // Load templates from storage
-    const { data: tplFiles } = await supabase.storage.from("templates").list();
-    setTemplates((tplFiles || []).filter(f => f.name.endsWith(".docx")).map(f => f.name));
-
-    setLoading(false);
+      // Load templates from storage (não bloqueia)
+      try {
+        const { data: tplFiles } = await supabase.storage.from("templates").list();
+        setTemplates((tplFiles || []).filter(f => f.name.endsWith(".docx")).map(f => f.name));
+      } catch {}
+    } catch (err: any) {
+      toast.error("Erro ao carregar configurações: " + (err?.message || "tente novamente"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Load audit logs on demand when tab is opened
