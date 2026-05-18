@@ -255,10 +255,10 @@ const RegistrosFotograficosPage = () => {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Turma/Oficina (opcional)</Label>
-              <Select value={turmaId} onValueChange={setTurmaId}>
+              <Select value={turmaId || "__none"} onValueChange={(v) => setTurmaId(v === "__none" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione…" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">— nenhuma —</SelectItem>
+                  <SelectItem value="__none">— nenhuma —</SelectItem>
                   {turmas.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
                   ))}
