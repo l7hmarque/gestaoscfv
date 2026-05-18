@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, FileText, Calendar, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
@@ -19,8 +20,7 @@ import { toast } from "sonner";
 const PlanejamentosPage = () => {
   const { user } = useAuth();
   const { log: auditLog } = useAuditLog();
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [isCoordenacao, setIsCoordenacao] = useState(false);
 
   // Bulk delete state
@@ -42,22 +42,28 @@ const PlanejamentosPage = () => {
     }
   }, [user]);
 
-  const loadData = async () => {
-    try {
+  const planejQuery = useQuery({
+    queryKey: ["planejamentos-list"],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("planejamentos")
         .select("*, planejamento_turmas(turma_id, turmas(nome)), profiles!planejamentos_educador_id_fkey(nome)")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      setItems(data || []);
-    } catch (err: any) {
-      toast.error("Erro ao carregar planejamentos: " + (err?.message || "tente novamente"));
-    } finally {
-      setLoading(false);
-    }
-  };
+      return data || [];
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+  const items: any[] = planejQuery.data || [];
+  const loading = planejQuery.isLoading;
+  const loadData = () => queryClient.invalidateQueries({ queryKey: ["planejamentos-list"] });
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    if (planejQuery.error) {
+      toast.error("Erro ao carregar planejamentos: " + ((planejQuery.error as any)?.message || "tente novamente"));
+    }
+  }, [planejQuery.error]);
 
   const handleBulkSearch = async () => {
     if (!bulkDateFrom || !bulkDateTo) { toast.error("Preencha ambas as datas"); return; }
