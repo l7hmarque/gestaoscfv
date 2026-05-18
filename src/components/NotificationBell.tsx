@@ -101,9 +101,12 @@ export function NotificationBell() {
           <Button variant="ghost" size="icon" className="relative h-10 w-10">
             <Bell className="h-5 w-5" />
             {unread > 0 && (
-              <span className="absolute top-1 right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[10px] flex items-center justify-center font-bold">
+              <span className="absolute top-0.5 right-0.5 h-4 min-w-4 px-0.5 rounded-full bg-destructive text-destructive-foreground text-[10px] flex items-center justify-center font-bold animate-pulse ring-2 ring-background">
                 {unread > 9 ? "9+" : unread}
               </span>
+            )}
+            {unread > 0 && (
+              <span className="absolute inset-0 rounded-full ring-2 ring-destructive/40 animate-ping" />
             )}
           </Button>
         </PopoverTrigger>
