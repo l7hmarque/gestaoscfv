@@ -18,7 +18,7 @@ import type { DateRange } from "react-day-picker";
 import {
   Users, GraduationCap, FileText, BookOpen, TrendingUp, Percent,
   Activity, ArrowUpRight, ArrowDownRight, CalendarDays, Newspaper,
-  ClipboardCheck, AlertTriangle, Clock, CalendarIcon, X, CalendarRange, Cake,
+  ClipboardCheck, AlertTriangle, Clock, CalendarIcon, X, CalendarRange, Cake, UserCheck,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -398,6 +398,23 @@ function IndicadoresTab() {
           range={range}
           onRangeChange={setRange}
         />
+        <Button
+          variant={dim.apenasAtivos === false ? "outline" : "default"}
+          size="sm"
+          onClick={() =>
+            setDim((p) => {
+              const next = { ...p };
+              if (next.apenasAtivos === false) delete next.apenasAtivos;
+              else next.apenasAtivos = false;
+              return next;
+            })
+          }
+          className="gap-1.5"
+          title={dim.apenasAtivos === false ? "Mostrando todos os participantes (clique para limitar a ativos)" : "Mostrando apenas participantes ativos (clique para incluir todos)"}
+        >
+          <UserCheck className="w-3.5 h-3.5" />
+          {dim.apenasAtivos === false ? "Todos" : "Apenas ativos"}
+        </Button>
       </div>
 
       {activeChips.length > 0 && (
