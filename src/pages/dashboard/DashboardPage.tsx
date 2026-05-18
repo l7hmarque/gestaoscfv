@@ -1,6 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useDashboardData } from "@/hooks/useDashboardData";
+import { useDashboardData, type DashboardDimFilters } from "@/hooks/useDashboardData";
+import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
+import { PERIODO_LABELS } from "@/lib/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -39,6 +42,8 @@ const COLORS = [
   "hsl(45,80%,55%)", "hsl(262,50%,55%)", "hsl(30,70%,55%)",
 ];
 const OBJ_LABELS: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
+
+const GENERO_LABELS: Record<string, string> = { feminino: "Feminino", masculino: "Masculino", outro: "Outro" };
 
 const MONTH_NAMES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
