@@ -2464,6 +2464,99 @@ export type Database = {
           },
         ]
       }
+      registros_fotograficos: {
+        Row: {
+          arquivo_url: string
+          autor_id: string
+          created_at: string
+          descricao: string | null
+          drive_file_id: string
+          drive_folder_id: string
+          feed_post_id: string | null
+          id: string
+          mes_ref: string
+          nome_arquivo: string
+          profissionais_marcados: string[]
+          relatorio_id: string | null
+          seq: number
+          tamanho_bytes: number | null
+          turma_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          arquivo_url: string
+          autor_id: string
+          created_at?: string
+          descricao?: string | null
+          drive_file_id: string
+          drive_folder_id: string
+          feed_post_id?: string | null
+          id?: string
+          mes_ref: string
+          nome_arquivo: string
+          profissionais_marcados?: string[]
+          relatorio_id?: string | null
+          seq: number
+          tamanho_bytes?: number | null
+          turma_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          arquivo_url?: string
+          autor_id?: string
+          created_at?: string
+          descricao?: string | null
+          drive_file_id?: string
+          drive_folder_id?: string
+          feed_post_id?: string | null
+          id?: string
+          mes_ref?: string
+          nome_arquivo?: string
+          profissionais_marcados?: string[]
+          relatorio_id?: string | null
+          seq?: number
+          tamanho_bytes?: number | null
+          turma_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registros_fotograficos_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registros_fotograficos_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registros_fotograficos_feed_post_id_fkey"
+            columns: ["feed_post_id"]
+            isOneToOne: false
+            referencedRelation: "feed_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registros_fotograficos_relatorio_id_fkey"
+            columns: ["relatorio_id"]
+            isOneToOne: false
+            referencedRelation: "relatorios_atividade"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registros_fotograficos_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       relato_equipe_participantes: {
         Row: {
           id: string
@@ -3508,6 +3601,7 @@ export type Database = {
           total: number
         }[]
       }
+      next_regfoto_seq: { Args: { _mes_ref: string }; Returns: number }
       projeto_member_papel: {
         Args: { _projeto_id: string; _user_id: string }
         Returns: string
