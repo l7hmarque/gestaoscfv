@@ -3,6 +3,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
+import { useActivityPing } from "@/hooks/useActivityPing";
 import { NotificationBell } from "@/components/NotificationBell";
 import { SendRecadoDialog } from "@/components/SendRecadoDialog";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { FloatingActionButton } from "@/components/FloatingActionButton";
 
 export function AppLayout() {
   useSessionTimeout();
+  useActivityPing();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
