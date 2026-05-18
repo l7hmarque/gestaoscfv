@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { AgendaProfissional } from "@/components/cronograma/AgendaProfissional";
 
 const DIAS_SEMANA = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
 
@@ -185,14 +186,19 @@ const ProfissionalPerfilPage = () => {
       )}
 
       {/* Tabs */}
-      <Tabs defaultValue="turmas">
+      <Tabs defaultValue="agenda">
         <TabsList className="h-8">
+          <TabsTrigger value="agenda" className="text-xs h-7 gap-1"><Calendar className="h-3 w-3" />Minha Agenda</TabsTrigger>
           <TabsTrigger value="turmas" className="text-xs h-7 gap-1"><Users className="h-3 w-3" />Turmas ({turmas.length})</TabsTrigger>
           <TabsTrigger value="planejamentos" className="text-xs h-7 gap-1"><ClipboardList className="h-3 w-3" />Planejamentos ({planejamentos.length})</TabsTrigger>
           <TabsTrigger value="relatorios" className="text-xs h-7 gap-1"><FileText className="h-3 w-3" />Relatórios ({relatorios.length})</TabsTrigger>
           <TabsTrigger value="presencas" className="text-xs h-7 gap-1"><CheckSquare className="h-3 w-3" />Presenças ({presencas.length})</TabsTrigger>
           <TabsTrigger value="recados-enviados" className="text-xs h-7 gap-1"><Send className="h-3 w-3" />Recados ({recadosEnviados.length})</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="agenda">
+          {id && <AgendaProfissional profileId={id} />}
+        </TabsContent>
 
         <TabsContent value="turmas">
           <div className="grid gap-2">
