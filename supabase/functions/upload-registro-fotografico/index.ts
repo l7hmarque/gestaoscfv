@@ -156,7 +156,8 @@ Deno.serve(async (req) => {
 
       const bytes = decodeBase64(f.base64);
       const up = await uploadBytes(nome_arquivo, f.mime || "image/jpeg", bytes, monthFolderId);
-      const arquivo_url = `https://drive.google.com/uc?export=view&id=${up.id}`;
+      // lh3.googleusercontent.com serves Drive files as actual image bytes (sem HTML interstitial)
+      const arquivo_url = `https://lh3.googleusercontent.com/d/${up.id}=w1600`;
 
       const { data: row, error: insErr } = await supabase.from("registros_fotograficos").insert({
         autor_id: profile.id,
