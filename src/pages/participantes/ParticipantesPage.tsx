@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BAIRROS_SCFV, calcAge, calcFaixaFromDate, displayAge, PERIODO_LABELS, STATUS_LABELS, STATUS_COLORS } from "@/lib/constants";
 import { exportXLSX } from "@/hooks/useDataExport";
 import { displayPhone } from "@/lib/utils";
@@ -52,9 +53,7 @@ const ParticipantesPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { log: auditLog } = useAuditLog();
-  const [participantes, setParticipantes] = useState<Tables<"participantes">[]>([]);
-  const [bairros, setBairros] = useState<Tables<"bairros">[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [periodoFilter, setPeriodoFilter] = useState<string>("");
@@ -73,25 +72,39 @@ const ParticipantesPage = () => {
   const [desligamentoJustificativa, setDesligamentoJustificativa] = useState("");
   const [desligamentoSaving, setDesligamentoSaving] = useState(false);
 
+  const participantesQuery = useQuery({
+    queryKey: ["participantes-list"],
+    queryFn: () => fetchAllRows("participantes", { select: "*", order: { column: "nome_completo" } }),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+  const bairrosQuery = useQuery({
+    queryKey: ["bairros-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("bairros").select("*").order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+  const participantes: Tables<"participantes">[] = (participantesQuery.data as any) || [];
+  const bairros: Tables<"bairros">[] = (bairrosQuery.data as any) || [];
+  const loading = participantesQuery.isLoading || bairrosQuery.isLoading;
+
   useEffect(() => {
-    fetchData();
+    if (participantesQuery.error) {
+      toast.error("Erro ao carregar participantes: " + ((participantesQuery.error as any)?.message || "tente novamente"));
+    }
+  }, [participantesQuery.error]);
+
+  useEffect(() => {
     fetchDuplicatas();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [p, { data: b }] = await Promise.all([
-        fetchAllRows("participantes", { select: "*", order: { column: "nome_completo" } }),
-        supabase.from("bairros").select("*").order("nome"),
-      ]);
-      setParticipantes(p || []);
-      setBairros(b || []);
-    } catch (err: any) {
-      toast.error("Erro ao carregar participantes: " + (err?.message || "tente novamente"));
-    } finally {
-      setLoading(false);
-    }
+  const fetchData = () => {
+    queryClient.invalidateQueries({ queryKey: ["participantes-list"] });
+    queryClient.invalidateQueries({ queryKey: ["bairros-list"] });
   };
 
   const fetchDuplicatas = async () => {
@@ -257,7 +270,9 @@ const ParticipantesPage = () => {
     }
 
     toast.success(`Período alterado para ${periodoLabel[newPeriodo]}`);
-    setParticipantes(prev => prev.map(x => x.id === p.id ? { ...x, periodo: newPeriodo as any } : x));
+    queryClient.setQueryData(["participantes-list"], (prev: any) =>
+      Array.isArray(prev) ? prev.map((x: any) => x.id === p.id ? { ...x, periodo: newPeriodo } : x) : prev
+    );
   };
 
   // Quick status change
@@ -276,7 +291,9 @@ const ParticipantesPage = () => {
     await auditLog({ acao: "alteração de status", tabela: "participantes", registro_id: p.id, detalhes: `Status: ${p.status} → ${newStatus}` });
     toast.success(`Status alterado para ${statusLabel[newStatus]}`);
     // Optimistic update to preserve scroll position
-    setParticipantes(prev => prev.map(x => x.id === p.id ? { ...x, status: newStatus as any } : x));
+    queryClient.setQueryData(["participantes-list"], (prev: any) =>
+      Array.isArray(prev) ? prev.map((x: any) => x.id === p.id ? { ...x, status: newStatus } : x) : prev
+    );
   };
 
   const handleDesligamento = async () => {
