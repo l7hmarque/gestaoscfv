@@ -537,6 +537,7 @@ const RelatorioNovoPage = () => {
         }
       })();
 
+      await stopTimer(relId);
       navigate("/relatorios");
     } catch (e: any) {
       toast.error(e.message || "Erro ao salvar");
