@@ -1,6 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useDashboardData } from "@/hooks/useDashboardData";
+import { useDashboardData, type DashboardDimFilters } from "@/hooks/useDashboardData";
+import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
+import { PERIODO_LABELS } from "@/lib/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -39,6 +42,8 @@ const COLORS = [
   "hsl(45,80%,55%)", "hsl(262,50%,55%)", "hsl(30,70%,55%)",
 ];
 const OBJ_LABELS: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
+
+const GENERO_LABELS: Record<string, string> = { feminino: "Feminino", masculino: "Masculino", outro: "Outro" };
 
 const MONTH_NAMES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -242,12 +247,41 @@ function IndicadoresTab() {
   const [ano, setAno] = useState<number | null>(null);
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [selectedIndicator, setSelectedIndicator] = useState<IndicadorId | null>(null);
+  const [dim, setDim] = useState<DashboardDimFilters>({});
+  const [bairros, setBairros] = useState<{ id: string; nome: string }[]>([]);
+
+  useEffect(() => {
+    supabase.from("bairros").select("id, nome").then(({ data }) => {
+      if (data) setBairros(data as { id: string; nome: string }[]);
+    });
+  }, []);
+
   const dataInicio = range?.from ? toIso(range.from) : null;
   const dataFim = range?.from ? toIso(range.to ?? range.from) : null;
-  const { data, loading, error } = useDashboardData(mes, ano, dataInicio, dataFim);
+  const { data, loading, error } = useDashboardData(mes, ano, dataInicio, dataFim, dim);
   const navigate = useNavigate();
 
-  if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando indicadores...</div>;
+  const toggleDim = <K extends keyof DashboardDimFilters>(key: K, value: NonNullable<DashboardDimFilters[K]> | null) => {
+    setDim((prev) => {
+      const cur = prev[key] ?? null;
+      if (cur === value || value === null) {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      return { ...prev, [key]: value };
+    });
+  };
+  const clearDim = () => setDim({});
+  const bairroNomeById = (id: string) => bairros.find((b) => b.id === id)?.nome ?? id;
+  const bairroIdByNome = (nome: string) => bairros.find((b) => b.nome === nome)?.id;
+  const activeChips: { key: keyof DashboardDimFilters; label: string }[] = [];
+  if (dim.faixa) activeChips.push({ key: "faixa", label: `Faixa: ${dim.faixa}` });
+  if (dim.genero) activeChips.push({ key: "genero", label: `Gênero: ${GENERO_LABELS[dim.genero] ?? dim.genero}` });
+  if (dim.bairroId) activeChips.push({ key: "bairroId", label: `Bairro: ${bairroNomeById(dim.bairroId)}` });
+  if (dim.periodo) activeChips.push({ key: "periodo", label: `Período: ${PERIODO_LABELS[dim.periodo] ?? dim.periodo}` });
+
+  if (loading && !data) return <div className="p-6 text-sm text-muted-foreground">Carregando indicadores...</div>;
   if (error) return <div className="p-6 text-sm text-destructive">Erro ao carregar indicadores: {(error as Error).message}</div>;
   if (!data) return <div className="p-6 text-sm text-muted-foreground">Nenhum indicador encontrado para o período selecionado.</div>;
 
@@ -277,6 +311,28 @@ function IndicadoresTab() {
           onRangeChange={setRange}
         />
       </div>
+
+      {/* Filtros dimensionais ativos (cross-filter por clique) */}
+      {activeChips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-md border border-primary/30 bg-primary/5">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">Filtros ativos</span>
+          {activeChips.map((c) => (
+            <Badge
+              key={c.key}
+              variant="secondary"
+              className="cursor-pointer gap-1 hover:bg-destructive/10"
+              onClick={() => setDim((p) => { const n = { ...p }; delete n[c.key]; return n; })}
+              title="Clique para remover"
+            >
+              {c.label} <X size={10} />
+            </Badge>
+          ))}
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] ml-auto" onClick={clearDim}>
+            Limpar tudo
+          </Button>
+          {loading && <span className="text-[11px] text-muted-foreground">atualizando...</span>}
+        </div>
+      )}
 
       {/* Quick shortcuts */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
@@ -454,12 +510,26 @@ function IndicadoresTab() {
           {() => (
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.participantesPorFaixa}>
+                <BarChart
+                  data={data.participantesPorFaixa}
+                  onClick={(e: any) => {
+                    const f = e?.activePayload?.[0]?.payload?.faixa;
+                    if (f) toggleDim("faixa", f);
+                  }}
+                >
                   <CartesianGrid {...gridProps} />
                   <XAxis dataKey="faixa" tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} width={30} allowDecimals={false} />
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="count" name="Participantes" fill="hsl(0,58%,56%)" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="count" name="Participantes" radius={[3, 3, 0, 0]} cursor="pointer">
+                    {data.participantesPorFaixa.map((row, i) => (
+                      <Cell
+                        key={i}
+                        fill="hsl(0,58%,56%)"
+                        fillOpacity={!dim.faixa || dim.faixa === row.faixa ? 1 : 0.3}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -471,8 +541,25 @@ function IndicadoresTab() {
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={data.participantesPorGenero} dataKey="count" nameKey="genero" cx="50%" cy="50%" outerRadius={65} label={({ genero, percent }) => `${genero} ${(percent * 100).toFixed(0)}%`} labelLine={false} style={{ fontSize: 10 }}>
-                    {data.participantesPorGenero.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  <Pie
+                    data={data.participantesPorGenero}
+                    dataKey="count"
+                    nameKey="genero"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={65}
+                    label={({ genero, percent }) => `${genero} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                    style={{ fontSize: 10, cursor: "pointer" }}
+                    onClick={(e: any) => { if (e?.genero) toggleDim("genero", e.genero); }}
+                  >
+                    {data.participantesPorGenero.map((row, i) => (
+                      <Cell
+                        key={i}
+                        fill={COLORS[i % COLORS.length]}
+                        fillOpacity={!dim.genero || dim.genero === row.genero ? 1 : 0.3}
+                      />
+                    ))}
                   </Pie>
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 </PieChart>
@@ -486,8 +573,25 @@ function IndicadoresTab() {
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={data.participantesPorPeriodo} dataKey="count" nameKey="periodo" cx="50%" cy="50%" outerRadius={65} label={({ periodo, percent }) => `${periodo} ${(percent * 100).toFixed(0)}%`} labelLine={false} style={{ fontSize: 10 }}>
-                    {data.participantesPorPeriodo.map((_, i) => <Cell key={i} fill={COLORS[(i + 2) % COLORS.length]} />)}
+                  <Pie
+                    data={data.participantesPorPeriodo}
+                    dataKey="count"
+                    nameKey="periodo"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={65}
+                    label={({ periodo, percent }) => `${PERIODO_LABELS[periodo] ?? periodo} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                    style={{ fontSize: 10, cursor: "pointer" }}
+                    onClick={(e: any) => { if (e?.periodo) toggleDim("periodo", e.periodo); }}
+                  >
+                    {data.participantesPorPeriodo.map((row, i) => (
+                      <Cell
+                        key={i}
+                        fill={COLORS[(i + 2) % COLORS.length]}
+                        fillOpacity={!dim.periodo || dim.periodo === row.periodo ? 1 : 0.3}
+                      />
+                    ))}
                   </Pie>
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 </PieChart>
@@ -503,12 +607,28 @@ function IndicadoresTab() {
           {() => (
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.participantesPorBairro} layout="vertical">
+                <BarChart
+                  data={data.participantesPorBairro}
+                  layout="vertical"
+                  onClick={(e: any) => {
+                    const nome = e?.activePayload?.[0]?.payload?.bairro;
+                    if (!nome) return;
+                    const id = bairroIdByNome(nome);
+                    if (id) toggleDim("bairroId", id);
+                  }}
+                >
                   <CartesianGrid {...gridProps} />
                   <XAxis type="number" tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <YAxis type="category" dataKey="bairro" tick={{ fontSize: 9, fill: chartColors.text }} width={80} axisLine={false} tickLine={false} />
                   <Tooltip content={<RichTooltip />} />
-                  <Bar dataKey="count" name="Participantes" fill="hsl(210,22%,49%)" radius={[0, 3, 3, 0]} />
+                  <Bar dataKey="count" name="Participantes" radius={[0, 3, 3, 0]} cursor="pointer">
+                    {data.participantesPorBairro.map((row, i) => {
+                      const active = dim.bairroId ? bairroNomeById(dim.bairroId) === row.bairro : true;
+                      return (
+                        <Cell key={i} fill="hsl(210,22%,49%)" fillOpacity={active ? 1 : 0.3} />
+                      );
+                    })}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
