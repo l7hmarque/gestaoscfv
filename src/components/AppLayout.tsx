@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { SystemBanner } from "@/components/SystemBanner";
 import { FloatingActionButton } from "@/components/FloatingActionButton";
+import { CienteRequiredModal } from "@/components/cronograma/CienteRequiredModal";
 
 export function AppLayout() {
   useSessionTimeout();
@@ -54,6 +55,7 @@ export function AppLayout() {
           <FloatingActionButton />
         </div>
       </div>
+      <CienteRequiredModal />
     </SidebarProvider>
   );
 }

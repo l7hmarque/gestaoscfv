@@ -595,6 +595,86 @@ export type Database = {
           },
         ]
       }
+      cronograma_atividades_manuais: {
+        Row: {
+          bairro_id: string | null
+          cenario_id: string
+          cor: string | null
+          created_at: string
+          created_by: string | null
+          dia_semana: string
+          horario_fim: string | null
+          horario_inicio: string | null
+          icone: string | null
+          id: string
+          notas: string | null
+          ordem: number
+          periodo: string
+          titulo: string
+        }
+        Insert: {
+          bairro_id?: string | null
+          cenario_id: string
+          cor?: string | null
+          created_at?: string
+          created_by?: string | null
+          dia_semana: string
+          horario_fim?: string | null
+          horario_inicio?: string | null
+          icone?: string | null
+          id?: string
+          notas?: string | null
+          ordem?: number
+          periodo: string
+          titulo: string
+        }
+        Update: {
+          bairro_id?: string | null
+          cenario_id?: string
+          cor?: string | null
+          created_at?: string
+          created_by?: string | null
+          dia_semana?: string
+          horario_fim?: string | null
+          horario_inicio?: string | null
+          icone?: string | null
+          id?: string
+          notas?: string | null
+          ordem?: number
+          periodo?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cronograma_atividades_manuais_bairro_id_fkey"
+            columns: ["bairro_id"]
+            isOneToOne: false
+            referencedRelation: "bairros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cronograma_atividades_manuais_cenario_id_fkey"
+            columns: ["cenario_id"]
+            isOneToOne: false
+            referencedRelation: "cronograma_cenarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cronograma_atividades_manuais_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cronograma_atividades_manuais_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cronograma_cenarios: {
         Row: {
           ativo: boolean
@@ -678,6 +758,168 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cronograma_intervencao_cientes: {
+        Row: {
+          ciente_em: string
+          id: string
+          intervencao_id: string
+          profile_id: string
+        }
+        Insert: {
+          ciente_em?: string
+          id?: string
+          intervencao_id: string
+          profile_id: string
+        }
+        Update: {
+          ciente_em?: string
+          id?: string
+          intervencao_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cronograma_intervencao_cientes_intervencao_id_fkey"
+            columns: ["intervencao_id"]
+            isOneToOne: false
+            referencedRelation: "cronograma_intervencoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cronograma_intervencao_cientes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cronograma_intervencao_cientes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cronograma_intervencoes: {
+        Row: {
+          bairros: string[] | null
+          cenario_id: string | null
+          cor: string | null
+          created_at: string
+          criado_por: string | null
+          data_fim: string | null
+          data_inicio: string
+          descricao: string | null
+          dias_semana: string[] | null
+          id: string
+          periodos: string[] | null
+          prioridade: string
+          profissionais: string[] | null
+          titulo: string
+        }
+        Insert: {
+          bairros?: string[] | null
+          cenario_id?: string | null
+          cor?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_fim?: string | null
+          data_inicio?: string
+          descricao?: string | null
+          dias_semana?: string[] | null
+          id?: string
+          periodos?: string[] | null
+          prioridade?: string
+          profissionais?: string[] | null
+          titulo: string
+        }
+        Update: {
+          bairros?: string[] | null
+          cenario_id?: string | null
+          cor?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_fim?: string | null
+          data_inicio?: string
+          descricao?: string | null
+          dias_semana?: string[] | null
+          id?: string
+          periodos?: string[] | null
+          prioridade?: string
+          profissionais?: string[] | null
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cronograma_intervencoes_cenario_id_fkey"
+            columns: ["cenario_id"]
+            isOneToOne: false
+            referencedRelation: "cronograma_cenarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cronograma_intervencoes_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cronograma_intervencoes_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cronograma_slot_profissionais: {
+        Row: {
+          created_at: string
+          id: string
+          papel: string
+          profile_id: string
+          slot_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          papel?: string
+          profile_id: string
+          slot_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          papel?: string
+          profile_id?: string
+          slot_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cronograma_slot_profissionais_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cronograma_slot_profissionais_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cronograma_slot_profissionais_slot_id_fkey"
+            columns: ["slot_id"]
+            isOneToOne: false
+            referencedRelation: "cronograma_slots"
             referencedColumns: ["id"]
           },
         ]
@@ -2344,7 +2586,9 @@ export type Database = {
           lido: boolean
           numero: number
           participante_id: string | null
+          prioridade: string
           remetente_id: string
+          requer_ciente: boolean
           status: string
           tipo_recado: string
         }
@@ -2357,7 +2601,9 @@ export type Database = {
           lido?: boolean
           numero?: number
           participante_id?: string | null
+          prioridade?: string
           remetente_id: string
+          requer_ciente?: boolean
           status?: string
           tipo_recado?: string
         }
@@ -2370,7 +2616,9 @@ export type Database = {
           lido?: boolean
           numero?: number
           participante_id?: string | null
+          prioridade?: string
           remetente_id?: string
+          requer_ciente?: boolean
           status?: string
           tipo_recado?: string
         }
