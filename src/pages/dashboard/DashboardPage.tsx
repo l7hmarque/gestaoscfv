@@ -174,8 +174,8 @@ function KPICard({ icon: Icon, label, value, sub, color, delta, deltaLabel, tool
 }
 
 /* ── Chart Card ── */
-function ChartCard({ title, subtitle, children, className }: {
-  title: string; subtitle?: string; className?: string;
+function ChartCard({ title, subtitle, children, className, action }: {
+  title: string; subtitle?: string; className?: string; action?: React.ReactNode;
   children: (ref: React.RefObject<HTMLDivElement | null>) => React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -186,7 +186,10 @@ function ChartCard({ title, subtitle, children, className }: {
           <CardTitle className="text-sm font-semibold">{title}</CardTitle>
           {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
         </div>
-        <ChartCopyButton targetRef={ref} />
+        <div className="flex items-center gap-2">
+          {action}
+          <ChartCopyButton targetRef={ref} />
+        </div>
       </CardHeader>
       <CardContent ref={ref}>{children(ref)}</CardContent>
     </Card>
@@ -395,12 +398,6 @@ function IndicadoresTab() {
           range={range}
           onRangeChange={setRange}
         />
-        <IdadeRangeFilter
-          idadeMin={dim.idadeMin ?? null}
-          idadeMax={dim.idadeMax ?? null}
-          onApply={applyIdadeRange}
-          onClear={clearIdadeRange}
-        />
       </div>
 
       {activeChips.length > 0 && (
@@ -596,7 +593,17 @@ function IndicadoresTab() {
 
       {/* Demographics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <ChartCard title="Faixa Etária">
+        <ChartCard
+          title="Faixa Etária"
+          action={
+            <IdadeRangeFilter
+              idadeMin={dim.idadeMin ?? null}
+              idadeMax={dim.idadeMax ?? null}
+              onApply={applyIdadeRange}
+              onClear={clearIdadeRange}
+            />
+          }
+        >
           {() => (
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
