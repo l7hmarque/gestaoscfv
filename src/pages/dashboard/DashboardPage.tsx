@@ -824,7 +824,7 @@ function IndicadoresTab() {
                           <span
                             key={i}
                             className="inline-block h-5 w-[6px] rounded-[1px]"
-                            style={{ background: i % 2 === 0 ? RED : BLUE }}
+                            style={{ background: RED }}
                           />
                         ))}
                       </div>
