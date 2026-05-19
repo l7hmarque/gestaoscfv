@@ -227,6 +227,11 @@
   /* Hide scrollbars on tab bars while keeping scroll */
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Custom Recharts overrides */
+  .recharts-surface {
+    @apply bg-neutral-100 border-2 border-solid border-black text-black text-base font-normal font-serif;
+  }
 }
 
 @layer components {
