@@ -33,7 +33,6 @@ const FAIXAS = [
 const PERIODOS = [
   { value: "manha", label: "Manhã" },
   { value: "tarde", label: "Tarde" },
-  { value: "integral", label: "Integral" },
 ];
 
 const TurmaNovaPage = () => {
