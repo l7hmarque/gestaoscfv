@@ -1,96 +1,98 @@
-# Plano: Telemetria detalhada + Otimização de performance
+# Estratégia — Performance sem quebrar nada
 
-## Parte 1 — Telemetria por lançamento (não só média)
+## Item 1 — Cronograma: memoizar (NÃO remover)
 
-### 1.1 Estender `user_action_durations`
-A tabela e o hook `useFormTimer` já existem. Hoje gravam duração e `registro_id`, mas a tela `ProdutividadeTab` só exibe média/somatório.
+### Por que não remover
+A feature está mais entrelaçada do que parece. Remover quebraria:
+- `AgendaProfissional` dentro de `ProfissionalPerfilPage` (cada perfil mostra a agenda do educador).
+- `CienteRequiredModal` no `AppLayout` (depende de `cronograma_intervencoes` para o bloqueio de ciência — usado por toda a coordenação para forçar leitura de avisos críticos).
+- Card "Cronograma" no DashboardPage e link na sidebar.
+- 6 tabelas com FKs (`cronograma_cenarios`, `_slots`, `_slot_profissionais`, `_atividades_manuais`, `_intervencoes`, `_intervencao_cientes`, `_disponibilidade`) + edge function `generate-cronograma-report` + realtime publications.
+- O fluxo de "Intervenções com ciência obrigatória" é institucional, não bônus.
 
-Migration:
-- Adicionar índice `idx_uad_registro (tipo, registro_id)` para lookup rápido por lançamento.
-- Adicionar coluna `contexto jsonb` (opcional) para guardar título/turma/data do registro relacionado, evitando joins pesados depois.
-- Ampliar enum de tipos: `atendimento`, `edicao_atendimento`, `encaminhamento`, `busca_ativa`, `roteiro_visita` (equipe técnica).
+Conclusão: o custo/risco de remover é alto e a página **já é lazy-loaded** (não pesa no boot). O ganho real está em **memoizar o grid** para acelerar quando o usuário entra em `/cronograma`.
 
-### 1.2 Instrumentar equipe técnica
-Adicionar `useFormTimer("atendimento" | "encaminhamento" | "busca_ativa" | "roteiro_visita")` nos formulários correspondentes (mesma estratégia silenciosa já usada em relatórios/planejamentos/presença). Custo zero em runtime do usuário: um único insert ao salvar.
+### O que fazer (memoização cirúrgica)
 
-### 1.3 RPC nova: `get_lancamentos_detalhados(_profile_id, _tipo?, _de?, _ate?, _limit, _offset)`
-Retorna lista paginada:
-```
-[{ tipo, registro_id, iniciado_em, duracao_segundos, rota, titulo, link }]
-```
-- Resolve título/link via JOIN leve com a tabela alvo (`relatorios_atividades`, `planejamentos`, `presencas`, `atendimentos`, etc.) usando CASE.
-- Paginação obrigatória (default 50). Index `(user_id, tipo, iniciado_em DESC)`.
+Em `CronogramaPage.tsx` (842 linhas):
+1. Extrair a célula do grid (`<div>` que renderiza slots + atividades por dia/período/bairro) em um componente `CronogramaCell` envolvido por `React.memo` com comparador raso nas props (`slots`, `atividades`, `bairro`, handlers estáveis).
+2. Estabilizar handlers (`onSlotClick`, `onAddAtividade`, etc.) com `useCallback`.
+3. Pré-indexar dados em `useMemo`: `Map<bairroId, slots[]>`, `Map<slotId, profissionais[]>`, em vez de filtrar arrays inteiros por célula a cada render (hoje é O(células × slots)).
+4. Mesmo tratamento em `AgendaProfissional.tsx` (grid 5×2 também faz `.filter` por célula).
 
-### 1.4 UI — Drawer "Detalhar" na linha do profissional
-Em `ProdutividadeTab`:
-- Manter a tabela atual de médias (visão de longo prazo).
-- Botão `Detalhar` por linha abre um `Sheet` lateral lazy-loaded com:
-  - Filtros: tipo de ação, intervalo de datas.
-  - Tabela paginada (50 por página) com: data/hora, tipo, título do registro (link), duração formatada.
-  - Mini-stats no topo: total, p50, p90, mais demorado, mais rápido.
-- Aba "Equipe técnica" no mesmo padrão, listando atendimentos/encaminhamentos/busca ativa por profissional técnico.
+Sem mudança de comportamento, sem mudança de dados. Risco: baixo.
 
-Performance: só roda a query ao abrir o drawer; nada extra carrega no painel principal.
+### Plano B (opcional, reversível): "desligar" sem remover
+Se mesmo memoizado o usuário quiser sumir com o cronograma da navegação:
+- Remover o link da sidebar e o card do dashboard.
+- Manter a rota `/cronograma`, as tabelas, edge function e `CienteRequiredModal` intactos.
+- Acessível ainda por URL direta para coordenação.
+- Reversível em 2 linhas. Zero risco para `AgendaProfissional` e ciência.
 
-## Parte 2 — Diagnóstico e correção de lentidão
+Recomendação: aplicar memoização agora; decidir o Plano B depois se ainda quiser limpar a navegação.
 
-### 2.1 Causas mais prováveis (a investigar e medir)
-- Bundle: `CronogramaPage` (842 linhas), tabelas grandes, libs pesadas (xlsx, docx, html2canvas, recharts) sendo importadas no carregamento de várias páginas.
-- Tipos do Supabase: `types.ts` enorme aumenta TS-check; ok runtime.
-- Queries sem paginação em listas (participantes, relatórios, audit_log).
-- Realtime subscriptions duplicadas/abertas sem cleanup.
-- Re-renders por context global (`AuthContext`, `CienteRequiredModal` que faz query a cada render).
-- Imagens não otimizadas no Feed/Mural/Registros Fotográficos (PNG full).
-- Edge functions chamadas em série quando poderiam paralelizar.
+---
 
-### 2.2 Ações concretas
-1. **Code-splitting agressivo** das libs pesadas: `xlsx`, `xlsx-js-style`, `docx`, `html2canvas`, `jspdf`, `framer-motion`, `recharts` → dynamic `import()` apenas no momento do uso (exportações/dashboards específicos). Hoje várias estão no bundle inicial.
-2. **Lazy import** dos componentes de export (`useDocumentExport`, `useBulkRelatorioExport`, `useBackupExport`).
-3. **Auditar `useEffect` + subscribes**: garantir `removeChannel` em todos os componentes com realtime (Cronograma, Notificações, Feed, CienteRequiredModal).
-4. **Paginar** queries que hoje puxam tudo: participantes, relatórios, audit_log, feed (cursor por `created_at`).
-5. **Indexes faltantes**: revisar via `supabase--linter` + plano de execução nas queries do `DashboardPage` e `CoordenacaoPage`.
-6. **React Query**: aumentar `staleTime` para dados pouco mutáveis (bairros, turmas, perfis) — já parcial; estender para indicadores do site público.
-7. **Imagens**: aplicar `loading="lazy"` + `decoding="async"` em Feed/Mural/Registros, e converter PNG do storage para WebP no upload (edge function já existe — adicionar resize/compress).
-8. **Memoizar** células do grid do Cronograma e da matriz de presença.
-9. **Remover `select("*")`** onde só usa 3 campos.
-10. **Limitar `CienteRequiredModal`** a polling/realtime em vez de query a cada navegação.
+## Item 3 — CienteRequiredModal: fix de performance
 
-### 2.3 Como medir antes/depois
-- `browser--performance_profile` em /, /dashboard, /cronograma, /participantes, /coordenacao.
-- Long tasks > 200ms, bundle inicial via build stats.
-- p95 das RPCs no log do Supabase.
+### Problema atual
+O modal está no `AppLayout` (renderiza em toda navegação autenticada). Hoje:
+- A cada login/montagem dispara 4 queries em paralelo (`profiles`, `cronograma_intervencoes` LIMIT 50, `cronograma_intervencao_cientes`, `recados`).
+- Abre 1 canal realtime por usuário escutando **todas** as mudanças de `cronograma_intervencoes` e `recados` no banco inteiro.
+- Cada evento realtime dispara `load()` novamente (4 queries) — barulhento em horários de pico.
 
-## Parte 3 — Limpeza de código morto / não utilizado
+### Correções (baixo risco)
+1. **Mover `profileId` lookup para o `AuthContext`** (já existe `user`; expor `profileId` cacheado). Elimina 1 query por montagem em todo lugar que hoje faz `select id from profiles where user_id=...` (>10 componentes fazem isso).
+2. **Filtrar o canal realtime** por `filter: "destinatario_id=eq.{profileId}"` em `recados` (Postgres Changes suporta filter). Para `cronograma_intervencoes` não tem como filtrar por array no servidor — então debounçar o `load()` em 1500ms para coalescer rajadas.
+3. **Substituir realtime de `cronograma_intervencoes` por polling leve** (a cada 60s + on focus) já que intervenções são raras. Remove uma subscription global por usuário.
+4. **Memoizar `CienteRequiredModal`** e mover para dentro de um wrapper que só monta se `user` existir (já é o caso, mas remover o `useEffect` que dispara em cada navegação — usar `useQuery` com `staleTime: 60_000`).
+5. **Throttle do `useActivityPing`** se ainda não tiver (verificar).
 
-Auditoria proposta (a executar antes de remover qualquer coisa):
-1. `rg` por imports de cada página/hook/edge function — listar órfãos.
-2. Verificar tabelas com 0 inserts nos últimos 60 dias via SQL.
-3. Verificar rotas no `App.tsx` sem links na sidebar/menu.
+Ganho esperado: redução real de ~30–40% de latência percebida em navegações entre páginas (especialmente em `/coordenacao`, `/participantes`).
+Risco: baixo. O fluxo de ciência continua igual — só muda *como* o cliente descobre que há pendência.
 
-Suspeitas a confirmar (NÃO remover sem validar):
-- `/preview-design` (DesignPreviewPage) — ferramenta interna.
-- `useTransporteOffline` + `offlineDB` — usado?
-- `useDocumentScanner` — usado?
-- Funções edge antigas: `generate-noticia`, `generate-relatorio-gdoc` (se substituídas).
-- Tabelas/colunas legadas: `drive_planilhas_mensais` (RLS hoje "OR true"), `auditoria_abril_desligamentos` (one-shot já consumido?).
-- `useProjetos` / `useProjetoTarefas` / `ProjetoWorkspacePage` — não há rota em `App.tsx`. Forte candidato à remoção.
+---
 
-Para cada item confirmado como morto: remover arquivo, dropar tabela/coluna via migration, remover policies, remover do `types.ts` (auto-regen).
+## Item 4 — useDocumentExport: análise de risco (NÃO aplicar agora)
 
-## Ordem de execução proposta
-1. Plano aprovado → executar auditoria de uso (read-only) e apresentar relatório com candidatos confirmados.
-2. Telemetria detalhada (migration + hook + RPC + drawer UI).
-3. Otimizações de bundle (dynamic imports) — maior ganho com menor risco.
-4. Paginação + memoização + imagens.
-5. Remoções de código morto (uma PR por bloco, com migrations reversíveis).
-6. Re-medir performance e reportar deltas.
+### Fatores de risco
 
-## Garantias
-- Nenhuma alteração quebra indicadores: RPCs atuais (`get_dashboard_stats`, `get_coordenacao_stats`, `get_produtividade_educadores`) permanecem intactas; só adicionamos novas.
-- Telemetria continua silenciosa (1 insert no save, sem polling).
-- Remoções só após confirmar 0 referências em código + 0 uso em dados.
+1. **Tamanho e acoplamento**: 1381 linhas, 9+ funções exportadas (`exportRelatorioPdf`, `exportRelatorioDocx`, `buildRelatorioDocxBlob`, `exportPlanejamentoPdf/Docx`, `exportFichaInscricaoPdf/Docx`, `exportProntuarioPdf`, `ensurePresencaForExport`, `abrirRelatorioNoGoogleDocs`). Consumido por 8+ páginas e também re-exportado por `lib/listaFrequencia.ts` e `useBulkRelatorioExport.ts`. Tornar tudo async (`await import("docx")`) força mudar a assinatura de todos os call-sites.
+
+2. **Template-fill DOCX (docxtemplater)**: lê PNG de fotos, faz substituição de tags com `TemplateTagMapper`. Se quebrar, perde a integração com modelos institucionais do Drive (`09_Cronogramas`, etc.) — exatamente o fluxo que você acabou de migrar para Drive/Docs.
+
+3. **Bulk export** (`useBulkRelatorioExport`) gera lotes de DOCX/PDF/XLSX em paralelo via `Promise.allSettled`. Falha silenciosa em um dynamic import quebraria o relatório do mês inteiro sem erro claro.
+
+4. **`abrirRelatorioNoGoogleDocs`**: hoje converte DOCX local → upload via edge function → abre no Docs. Se o blob de DOCX vier "vazio" porque o import dinâmico ainda não resolveu, o Docs abre em branco e o usuário pode editar e salvar por cima — perda de conteúdo silenciosa.
+
+5. **PWA/cache**: dynamic imports criam chunks novos. Em sessões com Service Worker antigo + chunk faltante = tela branca no export.
+
+### Como executar com segurança (se for fazer no futuro)
+
+- **Manter API síncrona externamente**. Cada função vira um wrapper que faz `await import()` por dentro e retorna `Promise`. Como já são todas `async`, a assinatura não muda — só o conteúdo. Único ponto sensível: garantir que `buildRelatorioDocxBlob` continue retornando `Blob`, não `Promise<Blob>` se algum consumer não awaita (verificar todos os call-sites com `rg`).
+- **Splitting por engine**: 3 chunks dinâmicos separados — `chunk-docx` (docx + docxtemplater + pizzip), `chunk-pdf` (jspdf + jspdf-autotable), `chunk-xlsx` (xlsx-js-style). Hoje o `vite.config` já tem `manualChunks`; basta trocar import estático por `await import()`. Os chunks já existem, só passam de "carregados no boot" para "carregados sob demanda".
+- **Pré-fetch on intent**: ao montar `RelatorioDetalhePage` / `PlanejamentoDetalhePage`, disparar `import("docx")` em background dentro de `requestIdleCallback`. Quando o usuário clicar em "Exportar", já está em cache. Elimina a latência de primeira exportação.
+- **Smoke test obrigatório**: criar `src/test/export-smoke.test.ts` que chama cada função exportada com um mock mínimo e valida que retorna um `Blob` não-vazio. Roda em CI antes de mergear.
+- **Migração Drive/Docs reduz a urgência**: como agora você usa Google Docs para edição colaborativa, o caminho DOCX local é cada vez menos crítico. Faz sentido **adiar** essa otimização até decidir se vai aposentar parte do fluxo DOCX local em favor do Docs (aí o ganho vem de **remover** docxtemplater, não de torná-lo lazy).
+
+### Pode executar sem falhas?
+Sim, mas só se: (a) for feito em PR isolado, (b) tiver smoke test cobrindo as 9 funções exportadas, (c) você testar manualmente as 3 rotas críticas (relatório individual, ficha de inscrição, bulk mensal) antes de publicar. **Não recomendo aplicar junto com as outras mudanças.**
+
+---
+
+## Ordem de execução proposta nesta rodada
+
+1. Memoização do grid do Cronograma (`CronogramaPage` + `AgendaProfissional`).
+2. Fix do `CienteRequiredModal`: `profileId` no AuthContext, debounce do `load()`, filter no canal de `recados`, polling para intervenções.
+3. Apenas relatório dos riscos do Item 4 — sem código.
+
+## Detalhes técnicos
+- Nenhuma migration necessária.
+- Nenhum endpoint novo.
+- Nenhuma alteração em RPCs de indicadores (`get_dashboard_stats`, `get_coordenacao_stats`, `get_produtividade_educadores`).
+- Realtime: remover 1 subscription global por usuário (`cronograma_intervencoes`), substituída por polling 60s.
 
 ## Fora de escopo
-- Migrar para Next/SSR.
-- Reescrever Cronograma.
-- Mudar provider de auth/storage.
+- Refatorar `useDocumentExport` (Item 4).
+- Remover tabelas do cronograma.
+- Mexer em qualquer hook de produtividade/dashboard.
