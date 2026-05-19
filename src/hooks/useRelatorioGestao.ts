@@ -541,6 +541,7 @@ export async function exportRelatorioGestaoXLSX(mesInicio: number, anoInicio: nu
   // 1. Resumo
   const resumoRows = [
     ["Total de atendidos", String(m.activeParticipants.length)],
+    ["Em Busca Ativa (acumulado)", String(m.baAcumulado.length)],
     ["Taxa de frequência", `${m.attendanceRate}%`],
     ["Score ELO médio", String(m.avgElo)],
     ["Atividades realizadas", String(data.relatorios.length)],
@@ -552,6 +553,45 @@ export async function exportRelatorioGestaoXLSX(mesInicio: number, anoInicio: nu
     ["Taxa de permanência", `${m.taxaPermanencia}%`],
   ];
   XLSX.utils.book_append_sheet(wb, makeSheet("Resumo", ["Indicador", "Valor"], resumoRows), "Resumo");
+
+  // Aba: Em Busca Ativa (acumulado + novos do período)
+  const baByPart = new Map<string, any[]>();
+  data.buscaAtiva.forEach((r: any) => {
+    if (!baByPart.has(r.participante_id)) baByPart.set(r.participante_id, []);
+    baByPart.get(r.participante_id)!.push(r);
+  });
+  const turmaByPart = new Map<string, string>();
+  data.turmaParticipantes.forEach((tp: any) => {
+    if (tp.data_saida) return;
+    const t = m.turmaMap.get(tp.turma_id);
+    if (t) turmaByPart.set(tp.participante_id, t.nome);
+  });
+  const baRows = [...m.baAcumulado]
+    .sort((a: any, b: any) => (a.busca_ativa_desde || "").localeCompare(b.busca_ativa_desde || ""))
+    .map((p: any) => {
+      const regs = (baByPart.get(p.id) || []).slice().sort((a: any, b: any) =>
+        (b.data_registro || "").localeCompare(a.data_registro || "")
+      );
+      const last = regs[0];
+      const resp = last?.profissional_id ? (m.profileMap.get(last.profissional_id)?.nome || "—") : "—";
+      const bairro = p.bairro_id ? (m.bairroMap.get(p.bairro_id)?.nome || "—") : "—";
+      return [
+        san(p.nome_completo),
+        san(p.cpf),
+        p.data_nascimento ? String(calcAge(p.data_nascimento)) : "—",
+        bairro,
+        turmaByPart.get(p.id) || "—",
+        p.busca_ativa_desde ? `${p.busca_ativa_desde.slice(8,10)}/${p.busca_ativa_desde.slice(5,7)}/${p.busca_ativa_desde.slice(0,4)}` : "—",
+        last?.data_registro ? `${last.data_registro.slice(8,10)}/${last.data_registro.slice(5,7)}` : "—",
+        san(last?.resultado),
+        resp,
+      ];
+    });
+  XLSX.utils.book_append_sheet(
+    wb,
+    makeSheet("Em Busca Ativa", ["Nome", "CPF", "Idade", "Bairro", "Turma", "Em BA desde", "Último registro", "Resultado", "Responsável"], baRows),
+    "Em Busca Ativa"
+  );
 
   // 2. Público
   const publicoRows = [
