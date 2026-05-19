@@ -35,7 +35,6 @@ import { LayoutDashboard } from "lucide-react";
 import { IndicadorTimelineDrawer } from "@/components/dashboard/IndicadorTimelineDrawer";
 import type { IndicadorId } from "@/lib/indicadorTimelineFetchers";
 import { formatMesLabel, formatMesExtenso } from "@/lib/dateLabels";
-import { eloColor } from "@/lib/eloColors";
 import { RichTooltip } from "@/components/dashboard/RichTooltip";
 import { chartColors, gridProps } from "@/lib/chartTheme";
 
