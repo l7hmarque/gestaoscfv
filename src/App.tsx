@@ -51,7 +51,6 @@ const SiteAdminPage = lazy(() => import("./pages/site-admin/SiteAdminPage"));
 const ConfiguracoesPage = lazy(() => import("./pages/configuracoes/ConfiguracoesPage"));
 const MuralPage = lazy(() => import("./pages/mural/MuralPage"));
 const CronogramaPage = lazy(() => import("./pages/cronograma/CronogramaPage"));
-const DesignPreviewPage = lazy(() => import("./pages/preview/DesignPreviewPage"));
 const IntegridadePage = lazy(() => import("./pages/integridade/IntegridadePage"));
 const CoordenacaoPage = lazy(() => import("./pages/coordenacao/CoordenacaoPage"));
 const CozinhaPage = lazy(() => import("./pages/cozinha/CozinhaPage"));
@@ -124,7 +123,6 @@ const App = () => (
                   <Route path="/configuracoes" element={<ConfiguracoesPage />} />
                   <Route path="/desligamento-admin" element={<PainelDesligamentoPage />} />
                   <Route path="/cronograma" element={<CronogramaPage />} />
-                  <Route path="/preview-design" element={<DesignPreviewPage />} />
                   <Route path="/integridade" element={<IntegridadePage />} />
                   <Route path="/coordenacao" element={<CoordenacaoPage />} />
                   <Route path="/cozinha" element={<CozinhaPage />} />
