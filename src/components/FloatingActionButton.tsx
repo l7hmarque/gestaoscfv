@@ -37,7 +37,6 @@ export function FloatingActionButton() {
     pathname.startsWith("/site") ||
     pathname.startsWith("/familia") ||
     pathname.startsWith("/matricula") ||
-    pathname.startsWith("/preview-design") ||
     /\/(novo|exportar)$/.test(pathname);
 
   if (hidden) return null;
