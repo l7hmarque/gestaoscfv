@@ -833,7 +833,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const completo = body.completo === true;
 
-    const [presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData, relatorioPresencas] = await Promise.all([
+    const [presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData, relatorioPresencas, buscaAtivaRegistros] = await Promise.all([
       fetchAll(supabaseAdmin, "presenca"),
       fetchAll(supabaseAdmin, "participantes"),
       fetchAll(supabaseAdmin, "turmas"),
@@ -845,6 +845,7 @@ Deno.serve(async (req: Request) => {
       fetchAll(supabaseAdmin, "atendimentos"),
       fetchAll(supabaseAdmin, "profiles"),
       fetchAll(supabaseAdmin, "relatorio_presenca"),
+      fetchAll(supabaseAdmin, "busca_ativa_registros"),
     ]);
 
     const wb = XLSX.utils.book_new();
@@ -888,7 +889,7 @@ Deno.serve(async (req: Request) => {
       while (startY < endY || (startY === endY && startM <= endM)) {
         const mesAbrev = MESES_NOMES[startM - 1].slice(0, 3);
         const suffix = ` ${mesAbrev}${String(startY).slice(2)}`;
-        generateMonthSheets(wb, startM, startY, suffix, presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData, relatorioPresencas, usedSheetNames);
+        generateMonthSheets(wb, startM, startY, suffix, presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData, relatorioPresencas, usedSheetNames, buscaAtivaRegistros);
         startM++;
         if (startM > 12) { startM = 1; startY++; }
       }
@@ -915,7 +916,7 @@ Deno.serve(async (req: Request) => {
     // Single month
     const mesNum = parseInt(body.mes);
     const anoNum = parseInt(body.ano);
-    generateMonthSheets(wb, mesNum, anoNum, "", presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData, relatorioPresencas, usedSheetNames);
+    generateMonthSheets(wb, mesNum, anoNum, "", presencas_raw, participantes, turmas, bairros, relatorios, planejamentos, turmaParticipantes, relatorioTurmas, atendimentos_raw, profilesData, relatorioPresencas, usedSheetNames, buscaAtivaRegistros);
 
     const mesStr = String(mesNum).padStart(2, "0");
     const buf = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
