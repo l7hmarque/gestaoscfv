@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
+import { exportXLSX } from "@/hooks/useDataExport";
+import { Download } from "lucide-react";
 
 const TIPOS_LANC = [
   { value: "_all", label: "Todos os tipos" },
@@ -56,6 +58,30 @@ export function ProdutividadeTab() {
     return (Date.now() - new Date(e.ultimo_lancamento).getTime()) / 86400000 > 7;
   }).length;
 
+  const handleExport = () => {
+    const headers = [
+      { key: "nome", label: "Profissional" },
+      { key: "cargo", label: "Cargo" },
+      { key: "relatorios_mes", label: "Relatórios (mês)" },
+      { key: "presencas_mes", label: "Presenças (mês)" },
+      { key: "planejamentos_mes", label: "Planejamentos (mês)" },
+      { key: "turmas_atribuidas", label: "Turmas" },
+      { key: "ultimo_lancamento", label: "Último lançamento" },
+      { key: "tempo_medio_relatorio_s", label: "Méd. Relatório (s)" },
+      { key: "tempo_medio_planejamento_s", label: "Méd. Planejamento (s)" },
+      { key: "tempo_medio_presenca_s", label: "Méd. Presença (s)" },
+      { key: "tempo_total_burocratico_dia_s", label: "Total Dia (s)" },
+      { key: "tempo_total_burocratico_semana_s", label: "Total Semana (s)" },
+      { key: "tempo_total_burocratico_mes_s", label: "Total Mês (s)" },
+    ];
+    const rows = educadores.map((e) => ({
+      ...e,
+      cargo: e.cargo || "—",
+      ultimo_lancamento: e.ultimo_lancamento ? new Date(e.ultimo_lancamento).toLocaleDateString("pt-BR") : "—",
+    }));
+    exportXLSX(rows, headers, `Produtividade_${MESES[mes-1]}_${ano}`);
+  };
+
   const corPrazo = (d: number) => {
     if (d <= 0) return "destructive";
     if (d <= 5) return "secondary";
@@ -77,6 +103,9 @@ export function ProdutividadeTab() {
           <Badge variant={corPrazo(data.dias_para_prazo_relatorios) as any}>Prazo relatórios: {data.dias_para_prazo_relatorios}d</Badge>
           <Badge variant={corPrazo(data.dias_para_prazo_presencas) as any}>Prazo presenças: {data.dias_para_prazo_presencas}d</Badge>
           {semLanc > 0 && <Badge variant="destructive">{semLanc} sem lançar há 7+ dias</Badge>}
+          <Button size="sm" variant="outline" onClick={handleExport} disabled={educadores.length === 0}>
+            <Download className="h-3 w-3 mr-1" /> Exportar XLSX
+          </Button>
         </div>
       </div>
 
