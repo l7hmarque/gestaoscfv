@@ -250,7 +250,8 @@ function generateMonthSheets(
   presencas_raw: any[], participantes: any[], turmas: any[], bairros: any[],
   relatorios: any[], planejamentos: any[], turmaParticipantes: any[],
   relatorioTurmas: any[], atendimentos_raw: any[], profilesData: any[],
-  relatorioPresencas: any[], usedSheetNames: Set<string>
+  relatorioPresencas: any[], usedSheetNames: Set<string>,
+  buscaAtivaRegistros: any[] = []
 ) {
   const mesStr = String(mesNum).padStart(2, "0");
   const startDate = `${anoNum}-${mesStr}-01`;
@@ -313,6 +314,18 @@ function generateMonthSheets(
   const atendByTipo: Record<string, number> = {};
   filteredAtendimentos.forEach((a: any) => { const t = a.tipo || "atendimento_individual"; atendByTipo[t] = (atendByTipo[t] || 0) + 1; });
 
+  // ===== Indicadores institucionais (padrão D3) =====
+  // Ativos = status IN ('ativo','cadastro_incompleto') no fim do período.
+  const ativosNoFim = participantes.filter(
+    (p: any) => p.status === "ativo" || p.status === "cadastro_incompleto"
+  );
+  // Em Busca Ativa = status='busca_ativa' AND busca_ativa_desde <= fim_periodo.
+  const fimPeriodo = endDate; // exclusivo; comparações `<` funcionam
+  const baNoFim = participantes.filter(
+    (p: any) => p.status === "busca_ativa" &&
+      (!p.busca_ativa_desde || p.busca_ativa_desde < fimPeriodo)
+  );
+
   // Sheet: Resumo
   const periodoLabelMap = (k: string) => k === "manha" ? "Manha" : k === "tarde" ? "Tarde" : k === "integral" ? "Integral" : k;
   const totalGeral = atendidosFiltered.length;
@@ -323,6 +336,8 @@ function generateMonthSheets(
     [`Data de geração: ${new Date().toLocaleString("pt-BR")}`],
     [],
     ["ATENDIDOS NO MÊS", atendidosFiltered.length],
+    ["ATIVOS (fim do período)", ativosNoFim.length],
+    ["EM BUSCA ATIVA (fim do período)", baNoFim.length],
     [], ["POR BAIRRO", "Quant."],
     ...Object.entries(byBairro).sort((a, b) => b[1] - a[1]).map(([b, c]) => [b, c]),
     [], ["POR FAIXA ETÁRIA", "Quant."],
@@ -342,7 +357,8 @@ function generateMonthSheets(
   applyInstitutionalHeader(wsResumo, 2);
   // Negritos institucionais
   const RESUMO_BOLD_LABELS = new Set([
-    "ATENDIDOS NO MÊS", "POR BAIRRO", "POR FAIXA ETÁRIA", "POR PERÍODO",
+    "ATENDIDOS NO MÊS", "ATIVOS (fim do período)", "EM BUSCA ATIVA (fim do período)",
+    "POR BAIRRO", "POR FAIXA ETÁRIA", "POR PERÍODO",
     "NOVAS INSERÇÕES NO MÊS", "ATENDIMENTOS TÉCNICOS NO MÊS", "TOTAL GERAL",
     ...BAIRROS_SCFV,
   ]);
@@ -357,6 +373,66 @@ function generateMonthSheets(
     }
   }
   XLSX.utils.book_append_sheet(wb, wsResumo, sn1);
+
+  // ===== Aba "Em Busca Ativa" =====
+  // Coluna: Nome, CPF, Idade, Bairro, Turma, Em BA desde, Último registro, Resultado, Responsável
+  const baByPart = new Map<string, any[]>();
+  (buscaAtivaRegistros || []).forEach((r: any) => {
+    if (!baByPart.has(r.participante_id)) baByPart.set(r.participante_id, []);
+    baByPart.get(r.participante_id)!.push(r);
+  });
+  const calcIdade = (dn: string | null): string => {
+    if (!dn) return "—";
+    const d = new Date(dn + "T12:00:00");
+    const ref = new Date(endDate + "T12:00:00");
+    let age = ref.getFullYear() - d.getFullYear();
+    const m = ref.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && ref.getDate() < d.getDate())) age--;
+    return String(age);
+  };
+  const turmaByPart = new Map<string, string>();
+  turmaParticipantes.forEach((tp: any) => {
+    if (tp.data_saida) return;
+    const t = turmaMap.get(tp.turma_id);
+    if (t) turmaByPart.set(tp.participante_id, t.nome);
+  });
+  const baSorted = [...baNoFim].sort((a: any, b: any) =>
+    (a.busca_ativa_desde || "").localeCompare(b.busca_ativa_desde || "")
+  );
+  const baRows: any[][] = [
+    [TITULO_INSTITUCIONAL],
+    [SUBTITULO_INSTITUCIONAL],
+    [`EM BUSCA ATIVA — ${MESES_NOMES[mesNum - 1].toUpperCase()} / ${anoNum}`],
+    [`Data de geração: ${new Date().toLocaleString("pt-BR")}`],
+    [],
+    ["Nome", "CPF", "Idade", "Bairro", "Turma", "Em BA desde", "Último registro", "Resultado", "Responsável"],
+  ];
+  baSorted.forEach((p: any) => {
+    const regs = (baByPart.get(p.id) || []).slice().sort((a: any, b: any) =>
+      (b.data_registro || "").localeCompare(a.data_registro || "")
+    );
+    const last = regs[0];
+    const respId = last?.profissional_id;
+    const resp = respId ? (profileMap.get(respId)?.nome || "—") : "—";
+    baRows.push([
+      p.nome_completo,
+      p.cpf || "—",
+      calcIdade(p.data_nascimento),
+      p.bairro_id ? (bairroMap.get(p.bairro_id) || "—") : "—",
+      turmaByPart.get(p.id) || "—",
+      p.busca_ativa_desde ? `${p.busca_ativa_desde.slice(8,10)}/${p.busca_ativa_desde.slice(5,7)}/${p.busca_ativa_desde.slice(0,4)}` : "—",
+      last?.data_registro ? `${last.data_registro.slice(8,10)}/${last.data_registro.slice(5,7)}` : "—",
+      last?.resultado || "—",
+      resp,
+    ]);
+  });
+  if (baSorted.length === 0) baRows.push(["(nenhum participante em busca ativa no período)"]);
+  const wsBA = XLSX.utils.aoa_to_sheet(baRows);
+  wsBA["!cols"] = [{ wch: 30 }, { wch: 14 }, { wch: 6 }, { wch: 22 }, { wch: 24 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 22 }];
+  autoFitCols(wsBA);
+  applyInstitutionalHeader(wsBA, 9);
+  applyHeaderStyle(wsBA, 5, 9);
+  XLSX.utils.book_append_sheet(wb, wsBA, truncSheet(`BuscaAtiva${suffix}`, usedSheetNames));
 
   // Sheet: Atividades — Propostas = TODOS planejamentos do mês; Desenvolvidas = relatórios + descrição (até 250)
   const atividadesRows: any[][] = [];
