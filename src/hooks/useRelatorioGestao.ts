@@ -106,15 +106,22 @@ async function fetchGestaoData(startDate: string, endDate: string): Promise<Gest
   };
 }
 
-function computeMetrics(data: GestaoData, startDate: string) {
+function computeMetrics(data: GestaoData, startDate: string, endDate: string) {
   const partMap = new Map(data.participantes.map(p => [p.id, p]));
   const bairroMap = new Map(data.bairros.map(b => [b.id, b]));
   const profileMap = new Map(data.profiles.map(p => [p.id, p]));
   const turmaMap = new Map(data.turmas.map(t => [t.id, t]));
 
-  // Active participants (ativos or desligados after startDate)
-  const activeParticipants = data.participantes.filter(p =>
-    p.status === "ativo" || (p.status === "desligado" && p.data_desligamento && p.data_desligamento >= startDate)
+  // Ativos no fim do período: status IN ('ativo','cadastro_incompleto').
+  // (D3) Inclusão por status — não usar `data_saida` nem janelas de vínculo.
+  const activeParticipants = data.participantes.filter(
+    p => p.status === "ativo" || p.status === "cadastro_incompleto"
+  );
+
+  // Em Busca Ativa (acumulado): status='busca_ativa' AND busca_ativa_desde <= endDate.
+  const baAcumulado = data.participantes.filter(
+    (p: any) => p.status === "busca_ativa" &&
+      (!p.busca_ativa_desde || p.busca_ativa_desde < endDate)
   );
 
   // Demographics
@@ -254,7 +261,7 @@ function computeMetrics(data: GestaoData, startDate: string) {
     atendByTipo, sigilosoCount, encaminhamentoCount,
     buscaByTipo, buscaByResultado,
     pontoParticipantes, activeTeam, roleMap, bairroMetas,
-    ingressos, desligamentos, taxaPermanencia,
+    ingressos, desligamentos, taxaPermanencia, baAcumulado,
     partMap, bairroMap, profileMap, turmaMap,
   };
 }
@@ -269,7 +276,7 @@ export async function exportRelatorioGestaoPDF(mesInicio: number, anoInicio: num
     : `${MESES_NOMES[mesInicio - 1]}/${anoInicio} a ${MESES_NOMES[mesFim - 1]}/${anoFim}`;
 
   const data = await fetchGestaoData(startDate, endDate);
-  const m = computeMetrics(data, startDate);
+  const m = computeMetrics(data, startDate, endDate);
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pw = doc.internal.pageSize.getWidth();
