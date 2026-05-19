@@ -19,6 +19,7 @@ import {
   Users, GraduationCap, FileText, BookOpen, TrendingUp, Percent,
   Activity, ArrowUpRight, ArrowDownRight, CalendarDays, Newspaper,
   ClipboardCheck, AlertTriangle, Clock, CalendarIcon, X, CalendarRange, Cake, UserCheck,
+  Sun, CloudSun,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -38,11 +39,14 @@ import { eloColor } from "@/lib/eloColors";
 import { RichTooltip } from "@/components/dashboard/RichTooltip";
 import { chartColors, gridProps } from "@/lib/chartTheme";
 
-const COLORS = [
-  "hsl(0,58%,56%)", "hsl(210,22%,49%)", "hsl(142,50%,40%)",
-  "hsl(45,80%,55%)", "hsl(262,50%,55%)", "hsl(30,70%,55%)",
+const RED = "hsl(0,58%,56%)";
+const BLUE = "hsl(210,80%,50%)";
+// Paleta de tons distintos derivada de azul/vermelho para múltiplas séries (bairros)
+const MULTI_TONES = [
+  "hsl(210,80%,40%)", "hsl(210,75%,55%)", "hsl(210,60%,70%)",
+  "hsl(0,65%,45%)",   "hsl(0,58%,60%)",   "hsl(0,45%,75%)",
+  "hsl(220,40%,35%)", "hsl(195,55%,50%)", "hsl(15,55%,55%)",
 ];
-const OBJ_LABELS: Record<string, string> = { alcancado: "Alcançado", parcial: "Parcial", nao_alcancado: "Não Alcançado" };
 
 const GENERO_LABELS: Record<string, string> = { feminino: "Feminino", masculino: "Masculino", outro: "Outro" };
 
