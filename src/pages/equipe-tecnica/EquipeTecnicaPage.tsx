@@ -98,6 +98,7 @@ const EquipeTecnicaPage = () => {
   const [encDialogOpen, setEncDialogOpen] = useState(false);
   const [encForm, setEncForm] = useState({ participante_id: "", orgao: "", tipo: "cras", motivo: "", data_encaminhamento: format(new Date(), "yyyy-MM-dd"), data_retorno: "", status: "aberto", observacoes_retorno: "", contato: "" });
   const [encEdit, setEncEdit] = useState<any | null>(null);
+  useEffect(() => { if (encDialogOpen) encTimer.start(); }, [encDialogOpen]);
 
   // Relatos da equipe técnica (vínculo B)
   const [relatosEquipe, setRelatosEquipe] = useState<any[]>([]);
