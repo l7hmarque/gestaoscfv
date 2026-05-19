@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,45 +15,61 @@ const PRIO_COLOR: Record<string, string> = {
 };
 
 export function CienteRequiredModal() {
-  const { user } = useAuth();
+  const { user, profileId } = useAuth();
   const { log } = useAuditLog();
-  const [profileId, setProfileId] = useState<string | null>(null);
   const [pendentes, setPendentes] = useState<any[]>([]);
   const [recadosPend, setRecadosPend] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
-    if (!user) return;
-    const { data: prof } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
-    if (!prof) return;
-    setProfileId(prof.id);
-
+    if (!profileId) return;
     const [{ data: intervencoes }, { data: cientes }, { data: recs }] = await Promise.all([
       supabase.from("cronograma_intervencoes").select("*").order("created_at", { ascending: false }).limit(50),
-      supabase.from("cronograma_intervencao_cientes").select("intervencao_id").eq("profile_id", prof.id),
-      supabase.from("recados").select("*").eq("destinatario_id", prof.id).eq("requer_ciente", true).eq("ciente", false),
+      supabase.from("cronograma_intervencao_cientes").select("intervencao_id").eq("profile_id", profileId),
+      supabase.from("recados").select("*").eq("destinatario_id", profileId).eq("requer_ciente", true).eq("ciente", false),
     ]);
     const cienteIds = new Set((cientes || []).map((c: any) => c.intervencao_id));
     const filtered = (intervencoes || []).filter((iv: any) => {
       if (cienteIds.has(iv.id)) return false;
-      const dirigidaAmim = !iv.profissionais?.length || iv.profissionais.includes(prof.id);
+      const dirigidaAmim = !iv.profissionais?.length || iv.profissionais.includes(profileId);
       return dirigidaAmim;
     });
     setPendentes(filtered);
     setRecadosPend(recs || []);
     setOpen(filtered.length > 0 || (recs || []).length > 0);
-  }, [user]);
+  }, [profileId]);
+
+  const scheduleLoad = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { load(); }, 1500);
+  }, [load]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!profileId) return;
     load();
+    // Realtime apenas para recados (filtrado no servidor para este destinatário).
+    // Intervenções → polling leve (60s + on focus), porque mudam raramente
+    // e o filtro por array de profissionais não é suportado server-side.
     const ch = supabase
-      .channel(`ciente-modal-${user.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "cronograma_intervencoes" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "recados" }, () => load())
+      .channel(`ciente-modal-${profileId}`)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "recados",
+        filter: `destinatario_id=eq.${profileId}`,
+      }, scheduleLoad)
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [user, load]);
+
+    const pollId = setInterval(() => load(), 60_000);
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      supabase.removeChannel(ch);
+      clearInterval(pollId);
+      window.removeEventListener("focus", onFocus);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [profileId, load, scheduleLoad]);
 
   const cienteIntervencao = async (iv: any) => {
     if (!profileId) return;

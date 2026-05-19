@@ -162,23 +162,63 @@ export default function CronogramaPage() {
     loadCenarioData(activeCenarioId);
   }, [activeCenarioId, loadCenarioData]);
 
-  const getSlots = (dia: string, periodo: string, bairroId: string) =>
-    slots.filter(s => s.dia_semana === dia && s.periodo === periodo && s.bairro_id === bairroId);
-
-  const getSlotProfs = (slotId: string) => slotProfs.filter(sp => sp.slot_id === slotId);
-
-  const getAtividades = (dia: string, periodo: string, bairroId: string) =>
-    atividades.filter(a => a.dia_semana === dia && a.periodo === periodo && a.bairro_id === bairroId);
-
-  const getIntervencoesAtivas = (dia: string, periodo: string, bairroId: string) =>
-    intervencoes.filter(iv => {
-      const hojeIso = new Date().toISOString().slice(0,10);
-      if (iv.data_fim && iv.data_fim < hojeIso) return false;
-      if (iv.dias_semana?.length && !iv.dias_semana.includes(dia)) return false;
-      if (iv.periodos?.length && !iv.periodos.includes(periodo)) return false;
-      if (iv.bairros?.length && !iv.bairros.includes(bairroId)) return false;
-      return true;
+  // Índices pré-calculados — evita .filter() por célula (era O(células × N)).
+  const slotsByCell = useMemo(() => {
+    const m = new Map<string, Slot[]>();
+    slots.forEach(s => {
+      if (!s.bairro_id) return;
+      const k = `${s.bairro_id}|${s.dia_semana}|${s.periodo}`;
+      const arr = m.get(k); if (arr) arr.push(s); else m.set(k, [s]);
     });
+    return m;
+  }, [slots]);
+  const slotProfsBySlot = useMemo(() => {
+    const m = new Map<string, SlotProf[]>();
+    slotProfs.forEach(sp => {
+      const arr = m.get(sp.slot_id); if (arr) arr.push(sp); else m.set(sp.slot_id, [sp]);
+    });
+    return m;
+  }, [slotProfs]);
+  const atividadesByCell = useMemo(() => {
+    const m = new Map<string, AtividadeManual[]>();
+    atividades.forEach(a => {
+      if (!a.bairro_id) return;
+      const k = `${a.bairro_id}|${a.dia_semana}|${a.periodo}`;
+      const arr = m.get(k); if (arr) arr.push(a); else m.set(k, [a]);
+    });
+    return m;
+  }, [atividades]);
+  const hojeIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const intervencoesAtivas = useMemo(
+    () => intervencoes.filter(iv => !(iv.data_fim && iv.data_fim < hojeIso)),
+    [intervencoes, hojeIso]
+  );
+  const profileById = useMemo(() => new Map(profiles.map(p => [p.id, p])), [profiles]);
+  const turmaById = useMemo(() => new Map(turmas.map(t => [t.id, t])), [turmas]);
+  const bairroById = useMemo(() => new Map(bairros.map(b => [b.id, b])), [bairros]);
+
+  const getSlots = useCallback(
+    (dia: string, periodo: string, bairroId: string) => slotsByCell.get(`${bairroId}|${dia}|${periodo}`) || [],
+    [slotsByCell]
+  );
+  const getSlotProfs = useCallback(
+    (slotId: string) => slotProfsBySlot.get(slotId) || [],
+    [slotProfsBySlot]
+  );
+  const getAtividades = useCallback(
+    (dia: string, periodo: string, bairroId: string) => atividadesByCell.get(`${bairroId}|${dia}|${periodo}`) || [],
+    [atividadesByCell]
+  );
+  const getIntervencoesAtivas = useCallback(
+    (dia: string, periodo: string, bairroId: string) =>
+      intervencoesAtivas.filter(iv => {
+        if (iv.dias_semana?.length && !iv.dias_semana.includes(dia)) return false;
+        if (iv.periodos?.length && !iv.periodos.includes(periodo)) return false;
+        if (iv.bairros?.length && !iv.bairros.includes(bairroId)) return false;
+        return true;
+      }),
+    [intervencoesAtivas]
+  );
 
   const slotCounts = useMemo(() => {
     const map = new Map<string, number>();
@@ -403,7 +443,7 @@ export default function CronogramaPage() {
     } finally { setReportLoading(false); }
   };
 
-  const profName = (id: string | null) => profiles.find(p => p.id === id)?.nome || "";
+  const profName = (id: string | null) => (id ? profileById.get(id)?.nome || "" : "");
   const configProfiles = [...educadores, ...oficineiros].filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
 
   if (loading) return <div className="p-4 text-muted-foreground text-sm">Carregando...</div>;
@@ -415,7 +455,7 @@ export default function CronogramaPage() {
     const cellKey = `${bairroId}-${dia}-${periodo}`;
     const isDragOver = dragOverCell === cellKey;
     const hasConflict = conflicts.some(c => c.includes(dia) && c.includes(PERIODO_LABELS[periodo]));
-    const colors = BAIRRO_COLORS[scfvBairros.find(b => b.id === bairroId)?.nome || ""] || { border: "border-gray-300", bg: "bg-gray-50", header: "", stripe: "" };
+    const colors = BAIRRO_COLORS[bairroById.get(bairroId)?.nome || ""] || { border: "border-gray-300", bg: "bg-gray-50", header: "", stripe: "" };
 
     return (
       <div
@@ -455,7 +495,7 @@ export default function CronogramaPage() {
 
         <div className="space-y-1 relative">
           {cellSlots.map(slot => {
-            const turma = turmas.find(t => t.id === slot.turma_id);
+            const turma = slot.turma_id ? turmaById.get(slot.turma_id) : undefined;
             const sps = getSlotProfs(slot.id);
             return (
               <div key={slot.id} className="rounded p-0.5 space-y-0.5 bg-background/60 border border-border/30">
