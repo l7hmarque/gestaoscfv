@@ -5,7 +5,11 @@ import { useAuth } from "@/contexts/AuthContext";
 
 type Tipo =
   | "relatorio" | "planejamento" | "presenca"
-  | "edicao_relatorio" | "edicao_planejamento" | "edicao_presenca";
+  | "edicao_relatorio" | "edicao_planejamento" | "edicao_presenca"
+  | "atendimento" | "edicao_atendimento"
+  | "encaminhamento" | "edicao_encaminhamento"
+  | "busca_ativa" | "edicao_busca_ativa"
+  | "roteiro_visita" | "edicao_roteiro_visita";
 
 /**
  * Cronômetro invisível para formulários. Mede do mount até a chamada de `stop(registroId)`.
@@ -41,5 +45,11 @@ export function useFormTimer(tipo: Tipo) {
     }
   };
 
-  return { stop };
+  /** Reinicia o cronômetro (útil quando o mesmo componente reabre um diálogo). */
+  const start = () => {
+    startRef.current = Date.now();
+    sentRef.current = false;
+  };
+
+  return { stop, start };
 }
