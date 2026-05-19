@@ -295,22 +295,24 @@ export default function ExportarRelatoriosPage() {
 
       // Metas
       const turmaMap = new Map(turmas.map((t: any) => [t.id, t]));
+      // Conta cada participante UMA VEZ, no bairro de residência e período cadastrados.
+      // (legado "integral" tratado como "manha"; não trabalhamos mais com integral)
       const bairroStats: Record<string, { criancasManha: Set<string>; criancasTarde: Set<string>; idosos: Set<string> }> = {};
       BAIRROS_SCFV.forEach(bn => { bairroStats[bn] = { criancasManha: new Set(), criancasTarde: new Set(), idosos: new Set() }; });
-      activePresencas.filter((p: any) => p.presente).forEach((pres: any) => {
-        const turma = turmaMap.get(pres.turma_id);
-        if (!turma) return;
-        const bairroNome = bairroMap.get(turma.bairro_id) || "";
+      const atendidosUnicos = new Set<string>(
+        activePresencas.filter((p: any) => p.presente).map((p: any) => p.participante_id)
+      );
+      atendidosUnicos.forEach((pid: string) => {
+        const part = partMap.get(pid);
+        if (!part) return;
+        if (part.status === "desligado" && part.data_desligamento && part.data_desligamento < startDate) return;
+        const bairroNome = part.bairro_id ? (bairroMap.get(part.bairro_id) || "") : "";
         if (!BAIRROS_SCFV.includes(bairroNome)) return;
-        const part = partMap.get(pres.participante_id);
-        if (!part || (part.status === "desligado" && part.data_desligamento && part.data_desligamento < startDate)) return;
         const age = part.data_nascimento ? calcAge(part.data_nascimento) : 0;
-        if (age >= 60) { bairroStats[bairroNome].idosos.add(pres.participante_id); }
-        else {
-          const periodo = turma.periodo || "manha";
-          if (periodo === "manha" || periodo === "integral") bairroStats[bairroNome].criancasManha.add(pres.participante_id);
-          if (periodo === "tarde" || periodo === "integral") bairroStats[bairroNome].criancasTarde.add(pres.participante_id);
-        }
+        if (age >= 60) { bairroStats[bairroNome].idosos.add(pid); return; }
+        const periodo = part.periodo === "tarde" ? "tarde" : "manha";
+        if (periodo === "tarde") bairroStats[bairroNome].criancasTarde.add(pid);
+        else bairroStats[bairroNome].criancasManha.add(pid);
       });
       const metasRows: any[][] = [];
       let totalCriancas = 0, totalMeta = 0;
