@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.get_participantes_turma(uuid, date) FROM anon;

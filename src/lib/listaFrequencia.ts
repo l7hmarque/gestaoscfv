@@ -29,6 +29,12 @@ import {
   exportSingleListaPresenca,
   exportAllListasPresenca,
 } from "@/lib/exportListaPresenca";
+import { getParticipantesDaTurma } from "@/lib/participantesTurma";
+import {
+  celulaPresenca,
+  rotularNomeParticipante,
+  MARCADOR_BLOQUEADO,
+} from "@/lib/marcadoresFrequencia";
 
 export type ListaFormato = "docx" | "pdf" | "xlsx";
 export type ListaModo = "frequencia" | "chamada";
@@ -71,46 +77,16 @@ export interface BuildListaResult {
   mensagens: string[];
 }
 
-function periodoLabel(p?: string | null): string {
-  if (!p) return "—";
-  if (p === "manha") return "Manhã";
-  if (p === "tarde") return "Tarde";
-  if (p === "integral") return "Integral";
-  return p;
-}
-
-function fmtDataShort(d: string | null | undefined): string {
-  if (!d || d.length < 10) return "";
-  return `${d.slice(8, 10)}/${d.slice(5, 7)}`;
-}
-
-/** Aplica marcadores institucionais ao nome do participante. */
-function rotularNome(p: ListaParticipante): string {
-  const isDesligado = p.status === "desligado";
-  if (isDesligado) {
-    const data = fmtDataShort(p.data_desligamento);
-    return `${p.nome}${data ? ` (D ${data})` : " (D)"}`;
-  }
-  return p.nome;
-}
-
-/** Carrega vínculos turma↔participante e presenças, montando a estrutura
- * esperada pelos builders existentes. */
+/** Carrega vínculos turma↔participante e presenças usando a regra única
+ * `getParticipantesDaTurma`. Marcadores padronizados P/A/J/—. */
 async function carregarDadosTurma(turma: ListaTurma, mes: number, ano: number) {
-  const startDate = `${ano}-${String(mes).padStart(2, "0")}-01`;
-  const endDate =
-    mes === 12 ? `${ano + 1}-01-01` : `${ano}-${String(mes + 1).padStart(2, "0")}-01`;
+  const refDate = `${ano}-${String(mes).padStart(2, "0")}-01`;
 
-  const { data: tpData } = await supabase
-    .from("turma_participantes")
-    .select(
-      "participante_id, data_entrada, data_saida, participantes(nome_completo, status, data_desligamento, created_at)"
-    )
-    .eq("turma_id", turma.id);
+  const elegiveis = await getParticipantesDaTurma(turma.id, refDate);
 
   const { data: presData } = await supabase
     .from("presenca")
-    .select("participante_id, data, presente")
+    .select("participante_id, data, presente, justificativa")
     .eq("turma_id", turma.id)
     .order("data");
 
@@ -118,49 +94,42 @@ async function carregarDadosTurma(turma: ListaTurma, mes: number, ano: number) {
   (presData || []).forEach((p: any) => datasSet.add(p.data));
   const datas = Array.from(datasSet).sort();
 
-  const participantesRaw: ListaParticipante[] = (tpData || [])
-    .filter((tp: any) =>
-      (!tp.data_entrada || tp.data_entrada < endDate) &&
-      (!tp.data_saida || tp.data_saida >= startDate)
-    )
-    .map((tp: any) => ({
-      participante_id: tp.participante_id,
-      nome: tp.participantes?.nome_completo || "",
-      status: tp.participantes?.status,
-      data_desligamento: tp.participantes?.data_desligamento || null,
-      created_at: tp.participantes?.created_at || null,
-    }))
-    .sort((a, b) => a.nome.localeCompare(b.nome));
-
-  // Constrói matriz de presenças preservando regra de "D" pós-desligamento.
-  const matriz = participantesRaw.map((p) => {
-    const isDesligado = p.status === "desligado";
-    const dataDeslig = p.data_desligamento || null;
-    const presencas: Record<string, boolean | string> = {};
-    (presData || [])
-      .filter((x: any) => x.participante_id === p.participante_id)
-      .forEach((x: any) => {
-        if (isDesligado && dataDeslig && x.data > dataDeslig) presencas[x.data] = "D";
-        else presencas[x.data] = x.presente || false;
+  // Matriz com símbolos P/A/J/— já resolvidos
+  const matriz = elegiveis.map((p) => {
+    const presencas: Record<string, string> = {};
+    const minhas = (presData || []).filter(
+      (x: any) => x.participante_id === p.participante_id
+    );
+    minhas.forEach((x: any) => {
+      presencas[x.data] = celulaPresenca({
+        presente: x.presente,
+        justificativa: x.justificativa,
+        data: x.data,
+        bloqueadoDesde: p.bloqueado_desde || undefined,
+        bloqueado: p.bloqueado_chamada,
       });
-    if (isDesligado && dataDeslig) {
+    });
+    if (p.bloqueado_chamada && p.bloqueado_desde) {
       datas.forEach((d) => {
-        if (d > dataDeslig && presencas[d] === undefined) presencas[d] = "D";
+        if (d >= p.bloqueado_desde! && presencas[d] === undefined) {
+          presencas[d] = MARCADOR_BLOQUEADO;
+        }
       });
     }
-    return { nome: rotularNome(p), presencas };
+    return { nome: rotularNomeParticipante(p.nome, p.marcador), presencas };
   });
 
   // Estrutura para builders XLSX (lista de chamada / frequência mensal)
-  const membersXlsx = participantesRaw.map((p) => ({
+  const membersXlsx = elegiveis.map((p) => ({
     nome: p.nome,
+    marcador: p.marcador || "",
     desligado: p.status === "desligado",
-    data_desligamento: p.data_desligamento,
-    transferido: false,
+    data_desligamento: p.bloqueado_desde,
+    transferido: !!p.data_transferencia && p.status !== "desligado",
     busca_ativa: p.status === "busca_ativa",
   }));
 
-  return { matriz, datas, membersXlsx, participantesRaw };
+  return { matriz, datas, membersXlsx, participantesRaw: elegiveis };
 }
 
 /**

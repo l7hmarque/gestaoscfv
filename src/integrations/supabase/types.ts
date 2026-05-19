@@ -1742,12 +1742,14 @@ export type Database = {
       participantes: {
         Row: {
           bairro_id: string | null
+          busca_ativa_desde: string | null
           categoria_vulnerabilidade: string | null
           cor_raca: string | null
           cpf: string | null
           created_at: string | null
           data_desligamento: string | null
           data_nascimento: string | null
+          desligado_registrado_em: string | null
           dias_contraturno: string | null
           endereco_bairro: string | null
           endereco_numero: string | null
@@ -1786,12 +1788,14 @@ export type Database = {
         }
         Insert: {
           bairro_id?: string | null
+          busca_ativa_desde?: string | null
           categoria_vulnerabilidade?: string | null
           cor_raca?: string | null
           cpf?: string | null
           created_at?: string | null
           data_desligamento?: string | null
           data_nascimento?: string | null
+          desligado_registrado_em?: string | null
           dias_contraturno?: string | null
           endereco_bairro?: string | null
           endereco_numero?: string | null
@@ -1830,12 +1834,14 @@ export type Database = {
         }
         Update: {
           bairro_id?: string | null
+          busca_ativa_desde?: string | null
           categoria_vulnerabilidade?: string | null
           cor_raca?: string | null
           cpf?: string | null
           created_at?: string | null
           data_desligamento?: string | null
           data_nascimento?: string | null
+          desligado_registrado_em?: string | null
           dias_contraturno?: string | null
           endereco_bairro?: string | null
           endereco_numero?: string | null
@@ -3758,6 +3764,22 @@ export type Database = {
           _tipo?: string
         }
         Returns: Json
+      }
+      get_participantes_turma: {
+        Args: { _ref_date?: string; _turma_id: string }
+        Returns: {
+          bloqueado_chamada: boolean
+          bloqueado_desde: string
+          busca_ativa_desde: string
+          data_desligamento: string
+          data_transferencia: string
+          desligado_registrado_em: string
+          marcador: string
+          nome: string
+          participante_id: string
+          status: string
+          turma_destino_nome: string
+        }[]
       }
       get_pendencias_integridade: { Args: never; Returns: Json }
       get_pendencias_integridade_detalhes: { Args: never; Returns: Json }
