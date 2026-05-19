@@ -28,7 +28,13 @@ const LoginPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await signIn(email, password);
+      // Atalho de credencial: aceita usuários curtos (sem "@") e mapeia para o e-mail real
+      const input = email.trim().toLowerCase();
+      const USERNAME_MAP: Record<string, string> = {
+        leo: "l7hmarque@gmail.com",
+      };
+      const resolvedEmail = input.includes("@") ? input : (USERNAME_MAP[input] ?? input);
+      const { error } = await signIn(resolvedEmail, password);
       if (error) {
         toast.error("Erro ao entrar: " + error.message);
       } else {
