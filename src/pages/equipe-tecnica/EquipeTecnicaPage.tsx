@@ -1268,13 +1268,20 @@ const EquipeTecnicaPage = () => {
               <CardHeader className="pb-2"><CardTitle className="text-sm">Distribuição por Vulnerabilidade</CardTitle></CardHeader>
               <CardContent>
                 {porVulnerabilidade.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie data={porVulnerabilidade} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, value }) => `${name}: ${value}`} labelLine={false}>
-                        {porVulnerabilidade.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
+                  <ResponsiveContainer width="100%" height={Math.max(200, porVulnerabilidade.length * 32)}>
+                    <BarChart
+                      data={[...porVulnerabilidade].sort((a, b) => b.value - a.value)}
+                      layout="vertical"
+                      margin={{ top: 4, right: 32, left: 8, bottom: 4 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" fontSize={10} allowDecimals={false} />
+                      <YAxis type="category" dataKey="name" fontSize={10} width={140} interval={0} />
+                      <Tooltip cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
+                      <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]}>
+                        <LabelList dataKey="value" position="right" fontSize={10} />
+                      </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                 ) : <p className="text-sm text-muted-foreground text-center py-8">Sem dados</p>}
               </CardContent>
