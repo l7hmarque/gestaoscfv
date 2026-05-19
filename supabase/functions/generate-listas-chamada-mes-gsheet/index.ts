@@ -147,23 +147,21 @@ function buildTurmaSheet(turma: any, members: any[], anoNum: number, mesNum: num
   }
 
   const sortedAll = [...members].sort((a, b) => a.nome.localeCompare(b.nome));
-  const ativos = sortedAll.filter(m => !m.desligado && !m.transferido);
-  const transferidos = sortedAll.filter(m => m.transferido && !m.desligado);
-  const desligados = sortedAll.filter(m => m.desligado);
-  const ordered = [...ativos, ...transferidos, ...desligados];
+  const ordered = [
+    ...sortedAll.filter(m => !m.bloqueado_chamada),
+    ...sortedAll.filter(m => m.bloqueado_chamada),
+  ];
 
   ordered.forEach((m, i) => {
-    const isInactive = m.desligado || m.transferido;
+    const isInactive = !!m.bloqueado_chamada;
     const grayFg = isInactive ? { red: 0.5, green: 0.5, blue: 0.5 } : black;
     const cellFmt = { ...cellNameFmt, textFormat: { ...(cellNameFmt.textFormat || {}), strikethrough: isInactive, foregroundColor: grayFg } };
     const numFmt = { ...baseFmt, textFormat: { ...(baseFmt.textFormat || {}), strikethrough: isInactive, foregroundColor: grayFg } };
     const dateFmt = { ...baseFmt, textFormat: { ...(baseFmt.textFormat || {}), strikethrough: isInactive, foregroundColor: grayFg } };
 
-    let runs: Array<{ text: string; bold?: boolean }>;
-    if (m.desligado) runs = [{ text: m.nome + " " }, { text: `(D${m.data_desligamento ? " " + m.data_desligamento : ""})`, bold: true }];
-    else if (m.transferido) runs = [{ text: m.nome + " " }, { text: `(T${m.data_transferencia ? " " + m.data_transferencia : ""})`, bold: true }];
-    else if (m.novo) runs = [{ text: m.nome + " " }, { text: `(N${m.iniciou_em ? " " + m.iniciou_em : ""})`, bold: true }];
-    else runs = [{ text: m.nome }];
+    const runs: Array<{ text: string; bold?: boolean }> = m.marcador
+      ? [{ text: m.nome + " " }, { text: m.marcador, bold: true }]
+      : [{ text: m.nome }];
 
     const arr: any[] = [plainCell(i + 1, numFmt), richCell(runs, cellFmt)];
     for (let j = 0; j < datas.length; j++) arr.push(plainCell(isInactive ? "—" : "", dateFmt));
@@ -180,9 +178,10 @@ function buildTurmaSheet(turma: any, members: any[], anoNum: number, mesNum: num
   {
     const legendRuns = [
       { text: "Legenda: " },
-      { text: "(D)", bold: true }, { text: " = Desligado  ·  " },
-      { text: "(T)", bold: true }, { text: " = Transferido  ·  " },
-      { text: "(N)", bold: true }, { text: " = Novo no mês" },
+      { text: "(BA)", bold: true }, { text: " = Busca Ativa  ·  " },
+      { text: "(Desligado)", bold: true }, { text: " = Desligado (≤30d)  ·  " },
+      { text: '(Transferido DD/MM para "Turma")', bold: true }, { text: " = Transferido (≤30d)  ·  " },
+      { text: "—", bold: true }, { text: " = Sem aula/desligado" },
     ];
     const arr: any[] = [plainCell("", legendFmt), richCell(legendRuns, legendFmt)];
     for (let j = 2; j < totalCols; j++) arr.push(plainCell("", legendFmt));
