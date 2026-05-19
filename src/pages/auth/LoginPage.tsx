@@ -28,7 +28,13 @@ const LoginPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await signIn(email, password);
+      // Atalho de credencial: aceita usuários curtos (sem "@") e mapeia para o e-mail real
+      const input = email.trim().toLowerCase();
+      const USERNAME_MAP: Record<string, string> = {
+        leo: "l7hmarque@gmail.com",
+      };
+      const resolvedEmail = input.includes("@") ? input : (USERNAME_MAP[input] ?? input);
+      const { error } = await signIn(resolvedEmail, password);
       if (error) {
         toast.error("Erro ao entrar: " + error.message);
       } else {
@@ -70,8 +76,8 @@ const LoginPage = () => {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" required />
+              <Label htmlFor="email" className="text-xs">Usuário ou e-mail</Label>
+              <Input id="email" type="text" autoCapitalize="none" autoCorrect="off" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="usuário ou seu@email.com" required />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password" className="text-xs">Senha</Label>
