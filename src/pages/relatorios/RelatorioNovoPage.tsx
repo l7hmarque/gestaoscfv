@@ -21,6 +21,7 @@ import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { TIPOS_ATIVIDADE } from "@/lib/constants";
 import { checkConquistas } from "@/hooks/useConquistas";
 import { useFormTimer } from "@/hooks/useFormTimer";
+import { getParticipantesDaTurma, type ParticipanteTurma } from "@/lib/participantesTurma";
 
 const MOTIVOS_RELATO = [
   "Conflito entre participantes",
@@ -173,24 +174,29 @@ const RelatorioNovoPage = () => {
       return;
     }
     const fetchParts = async () => {
-      const { data } = await supabase
-        .from("turma_participantes")
-        .select("participante_id, data_saida, participantes(id, nome_completo, status, periodo)")
-        .in("turma_id", form.turma_ids)
-        .is("data_saida" as any, null);
-      if (data) {
-        const unique = new Map<string, { nome: string; status: string; periodo: string | null }>();
-        data.forEach((d: any) => {
-          if (d.participantes && !unique.has(d.participantes.id)) {
-            unique.set(d.participantes.id, { nome: d.participantes.nome_completo, status: d.participantes.status, periodo: d.participantes.periodo });
-          }
-        });
-        // Filter: only ativo and busca_ativa
-        const ALLOWED_STATUS = new Set(["ativo", "busca_ativa"]);
-        const list = Array.from(unique, ([id, info]) => ({ id, nome: info.nome, status: info.status, periodo: info.periodo }))
-          .filter(p => ALLOWED_STATUS.has(p.status || "ativo"))
-          .sort((a, b) => a.nome.localeCompare(b.nome));
-        setParticipantesTurma(list);
+      const refDate = form.data ? format(form.data, "yyyy-MM-dd") : undefined;
+      const results = await Promise.all(
+        form.turma_ids.map(tid => getParticipantesDaTurma(tid, refDate))
+      );
+      const unique = new Map<string, ParticipanteTurma>();
+      results.flat().forEach(p => {
+        if (!unique.has(p.participante_id)) unique.set(p.participante_id, p);
+      });
+      // Inclusão por status: ativo, cadastro_incompleto, busca_ativa.
+      // Desligados/transferidos vêm como bloqueados (≤30d) e ficam fora da chamada.
+      const ALLOWED_STATUS = new Set(["ativo", "cadastro_incompleto", "busca_ativa"]);
+      const list = Array.from(unique.values())
+        .filter(p => ALLOWED_STATUS.has(p.status) && !p.bloqueado_chamada)
+        .map(p => ({
+          id: p.participante_id,
+          nome: p.nome,
+          status: p.status,
+          marcador: p.marcador,
+          periodo: null as string | null,
+        }))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+      setParticipantesTurma(list);
+      {
 
         // Pre-fill from family check-ins ("Não vai" → falta + justificativa)
         const dataAtividade = form.data ? format(form.data, "yyyy-MM-dd") : null;
