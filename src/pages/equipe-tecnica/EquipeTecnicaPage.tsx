@@ -492,7 +492,7 @@ const EquipeTecnicaPage = () => {
       count,
       intensity: count / max,
     }));
-  }, [turmas, turmaParticipantesMap]);
+  }, [turmas, turmaParticipantesMap, participantesAtivos]);
 
   const filteredAtd = useMemo(() => {
     return atendimentos.filter(a => {
