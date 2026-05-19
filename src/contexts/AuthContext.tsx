@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  profileId: string | null;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileId, setProfileId] = useState<string | null>(null);
 
   useEffect(() => {
     let sessionChecked = false;
@@ -83,6 +85,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Cache do profile.id do usuário autenticado — evita N queries repetidas em vários componentes
+  useEffect(() => {
+    if (!user) { setProfileId(null); return; }
+    let cancel = false;
+    supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle()
+      .then(({ data }) => { if (!cancel) setProfileId((data as any)?.id ?? null); });
+    return () => { cancel = true; };
+  }, [user?.id]);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -132,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, profileId, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
