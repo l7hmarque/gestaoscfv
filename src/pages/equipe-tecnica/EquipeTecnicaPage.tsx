@@ -88,6 +88,7 @@ const EquipeTecnicaPage = () => {
   const encTimer = useFormTimer("encaminhamento");
   const baTimer = useFormTimer("busca_ativa");
   useEffect(() => { if (dialogOpen) atdTimer.start(); }, [dialogOpen]);
+  useEffect(() => { if (encDialogOpen) encTimer.start(); }, [encDialogOpen]);
 
   // Recados (para vinculação)
   const [recados, setRecados] = useState<any[]>([]);
@@ -292,6 +293,7 @@ const EquipeTecnicaPage = () => {
 
     const { data: novoAtd, error } = await supabase.from("atendimentos").insert(insertPayload).select().single();
     if (error) { toast.error("Erro: " + error.message); return; }
+    atdTimer.stop(novoAtd?.id);
 
     // Vínculo: recado → resolvido + atendimento_id NÃO existe em recados, mas mudamos status
     if (form.recado_origem_id) {
@@ -375,10 +377,12 @@ const EquipeTecnicaPage = () => {
     if (encEdit) {
       const { error } = await (supabase.from as any)("encaminhamentos_externos").update(payload).eq("id", encEdit.id);
       if (error) { toast.error("Erro: " + error.message); return; }
+      encTimer.stop(encEdit.id);
       toast.success("Encaminhamento atualizado");
     } else {
-      const { error } = await (supabase.from as any)("encaminhamentos_externos").insert(payload);
+      const { data: novoEnc, error } = await (supabase.from as any)("encaminhamentos_externos").insert(payload).select().single();
       if (error) { toast.error("Erro: " + error.message); return; }
+      encTimer.stop(novoEnc?.id);
       toast.success("Encaminhamento registrado");
     }
     setEncDialogOpen(false);
@@ -934,15 +938,16 @@ const EquipeTecnicaPage = () => {
     setBaSaving(true);
 
     // Insert into busca_ativa_registros
-    const { error } = await (supabase.from as any)("busca_ativa_registros").insert({
+    const { data: novoBA, error } = await (supabase.from as any)("busca_ativa_registros").insert({
       participante_id: baSelectedParticipante.id,
       profissional_id: myProfileId,
       tipo_contato: baForm.tipo_contato.join(", "),
       descricao: baForm.descricao,
       resultado: baForm.resultado,
-    });
+    }).select().single();
 
     if (error) { toast.error("Erro: " + error.message); setBaSaving(false); return; }
+    baTimer.stop(novoBA?.id);
 
     // Also create an atendimento of type busca_ativa
     await supabase.from("atendimentos").insert({
