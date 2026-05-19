@@ -83,6 +83,12 @@ const EquipeTecnicaPage = () => {
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const { log: auditLog } = useAuditLog();
 
+  // Telemetria silenciosa de tempo de preenchimento
+  const atdTimer = useFormTimer("atendimento");
+  const encTimer = useFormTimer("encaminhamento");
+  const baTimer = useFormTimer("busca_ativa");
+  useEffect(() => { if (dialogOpen) atdTimer.start(); }, [dialogOpen]);
+
   // Recados (para vinculação)
   const [recados, setRecados] = useState<any[]>([]);
   const [recadoOrigem, setRecadoOrigem] = useState<any | null>(null);
