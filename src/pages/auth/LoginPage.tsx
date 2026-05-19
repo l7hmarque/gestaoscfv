@@ -76,8 +76,8 @@ const LoginPage = () => {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" required />
+              <Label htmlFor="email" className="text-xs">Usuário ou e-mail</Label>
+              <Input id="email" type="text" autoCapitalize="none" autoCorrect="off" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="usuário ou seu@email.com" required />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password" className="text-xs">Senha</Label>
