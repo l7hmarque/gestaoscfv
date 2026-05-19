@@ -508,7 +508,7 @@ export async function exportRelatorioGestaoXLSX(mesInicio: number, anoInicio: nu
     : `${MESES_NOMES[mesInicio - 1]}/${anoInicio} a ${MESES_NOMES[mesFim - 1]}/${anoFim}`;
 
   const data = await fetchGestaoData(startDate, endDate);
-  const m = computeMetrics(data, startDate);
+  const m = computeMetrics(data, startDate, endDate);
 
   const wb = XLSX.utils.book_new();
   const border = { style: "thin" as const, color: { rgb: "000000" } };
