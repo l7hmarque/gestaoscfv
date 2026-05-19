@@ -88,7 +88,6 @@ const EquipeTecnicaPage = () => {
   const encTimer = useFormTimer("encaminhamento");
   const baTimer = useFormTimer("busca_ativa");
   useEffect(() => { if (dialogOpen) atdTimer.start(); }, [dialogOpen]);
-  useEffect(() => { if (encDialogOpen) encTimer.start(); }, [encDialogOpen]);
 
   // Recados (para vinculação)
   const [recados, setRecados] = useState<any[]>([]);
