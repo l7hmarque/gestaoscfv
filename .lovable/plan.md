@@ -1,98 +1,126 @@
-# Estratégia — Performance sem quebrar nada
+## Higienização das funções de frequência — plano de ação
 
-## Item 1 — Cronograma: memoizar (NÃO remover)
+### O que entendi das suas alterações
 
-### Por que não remover
-A feature está mais entrelaçada do que parece. Remover quebraria:
-- `AgendaProfissional` dentro de `ProfissionalPerfilPage` (cada perfil mostra a agenda do educador).
-- `CienteRequiredModal` no `AppLayout` (depende de `cronograma_intervencoes` para o bloqueio de ciência — usado por toda a coordenação para forçar leitura de avisos críticos).
-- Card "Cronograma" no DashboardPage e link na sidebar.
-- 6 tabelas com FKs (`cronograma_cenarios`, `_slots`, `_slot_profissionais`, `_atividades_manuais`, `_intervencoes`, `_intervencao_cientes`, `_disponibilidade`) + edge function `generate-cronograma-report` + realtime publications.
-- O fluxo de "Intervenções com ciência obrigatória" é institucional, não bônus.
+1. **Inclusão de participantes** em tudo que envolve frequência (digital, listas, indicadores): **só pelo `status**` — nunca mais por `data_saida`/`data_entrada`/janela de vínculo. Quem aparece:
+  - Chamada digital e listas de **chamada em branco**: status `ativo` + `cadastro_incompleto` + `busca_ativa`.
+  - Desligados aparecem apenas se o **desligamento foi informado no sistema há ≤ 30 dias** (campo novo `desligado_registrado_em`).
+  - Transferidos aparecem com o marcador completo `(Transferido DD/MM para "NOME DA TURMA DESTINO")` 
+2. **NÃO** integrar `participante_checkins` à PresencaPage (C2 fica fora).
+3. **Marcadores padronizados** em DOCX, PDF e XLSX  e Google Sheets (Google Drive)(preenchida e em branco):
+  - `P` presente · `A` ausente · `J` ausência justificada · `—` sem aula/desligado · `(Desligado)` desligado · `(Transferido DD/MM para "Turma X")` transferido · `(BA)` busca ativa.
+4. **Listas mensais só via Google Sheets.** Remover da página `/relatorios/exportar` (e equivalentes) toda geração local DOCX/PDF/XLSX e a geração por turma individual dessas duas listas.
+5. **Indicadores em todos os relatórios:**
+  - **Atendidos** = participantes únicos com **≥ 1 presença** no mês/período.
+  - **Ativos** = `status IN ('ativo','cadastro_incompleto')`.
+  - **Em Busca Ativa** = participantes com `status='busca_ativa'` cuja entrada nesse status (data registrada como BA) é `≤ fim do mês`. Aparece como **indicador** + **aba/seção dedicada** com nome e dados de cada um — em Relatório Mensal Consolidado, Relatório Mensal Completo e Relatório de Gestão (não em relatórios de atividade).
 
-Conclusão: o custo/risco de remover é alto e a página **já é lazy-loaded** (não pesa no boot). O ganho real está em **memoizar o grid** para acelerar quando o usuário entra em `/cronograma`.
-
-### O que fazer (memoização cirúrgica)
-
-Em `CronogramaPage.tsx` (842 linhas):
-1. Extrair a célula do grid (`<div>` que renderiza slots + atividades por dia/período/bairro) em um componente `CronogramaCell` envolvido por `React.memo` com comparador raso nas props (`slots`, `atividades`, `bairro`, handlers estáveis).
-2. Estabilizar handlers (`onSlotClick`, `onAddAtividade`, etc.) com `useCallback`.
-3. Pré-indexar dados em `useMemo`: `Map<bairroId, slots[]>`, `Map<slotId, profissionais[]>`, em vez de filtrar arrays inteiros por célula a cada render (hoje é O(células × slots)).
-4. Mesmo tratamento em `AgendaProfissional.tsx` (grid 5×2 também faz `.filter` por célula).
-
-Sem mudança de comportamento, sem mudança de dados. Risco: baixo.
-
-### Plano B (opcional, reversível): "desligar" sem remover
-Se mesmo memoizado o usuário quiser sumir com o cronograma da navegação:
-- Remover o link da sidebar e o card do dashboard.
-- Manter a rota `/cronograma`, as tabelas, edge function e `CienteRequiredModal` intactos.
-- Acessível ainda por URL direta para coordenação.
-- Reversível em 2 linhas. Zero risco para `AgendaProfissional` e ciência.
-
-Recomendação: aplicar memoização agora; decidir o Plano B depois se ainda quiser limpar a navegação.
+Se algo divergir do que você quis, me corrija antes de eu codar.
 
 ---
 
-## Item 3 — CienteRequiredModal: fix de performance
+### Plano de execução (4 fases)
 
-### Problema atual
-O modal está no `AppLayout` (renderiza em toda navegação autenticada). Hoje:
-- A cada login/montagem dispara 4 queries em paralelo (`profiles`, `cronograma_intervencoes` LIMIT 50, `cronograma_intervencao_cientes`, `recados`).
-- Abre 1 canal realtime por usuário escutando **todas** as mudanças de `cronograma_intervencoes` e `recados` no banco inteiro.
-- Cada evento realtime dispara `load()` novamente (4 queries) — barulhento em horários de pico.
+#### Fase 1 — Migração de banco
 
-### Correções (baixo risco)
-1. **Mover `profileId` lookup para o `AuthContext`** (já existe `user`; expor `profileId` cacheado). Elimina 1 query por montagem em todo lugar que hoje faz `select id from profiles where user_id=...` (>10 componentes fazem isso).
-2. **Filtrar o canal realtime** por `filter: "destinatario_id=eq.{profileId}"` em `recados` (Postgres Changes suporta filter). Para `cronograma_intervencoes` não tem como filtrar por array no servidor — então debounçar o `load()` em 1500ms para coalescer rajadas.
-3. **Substituir realtime de `cronograma_intervencoes` por polling leve** (a cada 60s + on focus) já que intervenções são raras. Remove uma subscription global por usuário.
-4. **Memoizar `CienteRequiredModal`** e mover para dentro de um wrapper que só monta se `user` existir (já é o caso, mas remover o `useEffect` que dispara em cada navegação — usar `useQuery` com `staleTime: 60_000`).
-5. **Throttle do `useActivityPing`** se ainda não tiver (verificar).
+```sql
+ALTER TABLE participantes ADD COLUMN desligado_registrado_em timestamptz;
 
-Ganho esperado: redução real de ~30–40% de latência percebida em navegações entre páginas (especialmente em `/coordenacao`, `/participantes`).
-Risco: baixo. O fluxo de ciência continua igual — só muda *como* o cliente descobre que há pendência.
+-- Trigger: preencher quando status muda para 'desligado'
+CREATE FUNCTION marcar_desligado_registrado() ...
+  IF NEW.status = 'desligado' AND OLD.status IS DISTINCT FROM 'desligado'
+  THEN NEW.desligado_registrado_em := now();
+
+-- Backfill conservador: usa updated_at atual para desligados existentes
+UPDATE participantes SET desligado_registrado_em = updated_at
+WHERE status='desligado' AND desligado_registrado_em IS NULL;
+
+-- Capturar entrada em busca_ativa (para corte por fim de mês)
+ALTER TABLE participantes ADD COLUMN busca_ativa_desde timestamptz;
+-- Trigger análogo + backfill via audit_log/updated_at.
+```
+
+#### Fase 2 — Função única `getParticipantesDaTurma`
+
+- Criar `src/lib/participantesTurma.ts` (+ RPC `get_participantes_turma(turma_id, ref_date)`).
+- Regra única:
+  - Vínculo: `turma_participantes.turma_id = X` (sem filtrar por `data_saida` ou `data_entrada`).
+  - Status visível: `ativo`, `cadastro_incompleto`, `busca_ativa`. Inclui `desligado` se `desligado_registrado_em >= ref_date - 30 dias`. Transferido entra com marcador se a transferência ocorreu nos últimos 30d.
+  - Para cada participante, devolver: `nome`, `status`, `marcador` (`""`, `(BA)`, `(Desligado)`, `(Transferido DD/MM para "TURMA Y")`), `bloqueado_chamada` (true para desligado/transferido — mostra `—` em todas as datas).
+- Substituir os filtros atuais em:
+  - `src/pages/presenca/PresencaPage.tsx`
+  - `src/pages/relatorios/RelatorioNovoPage.tsx`
+  - `src/lib/listaFrequencia.ts` (`carregarDadosTurma`)
+  - Edges `generate-listas-frequencia-mes-gsheet`, `generate-listas-chamada-mes-gsheet`, `generate-lista-frequencia-gsheet`, `generate-lista-chamada-gsheet`, `generate-relatorio-mensal`, `useRelatorioGestao`.
+
+#### Fase 3 — Marcadores unificados e remoção das listas locais
+
+**3.1 Padronizar marcadores** em um único helper `src/lib/marcadoresFrequencia.ts` consumido por:
+
+- `useDocumentExport.ts` (DOCX/PDF preenchida)
+- `exportListaPresenca.ts` (XLSX preenchida e em branco)
+- Edges Sheets equivalentes
+
+Tabela de células: `P` / `A` / `J` / `—` (vazio = não lançado). Linha de desligado/transferido respeita a data efetiva: células **anteriores** mantêm `P/A/J` do histórico; **posteriores** ficam `—`. Acaba o "tudo `—`" do XLSX em branco atual.
+
+**3.2 Remover gerações antigas:**
+
+- Em `/relatorios/exportar`: remover os cards "Lista de Frequência (preenchida)" e "Lista de Chamada (em branco)" e a `PresencaExportarPage`.
+- Em `src/lib/listaFrequencia.ts`: remover suporte a formatos locais (DOCX/PDF/XLSX) e ao modo "lote" local. Manter só interface para o Sheets se reaproveitável; senão, apagar o arquivo.
+- Remover `exportSingleListaPresenca`, `exportAllListasPresenca` e variantes em `useDocumentExport` que servem apenas listas.
+- Auditar usos para não quebrar relatórios de atividade.
+
+**3.3 Novo módulo `/listas-frequencia**` (rota nova, sidebar):
+
+- Card 1: **Lista de Frequência Mensal (preenchida) — Google Sheets** → invoca `generate-listas-frequencia-mes-gsheet` para mês/ano/filtros de turmas.
+- Card 2: **Lista de Chamada Mensal (em branco) — Google Sheets** → invoca `generate-listas-chamada-mes-gsheet`.
+- Ambas as edges atualizadas para usar marcadores novos, `getParticipantesDaTurma`, e janela 30d de desligados.
+
+#### Fase 4 — Indicadores dos relatórios
+
+Tocar `supabase/functions/generate-relatorio-mensal/index.ts`, `src/hooks/useRelatorioGestao.ts`, `useBulkRelatorioExport.ts` e a edge `generate-relatorio-gdoc`:
+
+
+| Métrica            | Fórmula nova                                                                                        |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| **Atendidos**      | `COUNT(DISTINCT participante_id)` em `presenca ∪ relatorio_presenca` com `presente=true` no período |
+| **Ativos**         | `COUNT participantes WHERE status IN ('ativo','cadastro_incompleto')` no fim do período             |
+| **Em Busca Ativa** | `COUNT participantes WHERE status='busca_ativa' AND busca_ativa_desde <= fim_periodo`               |
+
+
+**Nova aba/seção "Em Busca Ativa"** (Mensal Consolidado XLSX, Mensal Completo XLSX, Gestão XLSX+PDF):
+
+- Colunas: Nome · CPF · Idade · Bairro · Turma atual · Em BA desde · Último registro de contato (de `busca_ativa_registros`) · Resultado · Responsável pelo contato.
+- Linha de resumo no topo: total acumulados, total que entraram em BA no mês.
+
+**Relatórios de atividade** ficam de fora (KPI e aba BA não são incluídos lá), conforme você pediu.
 
 ---
 
-## Item 4 — useDocumentExport: análise de risco (NÃO aplicar agora)
+### Detalhes técnicos para a equipe
 
-### Fatores de risco
-
-1. **Tamanho e acoplamento**: 1381 linhas, 9+ funções exportadas (`exportRelatorioPdf`, `exportRelatorioDocx`, `buildRelatorioDocxBlob`, `exportPlanejamentoPdf/Docx`, `exportFichaInscricaoPdf/Docx`, `exportProntuarioPdf`, `ensurePresencaForExport`, `abrirRelatorioNoGoogleDocs`). Consumido por 8+ páginas e também re-exportado por `lib/listaFrequencia.ts` e `useBulkRelatorioExport.ts`. Tornar tudo async (`await import("docx")`) força mudar a assinatura de todos os call-sites.
-
-2. **Template-fill DOCX (docxtemplater)**: lê PNG de fotos, faz substituição de tags com `TemplateTagMapper`. Se quebrar, perde a integração com modelos institucionais do Drive (`09_Cronogramas`, etc.) — exatamente o fluxo que você acabou de migrar para Drive/Docs.
-
-3. **Bulk export** (`useBulkRelatorioExport`) gera lotes de DOCX/PDF/XLSX em paralelo via `Promise.allSettled`. Falha silenciosa em um dynamic import quebraria o relatório do mês inteiro sem erro claro.
-
-4. **`abrirRelatorioNoGoogleDocs`**: hoje converte DOCX local → upload via edge function → abre no Docs. Se o blob de DOCX vier "vazio" porque o import dinâmico ainda não resolveu, o Docs abre em branco e o usuário pode editar e salvar por cima — perda de conteúdo silenciosa.
-
-5. **PWA/cache**: dynamic imports criam chunks novos. Em sessões com Service Worker antigo + chunk faltante = tela branca no export.
-
-### Como executar com segurança (se for fazer no futuro)
-
-- **Manter API síncrona externamente**. Cada função vira um wrapper que faz `await import()` por dentro e retorna `Promise`. Como já são todas `async`, a assinatura não muda — só o conteúdo. Único ponto sensível: garantir que `buildRelatorioDocxBlob` continue retornando `Blob`, não `Promise<Blob>` se algum consumer não awaita (verificar todos os call-sites com `rg`).
-- **Splitting por engine**: 3 chunks dinâmicos separados — `chunk-docx` (docx + docxtemplater + pizzip), `chunk-pdf` (jspdf + jspdf-autotable), `chunk-xlsx` (xlsx-js-style). Hoje o `vite.config` já tem `manualChunks`; basta trocar import estático por `await import()`. Os chunks já existem, só passam de "carregados no boot" para "carregados sob demanda".
-- **Pré-fetch on intent**: ao montar `RelatorioDetalhePage` / `PlanejamentoDetalhePage`, disparar `import("docx")` em background dentro de `requestIdleCallback`. Quando o usuário clicar em "Exportar", já está em cache. Elimina a latência de primeira exportação.
-- **Smoke test obrigatório**: criar `src/test/export-smoke.test.ts` que chama cada função exportada com um mock mínimo e valida que retorna um `Blob` não-vazio. Roda em CI antes de mergear.
-- **Migração Drive/Docs reduz a urgência**: como agora você usa Google Docs para edição colaborativa, o caminho DOCX local é cada vez menos crítico. Faz sentido **adiar** essa otimização até decidir se vai aposentar parte do fluxo DOCX local em favor do Docs (aí o ganho vem de **remover** docxtemplater, não de torná-lo lazy).
-
-### Pode executar sem falhas?
-Sim, mas só se: (a) for feito em PR isolado, (b) tiver smoke test cobrindo as 9 funções exportadas, (c) você testar manualmente as 3 rotas críticas (relatório individual, ficha de inscrição, bulk mensal) antes de publicar. **Não recomendo aplicar junto com as outras mudanças.**
+- **Marcadores em rótulo de linha** (não em célula de data): nome do participante recebe `(BA)`, `(Desligado)` ou `(Transferido DD/MM para "TURMA DESTINO")`. Células de data mantêm `P/A/J/—`.
+- **"Transferido para"**: resolver via `participante_transferencias` mais recente do participante naquela turma, juntando `turmas(nome)` do destino.
+- **Janela 30d de desligados**: avaliada por `desligado_registrado_em >= (ref_date - interval '30 days')`. `ref_date` = primeiro dia do mês para listas mensais; `now()` para chamada digital.
+- **Memórias a atualizar:** `presenca-logica`, `desligamento-participantes`, `transferencia-participantes`, `busca-ativa` (re-incluir `(BA)`), `gestao-participantes-status-unificada`, `documentos-institucionais-padrao` (mudar `■` → `P`).
+- **Compatibilidade:** edges Sheets já existem (`generate-listas-frequencia-mes-gsheet`, `generate-listas-chamada-mes-gsheet`); só vão receber `getParticipantesDaTurma` + marcadores novos + indicador BA quando aplicável.
 
 ---
 
-## Ordem de execução proposta nesta rodada
+### O que **não** muda
 
-1. Memoização do grid do Cronograma (`CronogramaPage` + `AgendaProfissional`).
-2. Fix do `CienteRequiredModal`: `profileId` no AuthContext, debounce do `load()`, filter no canal de `recados`, polling para intervenções.
-3. Apenas relatório dos riscos do Item 4 — sem código.
+- `presenca` e `relatorio_presenca` continuam como estão (sem unificar agora — fora do seu pedido).
+- Filtro retroativo `01/04/2026` continua valendo.
+- `PresencaPage` mantém pré-marcação atual (sem mexer em UX além da regra de inclusão).
+- Relatórios de atividade individuais não recebem indicador/aba de BA.
 
-## Detalhes técnicos
-- Nenhuma migration necessária.
-- Nenhum endpoint novo.
-- Nenhuma alteração em RPCs de indicadores (`get_dashboard_stats`, `get_coordenacao_stats`, `get_produtividade_educadores`).
-- Realtime: remover 1 subscription global por usuário (`cronograma_intervencoes`), substituída por polling 60s.
+---
 
-## Fora de escopo
-- Refatorar `useDocumentExport` (Item 4).
-- Remover tabelas do cronograma.
-- Mexer em qualquer hook de produtividade/dashboard.
+### Riscos / pontos de atenção
+
+1. **Backfill de `desligado_registrado_em**` usa `updated_at` — pode ficar impreciso para desligamentos antigos editados depois. Aceitável? Posso usar `audit_log` como fallback se preferir. -> Use algo que deixe preciso.
+2. Remover a `PresencaExportarPage` quebra links salvos por usuários — colocarei redirect 301 para `/listas-frequencia`. -> NAO ENTENDI O QUE ISSO AQUI SIGNIFICA, ME EXPLIQUE ATRAVES DE UMA QUESTION BOX PERGUNTANDO SE EU APROVO.
+3. Marcadores mudam de `■` para `P` em **todos** os exports históricos novos — listas antigas já geradas dever ser geradas novamente de forma identica apenas trocando o marcador.
+
+Confirma para eu seguir, ou ajusta algum item?  
+Fazer analise e avaliacao do codigo apos execucao, visando higienizar e garantir boa performance geral.
