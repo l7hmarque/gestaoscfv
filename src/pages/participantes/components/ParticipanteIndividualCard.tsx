@@ -204,7 +204,7 @@ const ParticipanteIndividualCard = ({ index, data, bairros, pontos, canRemove, c
               <Label className="text-xs font-medium">Período</Label>
               <Select value={data.periodo} onValueChange={(v) => onChange({ periodo: v })}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="manha">Manhã</SelectItem><SelectItem value="tarde">Tarde</SelectItem><SelectItem value="integral">Integral</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="manha">Manhã</SelectItem><SelectItem value="tarde">Tarde</SelectItem></SelectContent>
               </Select>
             </div>
             <div>
