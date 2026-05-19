@@ -21,7 +21,7 @@ import { useFormTimer } from "@/hooks/useFormTimer";
 import { toast } from "sonner";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, LabelList } from "recharts";
 import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2, Phone, MapPin, Search, Eye, UserCheck, UserX, Mail, ChevronDown, ChevronUp, Check, X as XIcon, FileImage, Network, ShieldAlert, Target, Link2 } from "lucide-react";
 import { calcFaixaFromDate, displayAge, PERIODO_LABELS } from "@/lib/constants";
 import { RecadosEquipeCards } from "@/components/RecadosEquipeCards";
@@ -477,11 +477,12 @@ const EquipeTecnicaPage = () => {
 
   const mapaCalor = useMemo(() => {
     const diasSets: Record<string, Set<string>> = { seg: new Set(), ter: new Set(), qua: new Set(), qui: new Set(), sex: new Set() };
+    const ativosIds = new Set(participantesAtivos.map(p => p.id));
     turmas.forEach(t => {
       const pIds = turmaParticipantesMap[t.id] || [];
       (t.dias_semana || []).forEach((d: string) => {
         const key = d.toLowerCase().slice(0, 3);
-        if (diasSets[key]) pIds.forEach(id => diasSets[key].add(id));
+        if (diasSets[key]) pIds.forEach(id => { if (ativosIds.has(id)) diasSets[key].add(id); });
       });
     });
     const diasMap = Object.fromEntries(Object.entries(diasSets).map(([k, s]) => [k, s.size]));
@@ -491,7 +492,7 @@ const EquipeTecnicaPage = () => {
       count,
       intensity: count / max,
     }));
-  }, [turmas, turmaParticipantesMap]);
+  }, [turmas, turmaParticipantesMap, participantesAtivos]);
 
   const filteredAtd = useMemo(() => {
     return atendimentos.filter(a => {
@@ -1267,13 +1268,20 @@ const EquipeTecnicaPage = () => {
               <CardHeader className="pb-2"><CardTitle className="text-sm">Distribuição por Vulnerabilidade</CardTitle></CardHeader>
               <CardContent>
                 {porVulnerabilidade.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie data={porVulnerabilidade} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, value }) => `${name}: ${value}`} labelLine={false}>
-                        {porVulnerabilidade.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
+                  <ResponsiveContainer width="100%" height={Math.max(200, porVulnerabilidade.length * 32)}>
+                    <BarChart
+                      data={[...porVulnerabilidade].sort((a, b) => b.value - a.value)}
+                      layout="vertical"
+                      margin={{ top: 4, right: 32, left: 8, bottom: 4 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" fontSize={10} allowDecimals={false} />
+                      <YAxis type="category" dataKey="name" fontSize={10} width={140} interval={0} />
+                      <Tooltip cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
+                      <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]}>
+                        <LabelList dataKey="value" position="right" fontSize={10} />
+                      </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                 ) : <p className="text-sm text-muted-foreground text-center py-8">Sem dados</p>}
               </CardContent>
