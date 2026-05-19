@@ -119,6 +119,7 @@ const EquipeTecnicaPage = () => {
   // Busca Ativa state
   const [buscaAtivaRegistros, setBuscaAtivaRegistros] = useState<any[]>([]);
   const [baSelectedParticipante, setBaSelectedParticipante] = useState<any | null>(null);
+  useEffect(() => { if (baSelectedParticipante) baTimer.start(); }, [baSelectedParticipante]);
   const [baSheetOpen, setBaSheetOpen] = useState(false);
   const [baDialogOpen, setBaDialogOpen] = useState(false);
   const [baFilterStatus, setBaFilterStatus] = useState("todos");
