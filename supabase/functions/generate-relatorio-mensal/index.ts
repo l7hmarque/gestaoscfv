@@ -327,7 +327,7 @@ function generateMonthSheets(
   );
 
   // Sheet: Resumo
-  const periodoLabelMap = (k: string) => k === "manha" ? "Manha" : k === "tarde" ? "Tarde" : k === "integral" ? "Integral" : k;
+  const periodoLabelMap = (k: string) => k === "manha" ? "Manha" : k === "tarde" ? "Tarde" : k;
   const totalGeral = atendidosFiltered.length;
   const resumoData: any[][] = [
     [TITULO_INSTITUCIONAL], // linha 1 (sobrescrita pelo applyInstitutionalHeader)
