@@ -484,6 +484,8 @@ function generateMonthSheets(
   XLSX.utils.book_append_sheet(wb, wsAtiv, sn2);
 
   // Sheet: Metas
+  // Conta cada participante UMA VEZ, no bairro de residência cadastrado e no seu período.
+  // Evita duplicação por turmas em bairros distintos e elimina o efeito do período "integral".
   const bairroStats: Record<string, { criancasManha: Set<string>; criancasTarde: Set<string>; idosos: Set<string> }> = {};
   BAIRROS_SCFV.forEach(bn => { bairroStats[bn] = { criancasManha: new Set(), criancasTarde: new Set(), idosos: new Set() }; });
   const relIdToAnalise = new Map(filteredRelatorios.map((r: any) => [r.id, r.analise_ia || ""]));
@@ -495,22 +497,17 @@ function generateMonthSheets(
     const bairroNome = bairroMap.get(turma.bairro_id) || "";
     if (BAIRROS_SCFV.includes(bairroNome)) { const analise = relIdToAnalise.get(rt.relatorio_id); if (analise) bairroRelResultados[bairroNome].add(analise); }
   });
-  // Use activePresencas for metas (excludes post-desligamento records)
-  activePresencas.filter((p: any) => p.presente).forEach((pres: any) => {
-    const turma = turmaMap.get(pres.turma_id);
-    if (!turma) return;
-    const bairroNome = bairroMap.get(turma.bairro_id) || "";
+  // atendidosFiltered já é o conjunto único do Resumo (mesmo critério). Usa o bairro/periodo do PARTICIPANTE.
+  atendidosFiltered.forEach((part: any) => {
+    const bairroNome = part.bairro_id ? (bairroMap.get(part.bairro_id) || "") : "";
     if (!BAIRROS_SCFV.includes(bairroNome)) return;
-    const part = partMap.get(pres.participante_id);
-    if (!part) return;
-    // Skip desligados before start of month
-    if (part.status === "desligado" && part.data_desligamento && part.data_desligamento < startDate) return;
     const age = part.data_nascimento ? calcAge(part.data_nascimento) : 0;
     const isIdoso = age >= 60;
-    const periodo = turma.periodo || "manha";
-    if (isIdoso) { bairroStats[bairroNome].idosos.add(pres.participante_id); }
-    else if (periodo === "manha" || periodo === "integral") { bairroStats[bairroNome].criancasManha.add(pres.participante_id); }
-    if (!isIdoso && (periodo === "tarde" || periodo === "integral")) { bairroStats[bairroNome].criancasTarde.add(pres.participante_id); }
+    // Período: legado "integral" tratado como "manha" (não trabalhamos mais com integral).
+    const periodo = part.periodo === "tarde" ? "tarde" : "manha";
+    if (isIdoso) bairroStats[bairroNome].idosos.add(part.id);
+    else if (periodo === "tarde") bairroStats[bairroNome].criancasTarde.add(part.id);
+    else bairroStats[bairroNome].criancasManha.add(part.id);
   });
   const metasRows: any[][] = [];
   let totalCriancas = 0, totalMeta = 0, totalIdosos = 0, totalMetaIdosos = 0;
