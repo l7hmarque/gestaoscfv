@@ -3,8 +3,21 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, ListChecks } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
+
+const TIPOS_LANC = [
+  { value: "_all", label: "Todos os tipos" },
+  { value: "relatorio", label: "Relatórios" },
+  { value: "planejamento", label: "Planejamentos" },
+  { value: "presenca", label: "Presenças" },
+  { value: "atendimento", label: "Atendimentos" },
+  { value: "encaminhamento", label: "Encaminhamentos" },
+  { value: "busca_ativa", label: "Busca Ativa" },
+];
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
@@ -20,6 +33,7 @@ export function ProdutividadeTab() {
   const now = new Date();
   const [mes, setMes] = useState(now.getMonth() + 1);
   const [ano, setAno] = useState(now.getFullYear());
+  const [detalheTarget, setDetalheTarget] = useState<{ id: string; nome: string } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["produtividade-educadores", mes, ano],
@@ -92,6 +106,7 @@ export function ProdutividadeTab() {
                   <th className="text-right">Dia</th>
                   <th className="text-right">Semana</th>
                   <th className="text-right">Mês</th>
+                  <th className="text-right">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -109,17 +124,133 @@ export function ProdutividadeTab() {
                     <td className="text-right">{fmtSec(e.tempo_total_burocratico_dia_s)}</td>
                     <td className="text-right">{fmtSec(e.tempo_total_burocratico_semana_s)}</td>
                     <td className="text-right">{fmtSec(e.tempo_total_burocratico_mes_s)}</td>
+                    <td className="text-right">
+                      <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => setDetalheTarget({ id: e.profile_id, nome: e.nome })}>
+                        <ListChecks className="h-3 w-3 mr-1" /> Detalhar
+                      </Button>
+                    </td>
                   </tr>
                 ))}
-                {educadores.length === 0 && <tr><td colSpan={12} className="text-center text-muted-foreground py-6">Nenhum educador encontrado.</td></tr>}
+                {educadores.length === 0 && <tr><td colSpan={13} className="text-center text-muted-foreground py-6">Nenhum educador encontrado.</td></tr>}
               </tbody>
             </table>
           </div>
           <p className="text-[10px] text-muted-foreground mt-3">
-            Médias e somas em segundos correspondem ao tempo gasto preenchendo relatórios, planejamentos e presenças (telemetria invisível). Dados começam a partir da ativação da telemetria.
+            Médias e somas em segundos correspondem ao tempo gasto preenchendo relatórios, planejamentos, presenças, atendimentos, encaminhamentos e busca ativa (telemetria invisível). Use <strong>Detalhar</strong> para ver lançamento por lançamento.
           </p>
         </CardContent>
       </Card>
+      <DetalheSheet target={detalheTarget} onClose={() => setDetalheTarget(null)} />
+    </div>
+  );
+}
+
+function DetalheSheet({ target, onClose }: { target: { id: string; nome: string } | null; onClose: () => void }) {
+  const [tipo, setTipo] = useState("_all");
+  const [de, setDe] = useState("");
+  const [ate, setAte] = useState("");
+  const [offset, setOffset] = useState(0);
+  const limit = 50;
+
+  const { data, isFetching } = useQuery({
+    queryKey: ["lancamentos-detalhados", target?.id, tipo, de, ate, offset],
+    enabled: !!target,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as any)("get_lancamentos_detalhados", {
+        _profile_id: target!.id,
+        _tipo: tipo === "_all" ? null : tipo,
+        _de: de || null,
+        _ate: ate || null,
+        _limit: limit,
+        _offset: offset,
+      });
+      if (error) throw error;
+      return data as { rows: any[]; total: number };
+    },
+  });
+
+  const rows = data?.rows ?? [];
+  const total = data?.total ?? 0;
+  const durs = [...rows.map((r: any) => r.duracao_segundos)].sort((a, b) => a - b);
+  const p50 = durs[Math.floor(durs.length / 2)] ?? 0;
+  const p90 = durs[Math.floor(durs.length * 0.9)] ?? 0;
+  const maior = durs[durs.length - 1] ?? 0;
+
+  return (
+    <Sheet open={!!target} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Lançamentos de {target?.nome}</SheetTitle>
+        </SheetHeader>
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-wrap gap-2 items-end">
+            <div>
+              <label className="text-xs text-muted-foreground">Tipo</label>
+              <Select value={tipo} onValueChange={(v) => { setTipo(v); setOffset(0); }}>
+                <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                <SelectContent>{TIPOS_LANC.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">De</label>
+              <Input type="date" value={de} onChange={(e) => { setDe(e.target.value); setOffset(0); }} className="w-[150px]" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Até</label>
+              <Input type="date" value={ate} onChange={(e) => { setAte(e.target.value); setOffset(0); }} className="w-[150px]" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <MiniStat label="Total" value={String(total)} />
+            <MiniStat label="Mediana" value={fmtSec(p50)} />
+            <MiniStat label="p90" value={fmtSec(p90)} />
+            <MiniStat label="Mais demorado" value={fmtSec(maior)} />
+          </div>
+
+          <div className="overflow-x-auto border rounded">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-muted-foreground bg-muted/50">
+                  <th className="p-2">Data/Hora</th>
+                  <th className="p-2">Tipo</th>
+                  <th className="p-2">Registro</th>
+                  <th className="p-2 text-right">Duração</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isFetching && <tr><td colSpan={4} className="text-center py-6"><Loader2 className="h-4 w-4 animate-spin inline" /></td></tr>}
+                {!isFetching && rows.length === 0 && <tr><td colSpan={4} className="text-center text-muted-foreground py-6">Nenhum lançamento.</td></tr>}
+                {!isFetching && rows.map((r: any) => (
+                  <tr key={r.id} className="border-t">
+                    <td className="p-2 whitespace-nowrap">{new Date(r.salvo_em).toLocaleString("pt-BR")}</td>
+                    <td className="p-2"><Badge variant="outline" className="text-[10px]">{r.tipo}</Badge></td>
+                    <td className="p-2 truncate max-w-[260px]" title={r.titulo}>{r.titulo || r.registro_id || "—"}</td>
+                    <td className="p-2 text-right font-mono">{fmtSec(r.duracao_segundos)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">{total === 0 ? "0" : `${offset + 1}–${Math.min(offset + limit, total)}`} de {total}</span>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - limit))}>Anterior</Button>
+              <Button size="sm" variant="outline" disabled={offset + limit >= total} onClick={() => setOffset(offset + limit)}>Próxima</Button>
+            </div>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border rounded p-2">
+      <div className="text-[10px] text-muted-foreground uppercase">{label}</div>
+      <div className="text-sm font-semibold">{value}</div>
     </div>
   );
 }

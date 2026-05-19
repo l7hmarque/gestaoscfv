@@ -3748,6 +3748,17 @@ export type Database = {
         }
         Returns: Json
       }
+      get_lancamentos_detalhados: {
+        Args: {
+          _ate?: string
+          _de?: string
+          _limit?: number
+          _offset?: number
+          _profile_id: string
+          _tipo?: string
+        }
+        Returns: Json
+      }
       get_pendencias_integridade: { Args: never; Returns: Json }
       get_pendencias_integridade_detalhes: { Args: never; Returns: Json }
       get_produtividade_educadores: {
