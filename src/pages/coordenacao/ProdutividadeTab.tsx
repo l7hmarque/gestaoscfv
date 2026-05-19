@@ -3,8 +3,21 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, ListChecks } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
+
+const TIPOS_LANC = [
+  { value: "_all", label: "Todos os tipos" },
+  { value: "relatorio", label: "Relatórios" },
+  { value: "planejamento", label: "Planejamentos" },
+  { value: "presenca", label: "Presenças" },
+  { value: "atendimento", label: "Atendimentos" },
+  { value: "encaminhamento", label: "Encaminhamentos" },
+  { value: "busca_ativa", label: "Busca Ativa" },
+];
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
