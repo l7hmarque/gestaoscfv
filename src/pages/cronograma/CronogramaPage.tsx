@@ -455,7 +455,7 @@ export default function CronogramaPage() {
     const cellKey = `${bairroId}-${dia}-${periodo}`;
     const isDragOver = dragOverCell === cellKey;
     const hasConflict = conflicts.some(c => c.includes(dia) && c.includes(PERIODO_LABELS[periodo]));
-    const colors = BAIRRO_COLORS[scfvBairros.find(b => b.id === bairroId)?.nome || ""] || { border: "border-gray-300", bg: "bg-gray-50", header: "", stripe: "" };
+    const colors = BAIRRO_COLORS[bairroById.get(bairroId)?.nome || ""] || { border: "border-gray-300", bg: "bg-gray-50", header: "", stripe: "" };
 
     return (
       <div
@@ -495,7 +495,7 @@ export default function CronogramaPage() {
 
         <div className="space-y-1 relative">
           {cellSlots.map(slot => {
-            const turma = turmas.find(t => t.id === slot.turma_id);
+            const turma = slot.turma_id ? turmaById.get(slot.turma_id) : undefined;
             const sps = getSlotProfs(slot.id);
             return (
               <div key={slot.id} className="rounded p-0.5 space-y-0.5 bg-background/60 border border-border/30">
