@@ -85,7 +85,7 @@ export default function RestricoesTab() {
         <div className="flex-1 min-w-48"><Label className="text-xs">Buscar</Label><Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Nome, restrição, bairro…"/></div>
         <div className="w-40"><Label className="text-xs">Período</Label>
           <select className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" value={periodo} onChange={e => setPeriodo(e.target.value)}>
-            <option value="todos">Todos</option><option value="manha">Manhã</option><option value="tarde">Tarde</option><option value="integral">Integral</option>
+            <option value="todos">Todos</option><option value="manha">Manhã</option><option value="tarde">Tarde</option>
           </select>
         </div>
         <Button variant="outline" onClick={exportXLSX}><Download className="h-4 w-4 mr-2"/>Exportar XLSX</Button>

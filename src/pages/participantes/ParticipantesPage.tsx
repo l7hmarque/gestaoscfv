@@ -565,7 +565,7 @@ const ParticipantesPage = () => {
           <SelectContent>
             <SelectItem value="manha">Manhã</SelectItem>
             <SelectItem value="tarde">Tarde</SelectItem>
-            <SelectItem value="integral">Integral</SelectItem>
+            
           </SelectContent>
         </Select>
         <Select value={bairroFilter} onValueChange={setBairroFilter}>
@@ -662,7 +662,7 @@ const ParticipantesPage = () => {
                         <SelectContent>
                           <SelectItem value="manha">Manhã</SelectItem>
                           <SelectItem value="tarde">Tarde</SelectItem>
-                          <SelectItem value="integral">Integral</SelectItem>
+                          
                         </SelectContent>
                       </Select>
                     </TableCell>

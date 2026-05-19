@@ -415,7 +415,7 @@ const TurmaDetalhePage = () => {
             <div><Label className="text-xs">Período</Label>
               <Select value={form.periodo || ""} onValueChange={(v) => setForm({ ...form, periodo: v })}>
                 <SelectTrigger className="h-9 text-sm mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="manha">Manhã</SelectItem><SelectItem value="tarde">Tarde</SelectItem><SelectItem value="integral">Integral</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="manha">Manhã</SelectItem><SelectItem value="tarde">Tarde</SelectItem></SelectContent>
               </Select>
             </div>
             <div><Label className="text-xs mb-2 block">Faixa Etária</Label>

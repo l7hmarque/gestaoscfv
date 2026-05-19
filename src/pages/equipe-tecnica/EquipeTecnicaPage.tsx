@@ -1468,7 +1468,7 @@ const EquipeTecnicaPage = () => {
                   <SelectItem value="__all__">Todos Períodos</SelectItem>
                   <SelectItem value="manha">Manhã</SelectItem>
                   <SelectItem value="tarde">Tarde</SelectItem>
-                  <SelectItem value="integral">Integral</SelectItem>
+                  
                 </SelectContent>
               </Select>
             </div>

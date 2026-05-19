@@ -1,126 +1,79 @@
-## Higienização das funções de frequência — plano de ação
+## Por que Resumo mostra 86 e Metas mostra 319
 
-### O que entendi das suas alterações
+São duas lógicas diferentes contando a mesma população:
 
-1. **Inclusão de participantes** em tudo que envolve frequência (digital, listas, indicadores): **só pelo `status**` — nunca mais por `data_saida`/`data_entrada`/janela de vínculo. Quem aparece:
-  - Chamada digital e listas de **chamada em branco**: status `ativo` + `cadastro_incompleto` + `busca_ativa`.
-  - Desligados aparecem apenas se o **desligamento foi informado no sistema há ≤ 30 dias** (campo novo `desligado_registrado_em`).
-  - Transferidos aparecem com o marcador completo `(Transferido DD/MM para "NOME DA TURMA DESTINO")` 
-2. **NÃO** integrar `participante_checkins` à PresencaPage (C2 fica fora).
-3. **Marcadores padronizados** em DOCX, PDF e XLSX  e Google Sheets (Google Drive)(preenchida e em branco):
-  - `P` presente · `A` ausente · `J` ausência justificada · `—` sem aula/desligado · `(Desligado)` desligado · `(Transferido DD/MM para "Turma X")` transferido · `(BA)` busca ativa.
-4. **Listas mensais só via Google Sheets.** Remover da página `/relatorios/exportar` (e equivalentes) toda geração local DOCX/PDF/XLSX e a geração por turma individual dessas duas listas.
-5. **Indicadores em todos os relatórios:**
-  - **Atendidos** = participantes únicos com **≥ 1 presença** no mês/período.
-  - **Ativos** = `status IN ('ativo','cadastro_incompleto')`.
-  - **Em Busca Ativa** = participantes com `status='busca_ativa'` cuja entrada nesse status (data registrada como BA) é `≤ fim do mês`. Aparece como **indicador** + **aba/seção dedicada** com nome e dados de cada um — em Relatório Mensal Consolidado, Relatório Mensal Completo e Relatório de Gestão (não em relatórios de atividade).
+**Resumo — "ATENDIDOS NO MÊS" = 86** (`generate-relatorio-mensal/index.ts:294`)
+```ts
+const atendidosIds = new Set(activePresencas.filter(p => p.presente).map(p => p.participante_id));
+```
+→ `Set` de **participante_id único** em todo o mês. Cada pessoa conta **1 vez**, não importa quantas turmas/bairros frequentou.
 
-Se algo divergir do que você quis, me corrija antes de eu codar.
+**Metas — "Total" = 319** (`generate-relatorio-mensal/index.ts:487–527`)
+```ts
+bairroStats[bairroNome].criancasManha.add(pres.participante_id);
+// ...
+totalCriancas += (cm + ct);  // por bairro
+```
+→ `Set` por **bairro × período**, depois somado entre os 3 bairros. Causa **3 inflagens**:
+
+1. **Mesmo participante em bairros diferentes** conta múltiplas vezes (ex.: criança em uma atividade no JARDIM IRENE e outra no PARQUE INDEPENDÊNCIA = 2).
+2. **Período `integral`** soma a mesma criança em `criancasManha` E `criancasTarde` → conta **2x dentro do mesmo bairro** (linhas 512–513).
+3. **Sub-total "Total crianças" por bairro** soma `cm + ct` sem deduplicar o caso integral, e o "TOTAL GERAL" soma esses sub-totais inflados.
+
+86 × ~3,7 = 319 — bate com participantes que apareceram em turmas de bairros diferentes ao longo do mês.
 
 ---
 
-### Plano de execução (4 fases)
+## O que vou alterar
 
-#### Fase 1 — Migração de banco
+### 1. Remover `integral` do sistema (você não trabalha com ele)
 
-```sql
-ALTER TABLE participantes ADD COLUMN desligado_registrado_em timestamptz;
+**Edge `generate-relatorio-mensal/index.ts`:**
+- Linhas 512–513: remover ramo `periodo === "integral"`. Período passa a ser estritamente `manha` ou `tarde`.
+- Linha 330 (`periodoLabelMap`): remover case `"integral"`.
 
--- Trigger: preencher quando status muda para 'desligado'
-CREATE FUNCTION marcar_desligado_registrado() ...
-  IF NEW.status = 'desligado' AND OLD.status IS DISTINCT FROM 'desligado'
-  THEN NEW.desligado_registrado_em := now();
+**Front:**
+- `src/pages/presenca/PresencaPage.tsx` linha ~209: remover `<SelectItem value="integral">Integral</SelectItem>`.
+- Buscar outras ocorrências (`rg "integral"`) em `TurmaNovaPage`, `TurmaDetalhePage`, `MatriculaPublicaPage`, constants — remover opção dos selects e dos rótulos. **Não** mexer em dados antigos no banco (turmas legadas com `periodo='integral'` continuam existindo); apenas a UI deixa de oferecer e os relatórios passam a tratar como `manha` (fallback seguro: se vier `integral`, contar só como `manha`).
 
--- Backfill conservador: usa updated_at atual para desligados existentes
-UPDATE participantes SET desligado_registrado_em = updated_at
-WHERE status='desligado' AND desligado_registrado_em IS NULL;
+### 2. Corrigir contagem de atendidos na aba Metas
 
--- Capturar entrada em busca_ativa (para corte por fim de mês)
-ALTER TABLE participantes ADD COLUMN busca_ativa_desde timestamptz;
--- Trigger análogo + backfill via audit_log/updated_at.
+Trocar a contagem por **bairro de residência do participante** (não bairro da turma) e deduplicar globalmente:
+
+```ts
+// pseudo-código novo (substitui linhas 487–530)
+const atendidosUnicos = new Set(activePresencas.filter(p => p.presente).map(p => p.participante_id));
+const bairroStats = {/* manha:Set, tarde:Set, idosos:Set por bairro */};
+
+atendidosUnicos.forEach(pid => {
+  const part = partMap.get(pid);
+  const bairroNome = bairroMap.get(part.bairro_id);     // bairro do PARTICIPANTE
+  if (!BAIRROS_SCFV.includes(bairroNome)) return;
+  const isIdoso = calcAge(part.data_nascimento) >= 60;
+  const periodo = part.periodo === "tarde" ? "tarde" : "manha"; // integral → manha
+  if (isIdoso) bairroStats[bairroNome].idosos.add(pid);
+  else if (periodo === "tarde") bairroStats[bairroNome].criancasTarde.add(pid);
+  else bairroStats[bairroNome].criancasManha.add(pid);
+});
 ```
 
-#### Fase 2 — Função única `getParticipantesDaTurma`
+Resultado: cada participante aparece **uma única vez** no Metas, no seu bairro de cadastro, no seu período. O somatório `cm + ct + idosos` entre os 3 bairros vai bater exatamente com os 86 do Resumo (+ idosos, se houver).
 
-- Criar `src/lib/participantesTurma.ts` (+ RPC `get_participantes_turma(turma_id, ref_date)`).
-- Regra única:
-  - Vínculo: `turma_participantes.turma_id = X` (sem filtrar por `data_saida` ou `data_entrada`).
-  - Status visível: `ativo`, `cadastro_incompleto`, `busca_ativa`. Inclui `desligado` se `desligado_registrado_em >= ref_date - 30 dias`. Transferido entra com marcador se a transferência ocorreu nos últimos 30d.
-  - Para cada participante, devolver: `nome`, `status`, `marcador` (`""`, `(BA)`, `(Desligado)`, `(Transferido DD/MM para "TURMA Y")`), `bloqueado_chamada` (true para desligado/transferido — mostra `—` em todas as datas).
-- Substituir os filtros atuais em:
-  - `src/pages/presenca/PresencaPage.tsx`
-  - `src/pages/relatorios/RelatorioNovoPage.tsx`
-  - `src/lib/listaFrequencia.ts` (`carregarDadosTurma`)
-  - Edges `generate-listas-frequencia-mes-gsheet`, `generate-listas-chamada-mes-gsheet`, `generate-lista-frequencia-gsheet`, `generate-lista-chamada-gsheet`, `generate-relatorio-mensal`, `useRelatorioGestao`.
+### 3. Espelhar a mesma correção em
 
-#### Fase 3 — Marcadores unificados e remoção das listas locais
+- `src/hooks/useRelatorioGestao.ts` (mesma lógica de Metas no Relatório de Gestão PDF/XLSX).
+- `supabase/functions/generate-relatorio-gdoc/index.ts` se replicar a contagem.
 
-**3.1 Padronizar marcadores** em um único helper `src/lib/marcadoresFrequencia.ts` consumido por:
+### 4. QA
 
-- `useDocumentExport.ts` (DOCX/PDF preenchida)
-- `exportListaPresenca.ts` (XLSX preenchida e em branco)
-- Edges Sheets equivalentes
-
-Tabela de células: `P` / `A` / `J` / `—` (vazio = não lançado). Linha de desligado/transferido respeita a data efetiva: células **anteriores** mantêm `P/A/J` do histórico; **posteriores** ficam `—`. Acaba o "tudo `—`" do XLSX em branco atual.
-
-**3.2 Remover gerações antigas:**
-
-- Em `/relatorios/exportar`: remover os cards "Lista de Frequência (preenchida)" e "Lista de Chamada (em branco)" e a `PresencaExportarPage`.
-- Em `src/lib/listaFrequencia.ts`: remover suporte a formatos locais (DOCX/PDF/XLSX) e ao modo "lote" local. Manter só interface para o Sheets se reaproveitável; senão, apagar o arquivo.
-- Remover `exportSingleListaPresenca`, `exportAllListasPresenca` e variantes em `useDocumentExport` que servem apenas listas.
-- Auditar usos para não quebrar relatórios de atividade.
-
-**3.3 Novo módulo `/listas-frequencia**` (rota nova, sidebar):
-
-- Card 1: **Lista de Frequência Mensal (preenchida) — Google Sheets** → invoca `generate-listas-frequencia-mes-gsheet` para mês/ano/filtros de turmas.
-- Card 2: **Lista de Chamada Mensal (em branco) — Google Sheets** → invoca `generate-listas-chamada-mes-gsheet`.
-- Ambas as edges atualizadas para usar marcadores novos, `getParticipantesDaTurma`, e janela 30d de desligados.
-
-#### Fase 4 — Indicadores dos relatórios
-
-Tocar `supabase/functions/generate-relatorio-mensal/index.ts`, `src/hooks/useRelatorioGestao.ts`, `useBulkRelatorioExport.ts` e a edge `generate-relatorio-gdoc`:
-
-
-| Métrica            | Fórmula nova                                                                                        |
-| ------------------ | --------------------------------------------------------------------------------------------------- |
-| **Atendidos**      | `COUNT(DISTINCT participante_id)` em `presenca ∪ relatorio_presenca` com `presente=true` no período |
-| **Ativos**         | `COUNT participantes WHERE status IN ('ativo','cadastro_incompleto')` no fim do período             |
-| **Em Busca Ativa** | `COUNT participantes WHERE status='busca_ativa' AND busca_ativa_desde <= fim_periodo`               |
-
-
-**Nova aba/seção "Em Busca Ativa"** (Mensal Consolidado XLSX, Mensal Completo XLSX, Gestão XLSX+PDF):
-
-- Colunas: Nome · CPF · Idade · Bairro · Turma atual · Em BA desde · Último registro de contato (de `busca_ativa_registros`) · Resultado · Responsável pelo contato.
-- Linha de resumo no topo: total acumulados, total que entraram em BA no mês.
-
-**Relatórios de atividade** ficam de fora (KPI e aba BA não são incluídos lá), conforme você pediu.
+Rodar o Relatório Mensal de Maio/2026 e conferir: total da aba Metas (manha + tarde + idosos somados nos 3 bairros) = ATENDIDOS NO MÊS do Resumo. Validar Presença Digital sem a opção Integral.
 
 ---
 
-### Detalhes técnicos para a equipe
+## Fora de escopo
 
-- **Marcadores em rótulo de linha** (não em célula de data): nome do participante recebe `(BA)`, `(Desligado)` ou `(Transferido DD/MM para "TURMA DESTINO")`. Células de data mantêm `P/A/J/—`.
-- **"Transferido para"**: resolver via `participante_transferencias` mais recente do participante naquela turma, juntando `turmas(nome)` do destino.
-- **Janela 30d de desligados**: avaliada por `desligado_registrado_em >= (ref_date - interval '30 days')`. `ref_date` = primeiro dia do mês para listas mensais; `now()` para chamada digital.
-- **Memórias a atualizar:** `presenca-logica`, `desligamento-participantes`, `transferencia-participantes`, `busca-ativa` (re-incluir `(BA)`), `gestao-participantes-status-unificada`, `documentos-institucionais-padrao` (mudar `■` → `P`).
-- **Compatibilidade:** edges Sheets já existem (`generate-listas-frequencia-mes-gsheet`, `generate-listas-chamada-mes-gsheet`); só vão receber `getParticipantesDaTurma` + marcadores novos + indicador BA quando aplicável.
+- Não mexo em dados históricos (`turmas.periodo = 'integral'` existentes permanecem; só somem da UI e são tratadas como `manha` nos relatórios).
+- Não mudo a regra do Resumo (já está correta).
+- Não mexo nas listas de frequência mensais (Sheets) — período `manha`/`tarde` já é tratado lá sem `integral` na coluna de filtros.
 
----
-
-### O que **não** muda
-
-- `presenca` e `relatorio_presenca` continuam como estão (sem unificar agora — fora do seu pedido).
-- Filtro retroativo `01/04/2026` continua valendo.
-- `PresencaPage` mantém pré-marcação atual (sem mexer em UX além da regra de inclusão).
-- Relatórios de atividade individuais não recebem indicador/aba de BA.
-
----
-
-### Riscos / pontos de atenção
-
-1. **Backfill de `desligado_registrado_em**` usa `updated_at` — pode ficar impreciso para desligamentos antigos editados depois. Aceitável? Posso usar `audit_log` como fallback se preferir. -> Use algo que deixe preciso.
-2. Remover a `PresencaExportarPage` quebra links salvos por usuários — colocarei redirect 301 para `/listas-frequencia`. -> NAO ENTENDI O QUE ISSO AQUI SIGNIFICA, ME EXPLIQUE ATRAVES DE UMA QUESTION BOX PERGUNTANDO SE EU APROVO.
-3. Marcadores mudam de `■` para `P` em **todos** os exports históricos novos — listas antigas já geradas dever ser geradas novamente de forma identica apenas trocando o marcador.
-
-Confirma para eu seguir, ou ajusta algum item?  
-Fazer analise e avaliacao do codigo apos execucao, visando higienizar e garantir boa performance geral.
+Confirma para eu seguir?
