@@ -526,7 +526,8 @@ function IndicadoresTab() {
 
       {/* Alerta */}
       <AlertaCard count={data.totalParticipantesAlerta} />
-      {/* Frequência Mensal — Tendência (linha) + Comparativo (barras) */}
+
+      {/* Frequência Mensal — Tendência (linha azul) + Comparativo (barras horizontais) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard title="Frequência Mensal — Tendência" subtitle="Últimos meses · % de presença">
           {(ref) => (
@@ -535,13 +536,13 @@ function IndicadoresTab() {
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={data.presencaMensal.map((m) => ({ ...m, mesLabel: formatMesLabel(m.mes) + (m.parcial ? "*" : "") }))}>
                     <CartesianGrid {...gridProps} />
-                    <XAxis dataKey="mesLabel" tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} width={35} />
+                    <XAxis dataKey="mesLabel" tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} width={35} />
                     <Tooltip content={<RichTooltip
                       labelFormatter={(l) => l.endsWith("*") ? `${l.replace("*","")} (parcial)` : l}
                       valueFormatter={(v) => `${v}%`}
                     />} />
-                    <Line type="monotone" dataKey="pct" name="% Presença" stroke="hsl(0,58%,56%)" strokeWidth={2.5} dot={{ r: 3, fill: "hsl(0,58%,56%)" }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="pct" name="% Presença" stroke={BLUE} strokeWidth={2.5} dot={{ r: 3, fill: BLUE }} activeDot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados de presença</p>}
@@ -556,14 +557,18 @@ function IndicadoresTab() {
               <div className="h-52" ref={ref}>
                 {ult.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={ult.map((m) => ({ ...m, mesLabel: formatMesLabel(m.mes) + (m.parcial ? "*" : "") }))} barGap={4}>
+                    <BarChart layout="vertical" data={ult.map((m) => ({ ...m, mesLabel: formatMesLabel(m.mes) + (m.parcial ? "*" : "") }))} barGap={4}>
                       <CartesianGrid {...gridProps} />
-                      <XAxis dataKey="mesLabel" tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} width={35} allowDecimals={false} />
+                      <XAxis type="number" tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <YAxis type="category" dataKey="mesLabel" tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} width={50} />
                       <Tooltip content={<RichTooltip labelFormatter={(l) => l.endsWith("*") ? `${l.replace("*","")} (parcial)` : l} />} />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Bar dataKey="total" name="Registros" fill={chartColors.graySecondary} radius={[3, 3, 0, 0]} />
-                      <Bar dataKey="presentes" name="Presenças" fill="hsl(0,58%,56%)" radius={[3, 3, 0, 0]} />
+                      <Legend wrapperStyle={{ fontSize: 10, color: chartColors.text }} />
+                      <Bar dataKey="total" name="Registros" fill={BLUE} radius={[0, 3, 3, 0]}>
+                        <LabelList dataKey="total" position="insideRight" style={{ fontSize: 10, fill: "#fff", fontWeight: 600 }} />
+                      </Bar>
+                      <Bar dataKey="presentes" name="Presenças" fill={RED} radius={[0, 3, 3, 0]}>
+                        <LabelList dataKey="presentes" position="insideRight" style={{ fontSize: 10, fill: "#fff", fontWeight: 600 }} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados</p>}
@@ -573,19 +578,19 @@ function IndicadoresTab() {
         </ChartCard>
       </div>
 
-      {/* Evolution charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <ChartCard title="Evolução de Presença (%)" subtitle="Últimos meses">
+      {/* Evolução de Presença (linha azul) + Score ELO Mensal (digital) + % Adesão Mensal (digital) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <ChartCard title="Evolução de Presença (%)" subtitle="Últimos meses" className="lg:col-span-2">
           {(ref) => (
-            <div className="h-52" ref={ref}>
+            <div className="h-44" ref={ref}>
               {data.presencaMensal.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={data.presencaMensal.map((m) => ({ ...m, mesLabel: formatMesLabel(m.mes) }))}>
                     <CartesianGrid {...gridProps} />
-                    <XAxis dataKey="mesLabel" tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} width={35} />
+                    <XAxis dataKey="mesLabel" tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} width={35} />
                     <Tooltip content={<RichTooltip valueFormatter={(v) => `${v}%`} />} />
-                    <Line type="monotone" dataKey="pct" name="% Presença" stroke="hsl(0,58%,56%)" strokeWidth={2.5} dot={{ r: 3, fill: "hsl(0,58%,56%)" }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="pct" name="% Presença" stroke={BLUE} strokeWidth={2.5} dot={{ r: 3, fill: BLUE }} activeDot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados</p>}
@@ -593,26 +598,42 @@ function IndicadoresTab() {
           )}
         </ChartCard>
 
-        <ChartCard title="Score ELO Mensal">
-          {() => (
-            <div className="h-52">
-              {data.eloMensal.length ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data.eloMensal.map((m) => ({ ...m, mesLabel: formatMesLabel(m.mes) }))}>
-                    <CartesianGrid {...gridProps} />
-                    <XAxis dataKey="mesLabel" tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} width={35} />
-                    <Tooltip content={<RichTooltip valueFormatter={(v) => v.toFixed(2)} />} />
-                    <Line type="monotone" dataKey="elo" name="ELO" stroke="hsl(0,58%,56%)" strokeWidth={2.5} dot={{ r: 3, fill: "hsl(0,58%,56%)" }} activeDot={{ r: 5 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados</p>}
-            </div>
-          )}
+        <ChartCard title="Score ELO do Mês">
+          {() => {
+            const last = data.eloMensal[data.eloMensal.length - 1];
+            return (
+              <div className="h-44 flex flex-col items-center justify-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {last ? formatMesLabel(last.mes) : "—"}
+                </p>
+                <p className="text-6xl font-bold tabular-nums" style={{ color: RED }}>
+                  {last ? last.elo.toFixed(2) : "0.00"}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">de 5,00</p>
+              </div>
+            );
+          }}
+        </ChartCard>
+
+        <ChartCard title="% Adesão Mensal">
+          {() => {
+            const last = data.adesaoMensal[data.adesaoMensal.length - 1];
+            return (
+              <div className="h-44 flex flex-col items-center justify-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {last ? formatMesLabel(last.mes) : "—"}
+                </p>
+                <p className="text-6xl font-bold tabular-nums" style={{ color: BLUE }}>
+                  {last ? `${Math.round(last.adesao)}%` : "0%"}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">adesão média</p>
+              </div>
+            );
+          }}
         </ChartCard>
       </div>
 
-      {/* Demographics */}
+      {/* Demographics: Faixa Etária (pizza), Gênero (símbolos), Período (sol/sol-nuvem) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <ChartCard
           title="Faixa Etária"
@@ -628,206 +649,190 @@ function IndicadoresTab() {
           {() => (
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={data.participantesPorFaixa}
-                  onClick={(e: any) => {
-                    const f = e?.activePayload?.[0]?.payload?.faixa;
-                    if (f) toggleFaixaBar(f);
-                  }}
-                >
-                  <CartesianGrid {...gridProps} />
-                  <XAxis dataKey="faixa" tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} width={30} allowDecimals={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="count" name="Participantes" radius={[3, 3, 0, 0]} cursor="pointer">
+                <PieChart>
+                  <Pie
+                    data={data.participantesPorFaixa}
+                    dataKey="count"
+                    nameKey="faixa"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={70}
+                    label={({ faixa, percent }) => `${faixa} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                    style={{ fontSize: 10, cursor: "pointer", fill: chartColors.text }}
+                    onClick={(e: any) => { if (e?.faixa) toggleFaixaBar(e.faixa); }}
+                  >
                     {data.participantesPorFaixa.map((row, i) => (
                       <Cell
                         key={i}
-                        fill="hsl(0,58%,56%)"
-                        fillOpacity={!dim.faixa || dim.faixa === row.faixa ? 1 : 0.3}
+                        fill={i % 2 === 0 ? RED : BLUE}
+                        fillOpacity={!dim.faixa || dim.faixa === row.faixa ? 1 - (i * 0.08) : 0.25}
                       />
                     ))}
-                  </Bar>
-                </BarChart>
+                  </Pie>
+                  <Tooltip contentStyle={{ fontSize: 10, borderRadius: 8 }} />
+                </PieChart>
               </ResponsiveContainer>
             </div>
           )}
         </ChartCard>
 
         <ChartCard title="Gênero">
-          {() => (
-            <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data.participantesPorGenero}
-                    dataKey="count"
-                    nameKey="genero"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={65}
-                    label={({ genero, percent }) => `${genero} ${(percent * 100).toFixed(0)}%`}
-                    labelLine={false}
-                    style={{ fontSize: 10, cursor: "pointer" }}
-                    onClick={(e: any) => { if (e?.genero) toggleDim("genero", e.genero); }}
-                  >
-                    {data.participantesPorGenero.map((row, i) => (
-                      <Cell
-                        key={i}
-                        fill={COLORS[i % COLORS.length]}
-                        fillOpacity={!dim.genero || dim.genero === row.genero ? 1 : 0.3}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+          {() => {
+            const total = data.participantesPorGenero.reduce((a, b) => a + b.count, 0) || 1;
+            const getPct = (key: string) => {
+              const r = data.participantesPorGenero.find((x) => x.genero === key);
+              return r ? Math.round((r.count / total) * 100) : 0;
+            };
+            const fem = getPct("feminino");
+            const masc = getPct("masculino");
+            return (
+              <div className="h-52 flex items-center justify-around">
+                <button
+                  onClick={() => toggleDim("genero", "masculino")}
+                  className={cn(
+                    "flex flex-col items-center gap-1 px-4 py-3 rounded-md transition-all",
+                    dim.genero === "masculino" && "ring-2 ring-offset-1",
+                    !dim.genero || dim.genero === "masculino" ? "opacity-100" : "opacity-40",
+                  )}
+                  style={{ color: BLUE }}
+                >
+                  <span className="text-5xl font-bold leading-none">♂</span>
+                  <span className="text-2xl font-bold tabular-nums" style={{ color: chartColors.text }}>{masc}%</span>
+                  <span className="text-[10px] text-muted-foreground">Masculino</span>
+                </button>
+                <button
+                  onClick={() => toggleDim("genero", "feminino")}
+                  className={cn(
+                    "flex flex-col items-center gap-1 px-4 py-3 rounded-md transition-all",
+                    dim.genero === "feminino" && "ring-2 ring-offset-1",
+                    !dim.genero || dim.genero === "feminino" ? "opacity-100" : "opacity-40",
+                  )}
+                  style={{ color: RED }}
+                >
+                  <span className="text-5xl font-bold leading-none">♀</span>
+                  <span className="text-2xl font-bold tabular-nums" style={{ color: chartColors.text }}>{fem}%</span>
+                  <span className="text-[10px] text-muted-foreground">Feminino</span>
+                </button>
+              </div>
+            );
+          }}
         </ChartCard>
 
         <ChartCard title="Período">
-          {() => (
-            <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data.participantesPorPeriodo}
-                    dataKey="count"
-                    nameKey="periodo"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={65}
-                    label={({ periodo, percent }) => `${PERIODO_LABELS[periodo] ?? periodo} ${(percent * 100).toFixed(0)}%`}
-                    labelLine={false}
-                    style={{ fontSize: 10, cursor: "pointer" }}
-                    onClick={(e: any) => { if (e?.periodo) toggleDim("periodo", e.periodo); }}
-                  >
-                    {data.participantesPorPeriodo.map((row, i) => (
-                      <Cell
-                        key={i}
-                        fill={COLORS[(i + 2) % COLORS.length]}
-                        fillOpacity={!dim.periodo || dim.periodo === row.periodo ? 1 : 0.3}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+          {() => {
+            const total = data.participantesPorPeriodo.reduce((a, b) => a + b.count, 0) || 1;
+            const getPct = (key: string) => {
+              const r = data.participantesPorPeriodo.find((x) => x.periodo === key);
+              return r ? Math.round((r.count / total) * 100) : 0;
+            };
+            const manha = getPct("manha");
+            const tarde = getPct("tarde");
+            return (
+              <div className="h-52 flex items-center justify-around">
+                <button
+                  onClick={() => toggleDim("periodo", "manha")}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-md transition-all",
+                    dim.periodo === "manha" && "ring-2 ring-offset-1",
+                    !dim.periodo || dim.periodo === "manha" ? "opacity-100" : "opacity-40",
+                  )}
+                >
+                  <Sun size={48} strokeWidth={1.8} style={{ color: RED }} />
+                  <div className="text-left">
+                    <p className="text-2xl font-bold tabular-nums" style={{ color: chartColors.text }}>{manha}%</p>
+                    <p className="text-[10px] text-muted-foreground">Manhã</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => toggleDim("periodo", "tarde")}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-md transition-all",
+                    dim.periodo === "tarde" && "ring-2 ring-offset-1",
+                    !dim.periodo || dim.periodo === "tarde" ? "opacity-100" : "opacity-40",
+                  )}
+                >
+                  <CloudSun size={48} strokeWidth={1.8} style={{ color: BLUE }} />
+                  <div className="text-left">
+                    <p className="text-2xl font-bold tabular-nums" style={{ color: chartColors.text }}>{tarde}%</p>
+                    <p className="text-[10px] text-muted-foreground">Tarde</p>
+                  </div>
+                </button>
+              </div>
+            );
+          }}
         </ChartCard>
       </div>
 
-      {/* Bairro + Educadores */}
+      {/* Bairros (donut) + Relatórios por Educador (barras segmentadas) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <ChartCard title="Distribuição por Bairros">
-          {() => (
-            <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={data.participantesPorBairro}
-                  layout="vertical"
-                  onClick={(e: any) => {
-                    const nome = e?.activePayload?.[0]?.payload?.bairro;
-                    if (!nome) return;
-                    const id = bairroIdByNome(nome);
-                    if (id) toggleDim("bairroId", id);
-                  }}
-                >
-                  <CartesianGrid {...gridProps} />
-                  <XAxis type="number" tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <YAxis type="category" dataKey="bairro" tick={{ fontSize: 9, fill: chartColors.text }} width={80} axisLine={false} tickLine={false} />
-                  <Tooltip content={<RichTooltip />} />
-                  <Bar dataKey="count" name="Participantes" radius={[0, 3, 3, 0]} cursor="pointer">
-                    {data.participantesPorBairro.map((row, i) => {
-                      const active = dim.bairroId ? bairroNomeById(dim.bairroId) === row.bairro : true;
-                      return (
-                        <Cell key={i} fill="hsl(210,22%,49%)" fillOpacity={active ? 1 : 0.3} />
-                      );
-                    })}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+          {() => {
+            const sorted = [...data.participantesPorBairro].sort((a, b) => b.count - a.count);
+            const max = sorted[0]?.count || 1;
+            return (
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={sorted}
+                      dataKey="count"
+                      nameKey="bairro"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={75}
+                      paddingAngle={2}
+                      label={({ bairro, percent }) => `${(percent * 100).toFixed(0)}%`}
+                      labelLine={false}
+                      style={{ fontSize: 10, cursor: "pointer", fill: chartColors.text }}
+                      onClick={(e: any) => {
+                        const id = bairroIdByNome(e?.bairro);
+                        if (id) toggleDim("bairroId", id);
+                      }}
+                    >
+                      {sorted.map((row, i) => {
+                        const active = dim.bairroId ? bairroNomeById(dim.bairroId) === row.bairro : true;
+                        const baseOpacity = 0.4 + 0.6 * (row.count / max);
+                        return (
+                          <Cell
+                            key={i}
+                            fill={MULTI_TONES[i % MULTI_TONES.length]}
+                            fillOpacity={active ? baseOpacity : 0.2}
+                          />
+                        );
+                      })}
+                    </Pie>
+                    <Tooltip content={<RichTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: 10, color: chartColors.text }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          }}
         </ChartCard>
 
-        <ChartCard title="Top Educadores (Relatórios)">
+        <ChartCard title="Relatórios por Educador">
           {() => (
-            <div className="h-52">
+            <div className="h-52 overflow-y-auto pr-1">
               {data.topEducadores.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.topEducadores} layout="vertical">
-                    <CartesianGrid {...gridProps} />
-                    <XAxis type="number" tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <YAxis type="category" dataKey="nome" tick={{ fontSize: 9, fill: chartColors.text }} width={80} axisLine={false} tickLine={false} />
-                    <Tooltip content={<RichTooltip />} />
-                    <Bar dataKey="count" name="Relatórios" fill="hsl(142,50%,40%)" radius={[0, 3, 3, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados</p>}
-            </div>
-          )}
-        </ChartCard>
-      </div>
-
-      {/* Competências + Adesão + Objetivos */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <ChartCard title="Competências ELO" subtitle="Cores escalares por pontuação">
-          {() => (
-            <div className="h-56">
-              {data.competencias.some(c => c.value > 0) ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.competencias} margin={{ top: 18, right: 8, left: 0, bottom: 8 }}>
-                    <CartesianGrid {...gridProps} />
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
-                    <YAxis domain={[0, 5]} tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} width={28} />
-                    <Tooltip content={<RichTooltip valueFormatter={(v) => v.toFixed(2)} />} />
-                    <Bar dataKey="value" name="Média" radius={[4, 4, 0, 0]}>
-                      <LabelList dataKey="value" position="top" formatter={(v: any) => Number(v).toFixed(1)} style={{ fontSize: 10, fill: chartColors.text, fontWeight: 600 }} />
-                      {data.competencias.map((c, i) => <Cell key={i} fill={eloColor(c.value)} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados</p>}
-            </div>
-          )}
-        </ChartCard>
-
-        <ChartCard title="% Adesão Mensal">
-          {() => (
-            <div className="h-56">
-              {data.adesaoMensal.length ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data.adesaoMensal.map((m) => ({ ...m, mesLabel: formatMesLabel(m.mes) }))}>
-                    <CartesianGrid {...gridProps} />
-                    <XAxis dataKey="mesLabel" tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: chartColors.text }} axisLine={false} tickLine={false} width={35} />
-                    <Tooltip content={<RichTooltip valueFormatter={(v) => `${v}%`} />} />
-                    <Line type="monotone" dataKey="adesao" name="Adesão %" stroke="hsl(210,22%,49%)" strokeWidth={2.5} dot={{ r: 3, fill: "hsl(210,22%,49%)" }} activeDot={{ r: 5 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados</p>}
-            </div>
-          )}
-        </ChartCard>
-
-        <ChartCard title="Objetivos Alcançados">
-          {() => (
-            <div className="h-56">
-              {data.objetivos.length ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.objetivos.map(o => ({ ...o, label: OBJ_LABELS[o.status] || o.status }))}>
-                    <CartesianGrid {...gridProps} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: chartColors.text }} axisLine={false} tickLine={false} width={30} allowDecimals={false} />
-                    <Tooltip content={<RichTooltip />} />
-                    <Bar dataKey="count" name="Relatórios" radius={[3, 3, 0, 0]}>
-                      {data.objetivos.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="space-y-2">
+                  {data.topEducadores.map((e) => (
+                    <div key={e.nome} className="flex items-center gap-2">
+                      <span className="text-[10px] w-24 truncate" style={{ color: chartColors.text }} title={e.nome}>{e.nome}</span>
+                      <div className="flex-1 flex items-center gap-[2px]">
+                        {Array.from({ length: e.count }).map((_, i) => (
+                          <span
+                            key={i}
+                            className="inline-block h-5 w-[6px] rounded-[1px]"
+                            style={{ background: i % 2 === 0 ? RED : BLUE }}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-[10px] tabular-nums font-semibold w-6 text-right" style={{ color: chartColors.text }}>{e.count}</span>
+                    </div>
+                  ))}
+                </div>
               ) : <p className="text-xs text-muted-foreground pt-8 text-center">Sem dados</p>}
             </div>
           )}
