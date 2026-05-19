@@ -21,7 +21,7 @@ import { useFormTimer } from "@/hooks/useFormTimer";
 import { toast } from "sonner";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, LabelList } from "recharts";
 import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download, FileSpreadsheet, Trash2, Phone, MapPin, Search, Eye, UserCheck, UserX, Mail, ChevronDown, ChevronUp, Check, X as XIcon, FileImage, Network, ShieldAlert, Target, Link2 } from "lucide-react";
 import { calcFaixaFromDate, displayAge, PERIODO_LABELS } from "@/lib/constants";
 import { RecadosEquipeCards } from "@/components/RecadosEquipeCards";
@@ -477,11 +477,12 @@ const EquipeTecnicaPage = () => {
 
   const mapaCalor = useMemo(() => {
     const diasSets: Record<string, Set<string>> = { seg: new Set(), ter: new Set(), qua: new Set(), qui: new Set(), sex: new Set() };
+    const ativosIds = new Set(participantesAtivos.map(p => p.id));
     turmas.forEach(t => {
       const pIds = turmaParticipantesMap[t.id] || [];
       (t.dias_semana || []).forEach((d: string) => {
         const key = d.toLowerCase().slice(0, 3);
-        if (diasSets[key]) pIds.forEach(id => diasSets[key].add(id));
+        if (diasSets[key]) pIds.forEach(id => { if (ativosIds.has(id)) diasSets[key].add(id); });
       });
     });
     const diasMap = Object.fromEntries(Object.entries(diasSets).map(([k, s]) => [k, s.size]));
