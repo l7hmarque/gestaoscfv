@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Users, User, Music, Sparkles } from "lucide-react";
@@ -55,11 +55,43 @@ export function AgendaProfissional({ profileId }: Props) {
 
   useEffect(() => { load(); }, [profileId]);
 
-  const meusSlots = slots.filter(s => {
-    const sps = slotProfs.filter(x => x.slot_id === s.id);
+  // Índices para evitar filter() por célula no grid (5 dias × 2 períodos)
+  const slotProfsBySlot = useMemo(() => {
+    const m = new Map<string, any[]>();
+    slotProfs.forEach(sp => {
+      const arr = m.get(sp.slot_id); if (arr) arr.push(sp); else m.set(sp.slot_id, [sp]);
+    });
+    return m;
+  }, [slotProfs]);
+  const profileById = useMemo(() => new Map(profiles.map(p => [p.id, p])), [profiles]);
+  const bairroById = useMemo(() => new Map(bairros.map(b => [b.id, b])), [bairros]);
+  const turmaById = useMemo(() => new Map(turmas.map(t => [t.id, t])), [turmas]);
+
+  const meusSlots = useMemo(() => slots.filter(s => {
+    const sps = slotProfsBySlot.get(s.id) || [];
     return sps.some(x => x.profile_id === profileId)
       || s.educador_id === profileId || s.oficineiro_id === profileId;
-  });
+  }), [slots, slotProfsBySlot, profileId]);
+
+  const slotsByCell = useMemo(() => {
+    const m = new Map<string, any[]>();
+    meusSlots.forEach(s => {
+      const k = `${s.dia_semana}|${s.periodo}`;
+      const arr = m.get(k); if (arr) arr.push(s); else m.set(k, [s]);
+    });
+    return m;
+  }, [meusSlots]);
+
+  const atividadesByCell = useMemo(() => {
+    const m = new Map<string, any[]>();
+    atividades.forEach(a => {
+      const k = `${a.dia_semana}|${a.periodo}`;
+      const arr = m.get(k); if (arr) arr.push(a); else m.set(k, [a]);
+    });
+    return m;
+  }, [atividades]);
+
+  const meuNome = profileById.get(profileId)?.nome;
 
   const intervencoesPendentes = intervencoes.filter(iv => {
     const visivelPraMim = !iv.profissionais?.length || iv.profissionais.includes(profileId);
@@ -114,15 +146,18 @@ export function AgendaProfissional({ profileId }: Props) {
             <>
               <div key={per} className="bg-muted/30 px-2 py-2 font-medium">{PERIODO_LBL[per]}</div>
               {DIAS.map(dia => {
-                const cellSlots = meusSlots.filter(s => s.dia_semana === dia && s.periodo === per);
-                const cellAtv = atividades.filter(a => a.dia_semana === dia && a.periodo === per);
+                const cellSlots = slotsByCell.get(`${dia}|${per}`) || [];
+                const cellAtv = atividadesByCell.get(`${dia}|${per}`) || [];
                 return (
                   <div key={`${dia}-${per}`} className="border border-border/40 rounded-sm bg-background p-1 min-h-[60px] space-y-0.5">
                     {cellSlots.map(s => {
-                      const bairro = bairros.find(b => b.id === s.bairro_id);
-                      const turma = turmas.find(t => t.id === s.turma_id);
-                      const sps = slotProfs.filter(x => x.slot_id === s.id);
-                      const colegas = sps.map(x => profiles.find(p => p.id === x.profile_id)?.nome).filter(Boolean).filter(n => n !== profiles.find(p => p.id === profileId)?.nome);
+                      const bairro = s.bairro_id ? bairroById.get(s.bairro_id) : undefined;
+                      const turma = s.turma_id ? turmaById.get(s.turma_id) : undefined;
+                      const sps = slotProfsBySlot.get(s.id) || [];
+                      const colegas = sps
+                        .map((x: any) => profileById.get(x.profile_id)?.nome)
+                        .filter(Boolean)
+                        .filter((n: string) => n !== meuNome);
                       return (
                         <div key={s.id} className="bg-blue-50 border border-blue-200 rounded p-1">
                           {bairro && <p className="text-[10px] font-semibold text-blue-900">{bairro.nome}</p>}
