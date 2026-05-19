@@ -150,25 +150,29 @@ function buildTurmaSheet(turma: any, members: any[], presencasMap: Record<string
   }
 
   const sortedAll = [...members].sort((a, b) => a.nome.localeCompare(b.nome));
-  const ativos = sortedAll.filter(m => !m.desligado && !m.transferido);
-  const transferidos = sortedAll.filter(m => m.transferido && !m.desligado);
-  const desligados = sortedAll.filter(m => m.desligado);
-  const ordered = [...ativos, ...transferidos, ...desligados];
+  const ordered = [
+    ...sortedAll.filter(m => !m.bloqueado_chamada),
+    ...sortedAll.filter(m => m.bloqueado_chamada),
+  ];
 
   ordered.forEach((m, i) => {
-    const isInactive = m.desligado || m.transferido;
+    const isInactive = !!m.bloqueado_chamada;
+    const bloqDesde: string | null = m.bloqueado_desde || null;
     const grayFg = isInactive ? { red: 0.5, green: 0.5, blue: 0.5 } : black;
     const cellFmt = { ...cellNameFmt, textFormat: { ...(cellNameFmt.textFormat || {}), strikethrough: isInactive, foregroundColor: grayFg } };
     const numFmt = { ...baseFmt, textFormat: { ...(baseFmt.textFormat || {}), strikethrough: isInactive, foregroundColor: grayFg } };
 
-    let runs: Array<{ text: string; bold?: boolean }>;
-    if (m.desligado) runs = [{ text: m.nome + " " }, { text: `(D${m.data_desligamento ? " " + m.data_desligamento : ""})`, bold: true }];
-    else if (m.transferido) runs = [{ text: m.nome + " " }, { text: `(T${m.data_transferencia ? " " + m.data_transferencia : ""})`, bold: true }];
-    else runs = [{ text: m.nome }];
+    const runs: Array<{ text: string; bold?: boolean }> = m.marcador
+      ? [{ text: m.nome + " " }, { text: m.marcador, bold: true }]
+      : [{ text: m.nome }];
 
     const arr: any[] = [plainCell(i + 1, numFmt), richCell(runs, cellFmt)];
     for (const dtIso of datesISO) {
-      if (isInactive) { arr.push(plainCell("—", { ...baseFmt, textFormat: { ...baseFmt.textFormat, foregroundColor: grayFg } })); continue; }
+      // Bloqueio só vale a partir de bloqueado_desde (transferência/desligamento)
+      if (isInactive && (!bloqDesde || dtIso >= bloqDesde)) {
+        arr.push(plainCell("—", { ...baseFmt, textFormat: { ...baseFmt.textFormat, foregroundColor: grayFg } }));
+        continue;
+      }
       const rec = (presencasMap[m.id] || {})[dtIso];
       if (!rec) { arr.push(plainCell("", baseFmt)); continue; }
       if (rec.presente) arr.push(plainCell("P", { ...baseFmt, textFormat: { ...baseFmt.textFormat, bold: true } }));
@@ -191,8 +195,10 @@ function buildTurmaSheet(turma: any, members: any[], presencasMap: Record<string
       { text: "P", bold: true }, { text: " = Presente  ·  " },
       { text: "A", bold: true }, { text: " = Ausente  ·  " },
       { text: "J", bold: true }, { text: " = Ausência justificada (justificativa em comentário)  ·  " },
-      { text: "(D)", bold: true }, { text: " = Desligado  ·  " },
-      { text: "(T)", bold: true }, { text: " = Transferido" },
+      { text: "—", bold: true }, { text: " = Sem aula/desligado  ·  " },
+      { text: "(BA)", bold: true }, { text: " = Busca Ativa  ·  " },
+      { text: "(Desligado)", bold: true }, { text: " = Desligado (≤30d)  ·  " },
+      { text: '(Transferido DD/MM para "Turma")', bold: true }, { text: " = Transferido (≤30d)" },
     ];
     const arr: any[] = [plainCell("", legendFmt), richCell(legendRuns, legendFmt)];
     for (let j = 2; j < totalCols; j++) arr.push(plainCell("", legendFmt));
@@ -248,28 +254,25 @@ Deno.serve(async (req) => {
     }
     const turmaIds = turmas.map((t: any) => t.id);
 
-    const { data: tps } = await svc
-      .from("turma_participantes")
-      .select("turma_id, data_saida, participantes(id, nome_completo, status, data_desligamento, iniciou_em)")
-      .in("turma_id", turmaIds);
-
+    // Fonte única: RPC get_participantes_turma. ref_date = 1º dia do mês.
     const membersByTurma: Record<string, any[]> = {};
-    (tps || []).forEach((r: any) => {
-      const p = r.participantes || {};
-      const desligado = p.status === "desligado";
-      const transferido = !!r.data_saida && !desligado;
-      const novo = !!p.iniciou_em && p.iniciou_em >= dataIniMes && p.iniciou_em < proxMes;
-      const m = {
-        id: p.id, nome: p.nome_completo || "—",
-        desligado, data_desligamento: p.data_desligamento || null,
-        transferido, data_transferencia: r.data_saida || null,
-        busca_ativa: p.status === "busca_ativa",
-        novo, iniciou_em: p.iniciou_em || null,
-      };
-      if (m.desligado && m.data_desligamento && m.data_desligamento < dataIniMes) return;
-      if (!membersByTurma[r.turma_id]) membersByTurma[r.turma_id] = [];
-      membersByTurma[r.turma_id].push(m);
-    });
+    await Promise.all(turmaIds.map(async (tid: string) => {
+      const { data: rows, error: rpcErr } = await svc.rpc("get_participantes_turma", {
+        _turma_id: tid,
+        _ref_date: dataIniMes,
+      });
+      if (rpcErr) { console.warn("[get_participantes_turma]", tid, rpcErr); return; }
+      membersByTurma[tid] = (rows || []).map((r: any) => ({
+        id: r.participante_id,
+        nome: r.nome,
+        marcador: r.marcador || "",
+        bloqueado_chamada: !!r.bloqueado_chamada,
+        bloqueado_desde: r.bloqueado_desde || null,
+        status: r.status,
+        desligado: r.status === "desligado",
+        transferido: !!r.data_transferencia && r.status !== "desligado",
+      }));
+    }));
 
     // Relatórios + presenças do mês p/ todas as turmas
     const { data: relatorios } = await svc

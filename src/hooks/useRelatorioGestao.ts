@@ -106,15 +106,22 @@ async function fetchGestaoData(startDate: string, endDate: string): Promise<Gest
   };
 }
 
-function computeMetrics(data: GestaoData, startDate: string) {
+function computeMetrics(data: GestaoData, startDate: string, endDate: string) {
   const partMap = new Map(data.participantes.map(p => [p.id, p]));
   const bairroMap = new Map(data.bairros.map(b => [b.id, b]));
   const profileMap = new Map(data.profiles.map(p => [p.id, p]));
   const turmaMap = new Map(data.turmas.map(t => [t.id, t]));
 
-  // Active participants (ativos or desligados after startDate)
-  const activeParticipants = data.participantes.filter(p =>
-    p.status === "ativo" || (p.status === "desligado" && p.data_desligamento && p.data_desligamento >= startDate)
+  // Ativos no fim do período: status IN ('ativo','cadastro_incompleto').
+  // (D3) Inclusão por status — não usar `data_saida` nem janelas de vínculo.
+  const activeParticipants = data.participantes.filter(
+    p => p.status === "ativo" || p.status === "cadastro_incompleto"
+  );
+
+  // Em Busca Ativa (acumulado): status='busca_ativa' AND busca_ativa_desde <= endDate.
+  const baAcumulado = data.participantes.filter(
+    (p: any) => p.status === "busca_ativa" &&
+      (!p.busca_ativa_desde || p.busca_ativa_desde < endDate)
   );
 
   // Demographics
@@ -254,7 +261,7 @@ function computeMetrics(data: GestaoData, startDate: string) {
     atendByTipo, sigilosoCount, encaminhamentoCount,
     buscaByTipo, buscaByResultado,
     pontoParticipantes, activeTeam, roleMap, bairroMetas,
-    ingressos, desligamentos, taxaPermanencia,
+    ingressos, desligamentos, taxaPermanencia, baAcumulado,
     partMap, bairroMap, profileMap, turmaMap,
   };
 }
@@ -269,7 +276,7 @@ export async function exportRelatorioGestaoPDF(mesInicio: number, anoInicio: num
     : `${MESES_NOMES[mesInicio - 1]}/${anoInicio} a ${MESES_NOMES[mesFim - 1]}/${anoFim}`;
 
   const data = await fetchGestaoData(startDate, endDate);
-  const m = computeMetrics(data, startDate);
+  const m = computeMetrics(data, startDate, endDate);
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pw = doc.internal.pageSize.getWidth();
@@ -420,12 +427,24 @@ export async function exportRelatorioGestaoPDF(mesInicio: number, anoInicio: num
 
   if (data.buscaAtiva.length > 0) {
     doc.text(`Ações de Busca Ativa: ${data.buscaAtiva.length}`, 14, y); y += 4;
+    doc.text(`Em Busca Ativa (acumulado no fim do período): ${m.baAcumulado.length}`, 14, y); y += 4;
     if (Object.keys(m.buscaByTipo).length > 0) {
       addTable([["Tipo de Contato", "Quantidade"]], Object.entries(m.buscaByTipo).map(([k, v]) => [k, String(v)]));
     }
     y += 2;
     if (Object.keys(m.buscaByResultado).length > 0) {
       addTable([["Resultado", "Quantidade"]], Object.entries(m.buscaByResultado).map(([k, v]) => [k, String(v)]));
+    }
+    if (m.baAcumulado.length > 0) {
+      y += 2;
+      const baBody = [...m.baAcumulado]
+        .sort((a: any, b: any) => (a.busca_ativa_desde || "").localeCompare(b.busca_ativa_desde || ""))
+        .map((p: any) => [
+          san(p.nome_completo),
+          p.bairro_id ? (m.bairroMap.get(p.bairro_id)?.nome || "—") : "—",
+          p.busca_ativa_desde ? `${p.busca_ativa_desde.slice(8,10)}/${p.busca_ativa_desde.slice(5,7)}/${p.busca_ativa_desde.slice(0,4)}` : "—",
+        ]);
+      addTable([["Nome", "Bairro", "Em BA desde"]], baBody);
     }
   } else {
     doc.text("Nenhuma ação de busca ativa registrada no período.", 14, y); y += 6;
@@ -501,7 +520,7 @@ export async function exportRelatorioGestaoXLSX(mesInicio: number, anoInicio: nu
     : `${MESES_NOMES[mesInicio - 1]}/${anoInicio} a ${MESES_NOMES[mesFim - 1]}/${anoFim}`;
 
   const data = await fetchGestaoData(startDate, endDate);
-  const m = computeMetrics(data, startDate);
+  const m = computeMetrics(data, startDate, endDate);
 
   const wb = XLSX.utils.book_new();
   const border = { style: "thin" as const, color: { rgb: "000000" } };
@@ -534,6 +553,7 @@ export async function exportRelatorioGestaoXLSX(mesInicio: number, anoInicio: nu
   // 1. Resumo
   const resumoRows = [
     ["Total de atendidos", String(m.activeParticipants.length)],
+    ["Em Busca Ativa (acumulado)", String(m.baAcumulado.length)],
     ["Taxa de frequência", `${m.attendanceRate}%`],
     ["Score ELO médio", String(m.avgElo)],
     ["Atividades realizadas", String(data.relatorios.length)],
@@ -545,6 +565,45 @@ export async function exportRelatorioGestaoXLSX(mesInicio: number, anoInicio: nu
     ["Taxa de permanência", `${m.taxaPermanencia}%`],
   ];
   XLSX.utils.book_append_sheet(wb, makeSheet("Resumo", ["Indicador", "Valor"], resumoRows), "Resumo");
+
+  // Aba: Em Busca Ativa (acumulado + novos do período)
+  const baByPart = new Map<string, any[]>();
+  data.buscaAtiva.forEach((r: any) => {
+    if (!baByPart.has(r.participante_id)) baByPart.set(r.participante_id, []);
+    baByPart.get(r.participante_id)!.push(r);
+  });
+  const turmaByPart = new Map<string, string>();
+  data.turmaParticipantes.forEach((tp: any) => {
+    if (tp.data_saida) return;
+    const t = m.turmaMap.get(tp.turma_id);
+    if (t) turmaByPart.set(tp.participante_id, t.nome);
+  });
+  const baRows = [...m.baAcumulado]
+    .sort((a: any, b: any) => (a.busca_ativa_desde || "").localeCompare(b.busca_ativa_desde || ""))
+    .map((p: any) => {
+      const regs = (baByPart.get(p.id) || []).slice().sort((a: any, b: any) =>
+        (b.data_registro || "").localeCompare(a.data_registro || "")
+      );
+      const last = regs[0];
+      const resp = last?.profissional_id ? (m.profileMap.get(last.profissional_id)?.nome || "—") : "—";
+      const bairro = p.bairro_id ? (m.bairroMap.get(p.bairro_id)?.nome || "—") : "—";
+      return [
+        san(p.nome_completo),
+        san(p.cpf),
+        p.data_nascimento ? String(calcAge(p.data_nascimento)) : "—",
+        bairro,
+        turmaByPart.get(p.id) || "—",
+        p.busca_ativa_desde ? `${p.busca_ativa_desde.slice(8,10)}/${p.busca_ativa_desde.slice(5,7)}/${p.busca_ativa_desde.slice(0,4)}` : "—",
+        last?.data_registro ? `${last.data_registro.slice(8,10)}/${last.data_registro.slice(5,7)}` : "—",
+        san(last?.resultado),
+        resp,
+      ];
+    });
+  XLSX.utils.book_append_sheet(
+    wb,
+    makeSheet("Em Busca Ativa", ["Nome", "CPF", "Idade", "Bairro", "Turma", "Em BA desde", "Último registro", "Resultado", "Responsável"], baRows),
+    "Em Busca Ativa"
+  );
 
   // 2. Público
   const publicoRows = [
