@@ -16,6 +16,8 @@ import { toast } from "sonner";
 import { isBairroSCFV, calcAge } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { useFormTimer } from "@/hooks/useFormTimer";
+import { getParticipantesDaTurma } from "@/lib/participantesTurma";
+import { Badge } from "@/components/ui/badge";
 
 const FAIXAS: Record<string, [number, number]> = {
   "6-8": [6, 8],
@@ -57,21 +59,40 @@ const PresencaPage = () => {
   useEffect(() => {
     if (!selectedTurma) { setParticipantes([]); return; }
     const fetchParts = async () => {
-      const { data } = await supabase
-        .from("turma_participantes")
-        .select("participante_id, data_saida, participantes(id, nome_completo, data_nascimento, bairro_id, periodo, status)")
-        .eq("turma_id", selectedTurma)
-        .is("data_saida" as any, null);
-      if (data) {
-        const list = data
-          .filter((d: any) => d.participantes && d.participantes.status !== "desligado")
-          .map((d: any) => d.participantes)
-          .sort((a: any, b: any) => a.nome_completo.localeCompare(b.nome_completo));
+      try {
+        const elegiveis = await getParticipantesDaTurma(selectedTurma);
+        // Hidrata dados de bairro/idade/periodo para os filtros
+        const ids = elegiveis.map((e) => e.participante_id);
+        const { data: extras } = ids.length
+          ? await supabase
+              .from("participantes")
+              .select("id, data_nascimento, bairro_id, periodo")
+              .in("id", ids)
+          : { data: [] as any[] };
+        const extrasMap = new Map((extras || []).map((p: any) => [p.id, p]));
+        const list = elegiveis.map((e) => {
+          const ex = extrasMap.get(e.participante_id) || {};
+          return {
+            id: e.participante_id,
+            nome_completo: e.nome,
+            status: e.status,
+            marcador: e.marcador,
+            bloqueado_chamada: e.bloqueado_chamada,
+            data_nascimento: ex.data_nascimento,
+            bairro_id: ex.bairro_id,
+            periodo: ex.periodo,
+          };
+        });
         setParticipantes(list);
         const pres: Record<string, boolean> = {};
-        list.forEach((p: any) => { pres[p.id] = true; });
+        list.forEach((p: any) => {
+          // Bloqueados (desligado/transferido) entram desmarcados por padrão
+          pres[p.id] = !p.bloqueado_chamada;
+        });
         setPresenca(pres);
         setJustificativas({});
+      } catch (e: any) {
+        toast.error(e?.message || "Erro ao carregar participantes da turma");
       }
     };
     fetchParts();
@@ -234,12 +255,20 @@ const PresencaPage = () => {
                     <span className="text-xs text-muted-foreground w-6 text-right">{idx + 1}.</span>
                     <Checkbox
                       checked={presente}
+                      disabled={p.bloqueado_chamada}
                       onCheckedChange={c => {
                         setPresenca(prev => ({ ...prev, [p.id]: !!c }));
                         if (c) setJustificativas(prev => { const n = { ...prev }; delete n[p.id]; return n; });
                       }}
                     />
-                    <span className={cn("text-sm flex-1", !presente && "text-muted-foreground line-through")}>{p.nome_completo}</span>
+                    <span className={cn("text-sm flex-1", !presente && "text-muted-foreground line-through")}>
+                      {p.nome_completo}
+                      {p.marcador && (
+                        <Badge variant="outline" className="ml-2 text-[10px] font-normal">
+                          {p.marcador}
+                        </Badge>
+                      )}
+                    </span>
                     {!presente && (
                       <Input
                         value={justificativas[p.id] || ""}
