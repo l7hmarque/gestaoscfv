@@ -77,19 +77,6 @@ export interface BuildListaResult {
   mensagens: string[];
 }
 
-function periodoLabel(p?: string | null): string {
-  if (!p) return "—";
-  if (p === "manha") return "Manhã";
-  if (p === "tarde") return "Tarde";
-  if (p === "integral") return "Integral";
-  return p;
-}
-
-function fmtDataShort(d: string | null | undefined): string {
-  if (!d || d.length < 10) return "";
-  return `${d.slice(8, 10)}/${d.slice(5, 7)}`;
-}
-
 /** Carrega vínculos turma↔participante e presenças usando a regra única
  * `getParticipantesDaTurma`. Marcadores padronizados P/A/J/—. */
 async function carregarDadosTurma(turma: ListaTurma, mes: number, ano: number) {
