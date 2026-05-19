@@ -427,12 +427,24 @@ export async function exportRelatorioGestaoPDF(mesInicio: number, anoInicio: num
 
   if (data.buscaAtiva.length > 0) {
     doc.text(`Ações de Busca Ativa: ${data.buscaAtiva.length}`, 14, y); y += 4;
+    doc.text(`Em Busca Ativa (acumulado no fim do período): ${m.baAcumulado.length}`, 14, y); y += 4;
     if (Object.keys(m.buscaByTipo).length > 0) {
       addTable([["Tipo de Contato", "Quantidade"]], Object.entries(m.buscaByTipo).map(([k, v]) => [k, String(v)]));
     }
     y += 2;
     if (Object.keys(m.buscaByResultado).length > 0) {
       addTable([["Resultado", "Quantidade"]], Object.entries(m.buscaByResultado).map(([k, v]) => [k, String(v)]));
+    }
+    if (m.baAcumulado.length > 0) {
+      y += 2;
+      const baBody = [...m.baAcumulado]
+        .sort((a: any, b: any) => (a.busca_ativa_desde || "").localeCompare(b.busca_ativa_desde || ""))
+        .map((p: any) => [
+          san(p.nome_completo),
+          p.bairro_id ? (m.bairroMap.get(p.bairro_id)?.nome || "—") : "—",
+          p.busca_ativa_desde ? `${p.busca_ativa_desde.slice(8,10)}/${p.busca_ativa_desde.slice(5,7)}/${p.busca_ativa_desde.slice(0,4)}` : "—",
+        ]);
+      addTable([["Nome", "Bairro", "Em BA desde"]], baBody);
     }
   } else {
     doc.text("Nenhuma ação de busca ativa registrada no período.", 14, y); y += 6;
