@@ -9,6 +9,9 @@ import { FolderDown, ClipboardCheck, FileText, BarChart3, Shield, HeartHandshake
 import FichaReferenciamentoDialog from "./oficiais/FichaReferenciamentoDialog";
 import FaltasConsecutivasDialog from "./oficiais/FaltasConsecutivasDialog";
 import CoberturaPrioritariaDialog from "./oficiais/CoberturaPrioritariaDialog";
+import EvasaoDialog from "./oficiais/EvasaoDialog";
+import EncaminhamentosDialog from "./oficiais/EncaminhamentosDialog";
+import BoletimArticulacaoDialog from "./oficiais/BoletimArticulacaoDialog";
 
 type CardSpec = {
   titulo: string;
@@ -57,6 +60,9 @@ export default function HubExportacoesPage() {
   const [openFicha, setOpenFicha] = useState(false);
   const [openFaltas, setOpenFaltas] = useState(false);
   const [openCobertura, setOpenCobertura] = useState(false);
+  const [openEvasao, setOpenEvasao] = useState(false);
+  const [openEncs, setOpenEncs] = useState(false);
+  const [openBoletim, setOpenBoletim] = useState(false);
 
   const presenca: CardSpec[] = [
     { titulo: "Exportar Chamada", descricao: "Listas de presença/frequência por turma, dia ou mês — XLSX e Google Sheets.", destinatario: "Interno", to: "/presenca/exportar" },
@@ -98,6 +104,24 @@ export default function HubExportacoesPage() {
       destinatario: "SAS · Controladoria · MP",
       action: () => setOpenCobertura(true),
     },
+    {
+      titulo: "Relatório de Evasão",
+      descricao: "Desligamentos no período com motivo, permanência e histórico de busca ativa.",
+      destinatario: "SAS · CRAS · Coord.",
+      action: () => setOpenEvasao(true),
+    },
+    {
+      titulo: "Encaminhamentos por Órgão",
+      descricao: "Lista detalhada e resumo por órgão (CRAS, CREAS, Conselho Tutelar, UBS, MP).",
+      destinatario: "Rede · MP",
+      action: () => setOpenEncs(true),
+    },
+    {
+      titulo: "Boletim de Articulação com a Rede",
+      descricao: "Consolidado mensal: atendidos, ingressos, desligamentos, busca ativa e encaminhamentos.",
+      destinatario: "SAS · Controladoria",
+      action: () => setOpenBoletim(true),
+    },
   ];
 
   const familia: CardSpec[] = [
@@ -134,6 +158,9 @@ export default function HubExportacoesPage() {
       <FichaReferenciamentoDialog open={openFicha} onOpenChange={setOpenFicha} />
       <FaltasConsecutivasDialog open={openFaltas} onOpenChange={setOpenFaltas} />
       <CoberturaPrioritariaDialog open={openCobertura} onOpenChange={setOpenCobertura} />
+      <EvasaoDialog open={openEvasao} onOpenChange={setOpenEvasao} />
+      <EncaminhamentosDialog open={openEncs} onOpenChange={setOpenEncs} />
+      <BoletimArticulacaoDialog open={openBoletim} onOpenChange={setOpenBoletim} />
     </div>
   );
 }
