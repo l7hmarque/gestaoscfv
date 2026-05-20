@@ -324,7 +324,12 @@ const ParticipanteNovoPage = () => {
             </div>
             <div className="col-span-2">
               <Label className="text-xs font-medium">Categoria de Vulnerabilidade</Label>
-              <Input value={familia.categoria_vulnerabilidade} onChange={(e) => setF("categoria_vulnerabilidade", e.target.value)} placeholder="Ex: situação de risco" className="h-9 text-sm mt-1" />
+              <div className="mt-1">
+                <CategoriaVulnerabilidadeCombobox
+                  value={familia.categoria_vulnerabilidade}
+                  onChange={(v) => setF("categoria_vulnerabilidade", v)}
+                />
+              </div>
             </div>
             <div className="col-span-2">
               <Label className="text-xs font-medium">Restrição Alimentar (familiar)</Label>
