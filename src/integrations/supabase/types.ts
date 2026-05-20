@@ -3670,6 +3670,36 @@ export type Database = {
         }
         Relationships: []
       }
+      user_module_access: {
+        Row: {
+          created_at: string
+          granted_by: string | null
+          id: string
+          level: string
+          module: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          level: string
+          module: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          level?: string
+          module?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -3734,6 +3764,10 @@ export type Database = {
         }
         Returns: string
       }
+      default_module_level: {
+        Args: { _module: string; _user: string }
+        Returns: string
+      }
       enqueue_drive_sync: {
         Args: { _origem_id: string; _tipo: string }
         Returns: undefined
@@ -3794,6 +3828,14 @@ export type Database = {
           _tipo?: string
         }
         Returns: Json
+      }
+      get_my_module_access: {
+        Args: never
+        Returns: {
+          level: string
+          module: string
+          source: string
+        }[]
       }
       get_participantes_turma: {
         Args: { _ref_date?: string; _turma_id: string }
@@ -3871,6 +3913,10 @@ export type Database = {
         Args: { _from: string; _to: string; _user_id: string }
         Returns: Json
       }
+      has_module_access: {
+        Args: { _min_level?: string; _module: string; _user: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3882,6 +3928,7 @@ export type Database = {
         Args: { _projeto_id: string; _user_id: string }
         Returns: boolean
       }
+      is_super_admin: { Args: { _user: string }; Returns: boolean }
       list_profiles_rh: {
         Args: never
         Returns: {
