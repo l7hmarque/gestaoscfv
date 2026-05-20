@@ -612,15 +612,11 @@ export default function ConfiguracoesPage() {
         </TabsContent>
 
         {/* AUDITORIA */}
-        <TabsContent value="auditoria">
-        </TabsContent>
-
-        {/* PERMISSÕES GRANULARES */}
         <TabsContent value="permissoes">
           <PermissoesGranularesTab />
         </TabsContent>
 
-        <TabsContent value="auditoria-real">
+        <TabsContent value="auditoria">
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2"><History className="h-5 w-5" />Log de Auditoria Completo</CardTitle>
