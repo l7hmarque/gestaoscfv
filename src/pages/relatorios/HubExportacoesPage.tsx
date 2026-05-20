@@ -107,7 +107,7 @@ export default function HubExportacoesPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader icon={FolderDown} title="Hub de Exportações" subtitle="Catálogo único de relatórios — escolha por tipo de documento ou destinatário." />
+      <PageHeader icon={<FolderDown className="h-5 w-5" />} title="Hub de Exportações" subtitle="Catálogo único de relatórios — escolha por tipo de documento ou destinatário." />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex flex-wrap h-auto">
