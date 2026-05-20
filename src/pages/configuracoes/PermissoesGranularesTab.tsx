@@ -50,7 +50,7 @@ export function PermissoesGranularesTab() {
     const defs: Record<string, Record<string, ModuleLevel>> = {};
     const sa = new Set<string>();
     for (const p of ps) {
-      const myRoles = new Set((rRes.data ?? []).filter((r: any) => r.user_id === p.user_id).map((r: any) => r.role));
+      const myRoles = new Set<string>((rRes.data ?? []).filter((r: any) => r.user_id === p.user_id).map((r: any) => r.role as string));
       defs[p.user_id] = {};
       for (const m of ALL_MODULES) defs[p.user_id][m] = clientDefault(myRoles, m);
     }
