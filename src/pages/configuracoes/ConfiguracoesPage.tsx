@@ -19,6 +19,7 @@ import {
 import { useBackupExport } from "@/hooks/useBackupExport";
 import TemplateTagMapper from "@/components/TemplateTagMapper";
 import { useAuth } from "@/contexts/AuthContext";
+import { PermissoesGranularesTab } from "./PermissoesGranularesTab";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
@@ -326,11 +327,12 @@ export default function ConfiguracoesPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid grid-cols-7 w-full max-w-4xl">
+        <TabsList className="grid grid-cols-7 w-full max-w-5xl">
           <TabsTrigger value="instituicao"><Building2 className="h-4 w-4 mr-1" />Instituição</TabsTrigger>
           <TabsTrigger value="bairros"><MapPin className="h-4 w-4 mr-1" />Bairros</TabsTrigger>
           <TabsTrigger value="transporte"><Bus className="h-4 w-4 mr-1" />Transporte</TabsTrigger>
           <TabsTrigger value="equipe"><Users className="h-4 w-4 mr-1" />Equipe</TabsTrigger>
+          <TabsTrigger value="permissoes"><Shield className="h-4 w-4 mr-1" />Permissões</TabsTrigger>
           <TabsTrigger value="auditoria"><History className="h-4 w-4 mr-1" />Auditoria</TabsTrigger>
           <TabsTrigger value="sistema"><Shield className="h-4 w-4 mr-1" />Sistema</TabsTrigger>
         </TabsList>
