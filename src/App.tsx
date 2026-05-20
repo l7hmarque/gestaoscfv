@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppLayout } from "@/components/AppLayout";
+import { ModuleRoute } from "@/components/ModuleRoute";
 
 // Lazy-loaded pages
 const Index = lazy(() => import("./pages/Index"));
@@ -96,40 +97,40 @@ const App = () => (
                 {/* Sistema interno */}
                 <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                   <Route path="/" element={<Index />} />
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/banco-de-dados" element={<BancoDadosPage />} />
-                  <Route path="/participantes" element={<ParticipantesPage />} />
-                  <Route path="/participantes/novo" element={<ParticipanteNovoPage />} />
-                  <Route path="/participantes/importar" element={<ParticipanteImportarPage />} />
-                  <Route path="/participantes/:id" element={<ParticipantePerfilPage />} />
-                  <Route path="/turmas" element={<TurmasPage />} />
-                  <Route path="/turmas/nova" element={<TurmaNovaPage />} />
-                  <Route path="/turmas/:id" element={<TurmaDetalhePage />} />
-                  <Route path="/presenca" element={<PresencaPage />} />
-                  <Route path="/presenca/exportar" element={<PresencaExportarPage />} />
-                  <Route path="/planejamentos" element={<PlanejamentosPage />} />
-                  <Route path="/planejamentos/novo" element={<PlanejamentoNovoPage />} />
-                  <Route path="/planejamentos/:id" element={<PlanejamentoDetalhePage />} />
-                  <Route path="/relatorios" element={<RelatoriosPage />} />
-                  <Route path="/relatorios/novo" element={<RelatorioNovoPage />} />
-                  <Route path="/relatorios/:id" element={<RelatorioDetalhePage />} />
-                  <Route path="/relatorios/exportar" element={<ExportarRelatoriosPage />} />
-                  <Route path="/relatorios/hub" element={<HubExportacoesPage />} />
+                  <Route path="/dashboard" element={<ModuleRoute module="dashboard"><DashboardPage /></ModuleRoute>} />
+                  <Route path="/banco-de-dados" element={<ModuleRoute module="banco_dados" level="admin"><BancoDadosPage /></ModuleRoute>} />
+                  <Route path="/participantes" element={<ModuleRoute module="participantes"><ParticipantesPage /></ModuleRoute>} />
+                  <Route path="/participantes/novo" element={<ModuleRoute module="participantes" level="write"><ParticipanteNovoPage /></ModuleRoute>} />
+                  <Route path="/participantes/importar" element={<ModuleRoute module="participantes" level="admin"><ParticipanteImportarPage /></ModuleRoute>} />
+                  <Route path="/participantes/:id" element={<ModuleRoute module="participantes"><ParticipantePerfilPage /></ModuleRoute>} />
+                  <Route path="/turmas" element={<ModuleRoute module="turmas"><TurmasPage /></ModuleRoute>} />
+                  <Route path="/turmas/nova" element={<ModuleRoute module="turmas" level="write"><TurmaNovaPage /></ModuleRoute>} />
+                  <Route path="/turmas/:id" element={<ModuleRoute module="turmas"><TurmaDetalhePage /></ModuleRoute>} />
+                  <Route path="/presenca" element={<ModuleRoute module="presenca"><PresencaPage /></ModuleRoute>} />
+                  <Route path="/presenca/exportar" element={<ModuleRoute module="presenca"><PresencaExportarPage /></ModuleRoute>} />
+                  <Route path="/planejamentos" element={<ModuleRoute module="planejamentos"><PlanejamentosPage /></ModuleRoute>} />
+                  <Route path="/planejamentos/novo" element={<ModuleRoute module="planejamentos" level="write"><PlanejamentoNovoPage /></ModuleRoute>} />
+                  <Route path="/planejamentos/:id" element={<ModuleRoute module="planejamentos"><PlanejamentoDetalhePage /></ModuleRoute>} />
+                  <Route path="/relatorios" element={<ModuleRoute module="relatorios"><RelatoriosPage /></ModuleRoute>} />
+                  <Route path="/relatorios/novo" element={<ModuleRoute module="relatorios" level="write"><RelatorioNovoPage /></ModuleRoute>} />
+                  <Route path="/relatorios/:id" element={<ModuleRoute module="relatorios"><RelatorioDetalhePage /></ModuleRoute>} />
+                  <Route path="/relatorios/exportar" element={<ModuleRoute module="relatorios"><ExportarRelatoriosPage /></ModuleRoute>} />
+                  <Route path="/relatorios/hub" element={<ModuleRoute module="relatorios"><HubExportacoesPage /></ModuleRoute>} />
                   <Route path="/profissional/:id" element={<ProfissionalPerfilPage />} />
-                  <Route path="/mural" element={<MuralPage />} />
-                  <Route path="/feed" element={<FeedPage />} />
-                  <Route path="/equipe-tecnica" element={<EquipeTecnicaPage />} />
-                  <Route path="/equipe-tecnica/roteiros/novo" element={<RoteiroNovoPage />} />
-                  <Route path="/equipe-tecnica/roteiros/:id" element={<RoteiroDetalhePage />} />
-                  <Route path="/site-admin" element={<SiteAdminPage />} />
-                  <Route path="/configuracoes" element={<ConfiguracoesPage />} />
-                  <Route path="/desligamento-admin" element={<PainelDesligamentoPage />} />
-                  <Route path="/cronograma" element={<CronogramaPage />} />
-                  <Route path="/integridade" element={<IntegridadePage />} />
-                  <Route path="/coordenacao" element={<CoordenacaoPage />} />
-                  <Route path="/cozinha" element={<CozinhaPage />} />
-                  <Route path="/transporte" element={<TransportePage />} />
-                  <Route path="/registros-fotograficos" element={<RegistrosFotograficosPage />} />
+                  <Route path="/mural" element={<ModuleRoute module="feed"><MuralPage /></ModuleRoute>} />
+                  <Route path="/feed" element={<ModuleRoute module="feed"><FeedPage /></ModuleRoute>} />
+                  <Route path="/equipe-tecnica" element={<ModuleRoute module="equipe_tecnica"><EquipeTecnicaPage /></ModuleRoute>} />
+                  <Route path="/equipe-tecnica/roteiros/novo" element={<ModuleRoute module="equipe_tecnica" level="write"><RoteiroNovoPage /></ModuleRoute>} />
+                  <Route path="/equipe-tecnica/roteiros/:id" element={<ModuleRoute module="equipe_tecnica"><RoteiroDetalhePage /></ModuleRoute>} />
+                  <Route path="/site-admin" element={<ModuleRoute module="site_publico" level="admin"><SiteAdminPage /></ModuleRoute>} />
+                  <Route path="/configuracoes" element={<ModuleRoute module="configuracoes" level="admin"><ConfiguracoesPage /></ModuleRoute>} />
+                  <Route path="/desligamento-admin" element={<ModuleRoute module="coordenacao" level="admin"><PainelDesligamentoPage /></ModuleRoute>} />
+                  <Route path="/cronograma" element={<ModuleRoute module="cronograma"><CronogramaPage /></ModuleRoute>} />
+                  <Route path="/integridade" element={<ModuleRoute module="integridade"><IntegridadePage /></ModuleRoute>} />
+                  <Route path="/coordenacao" element={<ModuleRoute module="coordenacao" level="admin"><CoordenacaoPage /></ModuleRoute>} />
+                  <Route path="/cozinha" element={<ModuleRoute module="cozinha"><CozinhaPage /></ModuleRoute>} />
+                  <Route path="/transporte" element={<ModuleRoute module="transporte"><TransportePage /></ModuleRoute>} />
+                  <Route path="/registros-fotograficos" element={<ModuleRoute module="registros_fotograficos"><RegistrosFotograficosPage /></ModuleRoute>} />
                   <Route path="/dev" element={<DevPage />} />
                 </Route>
                 <Route path="/matricula" element={<MatriculaPublicaPage />} />
