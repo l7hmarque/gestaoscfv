@@ -12,6 +12,7 @@ import CoberturaPrioritariaDialog from "./oficiais/CoberturaPrioritariaDialog";
 import EvasaoDialog from "./oficiais/EvasaoDialog";
 import EncaminhamentosDialog from "./oficiais/EncaminhamentosDialog";
 import BoletimArticulacaoDialog from "./oficiais/BoletimArticulacaoDialog";
+import BoletimPedagogicoDialog from "./oficiais/BoletimPedagogicoDialog";
 
 type CardSpec = {
   titulo: string;
@@ -63,6 +64,7 @@ export default function HubExportacoesPage() {
   const [openEvasao, setOpenEvasao] = useState(false);
   const [openEncs, setOpenEncs] = useState(false);
   const [openBoletim, setOpenBoletim] = useState(false);
+  const [openBoletimPed, setOpenBoletimPed] = useState(false);
 
   const presenca: CardSpec[] = [
     { titulo: "Exportar Chamada", descricao: "Listas de presença/frequência por turma, dia ou mês — XLSX e Google Sheets.", destinatario: "Interno", to: "/presenca/exportar" },
@@ -122,6 +124,12 @@ export default function HubExportacoesPage() {
       destinatario: "SAS · Controladoria",
       action: () => setOpenBoletim(true),
     },
+    {
+      titulo: "Boletim Pedagógico Individual",
+      descricao: "Evolução do participante: frequência mês a mês, atividades, relatos da equipe e encaminhamentos.",
+      destinatario: "Família · Rede",
+      action: () => setOpenBoletimPed(true), actionLabel: "Selecionar participante",
+    },
   ];
 
   const familia: CardSpec[] = [
@@ -161,6 +169,7 @@ export default function HubExportacoesPage() {
       <EvasaoDialog open={openEvasao} onOpenChange={setOpenEvasao} />
       <EncaminhamentosDialog open={openEncs} onOpenChange={setOpenEncs} />
       <BoletimArticulacaoDialog open={openBoletim} onOpenChange={setOpenBoletim} />
+      <BoletimPedagogicoDialog open={openBoletimPed} onOpenChange={setOpenBoletimPed} />
     </div>
   );
 }
