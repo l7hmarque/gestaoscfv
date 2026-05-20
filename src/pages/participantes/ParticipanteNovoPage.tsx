@@ -3,6 +3,7 @@ import { ArrowLeft, Save, Plus } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CategoriaVulnerabilidadeCombobox } from "@/components/CategoriaVulnerabilidadeCombobox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -324,7 +325,12 @@ const ParticipanteNovoPage = () => {
             </div>
             <div className="col-span-2">
               <Label className="text-xs font-medium">Categoria de Vulnerabilidade</Label>
-              <Input value={familia.categoria_vulnerabilidade} onChange={(e) => setF("categoria_vulnerabilidade", e.target.value)} placeholder="Ex: situação de risco" className="h-9 text-sm mt-1" />
+              <div className="mt-1">
+                <CategoriaVulnerabilidadeCombobox
+                  value={familia.categoria_vulnerabilidade}
+                  onChange={(v) => setF("categoria_vulnerabilidade", v)}
+                />
+              </div>
             </div>
             <div className="col-span-2">
               <Label className="text-xs font-medium">Restrição Alimentar (familiar)</Label>

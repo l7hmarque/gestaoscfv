@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SysCFVLogo } from "@/components/SysCFVLogo";
 import {
-  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, Globe, FileDown, Settings, User, CalendarDays, Briefcase, ChefHat, Bus, Camera,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, Globe, FileDown, Settings, User, CalendarDays, Briefcase, ChefHat, Bus, Camera, FolderDown,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -28,6 +28,7 @@ const menuGroups = [
     items: [
       { title: "Planejamento", url: "/planejamentos", icon: BookOpen },
       { title: "Relatórios", url: "/relatorios", icon: FileText },
+      { title: "Hub de Exportações", url: "/relatorios/hub", icon: FolderDown },
       { title: "Exportar Relatórios em Lote", url: "/relatorios/exportar", icon: FileDown },
       { title: "Exportar Chamada", url: "/presenca/exportar", icon: FileDown },
     ],

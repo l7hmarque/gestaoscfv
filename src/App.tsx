@@ -28,6 +28,7 @@ const RelatoriosPage = lazy(() => import("./pages/relatorios/RelatoriosPage"));
 const RelatorioNovoPage = lazy(() => import("./pages/relatorios/RelatorioNovoPage"));
 const RelatorioDetalhePage = lazy(() => import("./pages/relatorios/RelatorioDetalhePage"));
 const ExportarRelatoriosPage = lazy(() => import("./pages/relatorios/ExportarRelatoriosPage"));
+const HubExportacoesPage = lazy(() => import("./pages/relatorios/HubExportacoesPage"));
 const BancoDadosPage = lazy(() => import("./pages/banco-dados/BancoDadosPage"));
 const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
 const ProfissionalPerfilPage = lazy(() => import("./pages/profissional/ProfissionalPerfilPage"));
@@ -113,6 +114,7 @@ const App = () => (
                   <Route path="/relatorios/novo" element={<RelatorioNovoPage />} />
                   <Route path="/relatorios/:id" element={<RelatorioDetalhePage />} />
                   <Route path="/relatorios/exportar" element={<ExportarRelatoriosPage />} />
+                  <Route path="/relatorios/hub" element={<HubExportacoesPage />} />
                   <Route path="/profissional/:id" element={<ProfissionalPerfilPage />} />
                   <Route path="/mural" element={<MuralPage />} />
                   <Route path="/feed" element={<FeedPage />} />
