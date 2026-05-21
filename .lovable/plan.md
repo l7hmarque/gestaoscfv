@@ -1,30 +1,36 @@
-## Limpeza de turmas antigas
+## O que a planilha tem
 
-Após criar as 38 turmas novas no padrão `OFICINA — FAIXA — BAIRRO`, restaram 13 turmas antigas que ficaram redundantes. Plano para removê-las com segurança.
+103 linhas com 3 colunas: **Nome Completo**, **Atenção Prioritária ou Situação de Vulnerabilidade**, **Origem Encaminhamento**.
 
-### Turmas a apagar (13)
+Valores distintos encontrados na coluna de vulnerabilidade:
 
-**KARATÊ antigas (12):** todas no formato `KARATE - {faixa} - {periodo} - {bairro}` (com hífen simples e `JD. IRENE`). 11 estão sem vínculos; 1 (`KARATE - 6-8 - TARDE - ALVORADA`) tem 1 participante.
+- "Não está em situação prioritária" (≈30 linhas)
+- "Vivência de violência e, ou negligência" (≈12)
+- "violação de direitos" / "Direitos violados" (2)
+- "Com medidas de proteção do Estatuto da Criança e do Adolescente - ECA" (1)
+- "Situação de abuso e/ou exploração sexual" (2)
+- vazio (≈55)
 
-**DANÇA antiga (1):** `DANÇA E POESIA - JARDIM IRENE - 6-8 - MANHA` — 14 participantes vinculados.
+Origens: CRAS, CREAS, Conselho Tutelar, Educação, Busca Ativa, Demanda espontânea.
 
-### Estratégia
+## Como vou aplicar
 
-1. **Soft delete** (`ativa = false`) em vez de DELETE físico — preserva histórico de relatórios, presenças e listas de chamada já emitidas que referenciam essas turmas.
-2. **Antes do soft delete**, rodar `recalcular_vinculos_turmas()` novamente para garantir que os 15 participantes ainda vinculados sejam realocados às turmas novas equivalentes (bate por bairro + faixa + período).
-3. Registrar no `audit_log` a desativação com justificativa "Substituída por turma no novo padrão de nomenclatura — 21/05/2026".
+1. **Casamento de nomes** — normalizo (upper + sem acentos + trim) e bato contra `participantes.nome_completo`. Já validei que o casamento funciona (Title Case no banco vs UPPER na planilha).
+2. **Atualizo `categoria_vulnerabilidade**` mapeando para as categorias padrão já existentes em `categorias_vulnerabilidade_padrao`:
+  - "violação de direitos" / "Direitos violados" / "Vivência de violência e, ou negligência" → **Violação de Direitos Identificada**
+  - "Com medidas de proteção... ECA" → **Medida Protetiva (ECA)**
+  - "Situação de abuso e/ou exploração sexual" → **Violação de Direitos Identificada** (não há categoria específica)
+  - "Não está em situação prioritária" → **deixa em branco** (é justamente a ausência de vulnerabilidade prioritária)
+  - vazio → não altera
+3. **Atualizo `origem_encaminhamento**` com o valor literal da planilha (CRAS, CREAS, Conselho Tutelar, Educação, Busca Ativa, Demanda espontânea) — **só preenche se estiver vazio no banco**, para não sobrescrever dados já corretos.
+4. **Relatório** — listo no chat: quantos participantes foram encontrados, quantos atualizados, quantos não encontraram correspondência (para você revisar manualmente).
 
-### Por que soft delete e não DELETE
+## Detalhes técnicos
 
-Relatórios de atividades, listas de chamada de maio, frequência e planejamentos antigos têm FK para `turma_id`. Apagar fisicamente quebraria a rastreabilidade do mês de abril/maio. A turma some da UI ativa mas o histórico permanece consultável.
+- Migration única com `UPDATE` por nome (case/accent-insensitive via `lower(translate(nome_completo, 'áàâãäéèêëíïóòôõöúùûüç', 'aaaaaeeeeiioooouuuuc'))`).
+- Não toco em `laudo` (campo clínico, diferente).
+- Após salvar, o dashboard "Distribuição por Vulnerabilidade" passa a mostrar as categorias reais (PBF, Medida Protetiva, Violação de Direitos) em vez de só "Outros".
 
-### Observação sobre os 252 removidos
+## Pergunta única antes de executar
 
-Não é necessária ação. Foi limpeza correta de vínculos inconsistentes (participantes desligados, com bairro/idade incompatíveis, ou em turmas erradas). Essa é exatamente a higienização que destrava o problema que você reportou nas listas de chamada com nomes "fantasma".
-
-### Pós-execução
-
-Reportar:
-- Quantos participantes foram realocados das 13 antigas para as novas
-- Confirmação de que as 13 ficaram `ativa = false`
-- Se sobrou algum participante "órfão" (sem turma compatível)
+Você confirma o mapeamento de **"Situação de abuso e/ou exploração sexual"** → **Violação de Direitos Identificada**? Ou prefere que eu crie uma categoria padrão nova chamada **"Abuso/Exploração Sexual"**? confirmo. 
