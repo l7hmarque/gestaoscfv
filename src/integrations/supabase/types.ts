@@ -3838,7 +3838,7 @@ export type Database = {
         }[]
       }
       get_participantes_turma: {
-        Args: { _ref_date?: string; _turma_id: string }
+        Args: { _modo?: string; _ref_date?: string; _turma_id: string }
         Returns: {
           bloqueado_chamada: boolean
           bloqueado_desde: string

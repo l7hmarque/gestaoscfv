@@ -1,146 +1,86 @@
-# Reforma de Navegação + Permissões Granulares
+# Plano — Coerência das listas de chamada/presença
 
-Plano em duas frentes que se completam: **(A)** reorganizar a navegação separando o que é de **Coordenação** do operacional, e **(B)** trocar o controle por "role" puro por um sistema de **capabilities por módulo**, configurável pessoa-a-pessoa nas Configurações.
+## Diagnóstico
 
----
+A fonte única de verdade hoje é a RPC `get_participantes_turma(_turma_id, _ref_date)`. Ela retorna:
 
-## Diagnóstico atual
+- Todos os ativos / cadastro incompleto / busca ativa **independentemente da data em que entraram na turma**.
+- Desligados cujo `desligado_registrado_em` cai nos últimos 30 dias da `_ref_date` (com `bloqueado_chamada = true`, exibidos tachados).
+- Transferidos (≤30 dias) também com `bloqueado_chamada = true`.
 
-**Navegação (`AppSidebar`)**
+Isso gera os 3 sintomas que você relatou:
 
-- 4 grupos: Principal, Atividades, Comunicação, Gestão — mas tudo aparece para qualquer login. Só `Cozinha` e `Coordenação` são filtrados por role no client.
-- "Gestão" mistura coisas universais (Cronograma, Transporte) com coisas só de coord (Banco de Dados, Site Público, Configurações).
-- **22 rotas autenticadas**, todas sem guard de rota — qualquer usuário logado abre tudo digitando URL (só `/coordenacao` e `/dev` checam role na própria página).
+1. **Lista de Maio em branco vem cheia de desligados** — porque a edge function `generate-listas-chamada-mes-gsheet` usa `_ref_date = 1º dia do mês` e mantém todos os bloqueados visíveis (tachados). Para uma lista que vai ser **impressa em branco** isso é só ruído.
+2. **Lista de mês passado contém participantes inseridos depois** — a RPC não filtra por `turma_participantes.data_entrada` nem por `participantes.created_at`. Quem entrou em 18/05 aparece na chamada de Abril.
+3. **Página de Presença e Novo Relatório também mostram desligados** (tachados, mas ainda visíveis) — atrapalha o educador no momento de marcar.
 
-**Hubs com abas internas** que repetem coisas:
-
-- `CoordenacaoPage` → 11 abas (Painel, Ações, Decisões, Qualidade, Produtividade, **Auditoria**, Registros, Família, **Permissões**, Desligamento, Relatório).
-- `ConfiguracoesPage` → 6 abas (Instituição, Bairros, Transporte, **Equipe**, **Auditoria**, Sistema).
-- Sobreposição: **Auditoria** e **gestão de Equipe/Permissões** existem nos dois lugares.
-
-**Roles atuais no banco** (`app_role` enum, via `user_roles`): `coordenacao, tecnico, educador, motorista, cozinheiro, visitante, marketing`.
+E a 4ª dor: **/presenca/exportar** existe no roteamento mas não tem entrada na sidebar — só dá pra chegar pelo Hub de Exportações ou pelo card da Home antiga.
 
 ---
 
-## A. Nova arquitetura de navegação
+## Plano de correção
 
-Sidebar reagrupada em **5 seções**, com cabeçalho da seção "Coordenação" visualmente distinto (badge "Restrito" + cor):
+### 1. Reescrever a RPC `get_participantes_turma` com 2 modos
 
-```text
-PRINCIPAL              (todos com acesso)
-  Dashboard
-  Participantes
-  Turmas
-  Presença
-  Registros Fotográficos
+Migration nova adicionando parâmetros:
 
-ATIVIDADES             (educadores + técnicos)
-  Planejamento
-  Relatórios
-  Hub de Exportações       ← unifica /relatorios/hub + /relatorios/exportar + /presenca/exportar
-  Cronograma
-
-OPERAÇÃO               (perfis operacionais)
-  Transporte
-  Cozinha
-
-EQUIPE & COMUNICAÇÃO
-  Feed / Mural
-  Equipe Técnica
-
-COORDENAÇÃO 🔒          (badge "Restrito", borda vermelha)
-  Painel da Coordenação    ← consolida CoordenacaoPage (Painel/Ações/Decisões/Qualidade/Produtividade)
-  Auditoria & Registros    ← funde aba Auditoria + Registros (move da Configurações)
-  Permissões & Equipe      ← funde Permissões + tab "Equipe" da Configurações
-  Banco de Dados
-  Integridade
-  Site Público
-  Configurações do Sistema ← Instituição/Bairros/Transporte/Sistema apenas
+```
+get_participantes_turma(_turma_id uuid, _ref_date date, _modo text DEFAULT 'frequencia')
 ```
 
-**Mudanças concretas:**
+- `_modo = 'frequencia'` (padrão, atual) — comportamento de hoje: inclui desligados ≤30d tachados, para a lista **preenchida** (precisa mostrar quem teve presença lançada).
+- `_modo = 'chamada_branco'` — **só ativos para imprimir**:
+  - `status IN ('ativo','cadastro_incompleto','busca_ativa')`
+  - **sem** desligados / transferidos
+  - `bloqueado_chamada` sempre false
 
-1. `Hub de Exportações`, `Exportar Relatórios em Lote` e `Exportar Chamada` viram **abas dentro do Hub** (`/relatorios/hub` com tabs `Oficiais | Atividades em Lote | Chamadas`) — 3 itens viram 1 na sidebar.
-2. `Coordenação` deixa de ser link único e vira **seção colapsável** com itens diretos para cada sub-hub — fim das 11 abas empilhadas.
-3. Auditoria sai de Configurações; Configurações fica só com parâmetros do sistema.
-4. Sidebar passa a esconder seções inteiras quando o usuário não tem nenhuma capability dela.
+Em **ambos** os modos, adicionar filtro temporal pelo mês de referência:
 
----
+- `tp.data_entrada <= último dia de _ref_date`
+- `(tp.data_saida IS NULL OR tp.data_saida >= primeiro dia de _ref_date)`
+- `p.created_at::date <= último dia de _ref_date`
 
-## B. Sistema de capabilities granulares
+Isso resolve “participante novo aparecendo em lista de mês passado”.
 
-**Modelo**: cada usuário tem **capabilities por módulo** (`turmas`, `participantes`, `transporte`, `cozinha`, `auditoria`, `permissoes`, ...). Roles continuam existindo como **presets** que aplicam pacotes pré-definidos — mas a coord pode sobrescrever individualmente.
+### 2. Edge functions de lista em branco passam `_modo='chamada_branco'`
 
-### Banco
+- `supabase/functions/generate-listas-chamada-mes-gsheet/index.ts` — atualizar a chamada da RPC.
+- `supabase/functions/generate-lista-chamada-gsheet/index.ts` (chamada por turma) — idem.
 
-Nova tabela:
+A lista de **frequência preenchida** (`generate-listas-frequencia-mes-gsheet`, `generate-lista-frequencia-gsheet`) continua em `'frequencia'` (precisa mostrar quem foi desligado no meio do mês com presenças já lançadas).
 
-```text
-user_module_access
-  - user_id (uuid)
-  - module (text)          ← chave do módulo: 'turmas', 'participantes', etc.
-  - level (text)           ← 'none' | 'read' | 'write' | 'admin'
-  - granted_by (uuid)
-  - created_at
-  UNIQUE (user_id, module)
-```
+`src/lib/exportListaPresenca.ts` (exportação XLSX local da chamada em branco, se ainda em uso) — alinhar com o mesmo modo.
 
-Função security-definer:
+### 3. Página de Presença e Novo Relatório
 
-```text
-public.has_module_access(_user uuid, _module text, _min_level text) RETURNS boolean
-  - lê user_module_access; se não houver linha, deriva do role via has_role()
-  - 'admin' > 'write' > 'read' > 'none'
-```
+- `src/pages/presenca/PresencaPage.tsx`: ao carregar participantes, **filtrar fora `bloqueado_chamada**` antes de pintar a lista. Hoje eles entram desmarcados mas continuam visíveis.
+- `src/pages/relatorios/RelatorioNovoPage.tsx`: idem na seleção de participantes.
+- Manter a edição de relatórios antigos com lista completa (histórico continua íntegro), mas no formulário de **novo** registro só ativos.
 
-RLS nas tabelas críticas (participantes, turmas, etc.) passa a chamar `has_module_access(auth.uid(), 'participantes', 'read')` em vez de listar roles. **Coordenação continua ganhando tudo automaticamente** (preset fixo no fallback).
+### 4. Acesso à `/presenca/exportar` na navegação
 
-### Frontend
+A página já existe e funciona; só falta entrada de menu. Duas opções:
 
-- **Hook** `useCapabilities()` → carrega capabilities + roles uma vez, cacheia (TanStack Query, staleTime infinito).
-- **Helper** `can(module, level='read')` usado para gating de menu e rotas.
-- `**<ModuleRoute module="turmas" level="read">**` — wrapper de `<Route>` que redireciona para `/` com toast "Acesso não autorizado" se faltar capability.
-- `AppSidebar` filtra cada item com base em `can(item.module)`; seções vazias somem inteiras.
+- **(A)** Adicionar item “Exportar chamada/frequência” na sidebar dentro do grupo **Operação**, logo abaixo de Presença, com mesmo gating de permissão (`presenca`). - ESSA OPCAO.
+- **(B)** Tornar a página um redirect para `/relatorios/hub` (Hub unificado já tem o card “Exportar Chamada”) e parar de manter duas portas de entrada.
 
-### UI de configuração (nova aba em Configurações → "Permissões & Equipe")
-
-Tabela: linhas = profissionais, colunas = módulos, células = `<Select>` com `Nenhum / Leitura / Edição / Admin`. Linha colapsável mostra o preset do role + overrides em destaque. Botão "**Aplicar preset do papel**" reseta as células ao default do role.
-
-Catálogo de módulos (15):
-
-```text
-dashboard, participantes, turmas, presenca, planejamentos, relatorios,
-registros_fotograficos, cronograma, transporte, cozinha, feed,
-equipe_tecnica, integridade, banco_dados, configuracoes,
-auditoria, permissoes, site_publico, coordenacao
-```
-
-### Anti-lock-out
-
-- Sempre existe ≥1 `admin` em `coordenacao` e `permissoes` — UI bloqueia salvar se quebrar.
-- Migração inicial popula `user_module_access` derivando dos roles atuais para evitar regressão.
+Recomendado: **(A)**, porque o fluxo natural do educador é “marcar presença → exportar a lista do mês”, sem precisar passar pelo Hub de Coordenação.
 
 ---
 
-## C. Entregas (ordem sugerida)
+## Detalhes técnicos resumidos
 
-1. **Migration** — tabela `user_module_access`, função `has_module_access`, seed inicial a partir de `user_roles`, **backup explícito do banco** antes.
-2. **Hook + helper + `ModuleRoute**` — frontend lê capabilities, gating funciona em rotas e sidebar.
-3. **Sidebar reorganizada** nas 5 seções, com seção "Coordenação" destacada.
-4. **Hub de Exportações unificado** absorvendo as 3 rotas de export.
-5. **Coordenação como seção colapsável** (split das 11 abas em sub-páginas).
-6. **Aba "Permissões & Equipe"** com a matriz de capabilities (única fonte de verdade — remove duplicação Configurações/Coordenação).
-7. **RLS endurecida** — políticas das tabelas sensíveis passam a usar `has_module_access`. Coordenação mantém bypass.
+```text
+migration: alter get_participantes_turma → adiciona _modo + filtro temporal
+edge fns chamada-branco: rpc(..., { _modo: 'chamada_branco' })
+edge fns frequencia: rpc(..., { _modo: 'frequencia' })   // explícito p/ clareza
+PresencaPage / RelatorioNovoPage: filter(p => !p.bloqueado_chamada)
+AppSidebar: novo NavLink "Exportar listas" → /presenca/exportar (grupo Operação)
+```
 
-Entrego em ondas; cada onda é deployável sozinha sem quebrar o que existe. Roles antigos continuam funcionando durante a transição porque `has_module_access` cai no fallback de role quando não há override.
+Sem impacto em RLS (a RPC continua `SECURITY DEFINER`). Sem impacto em relatórios já salvos (apenas no que é exibido para novos cadastros e nas listas geradas a partir daqui).
 
----
+## Perguntas antes de implementar
 
-## Pontos para você decidir antes de eu codar
-
-1. **Granularidade do nível**: 4 níveis (`none/read/write/admin`) ou só 2 (`none/full`)? Mais níveis = mais poder, mais UI. -- 4 niveis
-2. **Coordenação é intocável?** Posso garantir que ninguém consiga revogar capabilities de quem tem role `coordenacao` (recomendado), ou você quer poder limitar até coord? -- Sim, contudo meu usuario ([l7hmarque@gmail.com](mailto:l7hmarque@gmail.com)) pode tudo (super admin)
-3. **Visitante** continua read-only global ou entra no mesmo sistema com capabilities `read` em tudo? -- read only
-4. **Sidebar quando usuário não tem nada de uma seção**: esconder a seção inteira (recomendado) ou mostrar acinzentada com cadeado? -- apenas acinzentada
-
-Responda esses 4 e eu sigo direto para a migration + onda 1.
+1. Para a **lista de frequência preenchida** (a que já tem as presenças lançadas), você quer manter os desligados ≤30d tachados (situação atual) ou também escondê-los? MANTER SOMENTE ATE A CHAMADA DO PRIMEIRO MES POSTERIOR AO DESLIGAMENTO, GARANTIR QUE SE O PARTICIPANTE FOI DESLIGADO NO MEIO DO MES, AS PRESENCAS ATE DATA DE DESLIGAMENTO FICAM REGISTRADAS.
+2. Você prefere a opção **(A)** sidebar ou **(B)** redirect para o Hub na questão do `/presenca/exportar`? A
