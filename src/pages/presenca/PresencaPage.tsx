@@ -60,7 +60,8 @@ const PresencaPage = () => {
     if (!selectedTurma) { setParticipantes([]); return; }
     const fetchParts = async () => {
       try {
-        const elegiveis = await getParticipantesDaTurma(selectedTurma);
+        // Para marcar presença, só ativos do dia (sem desligados/transferidos)
+        const elegiveis = await getParticipantesDaTurma(selectedTurma, undefined, "chamada_branco");
         // Hidrata dados de bairro/idade/periodo para os filtros
         const ids = elegiveis.map((e) => e.participante_id);
         const { data: extras } = ids.length

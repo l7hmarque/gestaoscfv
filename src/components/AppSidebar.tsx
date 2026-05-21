@@ -25,6 +25,7 @@ const menuGroups: Group[] = [
       { title: "Participantes", url: "/participantes", icon: Users, module: "participantes" },
       { title: "Turmas", url: "/turmas", icon: GraduationCap, module: "turmas" },
       { title: "Presença", url: "/presenca", icon: ClipboardCheck, module: "presenca" },
+      { title: "Exportar Listas", url: "/presenca/exportar", icon: FileDown, module: "presenca" },
       { title: "Registros Fotográficos", url: "/registros-fotograficos", icon: Camera, module: "registros_fotograficos" },
     ],
   },

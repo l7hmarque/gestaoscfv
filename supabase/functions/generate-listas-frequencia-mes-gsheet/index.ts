@@ -260,6 +260,7 @@ Deno.serve(async (req) => {
       const { data: rows, error: rpcErr } = await svc.rpc("get_participantes_turma", {
         _turma_id: tid,
         _ref_date: dataIniMes,
+        _modo: "frequencia",
       });
       if (rpcErr) { console.warn("[get_participantes_turma]", tid, rpcErr); return; }
       membersByTurma[tid] = (rows || []).map((r: any) => ({

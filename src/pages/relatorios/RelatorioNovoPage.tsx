@@ -176,7 +176,7 @@ const RelatorioNovoPage = () => {
     const fetchParts = async () => {
       const refDate = form.data ? format(form.data, "yyyy-MM-dd") : undefined;
       const results = await Promise.all(
-        form.turma_ids.map(tid => getParticipantesDaTurma(tid, refDate))
+        form.turma_ids.map(tid => getParticipantesDaTurma(tid, refDate, "chamada_branco"))
       );
       const unique = new Map<string, ParticipanteTurma>();
       results.flat().forEach(p => {
