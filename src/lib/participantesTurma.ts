@@ -2,12 +2,11 @@
  * Fonte única de verdade para "quem aparece na chamada de uma turma".
  *
  * Regras (espelham a RPC `get_participantes_turma`):
- *  - Inclui status: ativo, cadastro_incompleto, busca_ativa
- *  - Inclui desligados cujo registro de desligamento ocorreu há ≤ 30 dias
- *    da `refDate` (campo `desligado_registrado_em`)
- *  - Inclui transferidos com marcador completo se transferência foi
- *    nos últimos 30 dias
- *  - NÃO filtra por `data_saida` ou `data_entrada` do vínculo
+ *  - Filtra por mês de referência (vínculo na turma + created_at do participante)
+ *  - modo 'frequencia' (padrão): inclui ativos + desligados cujo desligamento
+ *    ocorreu no mês de referência ou depois (some no mês seguinte ao desligamento)
+ *  - modo 'chamada_branco': SOMENTE ativos (sem desligados, sem transferidos,
+ *    sem marcadores) — uso para listas em branco para imprimir.
  */
 import { supabase } from "@/integrations/supabase/client";
 
@@ -32,9 +31,12 @@ export interface ParticipanteTurma {
  * @param refDate  Data de referência (default = hoje). Para listas mensais,
  *                 use o 1º dia do mês.
  */
+export type ModoListaParticipantes = "frequencia" | "chamada_branco";
+
 export async function getParticipantesDaTurma(
   turmaId: string,
-  refDate?: Date | string
+  refDate?: Date | string,
+  modo: ModoListaParticipantes = "frequencia"
 ): Promise<ParticipanteTurma[]> {
   const ref =
     typeof refDate === "string"
@@ -46,7 +48,8 @@ export async function getParticipantesDaTurma(
   const { data, error } = await supabase.rpc("get_participantes_turma", {
     _turma_id: turmaId,
     _ref_date: ref,
-  });
+    _modo: modo,
+  } as any);
 
   if (error) {
     console.error("[getParticipantesDaTurma]", error);
