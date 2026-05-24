@@ -168,7 +168,21 @@ const PresencaPage = () => {
               <Select value={selectedTurma} onValueChange={v => setSelectedTurma(v)}>
                 <SelectTrigger><SelectValue placeholder="Selecionar turma" /></SelectTrigger>
                 <SelectContent>
-                  {turmas.map(t => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
+                  {(["manha", "tarde"] as const).map(per => {
+                    const items = turmas.filter(t => (t.periodo || "manha") === per);
+                    if (items.length === 0) return null;
+                    const Icon = per === "manha" ? Sun : Sunset;
+                    return (
+                      <SelectGroup key={per}>
+                        <SelectLabel className="flex items-center gap-1.5 text-xs">
+                          <Icon className={cn("h-3.5 w-3.5", per === "manha" ? "text-amber-600" : "text-orange-700")} />
+                          {per === "manha" ? "Manhã" : "Tarde"}
+                          <span className="text-[10px] font-normal text-muted-foreground">({items.length})</span>
+                        </SelectLabel>
+                        {items.map(t => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
+                      </SelectGroup>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -194,7 +208,7 @@ const PresencaPage = () => {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-base">Filtros (opcional)</CardTitle></CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Bairro</Label>
                 <Select value={filtroBairro} onValueChange={setFiltroBairro}>
@@ -215,18 +229,6 @@ const PresencaPage = () => {
                     <SelectItem value="9-11">9-11 anos</SelectItem>
                     <SelectItem value="12-17">12-17 anos</SelectItem>
                     <SelectItem value="idosos">Idosos</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Período</Label>
-                <Select value={filtroPeriodo} onValueChange={setFiltroPeriodo}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="manha">Manhã</SelectItem>
-                    <SelectItem value="tarde">Tarde</SelectItem>
-                    
                   </SelectContent>
                 </Select>
               </div>
