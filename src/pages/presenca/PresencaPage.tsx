@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
-import { Save, Loader2, Check } from "lucide-react";
+import { Save, Loader2, Check, Sun, Sunset } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -39,7 +39,6 @@ const PresencaPage = () => {
   const [data, setData] = useState<Date | null>(new Date());
   const [filtroBairro, setFiltroBairro] = useState("todos");
   const [filtroFaixa, setFiltroFaixa] = useState("todos");
-  const [filtroPeriodo, setFiltroPeriodo] = useState("todos");
 
   const [presenca, setPresenca] = useState<Record<string, boolean>>({});
   const [justificativas, setJustificativas] = useState<Record<string, string>>({});
@@ -71,6 +70,7 @@ const PresencaPage = () => {
               .in("id", ids)
           : { data: [] as any[] };
         const extrasMap = new Map((extras || []).map((p: any) => [p.id, p]));
+        const turmaPeriodo = turmas.find((t) => t.id === selectedTurma)?.periodo || null;
         const list = elegiveis.map((e) => {
           const ex = extrasMap.get(e.participante_id) || {};
           return {
@@ -83,7 +83,7 @@ const PresencaPage = () => {
             bairro_id: ex.bairro_id,
             periodo: ex.periodo,
           };
-        });
+        }).filter((p: any) => !turmaPeriodo || !p.periodo || p.periodo === turmaPeriodo);
         setParticipantes(list);
         const pres: Record<string, boolean> = {};
         list.forEach((p: any) => {
@@ -102,7 +102,6 @@ const PresencaPage = () => {
   const filteredParticipantes = useMemo(() => {
     return participantes.filter((p: any) => {
       if (filtroBairro !== "todos" && p.bairro_id !== filtroBairro) return false;
-      if (filtroPeriodo !== "todos" && p.periodo !== filtroPeriodo) return false;
       if (filtroFaixa !== "todos" && p.data_nascimento) {
         const age = calcAge(p.data_nascimento);
         const range = FAIXAS[filtroFaixa];
@@ -110,7 +109,7 @@ const PresencaPage = () => {
       }
       return true;
     });
-  }, [participantes, filtroBairro, filtroFaixa, filtroPeriodo]);
+  }, [participantes, filtroBairro, filtroFaixa]);
 
   const numPresentes = filteredParticipantes.filter(p => presenca[p.id]).length;
   const numAusentes = filteredParticipantes.length - numPresentes;
