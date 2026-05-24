@@ -185,7 +185,7 @@ const RelatorioNovoPage = () => {
       // Inclusão por status: ativo, cadastro_incompleto, busca_ativa.
       // Desligados/transferidos vêm como bloqueados (≤30d) e ficam fora da chamada.
       const ALLOWED_STATUS = new Set(["ativo", "cadastro_incompleto", "busca_ativa"]);
-      const list = Array.from(unique.values())
+      const baseList = Array.from(unique.values())
         .filter(p => ALLOWED_STATUS.has(p.status) && !p.bloqueado_chamada)
         .map(p => ({
           id: p.participante_id,
@@ -195,6 +195,22 @@ const RelatorioNovoPage = () => {
           periodo: null as string | null,
         }))
         .sort((a, b) => a.nome.localeCompare(b.nome));
+
+      // Filtra por período compatível com as turmas selecionadas (Manhã ↔ Manhã, Tarde ↔ Tarde)
+      const selectedPeriodos = new Set(
+        form.turma_ids.map(id => turmas.find(t => t.id === id)?.periodo).filter(Boolean) as string[]
+      );
+      let list = baseList;
+      if (selectedPeriodos.size > 0 && baseList.length > 0) {
+        const { data: pdata } = await supabase
+          .from("participantes")
+          .select("id, periodo")
+          .in("id", baseList.map(p => p.id));
+        const periodoMap = new Map((pdata || []).map((p: any) => [p.id, p.periodo]));
+        list = baseList
+          .map(p => ({ ...p, periodo: (periodoMap.get(p.id) as string) ?? null }))
+          .filter(p => !p.periodo || selectedPeriodos.has(p.periodo));
+      }
       setParticipantesTurma(list);
       {
 
