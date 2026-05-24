@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ArrowLeft, Save, Loader2, Upload, X, Check, ChevronsUpDown, AlertTriangle, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Upload, X, Check, ChevronsUpDown, AlertTriangle, Plus, Trash2, Sun, Sunset } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -715,24 +715,38 @@ const RelatorioNovoPage = () => {
           {turmas.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma turma ativa</p> : (
             <>
               {/* Group by periodo */}
-              {(["manha", "tarde", "integral"] as const).map(per => {
+              {(["manha", "tarde"] as const).map(per => {
                 const perTurmas = [...turmas].filter(t => (t.periodo || "manha") === per).sort((a, b) => {
                   if (!form.educador_id) return 0;
                   return (a.educador_id === form.educador_id ? 0 : 1) - (b.educador_id === form.educador_id ? 0 : 1);
                 });
                 if (perTurmas.length === 0) return null;
-                const label = per === "manha" ? "Manhã" : per === "tarde" ? "Tarde" : "Integral";
+                const label = per === "manha" ? "Manhã" : "Tarde";
+                const Icon = per === "manha" ? Sun : Sunset;
+                const accent = per === "manha" ? "text-amber-600" : "text-orange-700";
                 return (
-                  <div key={per}>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">{label}</p>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  <div key={per} className="rounded-md border border-border/60 overflow-hidden">
+                    <div className={cn("flex items-center gap-2 px-2.5 py-1.5 bg-muted/40 border-b border-border/60", accent)}>
+                      <Icon className="h-3.5 w-3.5" />
+                      <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+                      <span className="text-[10px] font-normal text-muted-foreground">({perTurmas.length})</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5 p-2">
                       {perTurmas.map(t => {
                         const isLinked = form.educador_id && t.educador_id === form.educador_id;
+                        const isChecked = form.turma_ids.includes(t.id);
                         return (
-                          <label key={t.id} className={cn("flex items-center gap-2 text-sm cursor-pointer rounded-md px-2 py-1 transition-colors", isLinked && "bg-primary/10 ring-1 ring-primary/30 font-medium")}>
-                            <Checkbox checked={form.turma_ids.includes(t.id)} onCheckedChange={() => toggleTurma(t.id)} />
+                          <label
+                            key={t.id}
+                            className={cn(
+                              "flex items-center gap-2 text-sm cursor-pointer rounded-md px-2 py-1.5 transition-colors border border-transparent hover:bg-muted/60",
+                              isChecked && "bg-primary/5 border-primary/30",
+                              isLinked && "bg-primary/10 ring-1 ring-primary/40 font-medium"
+                            )}
+                          >
+                            <Checkbox checked={isChecked} onCheckedChange={() => toggleTurma(t.id)} />
                             {isLinked && <span className="text-primary text-xs">★</span>}
-                            {t.nome}
+                            <span className="truncate">{t.nome}</span>
                           </label>
                         );
                       })}
