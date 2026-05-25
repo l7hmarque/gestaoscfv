@@ -1,70 +1,91 @@
-## Diagnóstico
+## Diagnóstico atual (38 turmas ativas)
 
-Hoje há **69 turmas** com 2 modelos misturados:
-- **18 genéricas** (`ALVORADA — 6-8 — Manhã`) — sobra do modelo antigo, sem oficina
-- **51 por oficina** (KARATE, DANÇA E POESIA, ESPORTE E RECREAÇÃO, ATIVIDADES CULTURAIS E ARTÍSTICAS)
-- **13 inativas** já marcadas como `ativa=false`
-- Várias turmas de oficina com **mesmo nome** entre Manhã e Tarde (o período não aparece no nome)
+Rodei um varredor agora:
 
-Como a chamada é por oficina, as genéricas viraram só "ruído". Vou consolidar tudo no modelo por oficina.
+- ✅ **0 turmas sem educador** (Laila, Fabio, Jenifer e Felipe cobrem 100%)
+- ✅ **0 turmas vazias** (todas com participantes)
+- ✅ **0 duplicatas** por oficina+bairro+faixa+período
+- ✅ **0 turmas sem dias da semana**
+- ⚠️ **3 turmas com ≤2 participantes** (todas no turno Tarde de ALVORADA 6-8) — possível gargalo
+- ⚠️ **4 participantes ativos sem nenhuma turma vinculada** — gap real
+- ⚠️ **ATIVIDADES CULTURAIS, ESPORTE e KARATE não têm faixa 12-17** — só DANÇA tem (unificada multi-bairro). Falta de cobertura para adolescentes nessas oficinas
+- ℹ️ 2 turmas com bairro NULL: `DANCA E POESIA — 12-17 — TODOS OS BAIRROS` (manhã e tarde) — intencional, mas o restante da UI precisa saber lidar
 
 ## O que vou fazer
 
-### 1. Desativar as 18 turmas genéricas (sem oficina)
-- Marcar `ativa = false` em todas as turmas onde `oficina IS NULL` ou `oficina = ''`.
-- **Não excluir** — elas têm presenças/relatórios históricos vinculados que precisam ser preservados.
-- Resultado: somem dos seletores de chamada, presença, relatórios novos.
-
-### 2. Renomear turmas de oficina incluindo o período
-Padrão novo: `OFICINA — FAIXA — BAIRRO — PERÍODO`
-
-Exemplos:
-- `KARATE — 6-8 — ALVORADA` (manhã) → `KARATE — 6-8 — ALVORADA — Manhã`
-- `KARATE — 6-8 — ALVORADA` (tarde) → `KARATE — 6-8 — ALVORADA — Tarde`
-- Acaba a colisão de nomes idênticos entre turnos.
-
-### 3. Excluir definitivamente turmas inativas SEM histórico
-Para cada uma das 13 inativas, checar se há vínculos em:
-- `presenca`, `relatorio_turmas`, `turma_participantes`, `planejamento_turmas`, `cronograma_slots`, `chamadas_assinadas`
-
-Se **zero vínculos em todas** → `DELETE`. Se tiver qualquer histórico → **mantém inativa** (já estava assim).
-Registrar a exclusão em `audit_log`.
-
-### 4. Organizar a UI de seleção de turmas
-Hoje o `<Select>` de turmas mostra lista plana (já com grupo Manhã/Tarde em /presenca). Vou padronizar em todos os pontos para usar **3 níveis hierárquicos**:
+### 1. TurmasPage — painéis por oficina
+Em vez do grid plano atual, agrupar em **um painel por oficina**, cada painel com:
 
 ```text
-BAIRRO  (JARDIM IRENE / ALVORADA / PARQUE INDEPENDÊNCIA)
- └── PERÍODO  (Manhã / Tarde / Idosos)
-      └── OFICINA — FAIXA  (KARATE 6-8, DANÇA 9-11, …)
+┌── KARATE  ·  Felipe Gomes da Silva  ·  12 turmas  ·  100 part. ─┐
+│  [card turma 1]  [card turma 2]  [card turma 3] ...             │
+└─────────────────────────────────────────────────────────────────┘
+┌── DANÇA E POESIA  ·  Fabio  ·  10 turmas  ·  168 part. ─────────┐
+│  ...                                                             │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-Pontos afetados:
-- `src/pages/presenca/PresencaPage.tsx`
-- `src/pages/relatorios/RelatorioNovoPage.tsx`
-- `src/pages/turmas/TurmasPage.tsx` (lista geral)
-- qualquer outro `<Select>` de turma que use a mesma lista
+- Cabeçalho mostra educador(es) vinculado(s), contagem de turmas e total de participantes
+- Cards continuam clicáveis para /turmas/:id (mesma navegação)
+- Filtros (busca, período, faixa, status) continuam funcionando — só muda o agrupamento visual
 
-Idosos ganham seu próprio grupo (ficam visualmente separados das crianças).
+### 2. Botão "PDF Relação de Turmas"
+Novo botão no header da TurmasPage. Gera **um PDF** com:
 
-### 5. Atualizar a constraint de nomenclatura
-Atualizar a memória `mem://constraints/nomenclatura-turmas` para o novo padrão `OFICINA — FAIXA — BAIRRO — PERÍODO`, e o validador em `TurmaNovaPage` (se existir checagem) para o novo formato.
+- Capa institucional (SysCFV, data de geração, total de turmas/participantes)
+- Uma seção por oficina (com educador no topo)
+- Para cada turma: nome, bairro, período, faixa, dias da semana, educador, lista numerada de participantes (com marcador BA para busca ativa)
+- Rodapé com paginação
 
-## O que **NÃO** vou fazer agora (conforme você pediu)
-- **Não mexer em turmas com 0 ou 1 participante** — ficam ativas, você revisa depois caso a caso.
-- **Não alterar vínculos `turma_participantes`** — eles já foram reorganizados na rodada anterior (1 turma por oficina).
-- **Não tocar em presenças, relatórios ou planejamentos passados.**
+Usa `jspdf` + `jspdf-autotable` (já no projeto se possível, senão adiciono).
 
-## Detalhes técnicos
+### 3. Painel "Revisar educadores das turmas"
+Novo botão no header (`<UserCheck/> Revisar educadores`). Abre um Dialog mostrando **todas as 38 turmas agrupadas por oficina**, cada linha com:
 
-- 3 migrations leves (ou 1 migration + 1 chamada de dados):
-  1. `UPDATE turmas SET ativa = false WHERE oficina IS NULL OR oficina = ''`
-  2. `UPDATE turmas SET nome = oficina || ' — ' || faixa_etaria || ' — ' || <bairro> || ' — ' || CASE periodo WHEN 'manha' THEN 'Manhã' WHEN 'tarde' THEN 'Tarde' ELSE 'Integral' END WHERE oficina IS NOT NULL AND oficina <> ''`
-  3. `DELETE FROM turmas WHERE ativa = false AND id NOT IN (SELECT turma_id FROM presenca UNION SELECT turma_id FROM relatorio_turmas UNION SELECT turma_id FROM turma_participantes UNION …)` — com `audit_log` antes.
-- UI: extrair `<TurmaSelect bairros={…} turmas={…}/>` em `src/components/TurmaSelect.tsx` para reuso e usar `SelectGroup` aninhado por bairro/período.
-- Sem mudanças em RLS, edge functions, ou schema.
+- Nome da turma
+- Combobox de educador (lista de profissionais ativos) — pré-preenchido com o atual
+- Botão "Salvar tudo" no rodapé que persiste só as mudanças
 
-## Resultado esperado
-- De 69 → ~38 turmas ativas (só por oficina), todas com nome único.
-- Seleção em 3 cliques lógicos (bairro → período → oficina/faixa).
-- Histórico 100% preservado.
+Mesmo sem nenhuma turma faltando educador hoje, o painel serve para você revisar/confirmar rapidamente.
+
+### 4. Melhor seletor de turma em /presenca e /relatorios/novo
+Mudar a hierarquia para **OFICINA → BAIRRO → PERÍODO/FAIXA** (faz mais sentido já que a chamada é por oficina):
+
+```text
+KARATE
+ ├── ALVORADA
+ │    ├── Manhã · 6-8
+ │    ├── Manhã · 9-11
+ │    ├── Tarde · 6-8
+ │    └── Tarde · 9-11
+ ├── JARDIM IRENE
+ │    └── ...
+ └── PARQUE INDEPENDÊNCIA
+      └── ...
+```
+
+- Extrair em `<TurmaSelectAgrupado>` reutilizável (Presença usa Select; Relatório Novo usa lista de checkboxes — ambos usam a mesma estrutura agrupada).
+- Indicador ★ continua para turmas vinculadas ao educador da sessão.
+- Turmas "TODOS OS BAIRROS" (DANÇA 12-17) ficam em um grupo "Multi-bairro" no topo da oficina.
+
+### 5. Card de diagnóstico de gaps no topo da TurmasPage
+Banner compacto colapsável com os 3 alertas acima:
+
+- "3 turmas com baixa frequência (≤2 participantes)" → clica e expande
+- "4 participantes ativos sem turma" → link para /participantes filtrado
+- "Cobertura 12-17 ausente em KARATE, ESPORTE, ATIV. CULTURAIS" → informativo
+
+## O que NÃO vou fazer agora
+- Não vou alterar `educador_id` de nenhuma turma automaticamente (você decide no painel novo)
+- Não vou criar turmas 12-17 faltantes — só alerto (você decide se vale abrir)
+- Não vou desativar as 3 turmas baixa frequência — só alerto
+
+## Arquivos afetados
+- `src/pages/turmas/TurmasPage.tsx` (reagrupar + 2 botões novos + banner)
+- `src/components/TurmaSelectAgrupado.tsx` (novo)
+- `src/components/ReviewEducadoresDialog.tsx` (novo)
+- `src/lib/exportRelacaoTurmasPdf.ts` (novo — geração do PDF)
+- `src/pages/presenca/PresencaPage.tsx` (usa o novo Select)
+- `src/pages/relatorios/RelatorioNovoPage.tsx` (usa o novo agrupamento)
+
+Sem mudanças de schema, RLS ou edge function.
