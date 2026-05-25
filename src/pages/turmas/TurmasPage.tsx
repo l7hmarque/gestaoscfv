@@ -17,6 +17,7 @@ import { exportAllListasPresenca } from "@/lib/exportListaPresenca";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { exportRelacaoTurmasPdf } from "@/lib/exportRelacaoTurmasPdf";
 import ReviewEducadoresDialog from "@/components/ReviewEducadoresDialog";
+import ResolverOrfaosDialog from "@/components/ResolverOrfaosDialog";
 import { isParticipanteInativo } from "@/lib/constants";
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
