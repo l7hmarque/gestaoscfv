@@ -1,58 +1,104 @@
-## Problema
+## Contexto
 
-Ao excluir uma turma, três FKs sem regra de exclusão bloqueiam a operação:
+O painel de "Gaps" da página `/turmas` está acusando **49 vínculos órfãos**: participantes ainda marcados como ativos (status `ativo`, `busca_ativa`, `pendente` ou `incompleto`) que continuam vinculados (`turma_participantes.data_saida IS NULL`) a **10 turmas inativas** (`turmas.ativa = false`). Distribuição atual (confirmada no banco):
 
-1. `participante_transferencias.turma_origem_id` → turmas (NO ACTION)
-2. `participante_transferencias.turma_destino_id` → turmas (NO ACTION)
-3. `cronograma_slots.turma_id` → turmas (NO ACTION)
-
-A RPC `excluir_turma_com_auditoria` só apaga `turma_participantes` antes de remover a turma, então o `DELETE` quebra na constraint.
-
-## Decisão de design
-
-Para **`participante_transferencias`** (histórico de transferências aprovadas — dado de auditoria, NÃO pode ser apagado):
-→ alterar FKs para **`ON DELETE SET NULL`**. A transferência permanece no histórico apontando para "turma removida".
-
-Para **`cronograma_slots`** (slots da agenda semanal, recriáveis):
-→ alterar FK para **`ON DELETE CASCADE`**. Slot sem turma não faz sentido.
-
-Essa abordagem é melhor do que apagar manualmente na RPC porque:
-- Funciona para QUALQUER caminho de exclusão (RPC, console, futuras rotinas), não só a RPC atual.
-- Preserva o histórico de transferências (LGPD/auditoria).
-- Não exige novo código TypeScript.
-
-## Implementação
-
-**Uma migration SQL apenas:**
-
-```sql
--- 1. participante_transferencias: preservar histórico, apenas desreferenciar
-ALTER TABLE public.participante_transferencias
-  DROP CONSTRAINT participante_transferencias_turma_origem_id_fkey,
-  ADD CONSTRAINT participante_transferencias_turma_origem_id_fkey
-    FOREIGN KEY (turma_origem_id) REFERENCES public.turmas(id) ON DELETE SET NULL;
-
-ALTER TABLE public.participante_transferencias
-  DROP CONSTRAINT participante_transferencias_turma_destino_id_fkey,
-  ADD CONSTRAINT participante_transferencias_turma_destino_id_fkey
-    FOREIGN KEY (turma_destino_id) REFERENCES public.turmas(id) ON DELETE SET NULL;
-
--- 2. cronograma_slots: cascade (slot órfão é inútil)
-ALTER TABLE public.cronograma_slots
-  DROP CONSTRAINT cronograma_slots_turma_id_fkey,
-  ADD CONSTRAINT cronograma_slots_turma_id_fkey
-    FOREIGN KEY (turma_id) REFERENCES public.turmas(id) ON DELETE CASCADE;
+```text
+ALVORADA — 12-17 — Tarde            17
+ALVORADA — 9-11  — Tarde             9
+ALVORADA — 6-8   — Manhã             7
+ALVORADA — 9-11  — Manhã             6
+ALVORADA — 12-17 — Manhã             5
+ALVORADA — 6-8   — Tarde             1
+PARQUE INDEP. — 6-8  — Manhã         1
+PARQUE INDEP. — 9-11 — Manhã         1
+JARDIM IRENE  — 6-8  — Manhã         1
+JARDIM IRENE  — 12-17 — Manhã        1
+TOTAL                                49
 ```
 
-A RPC `excluir_turma_com_auditoria` e o `BancoDadosPage` continuam funcionando sem mudanças. O delete em lote (`excluir_turmas_lote_com_auditoria`) também passa a funcionar.
+Isso aconteceu porque as turmas foram desativadas sem realocar os participantes (provavelmente um redesenho do quadro de oficinas em ALVORADA). Eles ainda contam como "ativos" no sistema, mas não aparecem em nenhuma chamada — quebra indicadores, relatório mensal e busca ativa.
 
-## Implicações no fluxo
+## Solução proposta — wizard "Resolver Vínculos Órfãos"
 
-- **Tela de Turmas / Banco de Dados:** exclusão volta a funcionar para qualquer turma, incluindo as 11 turmas inativas com vínculos órfãos identificadas anteriormente.
-- **Histórico de transferências:** se uma turma referenciada for excluída, o registro mostrará "—" no lugar do nome. O participante e a data permanecem. Recomendo, na tela de transferências, exibir um fallback tipo "Turma removida" quando `turma_*_id` for null.
-- **Cronograma semanal:** slots da turma excluída somem da agenda automaticamente, comportamento esperado.
-- **Reversão:** trivial — basta nova migration revertendo as constraints.
+Adicionar um botão **"Resolver 49 vínculos órfãos"** no card de Gaps que abre um diálogo de revisão linha-a-linha. Para cada participante órfão a coordenação escolhe **uma** das três ações:
 
-## Risco
+1. **Transferir para turma ativa** — combobox pré-filtrado com turmas ativas compatíveis por **bairro + faixa etária + período** (sugestão automática quando há exatamente uma). Grava em `turma_participantes` (data_saida na origem + nova linha na destino) e registra em `participante_transferencias` com motivo "Realocação por desativação de turma".
+2. **Registrar saída** (sem transferência) — apenas seta `turma_participantes.data_saida = hoje`. Útil quando o participante de fato não migrou para nenhuma oficina ativa.
+3. **Desligar participante** — seta `participantes.status = 'desligado'`, `data_desligamento = hoje`, motivo "Encerramento de turma sem realocação" e fecha o vínculo (mesma regra do Painel de Desligamento). Já existe RPC para isso.
 
-Baixo. Nenhuma perda de dado de auditoria (transferências preservadas). `cronograma_slots` é regenerado a cada planejamento semanal.
+Padrão pré-selecionado:
+- Se houver **exatamente uma** turma ativa compatível → "Transferir" pré-selecionada com ela.
+- Se houver **mais de uma** → "Transferir" pré-selecionada, combobox aberto.
+- Se **não houver nenhuma** → "Registrar saída" pré-selecionada.
+
+A coordenação pode mudar livremente. O botão **"Aplicar tudo"** dispara as 49 ações dentro de uma única transação RPC com auditoria (`audit_log` por participante, justificativa única no topo do diálogo).
+
+### Diagrama do fluxo
+
+```text
+Painel Gaps  ──►  [Resolver 49 vínculos órfãos]
+                       │
+                       ▼
+            ┌──────────────────────────────┐
+            │  Diálogo (agrupado por       │
+            │  turma inativa)              │
+            │                              │
+            │  • Participante A  [Transf ▼ a Turma X ]│
+            │  • Participante B  [Saída            ] │
+            │  • Participante C  [Desligar         ] │
+            │  ...                         │
+            │                              │
+            │  Justificativa: __________   │
+            │  [Cancelar]   [Aplicar tudo] │
+            └──────────────────────────────┘
+                       │
+                       ▼
+              RPC resolver_orfaos_lote
+              (transacional + audit_log)
+                       │
+                       ▼
+       Invalida caches  →  Gap volta a 0
+```
+
+## Detalhes técnicos
+
+**Backend (migration nova):**
+- RPC `get_orfaos_turmas_inativas()` → retorna `[{ turma_id, turma_nome, bairro_id, faixa_etaria, periodo, participantes: [{ id, nome, status, idade }], sugestoes_turmas: [{ id, nome }] }]`. Sugestão = turmas com `ativa = true` AND mesmo período AND faixa etária compatível AND (bairro do participante ∈ `bairro_ids` da turma OU `turmas.bairro_id` = bairro do participante).
+- RPC `resolver_orfaos_lote(_acoes jsonb, _justificativa text)` recebe `[{ participante_id, turma_origem_id, acao: 'transferir'|'saida'|'desligar', turma_destino_id?: uuid }]` e:
+  - `transferir`: fecha vínculo origem (`data_saida = CURRENT_DATE`) + insere vínculo destino + insere `participante_transferencias` (origem, destino, motivo).
+  - `saida`: só fecha vínculo origem.
+  - `desligar`: fecha vínculo origem + atualiza `participantes` (status, data_desligamento, motivo).
+  - Todas as ações gravam `audit_log` por participante.
+  - Bloqueia se `auth.uid()` não tem role `coordenacao`.
+- Segurança: `security definer`, `set search_path = public`, `grant execute … to authenticated`.
+
+**Frontend (`src/pages/turmas/TurmasPage.tsx` + novo `ResolverOrfaosDialog.tsx`):**
+- Botão dentro do card de Gaps quando `totalOrfaos > 0`.
+- Diálogo agrupado por turma inativa, com toggle de ação por participante (Radio + Combobox de destino).
+- `Promise` única chamando a RPC; toast com resumo (`X transferidos, Y saídas, Z desligados`).
+- Invalida `["turmas-list"]`, `["participantes"]`, `["pendencias-integridade"]`.
+
+**Impacto em fluxos / indicadores:**
+- ✅ Indicadores de presença e relatórios mensais voltam a contar corretamente esses 49.
+- ✅ Busca ativa para de ignorar (eles não tinham chamada → não tinham presença → eram "fantasmas").
+- ✅ Histórico preservado: `participante_transferencias` registra a realocação; status anteriores não são apagados.
+- ⚠️ Quem for marcado como "saída sem transferência" some das chamadas, mas continua ativo no cadastro — útil só se a coordenação realmente quiser depois transferir manualmente. Mensagem de aviso no diálogo.
+- ⚠️ Desligamento é irreversível pelo fluxo normal (precisa de coordenação para reativar).
+
+**Riscos / mitigação:**
+- Conflito com a turma de destino: a RPC bloqueia inserção se já existir vínculo ativo do mesmo participante naquela turma (`unique (participante_id, turma_id) WHERE data_saida IS NULL` — adicionar índice se ainda não existir).
+- Reentrada: a RPC é idempotente — se um participante já tem `data_saida` na origem, é ignorado com aviso no resultado.
+- Auditoria: tudo passa por `audit_log` com a justificativa única do diálogo, sem perda de rastreabilidade.
+
+## Alternativas que descartei
+
+- **Reativar as turmas em massa**: não resolve o problema real (a coordenação já decidiu desativá-las) e ainda confunde o cronograma.
+- **Cron job automático que fecha vínculo quando turma vira inativa**: perigoso — perderia a chance de transferir e desativaria participantes sem revisão humana. Pode entrar como segunda fase **depois** desta limpeza, como trigger que só fecha o vínculo se a turma já estiver inativa há > 30 dias e nenhuma ação tiver sido tomada.
+- **Script SQL one-shot**: corrige hoje mas não evita reincidência e não dá revisão participante a participante.
+
+## Confirmações antes de implementar
+
+Antes de partir para a build, preciso que você confirme:
+
+1. **OK criar a RPC + diálogo de revisão** (recomendado), ou prefere apenas um script SQL de limpeza one-shot agora e a gente trata reincidência depois?
+2. **Padrão sugerido para ALVORADA**: as 5 turmas inativas de ALVORADA têm equivalentes ativos (oficina "ATIVIDADES CULTURAIS E ARTISTICAS" e "DANCA E POESIA" 12-17). Você quer que a sugestão automática **distribua entre as oficinas ativas do mesmo bairro/faixa/período** (round-robin) ou **deixe a coordenação escolher manualmente uma a uma** (default mais seguro)?
