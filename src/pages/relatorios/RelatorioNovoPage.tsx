@@ -71,6 +71,7 @@ const RelatorioNovoPage = () => {
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [turmas, setTurmas] = useState<any[]>([]);
+  const [bairros, setBairros] = useState<any[]>([]);
   const [educadores, setEducadores] = useState<any[]>([]);
   const [planejamentos, setPlanejamentos] = useState<any[]>([]);
   const [participantesTurma, setParticipantesTurma] = useState<any[]>([]);
