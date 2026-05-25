@@ -470,6 +470,14 @@ const TurmasPage = () => {
       )}
 
       <ReviewEducadoresDialog open={reviewOpen} onOpenChange={setReviewOpen} onSaved={fetchTurmas} />
+      <ResolverOrfaosDialog
+        open={orfaosOpen}
+        onClose={() => setOrfaosOpen(false)}
+        onResolved={() => {
+          queryClient.invalidateQueries({ queryKey: ["turmas-list"] });
+          queryClient.invalidateQueries({ queryKey: ["participantes"] });
+        }}
+      />
 
       {/* Search + filters */}
       <div className="flex flex-wrap items-center gap-2">
