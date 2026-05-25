@@ -271,7 +271,7 @@ const TurmasPage = () => {
       const k = t.oficina?.trim();
       if (!k) return;
       const fxs = (t.faixas_etarias && t.faixas_etarias.length > 0) ? t.faixas_etarias : (t.faixa_etaria ? [t.faixa_etaria] : []);
-      (oficinasComFaixas[k] = oficinasComFaixas[k] || new Set()).forEach(() => {});
+      oficinasComFaixas[k] = oficinasComFaixas[k] || new Set();
       fxs.forEach(f => oficinasComFaixas[k].add(f));
     });
     const oficinasSem1217 = Object.entries(oficinasComFaixas)
