@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ArrowLeft, Save, Loader2, Upload, X, Check, ChevronsUpDown, AlertTriangle, Plus, Trash2, Sun, Sunset } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Upload, X, Check, ChevronsUpDown, AlertTriangle, Plus, Trash2, Sun, Sunset, MapPin } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
-import { TIPOS_ATIVIDADE } from "@/lib/constants";
+import { TIPOS_ATIVIDADE, FAIXA_LABELS, isBairroSCFV } from "@/lib/constants";
 import { checkConquistas } from "@/hooks/useConquistas";
 import { useFormTimer } from "@/hooks/useFormTimer";
 import { getParticipantesDaTurma, type ParticipanteTurma } from "@/lib/participantesTurma";
@@ -71,6 +71,7 @@ const RelatorioNovoPage = () => {
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [turmas, setTurmas] = useState<any[]>([]);
+  const [bairros, setBairros] = useState<any[]>([]);
   const [educadores, setEducadores] = useState<any[]>([]);
   const [planejamentos, setPlanejamentos] = useState<any[]>([]);
   const [participantesTurma, setParticipantesTurma] = useState<any[]>([]);
@@ -115,12 +116,14 @@ const RelatorioNovoPage = () => {
   // Load base data
   useEffect(() => {
     const fetchBase = async () => {
-      const [t, e, r] = await Promise.all([
-        supabase.from("turmas").select("id, nome, educador_id, oficina, periodo").eq("ativa", true).order("nome"),
+      const [t, e, r, bData] = await Promise.all([
+        supabase.from("turmas").select("id, nome, educador_id, oficina, periodo, faixa_etaria, bairro_id").eq("ativa", true).order("oficina").order("faixa_etaria"),
         supabase.from("profiles").select("id, nome, user_id"),
         supabase.from("user_roles").select("user_id, role"),
+        supabase.from("bairros").select("id, nome").order("nome"),
       ]);
       if (t.data) setTurmas(t.data);
+      if (bData.data) setBairros(bData.data);
       // Filter to only educators and coordenacao
       const educadorUserIds = new Set(
         (r.data || [])
@@ -713,48 +716,64 @@ const RelatorioNovoPage = () => {
         <CardHeader className="pb-3"><CardTitle className="text-base">Turmas (Lista de Chamada) {form.educador_id && <span className="text-xs font-normal text-muted-foreground ml-2">★ = turmas do educador selecionado</span>}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {turmas.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma turma ativa</p> : (
-            <>
-              {/* Group by periodo */}
-              {(["manha", "tarde"] as const).map(per => {
-                const perTurmas = [...turmas].filter(t => (t.periodo || "manha") === per).sort((a, b) => {
-                  if (!form.educador_id) return 0;
-                  return (a.educador_id === form.educador_id ? 0 : 1) - (b.educador_id === form.educador_id ? 0 : 1);
-                });
-                if (perTurmas.length === 0) return null;
-                const label = per === "manha" ? "Manhã" : "Tarde";
-                const Icon = per === "manha" ? Sun : Sunset;
-                const accent = per === "manha" ? "text-amber-600" : "text-orange-700";
+            <div className="space-y-3">
+              {bairros.filter(b => isBairroSCFV(b.nome)).map(bairro => {
+                const bairroTurmas = turmas.filter(t => t.bairro_id === bairro.id);
+                if (bairroTurmas.length === 0) return null;
                 return (
-                  <div key={per} className="rounded-md border border-border/60 overflow-hidden">
-                    <div className={cn("flex items-center gap-2 px-2.5 py-1.5 bg-muted/40 border-b border-border/60", accent)}>
-                      <Icon className="h-3.5 w-3.5" />
-                      <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
-                      <span className="text-[10px] font-normal text-muted-foreground">({perTurmas.length})</span>
+                  <div key={bairro.id} className="rounded-md border border-border/60 overflow-hidden">
+                    <div className="flex items-center gap-2 px-2.5 py-1.5 bg-muted/50 border-b border-border/60 text-primary">
+                      <MapPin className="h-3.5 w-3.5" />
+                      <span className="text-xs font-semibold uppercase tracking-wide">{bairro.nome}</span>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5 p-2">
-                      {perTurmas.map(t => {
-                        const isLinked = form.educador_id && t.educador_id === form.educador_id;
-                        const isChecked = form.turma_ids.includes(t.id);
+                    <div className="p-2 space-y-2">
+                      {(["manha", "tarde", "idosos"] as const).map(per => {
+                        const perTurmas = bairroTurmas.filter(t => (
+                          per === "idosos" ? t.faixa_etaria === "idosos" : (t.periodo || "manha") === per && t.faixa_etaria !== "idosos"
+                        )).sort((a, b) => {
+                          if (!form.educador_id) return 0;
+                          return (a.educador_id === form.educador_id ? 0 : 1) - (b.educador_id === form.educador_id ? 0 : 1);
+                        });
+                        if (perTurmas.length === 0) return null;
+                        const Icon = per === "manha" ? Sun : per === "tarde" ? Sunset : MapPin;
+                        const accent = per === "manha" ? "text-amber-600" : per === "tarde" ? "text-orange-700" : "text-slate-600";
+                        const label = per === "manha" ? "Manhã" : per === "tarde" ? "Tarde" : "Idosos";
                         return (
-                          <label
-                            key={t.id}
-                            className={cn(
-                              "flex items-center gap-2 text-sm cursor-pointer rounded-md px-2 py-1.5 transition-colors border border-transparent hover:bg-muted/60",
-                              isChecked && "bg-primary/5 border-primary/30",
-                              isLinked && "bg-primary/10 ring-1 ring-primary/40 font-medium"
-                            )}
-                          >
-                            <Checkbox checked={isChecked} onCheckedChange={() => toggleTurma(t.id)} />
-                            {isLinked && <span className="text-primary text-xs">★</span>}
-                            <span className="truncate">{t.nome}</span>
-                          </label>
+                          <div key={per}>
+                            <div className={cn("flex items-center gap-1.5 px-1 pb-1 text-[10px] font-medium uppercase tracking-wide", accent)}>
+                              <Icon className="h-3 w-3" />
+                              {label}
+                              <span className="text-muted-foreground font-normal">({perTurmas.length})</span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                              {perTurmas.map(t => {
+                                const isLinked = form.educador_id && t.educador_id === form.educador_id;
+                                const isChecked = form.turma_ids.includes(t.id);
+                                const compactLabel = `${t.oficina || "Geral"} · ${FAIXA_LABELS[t.faixa_etaria || ""] || t.faixa_etaria || "—"}`;
+                                return (
+                                  <label
+                                    key={t.id}
+                                    className={cn(
+                                      "flex items-center gap-2 text-sm cursor-pointer rounded-md px-2 py-1.5 transition-colors border border-transparent hover:bg-muted/60",
+                                      isChecked && "bg-primary/5 border-primary/30",
+                                      isLinked && "bg-primary/10 ring-1 ring-primary/40 font-medium"
+                                    )}
+                                  >
+                                    <Checkbox checked={isChecked} onCheckedChange={() => toggleTurma(t.id)} />
+                                    {isLinked && <span className="text-primary text-xs">★</span>}
+                                    <span className="truncate">{compactLabel}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
                   </div>
                 );
               })}
-            </>
+            </div>
           )}
 
           {/* Período da Atividade */}

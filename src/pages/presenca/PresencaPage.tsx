@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Save, Loader2, Check, Sun, Sunset } from "lucide-react";
+import { Save, Loader2, Check, Sun, Sunset, MapPin } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { isBairroSCFV, calcAge } from "@/lib/constants";
+import { isBairroSCFV, calcAge, FAIXA_LABELS } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { useFormTimer } from "@/hooks/useFormTimer";
 import { getParticipantesDaTurma } from "@/lib/participantesTurma";
@@ -46,7 +46,7 @@ const PresencaPage = () => {
   useEffect(() => {
     const load = async () => {
       const [t, b] = await Promise.all([
-        supabase.from("turmas").select("id, nome, bairro_id, faixa_etaria, periodo").eq("ativa", true).order("nome"),
+        supabase.from("turmas").select("id, nome, bairro_id, faixa_etaria, periodo, oficina").eq("ativa", true).order("oficina").order("faixa_etaria"),
         supabase.from("bairros").select("id, nome").order("nome"),
       ]);
       if (t.data) setTurmas(t.data);
@@ -54,6 +54,21 @@ const PresencaPage = () => {
     };
     load();
   }, []);
+
+  // Agrupa turmas: Bairro → Período → turmas (somente bairros SCFV operacionais)
+  const turmasAgrupadas = useMemo(() => {
+    const bairrosOrdered = bairros.filter(b => isBairroSCFV(b.nome));
+    const periodos: Array<"manha" | "tarde" | "idosos"> = ["manha", "tarde", "idosos"];
+    return bairrosOrdered.map(b => ({
+      bairro: b,
+      grupos: periodos.map(per => {
+        const items = turmas.filter(t => t.bairro_id === b.id && (
+          per === "idosos" ? t.faixa_etaria === "idosos" : (t.periodo || "manha") === per && t.faixa_etaria !== "idosos"
+        ));
+        return { periodo: per, items };
+      }).filter(g => g.items.length > 0),
+    })).filter(b => b.grupos.length > 0);
+  }, [turmas, bairros]);
 
   useEffect(() => {
     if (!selectedTurma) { setParticipantes([]); return; }
@@ -167,22 +182,37 @@ const PresencaPage = () => {
               <Label className="text-xs">Turma *</Label>
               <Select value={selectedTurma} onValueChange={v => setSelectedTurma(v)}>
                 <SelectTrigger><SelectValue placeholder="Selecionar turma" /></SelectTrigger>
-                <SelectContent>
-                  {(["manha", "tarde"] as const).map(per => {
-                    const items = turmas.filter(t => (t.periodo || "manha") === per);
-                    if (items.length === 0) return null;
-                    const Icon = per === "manha" ? Sun : Sunset;
-                    return (
-                      <SelectGroup key={per}>
-                        <SelectLabel className="flex items-center gap-1.5 text-xs">
-                          <Icon className={cn("h-3.5 w-3.5", per === "manha" ? "text-amber-600" : "text-orange-700")} />
-                          {per === "manha" ? "Manhã" : "Tarde"}
-                          <span className="text-[10px] font-normal text-muted-foreground">({items.length})</span>
-                        </SelectLabel>
-                        {items.map(t => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
-                      </SelectGroup>
-                    );
-                  })}
+                <SelectContent className="max-h-[60vh]">
+                  {turmasAgrupadas.map(({ bairro, grupos }) => (
+                    <SelectGroup key={bairro.id}>
+                      <SelectLabel className="flex items-center gap-1.5 text-xs bg-muted/60 sticky top-0">
+                        <MapPin className="h-3.5 w-3.5 text-primary" />
+                        <span className="font-semibold uppercase tracking-wide">{bairro.nome}</span>
+                      </SelectLabel>
+                      {grupos.map(({ periodo, items }) => {
+                        const Icon = periodo === "manha" ? Sun : periodo === "tarde" ? Sunset : MapPin;
+                        const accent = periodo === "manha" ? "text-amber-600" : periodo === "tarde" ? "text-orange-700" : "text-slate-600";
+                        const label = periodo === "manha" ? "Manhã" : periodo === "tarde" ? "Tarde" : "Idosos";
+                        return (
+                          <div key={periodo}>
+                            <div className={cn("flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium uppercase tracking-wide", accent)}>
+                              <Icon className="h-3 w-3" />
+                              {label}
+                              <span className="text-muted-foreground font-normal">({items.length})</span>
+                            </div>
+                            {items.map(t => (
+                              <SelectItem key={t.id} value={t.id} className="pl-7">
+                                <span className="text-sm">
+                                  {t.oficina || "Geral"}
+                                  <span className="text-muted-foreground"> · {FAIXA_LABELS[t.faixa_etaria || ""] || t.faixa_etaria}</span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </SelectGroup>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
