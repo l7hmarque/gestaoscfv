@@ -79,11 +79,13 @@ export default function ReviewEducadoresDialog({ open, onOpenChange, onSaved }: 
     if (mudancas.length === 0) { toast.info("Nenhuma mudança para salvar"); return; }
     setSaving(true);
     try {
-      for (const t of mudancas) {
-        const novo = draft[t.id] || null;
-        const { error } = await supabase.from("turmas").update({ educador_id: novo }).eq("id", t.id);
-        if (error) throw error;
-      }
+      const results = await Promise.all(
+        mudancas.map(t =>
+          supabase.from("turmas").update({ educador_id: draft[t.id] || null }).eq("id", t.id)
+        )
+      );
+      const firstErr = results.find(r => r.error);
+      if (firstErr?.error) throw firstErr.error;
       // Audit
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -138,7 +140,7 @@ export default function ReviewEducadoresDialog({ open, onOpenChange, onSaved }: 
                   const changed = draft[t.id] !== t.educador_id;
                   const empty = !draft[t.id];
                   return (
-                    <div key={t.id} className={`flex items-center gap-2 px-3 py-1.5 text-sm ${changed ? "bg-amber-50" : ""} ${empty ? "bg-destructive/5" : ""}`}>
+                    <div key={t.id} className={`flex items-center gap-2 px-3 py-1.5 text-sm ${changed ? "bg-warning/10" : ""} ${empty ? "bg-destructive/5" : ""}`}>
                       <span className="flex-1 truncate">{t.nome}</span>
                       <Select value={draft[t.id] || "none"} onValueChange={(v) => setDraft(d => ({ ...d, [t.id]: v === "none" ? null : v }))}>
                         <SelectTrigger className="w-56 h-8 text-xs"><SelectValue placeholder="Sem educador" /></SelectTrigger>
