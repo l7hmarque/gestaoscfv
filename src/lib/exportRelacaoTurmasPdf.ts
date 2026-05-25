@@ -53,7 +53,7 @@ export function exportRelacaoTurmasPdf(turmas: TurmaPdfRow[]) {
 
     // Cabeçalho da oficina
     if (cursorY > pageH - 40) { doc.addPage(); cursorY = 18; }
-    doc.setDrawColor(60); doc.setFillColor(30, 30, 30);
+    doc.setDrawColor(0); doc.setFillColor(0, 0, 0);
     doc.rect(10, cursorY, pageW - 20, 9, "F");
     doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(11);
     doc.text(oficina, 13, cursorY + 6);
@@ -75,7 +75,7 @@ export function exportRelacaoTurmasPdf(turmas: TurmaPdfRow[]) {
         doc.text(t.nome, 12, cursorY);
         cursorY += 4;
 
-        doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(80);
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(0);
         const meta = [
           t.bairro ? `Bairro: ${t.bairro}` : "Bairro: —",
           t.periodo ? `Período: ${PERIODO_LABEL[t.periodo] || t.periodo}` : "",
@@ -100,9 +100,8 @@ export function exportRelacaoTurmasPdf(turmas: TurmaPdfRow[]) {
           head: [["#", "Participante"]],
           body,
           theme: "grid",
-          styles: { fontSize: 7.5, cellPadding: 1.2, textColor: 20 },
-          headStyles: { fillColor: [230, 230, 230], textColor: 20, fontStyle: "bold" },
-          alternateRowStyles: { fillColor: [248, 248, 248] },
+          styles: { fontSize: 7.5, cellPadding: 1.2, textColor: 0 },
+          headStyles: { fillColor: [0, 0, 0], textColor: 255, fontStyle: "bold" },
           columnStyles: { 0: { cellWidth: 10, halign: "right" } },
           margin: { left: 12, right: 12 },
           didDrawPage: () => { /* handled outside */ },
@@ -117,7 +116,7 @@ export function exportRelacaoTurmasPdf(turmas: TurmaPdfRow[]) {
   const total = doc.getNumberOfPages();
   for (let i = 1; i <= total; i++) {
     doc.setPage(i);
-    doc.setFontSize(7); doc.setTextColor(120);
+    doc.setFontSize(7); doc.setTextColor(0);
     doc.text(`Página ${i} de ${total}`, pageW - 12, pageH - 6, { align: "right" });
     doc.text("SysCFV — Relação de Turmas", 12, pageH - 6);
     doc.setTextColor(0);

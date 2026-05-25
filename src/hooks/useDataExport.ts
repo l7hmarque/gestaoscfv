@@ -33,8 +33,7 @@ export function exportPDF(data: Record<string, any>[], headers: { key: string; l
     head: [headers.map(h => h.label)],
     body: data.map(r => headers.map(h => r[h.key] != null ? String(r[h.key]) : "")),
     styles: { fontSize: 7, cellPadding: 2 },
-    headStyles: { fillColor: [198, 40, 40], textColor: 255, fontSize: 7 },
-    alternateRowStyles: { fillColor: [245, 245, 245] },
+    headStyles: { fillColor: [0, 0, 0], textColor: 255, fontSize: 7 },
   });
 
   doc.save(sysCfvFileName(category, "pdf"));
