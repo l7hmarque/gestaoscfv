@@ -116,7 +116,7 @@ export function exportRelacaoTurmasPdf(turmas: TurmaPdfRow[]) {
   const total = doc.getNumberOfPages();
   for (let i = 1; i <= total; i++) {
     doc.setPage(i);
-    doc.setFontSize(7); doc.setTextColor(120);
+    doc.setFontSize(7); doc.setTextColor(0);
     doc.text(`Página ${i} de ${total}`, pageW - 12, pageH - 6, { align: "right" });
     doc.text("SysCFV — Relação de Turmas", 12, pageH - 6);
     doc.setTextColor(0);
