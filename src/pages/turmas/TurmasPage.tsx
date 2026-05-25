@@ -17,6 +17,7 @@ import { exportAllListasPresenca } from "@/lib/exportListaPresenca";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { exportRelacaoTurmasPdf } from "@/lib/exportRelacaoTurmasPdf";
 import ReviewEducadoresDialog from "@/components/ReviewEducadoresDialog";
+import { isParticipanteInativo } from "@/lib/constants";
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const faixaLabel: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
@@ -32,6 +33,7 @@ interface TurmaRow {
   participante_count: number;
   participante_nomes?: string[];
   participantes?: { nome: string; status?: string }[];
+  orfaos_count?: number;
 }
 
 const TurmasPage = () => {
@@ -87,19 +89,22 @@ const TurmasPage = () => {
       const countMap: Record<string, number> = {};
       const nomesMap: Record<string, string[]> = {};
       const partsMap: Record<string, { nome: string; status?: string }[]> = {};
+      const orfaosMap: Record<string, number> = {};
       (tpData || []).forEach((tp: any) => {
         const p = tp.participantes;
         if (!p || p.is_teste) return;
-        if (p.status === "desligado" || p.status === "transferido") return;
+        if (isParticipanteInativo(p.status)) return;
         countMap[tp.turma_id] = (countMap[tp.turma_id] || 0) + 1;
         (nomesMap[tp.turma_id] = nomesMap[tp.turma_id] || []).push(p.nome_completo);
         (partsMap[tp.turma_id] = partsMap[tp.turma_id] || []).push({ nome: p.nome_completo, status: p.status });
+        orfaosMap[tp.turma_id] = (orfaosMap[tp.turma_id] || 0) + 1;
       });
       return (data || []).map((t: any) => ({
         ...t,
         participante_count: countMap[t.id] || 0,
         participante_nomes: nomesMap[t.id] || [],
         participantes: partsMap[t.id] || [],
+        orfaos_count: t.ativa ? 0 : (orfaosMap[t.id] || 0),
       } as TurmaRow));
     },
     staleTime: 5 * 60 * 1000,
@@ -120,27 +125,16 @@ const TurmasPage = () => {
     if (guardDemo(isDemo)) return;
     if (!isCoordenacao && !deleteJustificativa.trim()) { toast.error("Justificativa é obrigatória"); return; }
     setDeleting(true);
-
-    await supabase.from("turma_participantes").delete().eq("turma_id", deleteTarget.id);
-
-    const { error } = await supabase.from("turmas").delete().eq("id", deleteTarget.id);
-    if (error) { toast.error("Erro ao excluir: " + error.message); setDeleting(false); return; }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: prof } = await supabase.from("profiles").select("nome, user_id").eq("user_id", user.id).single();
-      await supabase.from("audit_log").insert({
-        user_id: user.id,
-        user_nome: prof?.nome || user.email,
-        tabela: "turmas",
-        acao: "exclusao",
-        registro_id: deleteTarget.id,
-        detalhes: `Turma "${deleteTarget.nome}" excluída`,
-        justificativa: deleteJustificativa.trim() || null,
-      });
+    const { data, error } = await supabase.rpc("excluir_turma_com_auditoria" as any, {
+      _turma_id: deleteTarget.id,
+      _justificativa: deleteJustificativa.trim() || null,
+    });
+    if (error || (data as any)?.error) {
+      toast.error("Erro ao excluir: " + (error?.message || (data as any)?.error));
+      setDeleting(false);
+      return;
     }
-
-    toast.success(`Turma "${deleteTarget.nome}" excluída`);
+    toast.success(`Turma "${deleteTarget.nome}" excluída (${(data as any)?.vinculos_removidos || 0} vínculos)`);
     setDeleteTarget(null);
     setDeleteJustificativa("");
     setDeleting(false);
@@ -151,31 +145,17 @@ const TurmasPage = () => {
     if (guardDemo(isDemo)) return;
     if (!isCoordenacao && !batchJustificativa.trim()) { toast.error("Justificativa é obrigatória"); return; }
     setDeleting(true);
-
     const ids = Array.from(selectedIds);
-    const names = turmas.filter(t => selectedIds.has(t.id)).map(t => t.nome);
-
-    // Remove participant links for all selected
-    await supabase.from("turma_participantes").delete().in("turma_id", ids);
-
-    const { error } = await supabase.from("turmas").delete().in("id", ids);
-    if (error) { toast.error("Erro ao excluir: " + error.message); setDeleting(false); return; }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: prof } = await supabase.from("profiles").select("nome, user_id").eq("user_id", user.id).single();
-      await supabase.from("audit_log").insert(ids.map((id, i) => ({
-        user_id: user.id,
-        user_nome: prof?.nome || user.email,
-        tabela: "turmas",
-        acao: "exclusao_lote",
-        registro_id: id,
-        detalhes: `Turma "${names[i]}" excluída em lote (${ids.length} turmas)`,
-        justificativa: batchJustificativa.trim() || null,
-      })));
+    const { data, error } = await supabase.rpc("excluir_turmas_lote_com_auditoria" as any, {
+      _turma_ids: ids,
+      _justificativa: batchJustificativa.trim() || null,
+    });
+    if (error || (data as any)?.error) {
+      toast.error("Erro ao excluir: " + (error?.message || (data as any)?.error));
+      setDeleting(false);
+      return;
     }
-
-    toast.success(`${ids.length} turma(s) excluída(s)`);
+    toast.success(`${(data as any)?.turmas_excluidas || ids.length} turma(s) excluída(s)`);
     setBatchDeleteOpen(false);
     setBatchJustificativa("");
     setSelectedIds(new Set());
@@ -266,6 +246,9 @@ const TurmasPage = () => {
     const baixaFreq = ativas.filter(t => t.participante_count <= 2);
     const vazias = ativas.filter(t => t.participante_count === 0);
     const semDias = ativas.filter(t => !t.dias_semana || t.dias_semana.length === 0);
+    // Vínculos órfãos: participantes ativos vinculados a turmas inativas
+    const orfas = turmas.filter(t => !t.ativa && (t.orfaos_count || 0) > 0);
+    const totalOrfaos = orfas.reduce((s, t) => s + (t.orfaos_count || 0), 0);
     const oficinasComFaixas: Record<string, Set<string>> = {};
     ativas.forEach(t => {
       const k = t.oficina?.trim();
@@ -277,10 +260,10 @@ const TurmasPage = () => {
     const oficinasSem1217 = Object.entries(oficinasComFaixas)
       .filter(([, faixas]) => !faixas.has("12-17") && !faixas.has("idosos"))
       .map(([k]) => k);
-    return { semEducador, baixaFreq, vazias, semDias, oficinasSem1217 };
+    return { semEducador, baixaFreq, vazias, semDias, oficinasSem1217, orfas, totalOrfaos };
   }, [turmas]);
 
-  const totalGaps = gaps.semEducador.length + gaps.baixaFreq.length + gaps.vazias.length + gaps.semDias.length + gaps.oficinasSem1217.length;
+  const totalGaps = gaps.semEducador.length + gaps.baixaFreq.length + gaps.vazias.length + gaps.semDias.length + gaps.oficinasSem1217.length + gaps.orfas.length;
 
   const exportAllListas = async () => {
     setExporting(true);
@@ -290,10 +273,11 @@ const TurmasPage = () => {
       const ativas = turmas.filter(t => t.ativa);
       if (!ativas.length) { toast.error("Nenhuma turma ativa"); return; }
 
-      const { data: allTp } = await supabase.from("turma_participantes").select("turma_id, participante_id, participantes(nome_completo, status)");
+      const { data: allTp } = await supabase.from("turma_participantes").select("turma_id, participante_id, participantes(nome_completo, status, is_teste)").is("data_saida", null);
       const membersByTurma: Record<string, { nome: string; busca_ativa?: boolean }[]> = {};
       (allTp || []).forEach((tp: any) => {
-        if (tp.participantes?.status === "desligado") return;
+        if (!tp.participantes || tp.participantes.is_teste) return;
+        if (isParticipanteInativo(tp.participantes.status)) return;
         if (!membersByTurma[tp.turma_id]) membersByTurma[tp.turma_id] = [];
         membersByTurma[tp.turma_id].push({
           nome: tp.participantes?.nome_completo || "",
@@ -413,52 +397,60 @@ const TurmasPage = () => {
 
       {/* Banner de diagnóstico de gaps */}
       {totalGaps > 0 && (
-        <div className="rounded-md border border-amber-300/60 bg-amber-50/60">
+        <div className="rounded-md border border-warning/40 bg-warning/5">
           <button
             type="button"
             onClick={() => setGapsOpen(o => !o)}
             className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm"
           >
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
-            <span className="font-medium text-amber-900">Diagnóstico de turmas</span>
-            <span className="text-xs text-amber-800">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            <span className="font-medium text-foreground">Diagnóstico de turmas</span>
+            <span className="text-xs text-muted-foreground">
               {gaps.semEducador.length > 0 && `${gaps.semEducador.length} sem educador · `}
+              {gaps.totalOrfaos > 0 && `${gaps.totalOrfaos} vínculos órfãos · `}
               {gaps.vazias.length > 0 && `${gaps.vazias.length} vazias · `}
               {gaps.baixaFreq.length > 0 && `${gaps.baixaFreq.length} baixa frequência · `}
               {gaps.semDias.length > 0 && `${gaps.semDias.length} sem dias · `}
               {gaps.oficinasSem1217.length > 0 && `${gaps.oficinasSem1217.length} oficina(s) sem 12-17`}
             </span>
-            <ChevronDown className={`h-4 w-4 ml-auto text-amber-700 transition-transform ${gapsOpen ? "rotate-180" : ""}`} />
+            <ChevronDown className={`h-4 w-4 ml-auto text-muted-foreground transition-transform ${gapsOpen ? "rotate-180" : ""}`} />
           </button>
           {gapsOpen && (
-            <div className="px-3 pb-3 pt-1 text-xs space-y-2 border-t border-amber-200/60">
+            <div className="px-3 pb-3 pt-1 text-xs space-y-2 border-t border-warning/20">
               {gaps.semEducador.length > 0 && (
                 <div>
-                  <div className="font-medium text-amber-900 mb-0.5">Sem educador vinculado ({gaps.semEducador.length}):</div>
+                  <div className="font-medium text-foreground mb-0.5">Sem educador vinculado ({gaps.semEducador.length}):</div>
                   <ul className="ml-3 space-y-0.5">{gaps.semEducador.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link></li>)}</ul>
+                </div>
+              )}
+              {gaps.orfas.length > 0 && (
+                <div>
+                  <div className="font-medium text-foreground mb-0.5">Vínculos órfãos em turmas inativas ({gaps.totalOrfaos} part. em {gaps.orfas.length} turma(s)):</div>
+                  <div className="ml-3 text-muted-foreground mb-1">Esses participantes ativos estão presos em turmas desativadas — não recebem chamada nem aparecem em relatórios. Reative a turma ou migre-os via "Recalcular vínculos".</div>
+                  <ul className="ml-3 space-y-0.5">{gaps.orfas.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link> <span className="text-muted-foreground">— {t.orfaos_count} participante(s) ativo(s) preso(s)</span></li>)}</ul>
                 </div>
               )}
               {gaps.vazias.length > 0 && (
                 <div>
-                  <div className="font-medium text-amber-900 mb-0.5">Turmas vazias ({gaps.vazias.length}):</div>
+                  <div className="font-medium text-foreground mb-0.5">Turmas vazias ({gaps.vazias.length}):</div>
                   <ul className="ml-3 space-y-0.5">{gaps.vazias.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link></li>)}</ul>
                 </div>
               )}
               {gaps.baixaFreq.length > 0 && (
                 <div>
-                  <div className="font-medium text-amber-900 mb-0.5">Baixa frequência — ≤2 participantes ({gaps.baixaFreq.length}):</div>
+                  <div className="font-medium text-foreground mb-0.5">Baixa frequência — ≤2 participantes ({gaps.baixaFreq.length}):</div>
                   <ul className="ml-3 space-y-0.5">{gaps.baixaFreq.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link> <span className="text-muted-foreground">— {t.participante_count} part.</span></li>)}</ul>
                 </div>
               )}
               {gaps.semDias.length > 0 && (
                 <div>
-                  <div className="font-medium text-amber-900 mb-0.5">Sem dias da semana definidos ({gaps.semDias.length}):</div>
+                  <div className="font-medium text-foreground mb-0.5">Sem dias da semana definidos ({gaps.semDias.length}):</div>
                   <ul className="ml-3 space-y-0.5">{gaps.semDias.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link></li>)}</ul>
                 </div>
               )}
               {gaps.oficinasSem1217.length > 0 && (
                 <div>
-                  <div className="font-medium text-amber-900 mb-0.5">Oficinas sem cobertura 12-17 anos:</div>
+                  <div className="font-medium text-foreground mb-0.5">Oficinas sem cobertura 12-17 anos:</div>
                   <div className="ml-3">{gaps.oficinasSem1217.join(", ")}</div>
                   <div className="ml-3 text-muted-foreground mt-0.5">Considere criar turmas de adolescentes nessas oficinas.</div>
                 </div>

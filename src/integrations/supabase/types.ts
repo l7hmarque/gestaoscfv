@@ -3772,6 +3772,14 @@ export type Database = {
         Args: { _origem_id: string; _tipo: string }
         Returns: undefined
       }
+      excluir_turma_com_auditoria: {
+        Args: { _justificativa?: string; _turma_id: string }
+        Returns: Json
+      }
+      excluir_turmas_lote_com_auditoria: {
+        Args: { _justificativa?: string; _turma_ids: string[] }
+        Returns: Json
+      }
       find_fuzzy_participant: {
         Args: { _data_nascimento: string; _nome: string }
         Returns: {

@@ -3,6 +3,11 @@ import { differenceInYears } from "date-fns";
 // Bairros SCFV — os 3 bairros operacionais do serviço
 export const BAIRROS_SCFV = ["JARDIM IRENE", "PARQUE INDEPENDENCIA", "ALVORADA"];
 
+/** Status que indicam participante inativo (não conta em turmas/relatórios/exports) */
+export const STATUS_INATIVOS: string[] = ["desligado"];
+/** Helper para filtrar participantes inativos de listas/contagens */
+export const isParticipanteInativo = (status?: string | null) => !!status && STATUS_INATIVOS.includes(status);
+
 // Labels reutilizáveis — evita duplicação em 8+ arquivos
 export const PERIODO_LABELS: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 export const STATUS_LABELS: Record<string, string> = { ativo: "Ativo", desligado: "Desligado", incompleto: "Incompleto", pendente: "Pendente", busca_ativa: "Busca Ativa" };
