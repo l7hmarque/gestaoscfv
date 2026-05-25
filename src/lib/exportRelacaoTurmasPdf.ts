@@ -75,7 +75,7 @@ export function exportRelacaoTurmasPdf(turmas: TurmaPdfRow[]) {
         doc.text(t.nome, 12, cursorY);
         cursorY += 4;
 
-        doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(80);
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(0);
         const meta = [
           t.bairro ? `Bairro: ${t.bairro}` : "Bairro: —",
           t.periodo ? `Período: ${PERIODO_LABEL[t.periodo] || t.periodo}` : "",
