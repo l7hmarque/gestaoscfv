@@ -636,8 +636,21 @@ const TurmasPage = () => {
       ) : filteredTurmas.length === 0 ? (
         <div className="text-sm text-muted-foreground border border-dashed rounded-lg p-8 text-center">Nenhuma turma encontrada com os filtros aplicados.</div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredTurmas.map((t) => (
+        <div className="space-y-4">
+          {gruposOficina.map(({ oficina, turmas: tsOf, educadores, total, semEdu }) => (
+            <section key={oficina} className="rounded-lg border border-border bg-card">
+              <header className="flex flex-wrap items-center gap-2 px-3 py-2 border-b bg-muted/40">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">{oficina}</h2>
+                <span className="text-xs text-muted-foreground">·</span>
+                <span className="text-xs text-foreground/80">{educadores.length > 0 ? educadores.join(", ") : <span className="text-destructive">Sem educador</span>}</span>
+                <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="outline" className="text-[10px]">{tsOf.length} turmas</Badge>
+                  <Badge variant="outline" className="text-[10px]"><Users className="h-2.5 w-2.5 mr-0.5" />{total} part.</Badge>
+                  {semEdu > 0 && <Badge variant="destructive" className="text-[10px]">{semEdu} sem educador</Badge>}
+                </span>
+              </header>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 p-3">
+                {tsOf.map((t) => (
             <Card key={t.id} className={`hover:shadow-md transition-shadow h-full relative group ${batchMode && selectedIds.has(t.id) ? "ring-2 ring-destructive/50" : ""}`}>
               {batchMode ? (
                 <div className="cursor-pointer" onClick={() => toggleSelect(t.id)}>
@@ -708,6 +721,9 @@ const TurmasPage = () => {
                 </>
               )}
             </Card>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}
