@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ArrowLeft, Save, Loader2, Upload, X, Check, ChevronsUpDown, AlertTriangle, Plus, Trash2, Sun, Sunset } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Upload, X, Check, ChevronsUpDown, AlertTriangle, Plus, Trash2, Sun, Sunset, MapPin } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
-import { TIPOS_ATIVIDADE } from "@/lib/constants";
+import { TIPOS_ATIVIDADE, FAIXA_LABELS, isBairroSCFV } from "@/lib/constants";
 import { checkConquistas } from "@/hooks/useConquistas";
 import { useFormTimer } from "@/hooks/useFormTimer";
 import { getParticipantesDaTurma, type ParticipanteTurma } from "@/lib/participantesTurma";
@@ -115,12 +115,14 @@ const RelatorioNovoPage = () => {
   // Load base data
   useEffect(() => {
     const fetchBase = async () => {
-      const [t, e, r] = await Promise.all([
-        supabase.from("turmas").select("id, nome, educador_id, oficina, periodo").eq("ativa", true).order("nome"),
+      const [t, e, r, bData] = await Promise.all([
+        supabase.from("turmas").select("id, nome, educador_id, oficina, periodo, faixa_etaria, bairro_id").eq("ativa", true).order("oficina").order("faixa_etaria"),
         supabase.from("profiles").select("id, nome, user_id"),
         supabase.from("user_roles").select("user_id, role"),
+        supabase.from("bairros").select("id, nome").order("nome"),
       ]);
       if (t.data) setTurmas(t.data);
+      if (bData.data) setBairros(bData.data);
       // Filter to only educators and coordenacao
       const educadorUserIds = new Set(
         (r.data || [])
