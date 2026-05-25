@@ -17,6 +17,7 @@ import { exportAllListasPresenca } from "@/lib/exportListaPresenca";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { exportRelacaoTurmasPdf } from "@/lib/exportRelacaoTurmasPdf";
 import ReviewEducadoresDialog from "@/components/ReviewEducadoresDialog";
+import { isParticipanteInativo } from "@/lib/constants";
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const faixaLabel: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
@@ -32,6 +33,7 @@ interface TurmaRow {
   participante_count: number;
   participante_nomes?: string[];
   participantes?: { nome: string; status?: string }[];
+  orfaos_count?: number;
 }
 
 const TurmasPage = () => {
@@ -87,19 +89,22 @@ const TurmasPage = () => {
       const countMap: Record<string, number> = {};
       const nomesMap: Record<string, string[]> = {};
       const partsMap: Record<string, { nome: string; status?: string }[]> = {};
+      const orfaosMap: Record<string, number> = {};
       (tpData || []).forEach((tp: any) => {
         const p = tp.participantes;
         if (!p || p.is_teste) return;
-        if (p.status === "desligado" || p.status === "transferido") return;
+        if (isParticipanteInativo(p.status)) return;
         countMap[tp.turma_id] = (countMap[tp.turma_id] || 0) + 1;
         (nomesMap[tp.turma_id] = nomesMap[tp.turma_id] || []).push(p.nome_completo);
         (partsMap[tp.turma_id] = partsMap[tp.turma_id] || []).push({ nome: p.nome_completo, status: p.status });
+        orfaosMap[tp.turma_id] = (orfaosMap[tp.turma_id] || 0) + 1;
       });
       return (data || []).map((t: any) => ({
         ...t,
         participante_count: countMap[t.id] || 0,
         participante_nomes: nomesMap[t.id] || [],
         participantes: partsMap[t.id] || [],
+        orfaos_count: t.ativa ? 0 : (orfaosMap[t.id] || 0),
       } as TurmaRow));
     },
     staleTime: 5 * 60 * 1000,
@@ -120,27 +125,16 @@ const TurmasPage = () => {
     if (guardDemo(isDemo)) return;
     if (!isCoordenacao && !deleteJustificativa.trim()) { toast.error("Justificativa é obrigatória"); return; }
     setDeleting(true);
-
-    await supabase.from("turma_participantes").delete().eq("turma_id", deleteTarget.id);
-
-    const { error } = await supabase.from("turmas").delete().eq("id", deleteTarget.id);
-    if (error) { toast.error("Erro ao excluir: " + error.message); setDeleting(false); return; }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: prof } = await supabase.from("profiles").select("nome, user_id").eq("user_id", user.id).single();
-      await supabase.from("audit_log").insert({
-        user_id: user.id,
-        user_nome: prof?.nome || user.email,
-        tabela: "turmas",
-        acao: "exclusao",
-        registro_id: deleteTarget.id,
-        detalhes: `Turma "${deleteTarget.nome}" excluída`,
-        justificativa: deleteJustificativa.trim() || null,
-      });
+    const { data, error } = await supabase.rpc("excluir_turma_com_auditoria" as any, {
+      _turma_id: deleteTarget.id,
+      _justificativa: deleteJustificativa.trim() || null,
+    });
+    if (error || (data as any)?.error) {
+      toast.error("Erro ao excluir: " + (error?.message || (data as any)?.error));
+      setDeleting(false);
+      return;
     }
-
-    toast.success(`Turma "${deleteTarget.nome}" excluída`);
+    toast.success(`Turma "${deleteTarget.nome}" excluída (${(data as any)?.vinculos_removidos || 0} vínculos)`);
     setDeleteTarget(null);
     setDeleteJustificativa("");
     setDeleting(false);
@@ -151,31 +145,17 @@ const TurmasPage = () => {
     if (guardDemo(isDemo)) return;
     if (!isCoordenacao && !batchJustificativa.trim()) { toast.error("Justificativa é obrigatória"); return; }
     setDeleting(true);
-
     const ids = Array.from(selectedIds);
-    const names = turmas.filter(t => selectedIds.has(t.id)).map(t => t.nome);
-
-    // Remove participant links for all selected
-    await supabase.from("turma_participantes").delete().in("turma_id", ids);
-
-    const { error } = await supabase.from("turmas").delete().in("id", ids);
-    if (error) { toast.error("Erro ao excluir: " + error.message); setDeleting(false); return; }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: prof } = await supabase.from("profiles").select("nome, user_id").eq("user_id", user.id).single();
-      await supabase.from("audit_log").insert(ids.map((id, i) => ({
-        user_id: user.id,
-        user_nome: prof?.nome || user.email,
-        tabela: "turmas",
-        acao: "exclusao_lote",
-        registro_id: id,
-        detalhes: `Turma "${names[i]}" excluída em lote (${ids.length} turmas)`,
-        justificativa: batchJustificativa.trim() || null,
-      })));
+    const { data, error } = await supabase.rpc("excluir_turmas_lote_com_auditoria" as any, {
+      _turma_ids: ids,
+      _justificativa: batchJustificativa.trim() || null,
+    });
+    if (error || (data as any)?.error) {
+      toast.error("Erro ao excluir: " + (error?.message || (data as any)?.error));
+      setDeleting(false);
+      return;
     }
-
-    toast.success(`${ids.length} turma(s) excluída(s)`);
+    toast.success(`${(data as any)?.turmas_excluidas || ids.length} turma(s) excluída(s)`);
     setBatchDeleteOpen(false);
     setBatchJustificativa("");
     setSelectedIds(new Set());
@@ -266,6 +246,9 @@ const TurmasPage = () => {
     const baixaFreq = ativas.filter(t => t.participante_count <= 2);
     const vazias = ativas.filter(t => t.participante_count === 0);
     const semDias = ativas.filter(t => !t.dias_semana || t.dias_semana.length === 0);
+    // Vínculos órfãos: participantes ativos vinculados a turmas inativas
+    const orfas = turmas.filter(t => !t.ativa && (t.orfaos_count || 0) > 0);
+    const totalOrfaos = orfas.reduce((s, t) => s + (t.orfaos_count || 0), 0);
     const oficinasComFaixas: Record<string, Set<string>> = {};
     ativas.forEach(t => {
       const k = t.oficina?.trim();
@@ -277,10 +260,10 @@ const TurmasPage = () => {
     const oficinasSem1217 = Object.entries(oficinasComFaixas)
       .filter(([, faixas]) => !faixas.has("12-17") && !faixas.has("idosos"))
       .map(([k]) => k);
-    return { semEducador, baixaFreq, vazias, semDias, oficinasSem1217 };
+    return { semEducador, baixaFreq, vazias, semDias, oficinasSem1217, orfas, totalOrfaos };
   }, [turmas]);
 
-  const totalGaps = gaps.semEducador.length + gaps.baixaFreq.length + gaps.vazias.length + gaps.semDias.length + gaps.oficinasSem1217.length;
+  const totalGaps = gaps.semEducador.length + gaps.baixaFreq.length + gaps.vazias.length + gaps.semDias.length + gaps.oficinasSem1217.length + gaps.orfas.length;
 
   const exportAllListas = async () => {
     setExporting(true);
@@ -290,10 +273,11 @@ const TurmasPage = () => {
       const ativas = turmas.filter(t => t.ativa);
       if (!ativas.length) { toast.error("Nenhuma turma ativa"); return; }
 
-      const { data: allTp } = await supabase.from("turma_participantes").select("turma_id, participante_id, participantes(nome_completo, status)");
+      const { data: allTp } = await supabase.from("turma_participantes").select("turma_id, participante_id, participantes(nome_completo, status, is_teste)").is("data_saida", null);
       const membersByTurma: Record<string, { nome: string; busca_ativa?: boolean }[]> = {};
       (allTp || []).forEach((tp: any) => {
-        if (tp.participantes?.status === "desligado") return;
+        if (!tp.participantes || tp.participantes.is_teste) return;
+        if (isParticipanteInativo(tp.participantes.status)) return;
         if (!membersByTurma[tp.turma_id]) membersByTurma[tp.turma_id] = [];
         membersByTurma[tp.turma_id].push({
           nome: tp.participantes?.nome_completo || "",
