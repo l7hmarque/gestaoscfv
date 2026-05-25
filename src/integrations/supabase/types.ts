@@ -3845,6 +3845,7 @@ export type Database = {
           source: string
         }[]
       }
+      get_orfaos_turmas_inativas: { Args: never; Returns: Json }
       get_participantes_turma: {
         Args: { _modo?: string; _ref_date?: string; _turma_id: string }
         Returns: {
@@ -3977,6 +3978,10 @@ export type Database = {
         Returns: Json
       }
       recalcular_vinculos_turmas: { Args: never; Returns: Json }
+      resolver_orfaos_lote: {
+        Args: { _acoes: Json; _justificativa?: string }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       title_case_pt: { Args: { txt: string }; Returns: string }

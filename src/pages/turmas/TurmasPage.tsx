@@ -17,6 +17,7 @@ import { exportAllListasPresenca } from "@/lib/exportListaPresenca";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { exportRelacaoTurmasPdf } from "@/lib/exportRelacaoTurmasPdf";
 import ReviewEducadoresDialog from "@/components/ReviewEducadoresDialog";
+import ResolverOrfaosDialog from "@/components/ResolverOrfaosDialog";
 import { isParticipanteInativo } from "@/lib/constants";
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
@@ -63,6 +64,7 @@ const TurmasPage = () => {
   const [recalcResult, setRecalcResult] = useState<any>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [gapsOpen, setGapsOpen] = useState(false);
+  const [orfaosOpen, setOrfaosOpen] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const isDemo = useIsDemo();
@@ -426,7 +428,14 @@ const TurmasPage = () => {
               {gaps.orfas.length > 0 && (
                 <div>
                   <div className="font-medium text-foreground mb-0.5">Vínculos órfãos em turmas inativas ({gaps.totalOrfaos} part. em {gaps.orfas.length} turma(s)):</div>
-                  <div className="ml-3 text-muted-foreground mb-1">Esses participantes ativos estão presos em turmas desativadas — não recebem chamada nem aparecem em relatórios. Reative a turma ou migre-os via "Recalcular vínculos".</div>
+                  <div className="ml-3 text-muted-foreground mb-1">Esses participantes ativos estão presos em turmas desativadas — não recebem chamada nem aparecem em relatórios.</div>
+                  {isCoordenacao && (
+                    <div className="ml-3 mb-1">
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setOrfaosOpen(true)}>
+                        Resolver {gaps.totalOrfaos} vínculo(s) órfão(s)
+                      </Button>
+                    </div>
+                  )}
                   <ul className="ml-3 space-y-0.5">{gaps.orfas.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link> <span className="text-muted-foreground">— {t.orfaos_count} participante(s) ativo(s) preso(s)</span></li>)}</ul>
                 </div>
               )}
@@ -461,6 +470,14 @@ const TurmasPage = () => {
       )}
 
       <ReviewEducadoresDialog open={reviewOpen} onOpenChange={setReviewOpen} onSaved={fetchTurmas} />
+      <ResolverOrfaosDialog
+        open={orfaosOpen}
+        onClose={() => setOrfaosOpen(false)}
+        onResolved={() => {
+          queryClient.invalidateQueries({ queryKey: ["turmas-list"] });
+          queryClient.invalidateQueries({ queryKey: ["participantes"] });
+        }}
+      />
 
       {/* Search + filters */}
       <div className="flex flex-wrap items-center gap-2">
