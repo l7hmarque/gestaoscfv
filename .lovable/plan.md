@@ -1,53 +1,51 @@
-## Objetivo
+## Causa raiz
 
-1. Em **/presenca** e **/relatorios/novo**, exibir apenas participantes cujo `periodo` coincide com o `periodo` da turma selecionada.
-2. Melhorar a apresentação da lista de turmas, categorizando por período (Manhã / Tarde) com cabeçalhos visuais claros.
+A função `public.recalcular_vinculos_turmas()` faz `SELECT ... LIMIT 1` por participante e depois `DELETE` de todos os outros vínculos. Resultado: cada participante fica em apenas UMA turma — a primeira que casa por bairro+faixa+período, em ordem alfabética de nome. Como as turmas legacy "ALVORADA — …" e "DANCA E POESIA — …" vencem o sort, as turmas de **KARATE**, **ESPORTE E RECREACAO** e **ATIVIDADES CULTURAIS E ARTISTICAS** nunca recebem ninguém.
 
-## Alterações
+## Mudança
 
-### 1. Filtro por período da turma
+Reescrever a função para iterar por **oficina** e garantir 1 turma por oficina por participante. Cada participante elegível (ativo/busca_ativa, não-teste, com bairro, período e faixa válidos) passa a aparecer em todas as oficinas compatíveis.
 
-`**src/pages/presenca/PresencaPage.tsx**`
-
-- Ao carregar participantes em `fetchParts`, depois de hidratar `periodo` de cada participante, filtrar a lista mantendo apenas quem tem `p.periodo === turma.periodo` (turma já está em `turmas`, basta achar por `selectedTurma`).
-- Participantes "integral" entram em qualquer turma. ->NAO EXISTE PARTICIPANTE INTEGRAL, NAO EXISTE PERIODO INTEGRAL NO NOSSO SERVICO
-- Remover o filtro manual "Período" do card de filtros (vira redundante), mantendo só Bairro, Faixa Etária.
-
-`**src/pages/relatorios/RelatorioNovoPage.tsx**`
-
-- No `useEffect` que carrega participantes via `getParticipantesDaTurma` (linha ~169-240): após buscar, cruzar com `participantes.periodo` e manter apenas os que batem com o período de cada turma selecionada (participante "integral" entra em qualquer turma; senão `participante.periodo === turma.periodo`).
-- Mantém a lógica atual de auto-transferência ao salvar (já existe aviso na UI).
-
-### 2. UI/UX do seletor de turmas
-
-`**/presenca` — `PresencaPage.tsx**`
-
-Hoje é um `<Select>` plano com todos os nomes. Trocar por `<Select>` com `SelectGroup` + `SelectLabel` por período:
+### Nova lógica (resumo)
 
 ```text
-Manhã
-  ├─ Karatê — 6-8 — Jardim Irene
-  └─ Arte — 9-11 — Alvorada
-Tarde
-  ├─ Futebol — 12-17 — Parque Independência
-  └─ ...
-Integral
-  └─ ...
+para cada participante elegível:
+  calcula faixa (6-8 | 9-11 | 12-17 | idosos)
+  para cada oficina distinta em turmas.ativa:
+    escolhe 1 turma onde:
+      oficina = oficina_iter
+      ativa = true
+      (bairro_id = part.bairro_id OR part.bairro_id ∈ bairro_ids)
+      (faixa_etaria = faixa OR faixa ∈ faixas_etarias)
+      (periodo = part.periodo OR periodo = 'integral')
+    se já existe vínculo nessa oficina (em qualquer turma daquela oficina),
+      mantém esse — não troca arbitrariamente
+    senão insere o vínculo
+  remove vínculos do participante em turmas cuja oficina não é mais compatível
+  ou cuja turma específica não é mais a escolhida E não tem histórico (data_entrada hoje)
 ```
 
-Cada item mostra também um badge sutil com o bairro (já está no nome canônico, então fica só o agrupamento por período como melhoria principal).
+Detalhes importantes:
 
-`**/relatorios/novo` — `RelatorioNovoPage.tsx**`
+- **Não apaga vínculos com `data_entrada` antiga** — preserva histórico mensal usado por `get_participantes_turma` (que filtra por mês).
+- Turmas **legacy sem oficina** (ex.: "ALVORADA — 9-11 — Manhã") são tratadas como uma "oficina" própria (valor de `oficina` é NULL) — vamos **ignorá-las no agrupamento por oficina** para não competir com as oficinas reais. Ficam visíveis mas vazias até a coordenação decidir arquivá-las.
+- Participantes sem turma compatível continuam reportados em `sem_turma_lista`.
 
-Já agrupa por período em cards. Refinar:
+### Passos
 
-- Cabeçalho de cada coluna ganha cor/ícone (Sol = Manhã, Pôr-do-sol = Tarde) usando tokens semânticos.
-- Contador `(n turmas)` no header de cada período.
-- Card da turma com hover state e destaque mais forte para turmas do educador selecionado (★ já existe — adicionar `ring-1 ring-primary/40`).
-- Quando uma turma é selecionada e a contagem de participantes é zero por incompatibilidade de período, mostrar dica: "Nenhum participante deste período vinculado a esta turma".
+1. **Migration** — substituir `recalcular_vinculos_turmas()` por nova versão iterando por `oficina IS NOT NULL` e fazendo upsert/limpeza seletiva.
+2. **Insert** — executar `SELECT public.recalcular_vinculos_turmas();` uma vez para popular vínculos.
+3. **Memória** — atualizar `mem://funcionalidades/turma-auto-vinculacao-logica` para refletir "1 turma por oficina, não 1 turma absoluta".
 
-## Detalhes técnicos
+## Riscos
 
-- `getParticipantesDaTurma` continua sendo a fonte de verdade dos vínculos; o filtro por período acontece no cliente após hidratar `periodo` do participante (já buscamos em `PresencaPage`; em `RelatorioNovoPage` precisaremos buscar `periodo` junto na query `participantes.select(...)` se ainda não estiver — verificar e adicionar).
-- Sem mudanças de schema, RLS ou edge functions.
-- Tokens: usar `text-amber-600` → semântico via classes existentes; cabeçalhos com `bg-muted/40` + ícone Lucide.
+- Se um participante já tinha presença registrada em turma legacy "ALVORADA — 9-11 — Manhã", o vínculo continua existindo (não removemos vínculos com histórico). A nova lógica só adiciona vínculos nas oficinas reais.
+- Volume: hoje há ~150 participantes ativos × ~4 oficinas = ~600 vínculos. Sem problema.
+- Relatórios/Presença já filtram por turma específica — não há efeito colateral em totais (cada presença é por turma+data).
+
+## Arquivos
+
+- `supabase/migrations/<timestamp>_recalcular_vinculos_por_oficina.sql` (nova migration)
+- `.lovable/memory/funcionalidades/turma-auto-vinculacao-logica.md` (atualizar)
+
+Sem mudanças de UI nesta etapa.
