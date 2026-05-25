@@ -397,52 +397,60 @@ const TurmasPage = () => {
 
       {/* Banner de diagnóstico de gaps */}
       {totalGaps > 0 && (
-        <div className="rounded-md border border-amber-300/60 bg-amber-50/60">
+        <div className="rounded-md border border-warning/40 bg-warning/5">
           <button
             type="button"
             onClick={() => setGapsOpen(o => !o)}
             className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm"
           >
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
-            <span className="font-medium text-amber-900">Diagnóstico de turmas</span>
-            <span className="text-xs text-amber-800">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            <span className="font-medium text-foreground">Diagnóstico de turmas</span>
+            <span className="text-xs text-muted-foreground">
               {gaps.semEducador.length > 0 && `${gaps.semEducador.length} sem educador · `}
+              {gaps.totalOrfaos > 0 && `${gaps.totalOrfaos} vínculos órfãos · `}
               {gaps.vazias.length > 0 && `${gaps.vazias.length} vazias · `}
               {gaps.baixaFreq.length > 0 && `${gaps.baixaFreq.length} baixa frequência · `}
               {gaps.semDias.length > 0 && `${gaps.semDias.length} sem dias · `}
               {gaps.oficinasSem1217.length > 0 && `${gaps.oficinasSem1217.length} oficina(s) sem 12-17`}
             </span>
-            <ChevronDown className={`h-4 w-4 ml-auto text-amber-700 transition-transform ${gapsOpen ? "rotate-180" : ""}`} />
+            <ChevronDown className={`h-4 w-4 ml-auto text-muted-foreground transition-transform ${gapsOpen ? "rotate-180" : ""}`} />
           </button>
           {gapsOpen && (
-            <div className="px-3 pb-3 pt-1 text-xs space-y-2 border-t border-amber-200/60">
+            <div className="px-3 pb-3 pt-1 text-xs space-y-2 border-t border-warning/20">
               {gaps.semEducador.length > 0 && (
                 <div>
-                  <div className="font-medium text-amber-900 mb-0.5">Sem educador vinculado ({gaps.semEducador.length}):</div>
+                  <div className="font-medium text-foreground mb-0.5">Sem educador vinculado ({gaps.semEducador.length}):</div>
                   <ul className="ml-3 space-y-0.5">{gaps.semEducador.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link></li>)}</ul>
+                </div>
+              )}
+              {gaps.orfas.length > 0 && (
+                <div>
+                  <div className="font-medium text-foreground mb-0.5">Vínculos órfãos em turmas inativas ({gaps.totalOrfaos} part. em {gaps.orfas.length} turma(s)):</div>
+                  <div className="ml-3 text-muted-foreground mb-1">Esses participantes ativos estão presos em turmas desativadas — não recebem chamada nem aparecem em relatórios. Reative a turma ou migre-os via "Recalcular vínculos".</div>
+                  <ul className="ml-3 space-y-0.5">{gaps.orfas.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link> <span className="text-muted-foreground">— {t.orfaos_count} participante(s) ativo(s) preso(s)</span></li>)}</ul>
                 </div>
               )}
               {gaps.vazias.length > 0 && (
                 <div>
-                  <div className="font-medium text-amber-900 mb-0.5">Turmas vazias ({gaps.vazias.length}):</div>
+                  <div className="font-medium text-foreground mb-0.5">Turmas vazias ({gaps.vazias.length}):</div>
                   <ul className="ml-3 space-y-0.5">{gaps.vazias.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link></li>)}</ul>
                 </div>
               )}
               {gaps.baixaFreq.length > 0 && (
                 <div>
-                  <div className="font-medium text-amber-900 mb-0.5">Baixa frequência — ≤2 participantes ({gaps.baixaFreq.length}):</div>
+                  <div className="font-medium text-foreground mb-0.5">Baixa frequência — ≤2 participantes ({gaps.baixaFreq.length}):</div>
                   <ul className="ml-3 space-y-0.5">{gaps.baixaFreq.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link> <span className="text-muted-foreground">— {t.participante_count} part.</span></li>)}</ul>
                 </div>
               )}
               {gaps.semDias.length > 0 && (
                 <div>
-                  <div className="font-medium text-amber-900 mb-0.5">Sem dias da semana definidos ({gaps.semDias.length}):</div>
+                  <div className="font-medium text-foreground mb-0.5">Sem dias da semana definidos ({gaps.semDias.length}):</div>
                   <ul className="ml-3 space-y-0.5">{gaps.semDias.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link></li>)}</ul>
                 </div>
               )}
               {gaps.oficinasSem1217.length > 0 && (
                 <div>
-                  <div className="font-medium text-amber-900 mb-0.5">Oficinas sem cobertura 12-17 anos:</div>
+                  <div className="font-medium text-foreground mb-0.5">Oficinas sem cobertura 12-17 anos:</div>
                   <div className="ml-3">{gaps.oficinasSem1217.join(", ")}</div>
                   <div className="ml-3 text-muted-foreground mt-0.5">Considere criar turmas de adolescentes nessas oficinas.</div>
                 </div>
