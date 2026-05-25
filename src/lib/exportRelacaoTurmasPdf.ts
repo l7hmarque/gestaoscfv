@@ -53,7 +53,7 @@ export function exportRelacaoTurmasPdf(turmas: TurmaPdfRow[]) {
 
     // Cabeçalho da oficina
     if (cursorY > pageH - 40) { doc.addPage(); cursorY = 18; }
-    doc.setDrawColor(60); doc.setFillColor(30, 30, 30);
+    doc.setDrawColor(0); doc.setFillColor(0, 0, 0);
     doc.rect(10, cursorY, pageW - 20, 9, "F");
     doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(11);
     doc.text(oficina, 13, cursorY + 6);
