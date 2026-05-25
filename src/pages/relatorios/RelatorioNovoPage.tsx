@@ -717,62 +717,91 @@ const RelatorioNovoPage = () => {
         <CardContent className="space-y-3">
           {turmas.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma turma ativa</p> : (
             <div className="space-y-3">
-              {bairros.filter(b => isBairroSCFV(b.nome)).map(bairro => {
-                const bairroTurmas = turmas.filter(t => t.bairro_id === bairro.id);
-                if (bairroTurmas.length === 0) return null;
-                return (
-                  <div key={bairro.id} className="rounded-md border border-border/60 overflow-hidden">
-                    <div className="flex items-center gap-2 px-2.5 py-1.5 bg-muted/50 border-b border-border/60 text-primary">
-                      <MapPin className="h-3.5 w-3.5" />
-                      <span className="text-xs font-semibold uppercase tracking-wide">{bairro.nome}</span>
-                    </div>
-                    <div className="p-2 space-y-2">
-                      {(["manha", "tarde", "idosos"] as const).map(per => {
-                        const perTurmas = bairroTurmas.filter(t => (
-                          per === "idosos" ? t.faixa_etaria === "idosos" : (t.periodo || "manha") === per && t.faixa_etaria !== "idosos"
-                        )).sort((a, b) => {
-                          if (!form.educador_id) return 0;
-                          return (a.educador_id === form.educador_id ? 0 : 1) - (b.educador_id === form.educador_id ? 0 : 1);
-                        });
-                        if (perTurmas.length === 0) return null;
-                        const Icon = per === "manha" ? Sun : per === "tarde" ? Sunset : MapPin;
-                        const accent = per === "manha" ? "text-amber-600" : per === "tarde" ? "text-orange-700" : "text-slate-600";
-                        const label = per === "manha" ? "Manhã" : per === "tarde" ? "Tarde" : "Idosos";
-                        return (
-                          <div key={per}>
-                            <div className={cn("flex items-center gap-1.5 px-1 pb-1 text-[10px] font-medium uppercase tracking-wide", accent)}>
-                              <Icon className="h-3 w-3" />
-                              {label}
-                              <span className="text-muted-foreground font-normal">({perTurmas.length})</span>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
-                              {perTurmas.map(t => {
-                                const isLinked = form.educador_id && t.educador_id === form.educador_id;
-                                const isChecked = form.turma_ids.includes(t.id);
-                                const compactLabel = `${t.oficina || "Geral"} · ${FAIXA_LABELS[t.faixa_etaria || ""] || t.faixa_etaria || "—"}`;
+              {(() => {
+                const bairroNomeMap = new Map(bairros.map((b: any) => [b.id, b.nome]));
+                const oficinasMap: Record<string, any[]> = {};
+                turmas.forEach((t: any) => {
+                  const k = (t.oficina && t.oficina.trim()) || "Geral";
+                  (oficinasMap[k] = oficinasMap[k] || []).push(t);
+                });
+                const periodos: Array<"manha" | "tarde" | "idosos"> = ["manha", "tarde", "idosos"];
+                const oficinasOrd = Object.entries(oficinasMap).sort((a, b) => {
+                  if (!form.educador_id) return a[0].localeCompare(b[0]);
+                  const aHas = a[1].some((t: any) => t.educador_id === form.educador_id);
+                  const bHas = b[1].some((t: any) => t.educador_id === form.educador_id);
+                  return (aHas ? 0 : 1) - (bHas ? 0 : 1) || a[0].localeCompare(b[0]);
+                });
+                return oficinasOrd.map(([oficina, ts]) => {
+                  const bairrosUnicos = Array.from(new Set(ts.map((t: any) => t.bairro_id || "__multi__")))
+                    .map((id: any) => ({ id, nome: id === "__multi__" ? "Multi-bairro" : (bairroNomeMap.get(id) || "—") }))
+                    .filter(b => b.id === "__multi__" || isBairroSCFV(b.nome))
+                    .sort((a, b) => {
+                      if (a.id === "__multi__") return -1;
+                      if (b.id === "__multi__") return 1;
+                      return a.nome.localeCompare(b.nome);
+                    });
+                  return (
+                    <div key={oficina} className="rounded-md border border-border/60 overflow-hidden">
+                      <div className="flex items-center gap-2 px-2.5 py-1.5 bg-foreground text-background">
+                        <span className="text-xs font-bold uppercase tracking-wide">{oficina}</span>
+                        <span className="text-[10px] opacity-70 ml-auto">{ts.length} turma{ts.length !== 1 ? "s" : ""}</span>
+                      </div>
+                      <div className="p-2 space-y-2">
+                        {bairrosUnicos.map(bairro => {
+                          const bairroTurmas = ts.filter((t: any) => (t.bairro_id || "__multi__") === bairro.id);
+                          if (bairroTurmas.length === 0) return null;
+                          return (
+                            <div key={bairro.id}>
+                              <div className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
+                                <MapPin className="h-3 w-3" />
+                                {bairro.nome}
+                              </div>
+                              {periodos.map(per => {
+                                const perTurmas = bairroTurmas.filter((t: any) => (
+                                  per === "idosos" ? t.faixa_etaria === "idosos" : (t.periodo || "manha") === per && t.faixa_etaria !== "idosos"
+                                ));
+                                if (perTurmas.length === 0) return null;
+                                const Icon = per === "manha" ? Sun : per === "tarde" ? Sunset : MapPin;
+                                const accent = per === "manha" ? "text-amber-600" : per === "tarde" ? "text-orange-700" : "text-slate-600";
+                                const label = per === "manha" ? "Manhã" : per === "tarde" ? "Tarde" : "Idosos";
                                 return (
-                                  <label
-                                    key={t.id}
-                                    className={cn(
-                                      "flex items-center gap-2 text-sm cursor-pointer rounded-md px-2 py-1.5 transition-colors border border-transparent hover:bg-muted/60",
-                                      isChecked && "bg-primary/5 border-primary/30",
-                                      isLinked && "bg-primary/10 ring-1 ring-primary/40 font-medium"
-                                    )}
-                                  >
-                                    <Checkbox checked={isChecked} onCheckedChange={() => toggleTurma(t.id)} />
-                                    {isLinked && <span className="text-primary text-xs">★</span>}
-                                    <span className="truncate">{compactLabel}</span>
-                                  </label>
+                                  <div key={per} className="ml-3 mt-0.5">
+                                    <div className={cn("flex items-center gap-1.5 px-1 pb-0.5 text-[10px] font-medium uppercase tracking-wide", accent)}>
+                                      <Icon className="h-2.5 w-2.5" />
+                                      {label}
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                                      {perTurmas.map((t: any) => {
+                                        const isLinked = form.educador_id && t.educador_id === form.educador_id;
+                                        const isChecked = form.turma_ids.includes(t.id);
+                                        const compactLabel = FAIXA_LABELS[t.faixa_etaria || ""] || t.faixa_etaria || "—";
+                                        return (
+                                          <label
+                                            key={t.id}
+                                            className={cn(
+                                              "flex items-center gap-2 text-sm cursor-pointer rounded-md px-2 py-1.5 transition-colors border border-transparent hover:bg-muted/60",
+                                              isChecked && "bg-primary/5 border-primary/30",
+                                              isLinked && "bg-primary/10 ring-1 ring-primary/40 font-medium"
+                                            )}
+                                          >
+                                            <Checkbox checked={isChecked} onCheckedChange={() => toggleTurma(t.id)} />
+                                            {isLinked && <span className="text-primary text-xs">★</span>}
+                                            <span className="truncate">{compactLabel}</span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
                                 );
                               })}
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                });
+              })()}
             </div>
           )}
 
