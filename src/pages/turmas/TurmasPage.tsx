@@ -64,6 +64,7 @@ const TurmasPage = () => {
   const [recalcResult, setRecalcResult] = useState<any>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [gapsOpen, setGapsOpen] = useState(false);
+  const [orfaosOpen, setOrfaosOpen] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const isDemo = useIsDemo();
