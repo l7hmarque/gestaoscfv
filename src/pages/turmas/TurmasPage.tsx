@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Users, Download, Trash2, CheckSquare, RefreshCw, Search, X } from "lucide-react";
+import { Plus, Users, Download, Trash2, CheckSquare, RefreshCw, Search, X, FileText, UserCheck, AlertTriangle, ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { exportAllListasPresenca } from "@/lib/exportListaPresenca";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
+import { exportRelacaoTurmasPdf } from "@/lib/exportRelacaoTurmasPdf";
+import ReviewEducadoresDialog from "@/components/ReviewEducadoresDialog";
 
 const periodoLabel: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const faixaLabel: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
@@ -24,11 +26,12 @@ const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julh
 interface TurmaRow {
   id: string; nome: string; periodo: string | null; faixa_etaria: string | null;
   tipo: string | null; ativa: boolean | null; dias_semana: string[] | null;
-  educador_id: string | null; bairro_id: string | null;
+  educador_id: string | null; bairro_id: string | null; oficina: string | null;
   faixas_etarias?: string[] | null; bairro_ids?: string[] | null;
   profiles?: { nome: string } | null; bairros?: { nome: string } | null;
   participante_count: number;
   participante_nomes?: string[];
+  participantes?: { nome: string; status?: string }[];
 }
 
 const TurmasPage = () => {
@@ -56,6 +59,9 @@ const TurmasPage = () => {
   const [recalcOpen, setRecalcOpen] = useState(false);
   const [recalculando, setRecalculando] = useState(false);
   const [recalcResult, setRecalcResult] = useState<any>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [gapsOpen, setGapsOpen] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const isDemo = useIsDemo();
 
@@ -74,24 +80,26 @@ const TurmasPage = () => {
     queryFn: async (): Promise<TurmaRow[]> => {
       const [{ data, error: e1 }, { data: tpData, error: e2 }] = await Promise.all([
         supabase.from("turmas").select("*, profiles(nome), bairros(nome)").order("nome"),
-        supabase.from("turma_participantes").select("turma_id, participantes(nome_completo)"),
+        supabase.from("turma_participantes").select("turma_id, participantes(nome_completo, status, is_teste)").is("data_saida", null),
       ]);
       if (e1) throw e1;
       if (e2) throw e2;
       const countMap: Record<string, number> = {};
       const nomesMap: Record<string, string[]> = {};
+      const partsMap: Record<string, { nome: string; status?: string }[]> = {};
       (tpData || []).forEach((tp: any) => {
+        const p = tp.participantes;
+        if (!p || p.is_teste) return;
+        if (p.status === "desligado" || p.status === "transferido") return;
         countMap[tp.turma_id] = (countMap[tp.turma_id] || 0) + 1;
-        const nome = tp.participantes?.nome_completo;
-        if (nome) {
-          if (!nomesMap[tp.turma_id]) nomesMap[tp.turma_id] = [];
-          nomesMap[tp.turma_id].push(nome);
-        }
+        (nomesMap[tp.turma_id] = nomesMap[tp.turma_id] || []).push(p.nome_completo);
+        (partsMap[tp.turma_id] = partsMap[tp.turma_id] || []).push({ nome: p.nome_completo, status: p.status });
       });
       return (data || []).map((t: any) => ({
         ...t,
         participante_count: countMap[t.id] || 0,
         participante_nomes: nomesMap[t.id] || [],
+        participantes: partsMap[t.id] || [],
       } as TurmaRow));
     },
     staleTime: 5 * 60 * 1000,
@@ -234,6 +242,46 @@ const TurmasPage = () => {
   const hasFilters = search.trim() !== "" || filtroPeriodo !== "todos" || filtroFaixa !== "todas" || filtroAtiva !== "todas";
   const clearFilters = () => { setSearch(""); setFiltroPeriodo("todos"); setFiltroFaixa("todas"); setFiltroAtiva("todas"); };
 
+  // Agrupar turmas filtradas por oficina
+  const gruposOficina = useMemo(() => {
+    const map: Record<string, TurmaRow[]> = {};
+    filteredTurmas.forEach(t => {
+      const k = t.oficina?.trim() || "Sem oficina";
+      (map[k] = map[k] || []).push(t);
+    });
+    return Object.entries(map)
+      .map(([oficina, ts]) => {
+        const educs = Array.from(new Set(ts.map(t => t.profiles?.nome).filter(Boolean))) as string[];
+        const total = ts.reduce((s, t) => s + t.participante_count, 0);
+        const semEdu = ts.filter(t => !t.educador_id).length;
+        return { oficina, turmas: ts, educadores: educs, total, semEdu };
+      })
+      .sort((a, b) => a.oficina.localeCompare(b.oficina));
+  }, [filteredTurmas]);
+
+  // Diagnóstico de gaps (sobre turmas ativas)
+  const gaps = useMemo(() => {
+    const ativas = turmas.filter(t => t.ativa);
+    const semEducador = ativas.filter(t => !t.educador_id);
+    const baixaFreq = ativas.filter(t => t.participante_count <= 2);
+    const vazias = ativas.filter(t => t.participante_count === 0);
+    const semDias = ativas.filter(t => !t.dias_semana || t.dias_semana.length === 0);
+    const oficinasComFaixas: Record<string, Set<string>> = {};
+    ativas.forEach(t => {
+      const k = t.oficina?.trim();
+      if (!k) return;
+      const fxs = (t.faixas_etarias && t.faixas_etarias.length > 0) ? t.faixas_etarias : (t.faixa_etaria ? [t.faixa_etaria] : []);
+      oficinasComFaixas[k] = oficinasComFaixas[k] || new Set();
+      fxs.forEach(f => oficinasComFaixas[k].add(f));
+    });
+    const oficinasSem1217 = Object.entries(oficinasComFaixas)
+      .filter(([, faixas]) => !faixas.has("12-17") && !faixas.has("idosos"))
+      .map(([k]) => k);
+    return { semEducador, baixaFreq, vazias, semDias, oficinasSem1217 };
+  }, [turmas]);
+
+  const totalGaps = gaps.semEducador.length + gaps.baixaFreq.length + gaps.vazias.length + gaps.semDias.length + gaps.oficinasSem1217.length;
+
   const exportAllListas = async () => {
     setExporting(true);
     try {
@@ -267,6 +315,30 @@ const TurmasPage = () => {
       toast.error("Erro ao exportar: " + e.message);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    setGeneratingPdf(true);
+    try {
+      const ativas = turmas.filter(t => t.ativa);
+      const rows = ativas.map(t => ({
+        id: t.id,
+        nome: t.nome,
+        oficina: t.oficina,
+        bairro: t.bairros?.nome || null,
+        periodo: t.periodo,
+        faixa_etaria: t.faixa_etaria,
+        dias_semana: t.dias_semana,
+        educador: t.profiles?.nome || null,
+        participantes: (t.participantes || []).sort((a, b) => a.nome.localeCompare(b.nome)),
+      }));
+      exportRelacaoTurmasPdf(rows);
+      toast.success("PDF gerado!");
+    } catch (e: any) {
+      toast.error("Erro ao gerar PDF: " + e.message);
+    } finally {
+      setGeneratingPdf(false);
     }
   };
 
@@ -312,6 +384,12 @@ const TurmasPage = () => {
             </>
           ) : (
             <>
+              <Button size="sm" variant="outline" onClick={() => setReviewOpen(true)} className="text-xs">
+                <UserCheck className="h-3.5 w-3.5 mr-1" />Revisar educadores
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleExportPdf} disabled={generatingPdf} className="text-xs">
+                <FileText className="h-3.5 w-3.5 mr-1" />{generatingPdf ? "Gerando..." : "PDF Relação"}
+              </Button>
               {isCoordenacao && (
                 <>
                   <Button size="sm" variant="outline" onClick={() => setRecalcOpen(true)} className="text-xs">
@@ -332,6 +410,65 @@ const TurmasPage = () => {
           )}
         </div>
       </div>
+
+      {/* Banner de diagnóstico de gaps */}
+      {totalGaps > 0 && (
+        <div className="rounded-md border border-amber-300/60 bg-amber-50/60">
+          <button
+            type="button"
+            onClick={() => setGapsOpen(o => !o)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm"
+          >
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <span className="font-medium text-amber-900">Diagnóstico de turmas</span>
+            <span className="text-xs text-amber-800">
+              {gaps.semEducador.length > 0 && `${gaps.semEducador.length} sem educador · `}
+              {gaps.vazias.length > 0 && `${gaps.vazias.length} vazias · `}
+              {gaps.baixaFreq.length > 0 && `${gaps.baixaFreq.length} baixa frequência · `}
+              {gaps.semDias.length > 0 && `${gaps.semDias.length} sem dias · `}
+              {gaps.oficinasSem1217.length > 0 && `${gaps.oficinasSem1217.length} oficina(s) sem 12-17`}
+            </span>
+            <ChevronDown className={`h-4 w-4 ml-auto text-amber-700 transition-transform ${gapsOpen ? "rotate-180" : ""}`} />
+          </button>
+          {gapsOpen && (
+            <div className="px-3 pb-3 pt-1 text-xs space-y-2 border-t border-amber-200/60">
+              {gaps.semEducador.length > 0 && (
+                <div>
+                  <div className="font-medium text-amber-900 mb-0.5">Sem educador vinculado ({gaps.semEducador.length}):</div>
+                  <ul className="ml-3 space-y-0.5">{gaps.semEducador.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link></li>)}</ul>
+                </div>
+              )}
+              {gaps.vazias.length > 0 && (
+                <div>
+                  <div className="font-medium text-amber-900 mb-0.5">Turmas vazias ({gaps.vazias.length}):</div>
+                  <ul className="ml-3 space-y-0.5">{gaps.vazias.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link></li>)}</ul>
+                </div>
+              )}
+              {gaps.baixaFreq.length > 0 && (
+                <div>
+                  <div className="font-medium text-amber-900 mb-0.5">Baixa frequência — ≤2 participantes ({gaps.baixaFreq.length}):</div>
+                  <ul className="ml-3 space-y-0.5">{gaps.baixaFreq.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link> <span className="text-muted-foreground">— {t.participante_count} part.</span></li>)}</ul>
+                </div>
+              )}
+              {gaps.semDias.length > 0 && (
+                <div>
+                  <div className="font-medium text-amber-900 mb-0.5">Sem dias da semana definidos ({gaps.semDias.length}):</div>
+                  <ul className="ml-3 space-y-0.5">{gaps.semDias.map(t => <li key={t.id}>• <Link to={`/turmas/${t.id}`} className="hover:underline">{t.nome}</Link></li>)}</ul>
+                </div>
+              )}
+              {gaps.oficinasSem1217.length > 0 && (
+                <div>
+                  <div className="font-medium text-amber-900 mb-0.5">Oficinas sem cobertura 12-17 anos:</div>
+                  <div className="ml-3">{gaps.oficinasSem1217.join(", ")}</div>
+                  <div className="ml-3 text-muted-foreground mt-0.5">Considere criar turmas de adolescentes nessas oficinas.</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <ReviewEducadoresDialog open={reviewOpen} onOpenChange={setReviewOpen} onSaved={fetchTurmas} />
 
       {/* Search + filters */}
       <div className="flex flex-wrap items-center gap-2">
@@ -499,8 +636,21 @@ const TurmasPage = () => {
       ) : filteredTurmas.length === 0 ? (
         <div className="text-sm text-muted-foreground border border-dashed rounded-lg p-8 text-center">Nenhuma turma encontrada com os filtros aplicados.</div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredTurmas.map((t) => (
+        <div className="space-y-4">
+          {gruposOficina.map(({ oficina, turmas: tsOf, educadores, total, semEdu }) => (
+            <section key={oficina} className="rounded-lg border border-border bg-card">
+              <header className="flex flex-wrap items-center gap-2 px-3 py-2 border-b bg-muted/40">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">{oficina}</h2>
+                <span className="text-xs text-muted-foreground">·</span>
+                <span className="text-xs text-foreground/80">{educadores.length > 0 ? educadores.join(", ") : <span className="text-destructive">Sem educador</span>}</span>
+                <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="outline" className="text-[10px]">{tsOf.length} turmas</Badge>
+                  <Badge variant="outline" className="text-[10px]"><Users className="h-2.5 w-2.5 mr-0.5" />{total} part.</Badge>
+                  {semEdu > 0 && <Badge variant="destructive" className="text-[10px]">{semEdu} sem educador</Badge>}
+                </span>
+              </header>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 p-3">
+                {tsOf.map((t) => (
             <Card key={t.id} className={`hover:shadow-md transition-shadow h-full relative group ${batchMode && selectedIds.has(t.id) ? "ring-2 ring-destructive/50" : ""}`}>
               {batchMode ? (
                 <div className="cursor-pointer" onClick={() => toggleSelect(t.id)}>
@@ -571,6 +721,9 @@ const TurmasPage = () => {
                 </>
               )}
             </Card>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}

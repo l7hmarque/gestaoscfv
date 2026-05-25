@@ -55,19 +55,40 @@ const PresencaPage = () => {
     load();
   }, []);
 
-  // Agrupa turmas: Bairro → Período → turmas (somente bairros SCFV operacionais)
+  // Agrupa turmas: Oficina → Bairro → Período (chamada é por oficina)
   const turmasAgrupadas = useMemo(() => {
-    const bairrosOrdered = bairros.filter(b => isBairroSCFV(b.nome));
+    const bairroNomeMap = new Map(bairros.map((b: any) => [b.id, b.nome]));
+    const oficinasMap: Record<string, any[]> = {};
+    turmas.forEach((t) => {
+      const k = (t.oficina && t.oficina.trim()) || "Geral";
+      (oficinasMap[k] = oficinasMap[k] || []).push(t);
+    });
     const periodos: Array<"manha" | "tarde" | "idosos"> = ["manha", "tarde", "idosos"];
-    return bairrosOrdered.map(b => ({
-      bairro: b,
-      grupos: periodos.map(per => {
-        const items = turmas.filter(t => t.bairro_id === b.id && (
-          per === "idosos" ? t.faixa_etaria === "idosos" : (t.periodo || "manha") === per && t.faixa_etaria !== "idosos"
-        ));
-        return { periodo: per, items };
-      }).filter(g => g.items.length > 0),
-    })).filter(b => b.grupos.length > 0);
+    return Object.entries(oficinasMap)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([oficina, ts]) => {
+        // bairros únicos desta oficina (mantém ordem alfabética; multi-bairro fica como "Multi-bairro")
+        const bairroKeys = Array.from(new Set(ts.map(t => t.bairro_id || "__multi__")));
+        const bairrosOrd = bairroKeys
+          .map(id => ({ id, nome: id === "__multi__" ? "Multi-bairro" : (bairroNomeMap.get(id) || "—") }))
+          .filter(b => b.id === "__multi__" || isBairroSCFV(b.nome))
+          .sort((a, b) => {
+            if (a.id === "__multi__") return -1;
+            if (b.id === "__multi__") return 1;
+            return a.nome.localeCompare(b.nome);
+          });
+        const bairrosBlocos = bairrosOrd.map(b => ({
+          bairro: b,
+          grupos: periodos.map(per => {
+            const items = ts.filter(t => (t.bairro_id || "__multi__") === b.id && (
+              per === "idosos" ? t.faixa_etaria === "idosos" : (t.periodo || "manha") === per && t.faixa_etaria !== "idosos"
+            ));
+            return { periodo: per, items };
+          }).filter(g => g.items.length > 0),
+        })).filter(b => b.grupos.length > 0);
+        return { oficina, bairros: bairrosBlocos };
+      })
+      .filter(o => o.bairros.length > 0);
   }, [turmas, bairros]);
 
   useEffect(() => {
@@ -183,34 +204,37 @@ const PresencaPage = () => {
               <Select value={selectedTurma} onValueChange={v => setSelectedTurma(v)}>
                 <SelectTrigger><SelectValue placeholder="Selecionar turma" /></SelectTrigger>
                 <SelectContent className="max-h-[60vh]">
-                  {turmasAgrupadas.map(({ bairro, grupos }) => (
-                    <SelectGroup key={bairro.id}>
-                      <SelectLabel className="flex items-center gap-1.5 text-xs bg-muted/60 sticky top-0">
-                        <MapPin className="h-3.5 w-3.5 text-primary" />
-                        <span className="font-semibold uppercase tracking-wide">{bairro.nome}</span>
+                  {turmasAgrupadas.map(({ oficina, bairros: bs }) => (
+                    <SelectGroup key={oficina}>
+                      <SelectLabel className="flex items-center gap-1.5 text-xs bg-foreground text-background sticky top-0 z-10 py-1.5">
+                        <span className="font-bold uppercase tracking-wide">{oficina}</span>
                       </SelectLabel>
-                      {grupos.map(({ periodo, items }) => {
-                        const Icon = periodo === "manha" ? Sun : periodo === "tarde" ? Sunset : MapPin;
-                        const accent = periodo === "manha" ? "text-amber-600" : periodo === "tarde" ? "text-orange-700" : "text-slate-600";
-                        const label = periodo === "manha" ? "Manhã" : periodo === "tarde" ? "Tarde" : "Idosos";
-                        return (
-                          <div key={periodo}>
-                            <div className={cn("flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium uppercase tracking-wide", accent)}>
-                              <Icon className="h-3 w-3" />
-                              {label}
-                              <span className="text-muted-foreground font-normal">({items.length})</span>
-                            </div>
-                            {items.map(t => (
-                              <SelectItem key={t.id} value={t.id} className="pl-7">
-                                <span className="text-sm">
-                                  {t.oficina || "Geral"}
-                                  <span className="text-muted-foreground"> · {FAIXA_LABELS[t.faixa_etaria || ""] || t.faixa_etaria}</span>
-                                </span>
-                              </SelectItem>
-                            ))}
+                      {bs.map(({ bairro, grupos }) => (
+                        <div key={bairro.id}>
+                          <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary bg-muted/50">
+                            <MapPin className="h-3 w-3" />
+                            {bairro.nome}
                           </div>
-                        );
-                      })}
+                          {grupos.map(({ periodo, items }) => {
+                            const Icon = periodo === "manha" ? Sun : periodo === "tarde" ? Sunset : MapPin;
+                            const accent = periodo === "manha" ? "text-amber-600" : periodo === "tarde" ? "text-orange-700" : "text-slate-600";
+                            const label = periodo === "manha" ? "Manhã" : periodo === "tarde" ? "Tarde" : "Idosos";
+                            return (
+                              <div key={periodo}>
+                                <div className={cn("flex items-center gap-1.5 px-3 py-0.5 text-[10px] font-medium uppercase tracking-wide", accent)}>
+                                  <Icon className="h-3 w-3" />
+                                  {label}
+                                </div>
+                                {items.map(t => (
+                                  <SelectItem key={t.id} value={t.id} className="pl-9">
+                                    <span className="text-sm text-muted-foreground">{FAIXA_LABELS[t.faixa_etaria || ""] || t.faixa_etaria}</span>
+                                  </SelectItem>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
                     </SelectGroup>
                   ))}
                 </SelectContent>
