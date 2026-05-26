@@ -112,13 +112,14 @@ export default function ConfiguracoesPage() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [{ data: cfgData }, { data: bData }, { data: ptData }, { data: profData }, { data: rolesData }] = await Promise.all([
+      const [{ data: cfgData }, { data: bData }, { data: ptData }, profResp, { data: rolesData }] = await Promise.all([
         supabase.from("configuracoes_gerais").select("*"),
         supabase.from("bairros").select("*").order("nome"),
         supabase.from("pontos_transporte").select("*, bairros(nome)").order("nome"),
-        supabase.from("profiles").select("id, nome, cargo, ativo, user_id, email, telefone, carga_horaria, data_inicio, salario, data_desligamento").order("nome"),
+        supabase.rpc("list_profiles_rh") as any,
         supabase.from("user_roles").select("*"),
       ]);
+      const profData = (profResp?.data || []) as any[];
 
       const map: Record<string, string> = {};
       CONFIG_KEYS.forEach(k => { map[k.key] = k.default; });

@@ -106,14 +106,9 @@ function buildSafeParticipante(data: any) {
     escola: data.escola,
     serie: data.serie,
     periodo: data.periodo,
-    endereco_rua: data.endereco_rua,
-    endereco_numero: data.endereco_numero,
-    endereco_bairro: data.endereco_bairro,
     bairro_id: data.bairro_id,
     bairro_nome: data.bairros?.nome || null,
     ponto_transporte_id: data.ponto_transporte_id,
-    restricao_alimentar: data.restricao_alimentar,
-    laudo: data.laudo,
     status: data.status,
   };
 }
