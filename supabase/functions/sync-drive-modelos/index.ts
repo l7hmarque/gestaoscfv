@@ -198,6 +198,28 @@ Deno.serve(async (req) => {
     const part = Math.max(Number(cursorIn.part || 0), 0);
     const authHeader = req.headers.get("Authorization");
 
+    // Auth gate: allow service-role internal calls OR valid user JWT
+    const bearer = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    if (!bearer) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (bearer !== serviceKey) {
+      const userClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader! } } },
+      );
+      const { data: claims, error: claimsErr } = await userClient.auth.getClaims(bearer);
+      if (claimsErr || !claims?.claims) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // 1. Estrutura de pastas: SYSCFV / {MES_UPPER} - {ANO} / <subpastas>
     const sysCfvRoot = await ensureFolder("SYSCFV");
     const mesUpper = mes ? MESES[mes - 1].toUpperCase() : null;
