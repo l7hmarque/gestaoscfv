@@ -1,18 +1,17 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Shield, Trash2, Plus, Database, Users, BookOpen, FileText, ClipboardList, Bus, Check, X as XIcon } from "lucide-react";
+import { Shield, Trash2, Plus, Database, Users, BookOpen, FileText, ClipboardList, Bus, Check, X as XIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Constants } from "@/integrations/supabase/types";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 
 const ROLES = Constants.public.Enums.app_role;
-const DEV_PASSWORD = "leoleo";
 
 const PERMISSIONS = [
   { key: "sigiloso", label: "Acesso Sigiloso" },
@@ -46,24 +45,31 @@ interface Profile { id: string; user_id: string; nome: string; email: string | n
 interface Role { id: string; user_id: string; role: string; }
 
 export default function DevPage() {
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem("dev_auth") === "true");
-  const [pw, setPw] = useState("");
+  const navigate = useNavigate();
+  const [authed, setAuthed] = useState<boolean | null>(null); // null = checking
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [addingRole, setAddingRole] = useState<{ userId: string; role: string } | null>(null);
 
-  const handleLogin = () => {
-    if (pw === DEV_PASSWORD) {
-      sessionStorage.setItem("dev_auth", "true");
-      setAuthed(true);
-    } else {
-      toast.error("Senha incorreta");
-    }
-  };
+  // Server-side role gate: only coordenacao may access /dev
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setAuthed(false); return; }
+      const { data: isCoord } = await supabase.rpc("has_role", { _user_id: user.id, _role: "coordenacao" });
+      if (isCoord) {
+        setAuthed(true);
+      } else {
+        toast.error("Acesso restrito à coordenação");
+        setAuthed(false);
+        navigate("/dashboard", { replace: true });
+      }
+    })();
+  }, [navigate]);
 
-  useEffect(() => { if (authed) loadAll(); }, [authed]);
+  useEffect(() => { if (authed === true) loadAll(); }, [authed]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -115,16 +121,10 @@ export default function DevPage() {
 
   const getRoles = (userId: string) => roles.filter(r => r.user_id === userId);
 
-  if (!authed) {
+  if (authed !== true) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Card className="w-80">
-          <CardHeader><CardTitle className="text-center flex items-center justify-center gap-2"><Shield className="h-5 w-5" /> Área do Desenvolvedor</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <Input type="password" placeholder="Senha" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLogin()} />
-            <Button className="w-full" onClick={handleLogin}>Entrar</Button>
-          </CardContent>
-        </Card>
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -142,7 +142,7 @@ export default function DevPage() {
     <div className="min-h-screen bg-background p-3 sm:p-6 space-y-4 sm:space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between">
         <h1 className="text-lg sm:text-xl font-bold flex items-center gap-2"><Shield className="h-5 w-5" /> Painel Dev</h1>
-        <Button variant="outline" size="sm" onClick={() => { sessionStorage.removeItem("dev_auth"); setAuthed(false); }}>Sair</Button>
+        <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>Sair</Button>
       </div>
 
       {/* Stats */}
