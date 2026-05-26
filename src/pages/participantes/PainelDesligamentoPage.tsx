@@ -62,7 +62,7 @@ const PainelDesligamentoPage = () => {
       fetchAllRows("participantes", { select: "*", order: { column: "nome_completo" } }),
       supabase.from("bairros").select("*").order("nome"),
     ]);
-    setParticipantes(p.filter((x: any) => x.status === "ativo" || x.status === "busca_ativa" || x.status === "pendente" || x.status === "incompleto"));
+    setParticipantes(p.filter((x: any) => x.status === "ativo" || x.status === "busca_ativa"));
     setBairros(b || []);
     setLoading(false);
   };
@@ -205,8 +205,6 @@ const PainelDesligamentoPage = () => {
             <SelectItem value="all">Todos</SelectItem>
             <SelectItem value="ativo">Ativo</SelectItem>
             <SelectItem value="busca_ativa">Busca Ativa</SelectItem>
-            <SelectItem value="pendente">Pendente</SelectItem>
-            <SelectItem value="incompleto">Incompleto</SelectItem>
           </SelectContent>
         </Select>
         <Select value={bairroFilter} onValueChange={v => setBairroFilter(v === "all" ? "" : v)}>

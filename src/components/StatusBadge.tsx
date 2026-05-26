@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 type StatusType =
   | "ativo" | "inativo" | "pendente" | "concluido" | "cancelado"
-  | "busca-ativa" | "desligado" | "incompleto" | "transferido"
+  | "busca-ativa" | "desligado"
   | "aprovado" | "rejeitado" | "rascunho" | "enviado"
   | "success" | "warning" | "info" | "danger" | "neutral";
 
@@ -15,8 +15,6 @@ const map: Record<StatusType, { variant: any; label?: string }> = {
   cancelado:    { variant: "destructive", label: "Cancelado" },
   "busca-ativa":{ variant: "warning",     label: "Busca Ativa" },
   desligado:    { variant: "destructive", label: "Desligado" },
-  incompleto:   { variant: "warning",     label: "Incompleto" },
-  transferido:  { variant: "info",        label: "Transferido" },
   aprovado:     { variant: "success",     label: "Aprovado" },
   rejeitado:    { variant: "destructive", label: "Rejeitado" },
   rascunho:     { variant: "muted",       label: "Rascunho" },
