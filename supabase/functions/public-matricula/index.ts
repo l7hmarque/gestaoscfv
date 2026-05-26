@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
     // Build standardized payload
     const payload: Record<string, unknown> = {
       nome_completo: padronizar(nome_completo)!,
-      status: "pendente",
+      status: "ativo",
       data_nascimento: data_nascimento || null,
       genero: genero || null,
       cor_raca: cor_raca || null,
@@ -165,12 +165,6 @@ Deno.serve(async (req) => {
         .eq("id", resolvedExistingId);
       if (updateError) return respond({ error: updateError.message }, 500);
       participanteId = resolvedExistingId;
-
-      // Remove turma links since status is now "pendente"
-      await supabaseAdmin
-        .from("turma_participantes")
-        .delete()
-        .eq("participante_id", resolvedExistingId);
     } else {
       // New enrollment: INSERT
       const { data: participante, error: insertError } = await supabaseAdmin
