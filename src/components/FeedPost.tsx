@@ -26,7 +26,6 @@ interface FeedPostProps {
 
 const tipoLabel: Record<string, { icon: string; label: string }> = {
   relatorio_auto: { icon: "📝", label: "Relatório" },
-  conquista: { icon: "🏆", label: "Conquista" },
   manual: { icon: "", label: "" },
 };
 
