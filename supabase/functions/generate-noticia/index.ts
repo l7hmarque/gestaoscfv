@@ -49,6 +49,18 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Role check: only coordenacao or marketing can create news
+    const [{ data: isCoord }, { data: isMkt }] = await Promise.all([
+      svc.rpc("has_role", { _user_id: userId, _role: "coordenacao" }),
+      svc.rpc("has_role", { _user_id: userId, _role: "marketing" }),
+    ]);
+    if (!isCoord && !isMkt) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { data: relatorio } = await svc
       .from("relatorios_atividade")
       .select("*, relatorio_turmas(turma_id, turmas(nome))")
