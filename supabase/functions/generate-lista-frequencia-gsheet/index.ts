@@ -263,10 +263,11 @@ Deno.serve(async (req) => {
     }
 
     const sortedAll = [...members].sort((a, b) => a.nome.localeCompare(b.nome));
-    const ativos = sortedAll.filter(m => !m.desligado && !m.transferido);
+    const ativos = sortedAll.filter(m => !m.desligado && !m.transferido && !m.busca_ativa);
+    const buscaAtiva = sortedAll.filter(m => !m.desligado && !m.transferido && m.busca_ativa);
     const transferidos = sortedAll.filter(m => m.transferido && !m.desligado);
     const desligados = sortedAll.filter(m => m.desligado);
-    const ordered = [...ativos, ...transferidos, ...desligados];
+    const ordered = [...ativos, ...buscaAtiva, ...transferidos, ...desligados];
 
     ordered.forEach((m, i) => {
       const isInactive = m.desligado || m.transferido;
@@ -277,6 +278,7 @@ Deno.serve(async (req) => {
       let runs: Array<{ text: string; bold?: boolean }>;
       if (m.desligado) runs = [{ text: m.nome + " " }, { text: `(D${m.data_desligamento ? " " + m.data_desligamento : ""})`, bold: true }];
       else if (m.transferido) runs = [{ text: m.nome + " " }, { text: `(T${m.data_transferencia ? " " + m.data_transferencia : ""})`, bold: true }];
+      else if (m.busca_ativa) runs = [{ text: m.nome + " " }, { text: "(BA)", bold: true }];
       else runs = [{ text: m.nome }];
 
       const arr: any[] = [plainCell(i + 1, numFmt), richCell(runs, cellFmt)];
