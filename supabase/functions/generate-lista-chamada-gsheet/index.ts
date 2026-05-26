@@ -286,12 +286,13 @@ Deno.serve(async (req) => {
       rows.push({ values: arr });
     }
 
-    // Ordenar membros: ativos -> transferidos -> desligados, alfabetico dentro
+    // Ordenar membros: ativos -> busca ativa -> transferidos -> desligados, alfabetico dentro
     const sortedAll = [...members].sort((a, b) => a.nome.localeCompare(b.nome));
-    const ativos = sortedAll.filter(m => !m.desligado && !m.transferido);
+    const ativos = sortedAll.filter(m => !m.desligado && !m.transferido && !m.busca_ativa);
+    const buscaAtiva = sortedAll.filter(m => !m.desligado && !m.transferido && m.busca_ativa);
     const transferidos = sortedAll.filter(m => m.transferido && !m.desligado);
     const desligados = sortedAll.filter(m => m.desligado);
-    const ordered = [...ativos, ...transferidos, ...desligados];
+    const ordered = [...ativos, ...buscaAtiva, ...transferidos, ...desligados];
 
     ordered.forEach((m, i) => {
       const isInactive = m.desligado || m.transferido;
@@ -331,6 +332,8 @@ Deno.serve(async (req) => {
       } else if (m.novo) {
         const data = m.iniciou_em ? ` ${m.iniciou_em}` : "";
         runs = [{ text: m.nome + " " }, { text: `(N${data})`, bold: true }];
+      } else if (m.busca_ativa) {
+        runs = [{ text: m.nome + " " }, { text: "(BA)", bold: true }];
       } else {
         runs = [{ text: m.nome }];
       }
@@ -357,6 +360,7 @@ Deno.serve(async (req) => {
     {
       const legendRuns = [
         { text: "Legenda: " },
+        { text: "(BA)", bold: true }, { text: " = Busca Ativa  ·  " },
         { text: "(D)", bold: true }, { text: " = Desligado  ·  " },
         { text: "(T)", bold: true }, { text: " = Transferido  ·  " },
         { text: "(N)", bold: true }, { text: " = Novo no mês" },
