@@ -116,6 +116,14 @@ Deno.serve(async (req) => {
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    // Block visitante demo accounts (they bypass RLS otherwise via service role)
+    const { data: isVisitante } = await supabase.rpc("has_role", { _user_id: user.id, _role: "visitante" });
+    if (isVisitante) {
+      return new Response(JSON.stringify({ error: "Forbidden: visitante cannot upload" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
     if (!profile) return new Response(JSON.stringify({ error: "Perfil não encontrado" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
