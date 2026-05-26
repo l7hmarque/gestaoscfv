@@ -52,13 +52,13 @@ const Index = () => {
 
   useEffect(() => {
     const load = async () => {
-      const [{ data: pinned }, { data: pendentes }, { data: profs }] = await Promise.all([
+      const [{ data: pinned }, { data: incompletos }, { data: profs }] = await Promise.all([
         supabase.from("mural_posts").select("id, titulo, tipo, created_at").eq("fixado", true).order("created_at", { ascending: false }).limit(3),
-        supabase.from("participantes").select("id").eq("status", "pendente"),
+        supabase.from("participantes").select("id").in("status", ["ativo", "busca_ativa"]).is("data_nascimento", null),
         supabase.from("profiles").select("id, user_id"),
       ]);
       setPinnedPosts(pinned || []);
-      setPendentesCount((pendentes || []).length);
+      setPendentesCount((incompletos || []).length);
 
       const myProfile = (profs || []).find((p: any) => p.user_id === user?.id);
       if (myProfile) {
@@ -82,10 +82,10 @@ const Index = () => {
       {(pendentesCount > 0 || recadosCount > 0) && (
         <div className="flex flex-wrap gap-2 sm:gap-3">
           {pendentesCount > 0 && (
-            <Link to="/participantes?status=pendente">
+            <Link to="/participantes?incompleto=1">
               <div className="flex items-center gap-2 bg-[hsl(var(--warning)/0.12)] border border-[hsl(var(--warning)/0.35)] rounded-md px-3 py-2 text-sm hover:bg-[hsl(var(--warning)/0.2)] transition-colors">
                 <AlertTriangle className="h-4 w-4 text-[hsl(var(--warning))]" />
-                <span className="font-medium text-foreground">{pendentesCount} matrícula{pendentesCount > 1 ? "s" : ""} pendente{pendentesCount > 1 ? "s" : ""}</span>
+                <span className="font-medium text-foreground">{pendentesCount} cadastro{pendentesCount > 1 ? "s" : ""} incompleto{pendentesCount > 1 ? "s" : ""}</span>
               </div>
             </Link>
           )}
