@@ -137,8 +137,8 @@ const ParticipantePerfilPage = () => {
       Object.entries(p).forEach(([k, v]) => { f[k] = v == null ? "" : String(v); });
       setForm(f);
 
-      // Mark as visualized if pendente and not yet seen
-      if ((p as any).status === "pendente" && !(p as any).visualizado_em) {
+      // Mark as visualized first time it's opened
+      if (!(p as any).visualizado_em) {
         supabase.from("participantes").update({ visualizado_em: new Date().toISOString() } as any).eq("id", id!).then(() => {});
       }
     }
@@ -189,8 +189,8 @@ const ParticipantePerfilPage = () => {
       setShowDesligDialog(true);
     }
 
-    // Automação 2: Pendente → Ativo = vincular a turmas compatíveis
-    if (newStatus === "ativo" && oldStatus === "pendente") {
+    // Automação 2: Busca ativa → Ativo = revincular a turmas compatíveis
+    if (newStatus === "ativo" && oldStatus === "busca_ativa") {
       const newFaixa = calcFaixaFromDate(newDataNasc);
       if (newBairro && newPeriodo && newFaixa) {
         let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", newBairro).eq("faixa_etaria", newFaixa as any);
@@ -302,26 +302,7 @@ const ParticipantePerfilPage = () => {
         </div>
         {!editing ? (
           <div className="flex gap-1">
-            {participante.status === "pendente" && (
-              <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700 gap-1" onClick={async () => {
-                if (guardDemo(isDemo)) return;
-                const { error } = await supabase.from("participantes").update({ status: "ativo" } as any).eq("id", id!);
-                if (error) { toast.error("Erro: " + error.message); return; }
-                const faixa = calcFaixaFromDate(participante.data_nascimento);
-                if (participante.bairro_id && participante.periodo && faixa) {
-                  let query = supabase.from("turmas").select("id").eq("ativa", true).eq("bairro_id", participante.bairro_id).eq("faixa_etaria", faixa as any);
-                  if (participante.periodo !== "integral") query = query.eq("periodo", participante.periodo as any);
-                  const { data: tc } = await query;
-                  if (tc && tc.length > 0) {
-                    const links = tc.map(t => ({ turma_id: t.id, participante_id: id! }));
-                    await supabase.from("turma_participantes").upsert(links, { onConflict: "turma_id,participante_id", ignoreDuplicates: true });
-                    toast.info(`Vinculado a ${tc.length} turma(s)`);
-                  }
-                }
-                toast.success("Matrícula aprovada!");
-                fetchAll();
-              }}><CheckCircle className="h-3.5 w-3.5" />Aprovar</Button>
-            )}
+            {/* Aprovação de matrícula pendente removida: status "pendente" não existe mais */}
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Pencil className="h-3.5 w-3.5 mr-1" />Editar</Button>
             <Button variant="outline" size="sm" className="gap-1" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" />Imprimir</Button>
             <SendRecadoDialog
@@ -414,7 +395,7 @@ const ParticipantePerfilPage = () => {
                 <div><Label className="text-xs">Status</Label>
                   <Select value={form.status || "ativo"} onValueChange={(v) => set("status", v)}>
                     <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="ativo">Ativo</SelectItem><SelectItem value="busca_ativa">Busca Ativa</SelectItem><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="desligado">Desligado</SelectItem><SelectItem value="incompleto">Incompleto</SelectItem></SelectContent>
+                    <SelectContent><SelectItem value="ativo">Ativo</SelectItem><SelectItem value="busca_ativa">Busca Ativa</SelectItem><SelectItem value="desligado">Desligado</SelectItem></SelectContent>
                   </Select>
                 </div>
               </>

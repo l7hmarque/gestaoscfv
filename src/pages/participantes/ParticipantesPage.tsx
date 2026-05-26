@@ -359,8 +359,8 @@ const ParticipantesPage = () => {
     fetchData();
   };
 
-  const pendentes = participantes.filter((p) => (p as any).status === "pendente");
-  const pendentesNaoVistos = pendentes.filter((p) => !(p as any).visualizado_em);
+  const pendentes: typeof participantes = [];
+  const pendentesNaoVistos: typeof participantes = [];
 
   const clearFilters = () => {
     setStatusFilter("");
@@ -430,28 +430,7 @@ const ParticipantesPage = () => {
 
   return (
     <div className="space-y-4">
-      {pendentes.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setStatusFilter("pendente")}
-          className="w-full flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-left hover:bg-blue-100 transition-colors"
-        >
-          <div className="relative">
-            <Bell className="h-5 w-5 text-blue-600" />
-            {pendentesNaoVistos.length > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
-                {pendentesNaoVistos.length}
-              </span>
-            )}
-          </div>
-          <div>
-            <p className="text-sm font-medium text-blue-800">{pendentes.length} matrícula{pendentes.length !== 1 ? "s" : ""} online aguardando aprovação</p>
-            {pendentesNaoVistos.length > 0 && (
-              <p className="text-xs text-blue-600">{pendentesNaoVistos.length} ainda não visualizada{pendentesNaoVistos.length !== 1 ? "s" : ""}</p>
-            )}
-          </div>
-        </button>
-      )}
+      {/* Banner de matrículas pendentes removido: status pendente não existe mais */}
 
       {/* Duplicatas banner */}
       {duplicatas.length > 0 && (
@@ -555,9 +534,7 @@ const ParticipantesPage = () => {
           <SelectContent>
             <SelectItem value="ativo">Ativo</SelectItem>
             <SelectItem value="busca_ativa">Busca Ativa</SelectItem>
-            <SelectItem value="pendente">Pendente</SelectItem>
             <SelectItem value="desligado">Desligado</SelectItem>
-            <SelectItem value="incompleto">Incompleto</SelectItem>
           </SelectContent>
         </Select>
         <Select value={periodoFilter} onValueChange={setPeriodoFilter}>
@@ -678,7 +655,6 @@ const ParticipantesPage = () => {
                           <SelectItem value="ativo">Ativo</SelectItem>
                           <SelectItem value="busca_ativa">Busca Ativa</SelectItem>
                           <SelectItem value="desligado">Desligado</SelectItem>
-                          <SelectItem value="incompleto">Incompleto</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>
@@ -686,11 +662,6 @@ const ParticipantesPage = () => {
                     <TableCell className="text-sm text-muted-foreground">{displayPhone(p.responsavel1_whatsapp)}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-0.5">
-                        {p.status === "pendente" && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50" title="Aprovar" onClick={() => handleAprovar(p)}>
-                            <Check className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
                         <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
                           <Link to={`/participantes/${p.id}`}><Eye className="h-3.5 w-3.5" /></Link>
                         </Button>

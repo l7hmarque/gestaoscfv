@@ -47,7 +47,7 @@ export default function RoteiroNovoPage() {
       const [{ data: ps }, { data: pf }] = await Promise.all([
         supabase.from("participantes")
           .select("id, nome_completo, status, data_nascimento, endereco_rua, endereco_numero, endereco_bairro, responsavel1_whatsapp, responsavel1_nome, periodo")
-          .in("status", ["busca_ativa", "pendente", "incompleto"])
+          .eq("status", "busca_ativa")
           .order("endereco_bairro").order("nome_completo"),
         supabase.from("profiles").select("id, nome").eq("ativo", true).order("nome"),
       ]);

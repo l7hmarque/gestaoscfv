@@ -3933,6 +3933,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_participante_incompleto: {
+        Args: { _participante_id: string }
+        Returns: boolean
+      }
       is_projeto_member: {
         Args: { _projeto_id: string; _user_id: string }
         Returns: boolean
@@ -3998,12 +4002,7 @@ export type Database = {
       faixa_etaria_enum: "6-8" | "9-11" | "12-17" | "idosos"
       objetivo_resultado: "alcancado" | "parcial" | "nao_alcancado"
       periodo_enum: "manha" | "tarde" | "integral"
-      status_participante:
-        | "ativo"
-        | "desligado"
-        | "incompleto"
-        | "pendente"
-        | "busca_ativa"
+      status_participante: "ativo" | "busca_ativa" | "desligado"
       tipo_feed_post: "manual" | "relatorio_auto" | "conquista"
       tipo_mural: "aviso" | "lembrete" | "informativo"
       tipo_reacao: "like" | "amei"
@@ -4147,13 +4146,7 @@ export const Constants = {
       faixa_etaria_enum: ["6-8", "9-11", "12-17", "idosos"],
       objetivo_resultado: ["alcancado", "parcial", "nao_alcancado"],
       periodo_enum: ["manha", "tarde", "integral"],
-      status_participante: [
-        "ativo",
-        "desligado",
-        "incompleto",
-        "pendente",
-        "busca_ativa",
-      ],
+      status_participante: ["ativo", "busca_ativa", "desligado"],
       tipo_feed_post: ["manual", "relatorio_auto", "conquista"],
       tipo_mural: ["aviso", "lembrete", "informativo"],
       tipo_reacao: ["like", "amei"],
