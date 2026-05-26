@@ -19,7 +19,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { TIPOS_ATIVIDADE, FAIXA_LABELS, isBairroSCFV } from "@/lib/constants";
-import { checkConquistas } from "@/hooks/useConquistas";
 import { useFormTimer } from "@/hooks/useFormTimer";
 import { getParticipantesDaTurma, type ParticipanteTurma } from "@/lib/participantesTurma";
 
@@ -469,7 +468,7 @@ const RelatorioNovoPage = () => {
 
       toast.success("Relatório salvo!");
 
-      // Fire-and-forget: generate AI results + auto-post to feed + check conquistas
+      // Fire-and-forget: generate AI results + auto-post to feed
       (async () => {
         try {
           let planData = null;
@@ -528,29 +527,6 @@ const RelatorioNovoPage = () => {
                   await supabase.from("feed_fotos").insert(
                     relFotos.map((f: any) => ({ feed_post_id: feedPost.id, foto_url: f.foto_url, ordem: f.ordem }))
                   );
-                }
-
-                // Check conquistas and append inline to the feed post
-                try {
-                  const earned = await checkConquistas({
-                    educadorProfileId: form.educador_id,
-                    relatorioId: relId,
-                    scoreElo: parseFloat(scoreElo),
-                    pctAdesao: Math.round(pctAdesao * 100) / 100,
-                    iniciativa: form.iniciativa,
-                    autonomia: form.autonomia,
-                    colaboracao: form.colaboracao,
-                    comunicacao: form.comunicacao,
-                    respeito_mutuo: form.respeito_mutuo,
-                  });
-                  if (earned.length > 0) {
-                    const conquText = `\n\n🏆 Conquistas desbloqueadas:\n${earned.map(e => `• ${e}`).join("\n")}`;
-                    await supabase.from("feed_posts").update({
-                      conteudo: feedContent + conquText,
-                    }).eq("id", feedPost.id);
-                  }
-                } catch (e) {
-                  console.warn("Falha ao verificar conquistas:", e);
                 }
               }
             } catch (e) {
