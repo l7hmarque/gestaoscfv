@@ -310,6 +310,7 @@ Deno.serve(async (req) => {
         { text: "P", bold: true }, { text: " = Presente  ·  " },
         { text: "A", bold: true }, { text: " = Ausente  ·  " },
         { text: "J", bold: true }, { text: " = Ausência justificada (justificativa em comentário da célula)  ·  " },
+        { text: "(BA)", bold: true }, { text: " = Busca Ativa  ·  " },
         { text: "(D)", bold: true }, { text: " = Desligado  ·  " },
         { text: "(T)", bold: true }, { text: " = Transferido" },
       ];
