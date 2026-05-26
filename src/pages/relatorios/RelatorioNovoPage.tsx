@@ -468,7 +468,7 @@ const RelatorioNovoPage = () => {
 
       toast.success("Relatório salvo!");
 
-      // Fire-and-forget: generate AI results + auto-post to feed + check conquistas
+      // Fire-and-forget: generate AI results + auto-post to feed
       (async () => {
         try {
           let planData = null;
