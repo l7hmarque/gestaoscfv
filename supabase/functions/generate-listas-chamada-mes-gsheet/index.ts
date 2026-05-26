@@ -148,7 +148,8 @@ function buildTurmaSheet(turma: any, members: any[], anoNum: number, mesNum: num
 
   const sortedAll = [...members].sort((a, b) => a.nome.localeCompare(b.nome));
   const ordered = [
-    ...sortedAll.filter(m => !m.bloqueado_chamada),
+    ...sortedAll.filter(m => !m.bloqueado_chamada && m.status !== "busca_ativa"),
+    ...sortedAll.filter(m => !m.bloqueado_chamada && m.status === "busca_ativa"),
     ...sortedAll.filter(m => m.bloqueado_chamada),
   ];
 
