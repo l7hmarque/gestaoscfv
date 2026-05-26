@@ -35,12 +35,33 @@ async function gw(url: string, init: RequestInit, sheetsKey: string, lovableKey:
     "Content-Type": "application/json",
     ...(init.headers || {}),
   };
-  const res = await fetch(url, { ...init, headers });
-  const text = await res.text();
-  let body: any = null;
-  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
-  if (!res.ok) throw new Error(`[${res.status}] ${url}: ${typeof body === "string" ? body : JSON.stringify(body)}`);
-  return body;
+  const RETRIABLE = new Set([429, 500, 502, 503, 504]);
+  const MAX_ATTEMPTS = 4;
+  let lastErr: any = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(url, { ...init, headers });
+      const text = await res.text();
+      let body: any = null;
+      try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+      if (res.ok) return body;
+      if (RETRIABLE.has(res.status) && attempt < MAX_ATTEMPTS) {
+        await new Promise(r => setTimeout(r, 600 * Math.pow(2, attempt - 1)));
+        continue;
+      }
+      throw new Error(`[${res.status}] ${url}: ${typeof body === "string" ? body : JSON.stringify(body)}`);
+    } catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      const isNet = !/^\[\d{3}\]/.test(msg);
+      if (isNet && attempt < MAX_ATTEMPTS) {
+        await new Promise(r => setTimeout(r, 600 * Math.pow(2, attempt - 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr || new Error(`gw failed: ${url}`);
 }
 
 /** Garante a pasta SYSCFV/{MES} - {ANO}/{sub} no Drive. */
