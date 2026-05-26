@@ -315,10 +315,8 @@ function generateMonthSheets(
   filteredAtendimentos.forEach((a: any) => { const t = a.tipo || "atendimento_individual"; atendByTipo[t] = (atendByTipo[t] || 0) + 1; });
 
   // ===== Indicadores institucionais (padrão D3) =====
-  // Ativos = status IN ('ativo','cadastro_incompleto') no fim do período.
-  const ativosNoFim = participantes.filter(
-    (p: any) => p.status === "ativo" || p.status === "cadastro_incompleto"
-  );
+  // Ativos = status='ativo' no fim do período.
+  const ativosNoFim = participantes.filter((p: any) => p.status === "ativo");
   // Em Busca Ativa = status='busca_ativa' AND busca_ativa_desde <= fim_periodo.
   const fimPeriodo = endDate; // exclusivo; comparações `<` funcionam
   const baNoFim = participantes.filter(

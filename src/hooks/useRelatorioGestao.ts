@@ -112,11 +112,9 @@ function computeMetrics(data: GestaoData, startDate: string, endDate: string) {
   const profileMap = new Map(data.profiles.map(p => [p.id, p]));
   const turmaMap = new Map(data.turmas.map(t => [t.id, t]));
 
-  // Ativos no fim do período: status IN ('ativo','cadastro_incompleto').
+  // Ativos no fim do período: status='ativo'.
   // (D3) Inclusão por status — não usar `data_saida` nem janelas de vínculo.
-  const activeParticipants = data.participantes.filter(
-    p => p.status === "ativo" || p.status === "cadastro_incompleto"
-  );
+  const activeParticipants = data.participantes.filter(p => p.status === "ativo");
 
   // Em Busca Ativa (acumulado): status='busca_ativa' AND busca_ativa_desde <= endDate.
   const baAcumulado = data.participantes.filter(

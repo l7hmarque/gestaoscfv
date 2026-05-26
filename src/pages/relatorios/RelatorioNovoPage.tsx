@@ -185,9 +185,9 @@ const RelatorioNovoPage = () => {
       results.flat().forEach(p => {
         if (!unique.has(p.participante_id)) unique.set(p.participante_id, p);
       });
-      // Inclusão por status: ativo, cadastro_incompleto, busca_ativa.
+      // Inclusão por status: ativo, busca_ativa.
       // Desligados/transferidos vêm como bloqueados (≤30d) e ficam fora da chamada.
-      const ALLOWED_STATUS = new Set(["ativo", "cadastro_incompleto", "busca_ativa"]);
+      const ALLOWED_STATUS = new Set(["ativo", "busca_ativa"]);
       const baseList = Array.from(unique.values())
         .filter(p => ALLOWED_STATUS.has(p.status) && !p.bloqueado_chamada)
         .map(p => ({

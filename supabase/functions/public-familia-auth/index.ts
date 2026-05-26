@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
       .select("id, nome_completo, data_nascimento, genero, foto_url, status, periodo, bairro_id, ponto_transporte_id, responsavel1_nome, responsavel2_nome, escola, serie, endereco_bairro, iniciou_em, bairros:bairro_id(id, nome), pontos_transporte:ponto_transporte_id(id, nome, horario_manha, horario_tarde, bairro_id, bairros:bairro_id(nome))")
       .ilike("nome_completo", nomePadronizado)
       .eq("data_nascimento", data_nascimento)
-      .in("status", ["ativo", "pendente"])
+      .in("status", ["ativo", "busca_ativa"])
       .limit(1)
       .maybeSingle();
 
@@ -159,7 +159,7 @@ async function findSiblings(supabase: any, participante: any) {
     .from("participantes")
     .select("id, nome_completo, data_nascimento, genero, foto_url, status, periodo, bairro_id, ponto_transporte_id, responsavel1_nome, responsavel2_nome, escola, serie, endereco_bairro, iniciou_em, bairros:bairro_id(id, nome), pontos_transporte:ponto_transporte_id(id, nome, horario_manha, horario_tarde, bairro_id, bairros:bairro_id(nome))")
     .neq("id", participante.id)
-    .in("status", ["ativo", "pendente"])
+    .in("status", ["ativo", "busca_ativa"])
     .eq("is_teste", false)
     .or(`responsavel1_nome.ilike.${respNome},responsavel2_nome.ilike.${respNome}`);
 
