@@ -17,5 +17,80 @@
     "documents": "Documentos e Informes",
     "coordination": "Coordinación",
     "settings": "Configuración"
+  },
+  "sidebar": {
+    "groups": {
+      "main": "Principal",
+      "activities": "Actividades",
+      "operations": "Operación",
+      "communication": "Equipo y Comunicación",
+      "coordination": "Coordinación"
+    },
+    "items": {
+      "dashboard": "Panel",
+      "participants": "Participantes",
+      "classes": "Grupos",
+      "attendance": "Asistencia",
+      "photos": "Registros Fotográficos",
+      "planning": "Planificación",
+      "reports": "Informes",
+      "schedule": "Cronograma",
+      "transport": "Transporte",
+      "kitchen": "Cocina",
+      "technical_team": "Equipo Técnico",
+      "feed": "Feed / Muro",
+      "coordination_panel": "Panel de Coordinación",
+      "documents": "Documentos e Informes",
+      "integrity": "Integridad",
+      "database": "Base de Datos",
+      "public_site": "Sitio Público",
+      "settings": "Configuración"
+    },
+    "restricted": "Restringido",
+    "my_profile": "Mi Perfil",
+    "sign_out": "Salir",
+    "no_permission": "Sin permiso de acceso"
+  },
+  "attendance": {
+    "tab_register": "Registro",
+    "tab_export": "Exportar",
+    "banner_title": "Use el Informe de Actividad",
+    "banner_body": "La asistencia debe registrarse preferentemente mediante el Informe de Actividad. Esta página es solo para correcciones, rectificaciones y casos extraordinarios."
+  },
+  "documents": {
+    "title": "Documentos e Informes",
+    "subtitle": "Centro unificado de exportaciones y documentos oficiales",
+    "tab_attendance": "Asistencia",
+    "tab_activities": "Actividades",
+    "tab_management": "Gestión",
+    "tab_official": "Oficiales",
+    "management_restricted": "Disponible solo para coordinación y super admin."
+  },
+  "settings": {
+    "title": "Configuración General",
+    "subtitle": "Configuración institucional y parámetros del sistema",
+    "tab_institution": "Institución",
+    "tab_neighborhoods": "Barrios",
+    "tab_transport": "Transporte",
+    "tab_team": "Equipo",
+    "tab_permissions": "Permisos",
+    "tab_audit": "Auditoría",
+    "tab_system": "Sistema",
+    "callout": {
+      "institution_title": "Identidad institucional",
+      "institution_body": "Estos datos aparecen en todos los documentos oficiales, informes y exportaciones. El Marco Operacional define la fecha de corte de las métricas analíticas — modificarlo recalcula KPIs del panel, ELO y adhesión. Restringido a coordinación.",
+      "neighborhoods_title": "Metas territoriales SCFV",
+      "neighborhoods_body": "Las metas alimentan el panel de cobertura por barrio y la Búsqueda Activa. Actualice cuando haya cambio de convenio. Los valores se auditan.",
+      "transport_title": "Puntos de embarque",
+      "transport_body": "Los puntos inactivos no aparecen a conductores ni al portal de familia, pero conservan el historial para informes anteriores. Prefiera desactivar en lugar de eliminar cuando el punto ya se haya utilizado.",
+      "team_title": "Gestión de RR.HH.",
+      "team_body": "Las ediciones aquí alteran datos sensibles (salario, carga horaria, estado). Cada cambio se registra en auditoría. Las desvinculaciones son reversibles desde el historial funcional.",
+      "permissions_title": "Permisos granulares",
+      "permissions_body": "Cambiar permisos puede bloquear el acceso de profesionales de inmediato. Restringido a coordinación y super admin. Los cambios entran en vigor en la próxima carga de página del usuario afectado.",
+      "audit_title": "Pista de auditoría",
+      "audit_body": "Registro inmutable de todas las acciones sensibles (creación, edición, eliminación y justificativas). Úselo para rendición de cuentas, LGPD e investigaciones internas. Exporte por período antes de cierres mensuales.",
+      "system_title": "Configuración del sistema",
+      "system_body": "Área avanzada: plantillas de documentos, copia de seguridad de la base y herramientas técnicas. Las operaciones de respaldo pueden ser pesadas — ejecútelas fuera del horario pico. Restringido a coordinación y super admin."
+    }
   }
 }
