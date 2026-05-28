@@ -331,7 +331,7 @@ export default function ConfiguracoesPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid grid-cols-7 w-full max-w-5xl">
+        <TabsList className="grid w-full max-w-5xl grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 h-auto">
           <TabsTrigger value="instituicao"><Building2 className="h-4 w-4 mr-1" />{t("settings.tab_institution")}</TabsTrigger>
           <TabsTrigger value="bairros"><MapPin className="h-4 w-4 mr-1" />{t("settings.tab_neighborhoods")}</TabsTrigger>
           <TabsTrigger value="transporte"><Bus className="h-4 w-4 mr-1" />{t("settings.tab_transport")}</TabsTrigger>
