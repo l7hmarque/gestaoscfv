@@ -20,6 +20,7 @@ import { useBackupExport } from "@/hooks/useBackupExport";
 import TemplateTagMapper from "@/components/TemplateTagMapper";
 import { useAuth } from "@/contexts/AuthContext";
 import { PermissoesGranularesTab } from "./PermissoesGranularesTab";
+import { InfoCallout } from "@/components/InfoCallout";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
@@ -340,6 +341,11 @@ export default function ConfiguracoesPage() {
 
         {/* INSTITUIÇÃO */}
         <TabsContent value="instituicao">
+          <InfoCallout title="Identidade institucional">
+            Estes dados aparecem em todos os documentos oficiais, relatórios e exportações.
+            O <strong>Marco Operacional</strong> define a data de corte das métricas analíticas — alterá-lo
+            recalcula KPIs do dashboard, ELO e adesão. Restrito a coordenação.
+          </InfoCallout>
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Dados Institucionais</CardTitle>
@@ -385,6 +391,10 @@ export default function ConfiguracoesPage() {
 
         {/* BAIRROS E METAS */}
         <TabsContent value="bairros">
+          <InfoCallout title="Metas territoriais SCFV">
+            As metas alimentam o painel de cobertura por bairro e a Busca Ativa.
+            Atualize sempre que houver mudança de termo/convênio. Valores são auditados.
+          </InfoCallout>
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Bairros e Metas SCFV</CardTitle>
@@ -428,6 +438,11 @@ export default function ConfiguracoesPage() {
 
         {/* TRANSPORTE */}
         <TabsContent value="transporte">
+          <InfoCallout title="Pontos de embarque">
+            Pontos inativos não aparecem para motoristas nem para o portal da família,
+            mas mantêm o histórico para relatórios anteriores. Use “inativar” em vez de excluir
+            sempre que o ponto já tiver sido usado.
+          </InfoCallout>
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2"><Bus className="h-5 w-5" />Pontos de Transporte</CardTitle>
@@ -491,6 +506,10 @@ export default function ConfiguracoesPage() {
 
         {/* EQUIPE */}
         <TabsContent value="equipe">
+          <InfoCallout title="Gestão de RH">
+            Edições nesta aba alteram dados sensíveis (salário, carga horária, status).
+            Toda mudança é registrada em auditoria. Desligamentos são reversíveis pelo histórico funcional.
+          </InfoCallout>
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2"><UserCog className="h-5 w-5" />Equipe e Gestão de RH</CardTitle>
@@ -614,10 +633,19 @@ export default function ConfiguracoesPage() {
 
         {/* AUDITORIA */}
         <TabsContent value="permissoes">
+          <InfoCallout title="Permissões granulares" variant="warning">
+            Alterar permissões pode bloquear acesso de profissionais imediatamente.
+            Restrito a <strong>coordenação</strong> e <strong>super admin</strong>. As mudanças entram em vigor
+            no próximo carregamento de página do usuário afetado.
+          </InfoCallout>
           <PermissoesGranularesTab />
         </TabsContent>
 
         <TabsContent value="auditoria">
+          <InfoCallout title="Trilha de auditoria">
+            Registro imutável de todas as ações sensíveis do sistema (criação, edição, exclusão e justificativas).
+            Use para prestação de contas, LGPD e investigações internas. Exporte por período antes de fechamentos mensais.
+          </InfoCallout>
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2"><History className="h-5 w-5" />Log de Auditoria Completo</CardTitle>
@@ -728,6 +756,11 @@ export default function ConfiguracoesPage() {
 
         {/* SISTEMA */}
         <TabsContent value="sistema">
+          <InfoCallout title="Configurações de sistema" variant="warning">
+            Área avançada: templates de documentos, backup do banco e ferramentas técnicas.
+            Operações de backup podem ser pesadas — execute fora do horário de pico.
+            Restrito a <strong>coordenação</strong> e <strong>super admin</strong>.
+          </InfoCallout>
           <div className="grid gap-4">
             {/* Templates DOCX */}
             <Card>

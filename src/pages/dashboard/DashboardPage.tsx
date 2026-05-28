@@ -34,7 +34,7 @@ import { IndicadorTimelineDrawer } from "@/components/dashboard/IndicadorTimelin
 import type { IndicadorId } from "@/lib/indicadorTimelineFetchers";
 import { formatMesLabel, formatMesExtenso } from "@/lib/dateLabels";
 import { RichTooltip } from "@/components/dashboard/RichTooltip";
-import { chartColors, gridProps } from "@/lib/chartTheme";
+import { chartColors, gridProps, chartPaletteInstitucional } from "@/lib/chartTheme";
 
 const RED = "hsl(0,58%,56%)";
 const BLUE = "hsl(210,80%,50%)";
@@ -662,8 +662,8 @@ function IndicadoresTab() {
                     {data.participantesPorFaixa.map((row, i) => (
                       <Cell
                         key={i}
-                        fill={i % 2 === 0 ? RED : BLUE}
-                        fillOpacity={!dim.faixa || dim.faixa === row.faixa ? 1 - (i * 0.08) : 0.25}
+                        fill={chartPaletteInstitucional[i % chartPaletteInstitucional.length]}
+                        fillOpacity={!dim.faixa || dim.faixa === row.faixa ? 1 : 0.25}
                       />
                     ))}
                   </Pie>
@@ -794,7 +794,7 @@ function IndicadoresTab() {
                         return (
                           <Cell
                             key={i}
-                            fill={MULTI_TONES[i % MULTI_TONES.length]}
+                            fill={chartPaletteInstitucional[i % chartPaletteInstitucional.length]}
                             fillOpacity={active ? baseOpacity : 0.2}
                           />
                         );
