@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -21,15 +21,13 @@ const TurmasPage = lazy(() => import("./pages/turmas/TurmasPage"));
 const TurmaNovaPage = lazy(() => import("./pages/turmas/TurmaNovaPage"));
 const TurmaDetalhePage = lazy(() => import("./pages/turmas/TurmaDetalhePage"));
 const PresencaPage = lazy(() => import("./pages/presenca/PresencaPage"));
-const PresencaExportarPage = lazy(() => import("./pages/presenca/PresencaExportarPage"));
 const PlanejamentosPage = lazy(() => import("./pages/planejamentos/PlanejamentosPage"));
 const PlanejamentoNovoPage = lazy(() => import("./pages/planejamentos/PlanejamentoNovoPage"));
 const PlanejamentoDetalhePage = lazy(() => import("./pages/planejamentos/PlanejamentoDetalhePage"));
 const RelatoriosPage = lazy(() => import("./pages/relatorios/RelatoriosPage"));
 const RelatorioNovoPage = lazy(() => import("./pages/relatorios/RelatorioNovoPage"));
 const RelatorioDetalhePage = lazy(() => import("./pages/relatorios/RelatorioDetalhePage"));
-const ExportarRelatoriosPage = lazy(() => import("./pages/relatorios/ExportarRelatoriosPage"));
-const HubExportacoesPage = lazy(() => import("./pages/relatorios/HubExportacoesPage"));
+const DocumentosPage = lazy(() => import("./pages/documentos/DocumentosPage"));
 const BancoDadosPage = lazy(() => import("./pages/banco-dados/BancoDadosPage"));
 const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
 const ProfissionalPerfilPage = lazy(() => import("./pages/profissional/ProfissionalPerfilPage"));
@@ -51,7 +49,6 @@ const SiteConteudosPage = lazy(() => import("./pages/site/SiteConteudosPage"));
 const SiteContatoPage = lazy(() => import("./pages/site/SiteContatoPage"));
 const SiteAdminPage = lazy(() => import("./pages/site-admin/SiteAdminPage"));
 const ConfiguracoesPage = lazy(() => import("./pages/configuracoes/ConfiguracoesPage"));
-const MuralPage = lazy(() => import("./pages/mural/MuralPage"));
 const CronogramaPage = lazy(() => import("./pages/cronograma/CronogramaPage"));
 const IntegridadePage = lazy(() => import("./pages/integridade/IntegridadePage"));
 const CoordenacaoPage = lazy(() => import("./pages/coordenacao/CoordenacaoPage"));
@@ -107,17 +104,18 @@ const App = () => (
                   <Route path="/turmas/nova" element={<ModuleRoute module="turmas" level="write"><TurmaNovaPage /></ModuleRoute>} />
                   <Route path="/turmas/:id" element={<ModuleRoute module="turmas"><TurmaDetalhePage /></ModuleRoute>} />
                   <Route path="/presenca" element={<ModuleRoute module="presenca"><PresencaPage /></ModuleRoute>} />
-                  <Route path="/presenca/exportar" element={<ModuleRoute module="presenca"><PresencaExportarPage /></ModuleRoute>} />
+                  <Route path="/presenca/exportar" element={<Navigate to="/presenca?tab=exportar" replace />} />
                   <Route path="/planejamentos" element={<ModuleRoute module="planejamentos"><PlanejamentosPage /></ModuleRoute>} />
                   <Route path="/planejamentos/novo" element={<ModuleRoute module="planejamentos" level="write"><PlanejamentoNovoPage /></ModuleRoute>} />
                   <Route path="/planejamentos/:id" element={<ModuleRoute module="planejamentos"><PlanejamentoDetalhePage /></ModuleRoute>} />
                   <Route path="/relatorios" element={<ModuleRoute module="relatorios"><RelatoriosPage /></ModuleRoute>} />
                   <Route path="/relatorios/novo" element={<ModuleRoute module="relatorios" level="write"><RelatorioNovoPage /></ModuleRoute>} />
                   <Route path="/relatorios/:id" element={<ModuleRoute module="relatorios"><RelatorioDetalhePage /></ModuleRoute>} />
-                  <Route path="/relatorios/exportar" element={<ModuleRoute module="relatorios"><ExportarRelatoriosPage /></ModuleRoute>} />
-                  <Route path="/relatorios/hub" element={<ModuleRoute module="relatorios"><HubExportacoesPage /></ModuleRoute>} />
+                  <Route path="/relatorios/exportar" element={<Navigate to="/documentos?tab=atividades" replace />} />
+                  <Route path="/relatorios/hub" element={<Navigate to="/documentos" replace />} />
+                  <Route path="/documentos" element={<ModuleRoute module="relatorios"><DocumentosPage /></ModuleRoute>} />
                   <Route path="/profissional/:id" element={<ProfissionalPerfilPage />} />
-                  <Route path="/mural" element={<ModuleRoute module="feed"><MuralPage /></ModuleRoute>} />
+                  <Route path="/mural" element={<Navigate to="/feed" replace />} />
                   <Route path="/feed" element={<ModuleRoute module="feed"><FeedPage /></ModuleRoute>} />
                   <Route path="/equipe-tecnica" element={<ModuleRoute module="equipe_tecnica"><EquipeTecnicaPage /></ModuleRoute>} />
                   <Route path="/equipe-tecnica/roteiros/novo" element={<ModuleRoute module="equipe_tecnica" level="write"><RoteiroNovoPage /></ModuleRoute>} />

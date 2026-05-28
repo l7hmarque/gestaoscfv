@@ -27,8 +27,6 @@ import {
 } from "recharts";
 import { ChartCopyButton } from "@/components/ChartCopyButton";
 import DashboardProfissionaisTab from "./DashboardProfissionaisTab";
-import DashboardAdminTab from "./DashboardAdminTab";
-import DashboardRelatorioMensalTab from "./DashboardRelatorioMensalTab";
 import { PendenciasIntegridadeBanner } from "@/components/PendenciasIntegridadeBanner";
 import { PageHeader } from "@/components/PageHeader";
 import { LayoutDashboard } from "lucide-react";
@@ -882,13 +880,9 @@ export default function DashboardPage() {
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="indicadores" className="text-xs sm:text-sm">Indicadores</TabsTrigger>
           <TabsTrigger value="profissionais" className="text-xs sm:text-sm">Profissionais</TabsTrigger>
-          <TabsTrigger value="relatorio-mensal" className="text-xs sm:text-sm">Rel. Mensal</TabsTrigger>
-          <TabsTrigger value="admin" className="text-xs sm:text-sm">Admin</TabsTrigger>
         </TabsList>
         <TabsContent value="indicadores"><IndicadoresTab /></TabsContent>
         <TabsContent value="profissionais"><DashboardProfissionaisTab /></TabsContent>
-        <TabsContent value="relatorio-mensal"><DashboardRelatorioMensalTab /></TabsContent>
-        <TabsContent value="admin"><DashboardAdminTab /></TabsContent>
       </Tabs>
     </div>
   );

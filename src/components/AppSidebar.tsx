@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SysCFVLogo } from "@/components/SysCFVLogo";
 import {
-  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, Globe, FileDown, Settings, User, CalendarDays, Briefcase, ChefHat, Bus, Camera, FolderDown, ShieldAlert, Lock, ShieldCheck, History,
+  Users, GraduationCap, ClipboardCheck, BookOpen, FileText, LogOut, Database, LayoutDashboard, Newspaper, HeartHandshake, Globe, Settings, User, CalendarDays, Briefcase, ChefHat, Bus, Camera, FolderDown, ShieldAlert, Lock, ShieldCheck, Wrench,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -25,7 +25,6 @@ const menuGroups: Group[] = [
       { title: "Participantes", url: "/participantes", icon: Users, module: "participantes" },
       { title: "Turmas", url: "/turmas", icon: GraduationCap, module: "turmas" },
       { title: "Presença", url: "/presenca", icon: ClipboardCheck, module: "presenca" },
-      { title: "Exportar Listas", url: "/presenca/exportar", icon: FileDown, module: "presenca" },
       { title: "Registros Fotográficos", url: "/registros-fotograficos", icon: Camera, module: "registros_fotograficos" },
     ],
   },
@@ -34,7 +33,6 @@ const menuGroups: Group[] = [
     items: [
       { title: "Planejamento", url: "/planejamentos", icon: BookOpen, module: "planejamentos" },
       { title: "Relatórios", url: "/relatorios", icon: FileText, module: "relatorios" },
-      { title: "Hub de Exportações", url: "/relatorios/hub", icon: FolderDown, module: "relatorios" },
       { title: "Cronograma", url: "/cronograma", icon: CalendarDays, module: "cronograma" },
     ],
   },
@@ -43,13 +41,13 @@ const menuGroups: Group[] = [
     items: [
       { title: "Transporte", url: "/transporte", icon: Bus, module: "transporte" },
       { title: "Cozinha", url: "/cozinha", icon: ChefHat, module: "cozinha" },
+      { title: "Equipe Técnica", url: "/equipe-tecnica", icon: HeartHandshake, module: "equipe_tecnica" },
     ],
   },
   {
     label: "Equipe & Comunicação",
     items: [
       { title: "Feed / Mural", url: "/feed", icon: Newspaper, module: "feed" },
-      { title: "Equipe Técnica", url: "/equipe-tecnica", icon: HeartHandshake, module: "equipe_tecnica" },
     ],
   },
   {
@@ -57,6 +55,7 @@ const menuGroups: Group[] = [
     restricted: true,
     items: [
       { title: "Painel da Coordenação", url: "/coordenacao", icon: Briefcase, module: "coordenacao" },
+      { title: "Documentos & Relatórios", url: "/documentos", icon: FolderDown, module: "relatorios" },
       { title: "Integridade", url: "/integridade", icon: ShieldCheck, module: "integridade" },
       { title: "Banco de Dados", url: "/banco-de-dados", icon: Database, module: "banco_dados" },
       { title: "Site Público", url: "/site-admin", icon: Globe, module: "site_publico" },

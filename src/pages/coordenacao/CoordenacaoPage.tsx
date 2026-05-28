@@ -15,6 +15,7 @@ import { PermissoesTab } from "./PermissoesTab";
 import { AcessosFamiliaTab } from "./AcessosFamiliaTab";
 import { ProdutividadeTab } from "./ProdutividadeTab";
 import { AuditoriaTab } from "./AuditoriaTab";
+import DashboardAdminTab from "../dashboard/DashboardAdminTab";
 
 export default function CoordenacaoPage() {
   const { user } = useAuth();
@@ -82,7 +83,7 @@ export default function CoordenacaoPage() {
           <TabsTrigger value="familia">Portal Família</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
           <TabsTrigger value="desligamento">Desligamento</TabsTrigger>
-          <TabsTrigger value="relatorio">Relatório</TabsTrigger>
+          <TabsTrigger value="administracao">Administração</TabsTrigger>
         </TabsList>
 
         {isLoading ? (
@@ -227,14 +228,17 @@ export default function CoordenacaoPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="relatorio" className="mt-6">
-              <Card>
-                <CardHeader><CardTitle className="text-base">Relatório do Coordenador</CardTitle></CardHeader>
-                <CardContent className="text-sm text-muted-foreground space-y-2">
-                  <p>Geração de PDF/XLSX consolidando os indicadores acima. Em breve disponível neste módulo.</p>
-                  <p>Dados atuais já podem ser auditados nas demais abas.</p>
+            <TabsContent value="administracao" className="mt-6">
+              <Card className="mb-3 border-l-4 border-l-primary/60">
+                <CardContent className="p-4 text-xs text-muted-foreground">
+                  <p>
+                    <strong className="text-foreground">Administração técnica.</strong> Sincronização do Drive institucional,
+                    resets controlados (ELO/frequência) e ferramentas de manutenção. Use com cautela — ações afetam dados
+                    históricos e relatórios retroativos. Tudo é registrado em auditoria.
+                  </p>
                 </CardContent>
               </Card>
+              <DashboardAdminTab />
             </TabsContent>
           </>
         )}
