@@ -1,0 +1,21 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "export": "Export",
+    "search": "Search",
+    "loading": "Loading...",
+    "language": "Language"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "participants": "Participants",
+    "classes": "Classes",
+    "attendance": "Attendance",
+    "activities": "Activities",
+    "documents": "Documents & Reports",
+    "coordination": "Coordination",
+    "settings": "Settings"
+  }
+}
