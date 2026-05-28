@@ -17,5 +17,80 @@
     "documents": "Documentos & Relatórios",
     "coordination": "Coordenação",
     "settings": "Configurações"
+  },
+  "sidebar": {
+    "groups": {
+      "main": "Principal",
+      "activities": "Atividades",
+      "operations": "Operação",
+      "communication": "Equipe & Comunicação",
+      "coordination": "Coordenação"
+    },
+    "items": {
+      "dashboard": "Dashboard",
+      "participants": "Participantes",
+      "classes": "Turmas",
+      "attendance": "Presença",
+      "photos": "Registros Fotográficos",
+      "planning": "Planejamento",
+      "reports": "Relatórios",
+      "schedule": "Cronograma",
+      "transport": "Transporte",
+      "kitchen": "Cozinha",
+      "technical_team": "Equipe Técnica",
+      "feed": "Feed / Mural",
+      "coordination_panel": "Painel da Coordenação",
+      "documents": "Documentos & Relatórios",
+      "integrity": "Integridade",
+      "database": "Banco de Dados",
+      "public_site": "Site Público",
+      "settings": "Configurações"
+    },
+    "restricted": "Restrito",
+    "my_profile": "Meu Perfil",
+    "sign_out": "Sair",
+    "no_permission": "Sem permissão de acesso"
+  },
+  "attendance": {
+    "tab_register": "Lançamento",
+    "tab_export": "Exportar",
+    "banner_title": "Use o Relatório de Atividade",
+    "banner_body": "As presenças devem ser lançadas preferencialmente pelo Relatório de Atividade. Esta página é destinada apenas a correções, retificações e casos extraordinários."
+  },
+  "documents": {
+    "title": "Documentos & Relatórios",
+    "subtitle": "Centro unificado de exportações e documentos oficiais",
+    "tab_attendance": "Presença",
+    "tab_activities": "Atividades",
+    "tab_management": "Gestão",
+    "tab_official": "Oficiais",
+    "management_restricted": "Disponível apenas para coordenação e super admin."
+  },
+  "settings": {
+    "title": "Configurações Gerais",
+    "subtitle": "Configurações institucionais e parâmetros do sistema",
+    "tab_institution": "Instituição",
+    "tab_neighborhoods": "Bairros",
+    "tab_transport": "Transporte",
+    "tab_team": "Equipe",
+    "tab_permissions": "Permissões",
+    "tab_audit": "Auditoria",
+    "tab_system": "Sistema",
+    "callout": {
+      "institution_title": "Identidade institucional",
+      "institution_body": "Estes dados aparecem em todos os documentos oficiais, relatórios e exportações. O Marco Operacional define a data de corte das métricas analíticas — alterá-lo recalcula KPIs do dashboard, ELO e adesão. Restrito a coordenação.",
+      "neighborhoods_title": "Metas territoriais SCFV",
+      "neighborhoods_body": "As metas alimentam o painel de cobertura por bairro e a Busca Ativa. Atualize sempre que houver mudança de termo/convênio. Valores são auditados.",
+      "transport_title": "Pontos de embarque",
+      "transport_body": "Pontos inativos não aparecem para motoristas nem para o portal da família, mas mantêm o histórico para relatórios anteriores. Use inativar em vez de excluir sempre que o ponto já tiver sido usado.",
+      "team_title": "Gestão de RH",
+      "team_body": "Edições nesta aba alteram dados sensíveis (salário, carga horária, status). Toda mudança é registrada em auditoria. Desligamentos são reversíveis pelo histórico funcional.",
+      "permissions_title": "Permissões granulares",
+      "permissions_body": "Alterar permissões pode bloquear acesso de profissionais imediatamente. Restrito a coordenação e super admin. As mudanças entram em vigor no próximo carregamento de página do usuário afetado.",
+      "audit_title": "Trilha de auditoria",
+      "audit_body": "Registro imutável de todas as ações sensíveis do sistema (criação, edição, exclusão e justificativas). Use para prestação de contas, LGPD e investigações internas. Exporte por período antes de fechamentos mensais.",
+      "system_title": "Configurações de sistema",
+      "system_body": "Área avançada: templates de documentos, backup do banco e ferramentas técnicas. Operações de backup podem ser pesadas — execute fora do horário de pico. Restrito a coordenação e super admin."
+    }
   }
 }

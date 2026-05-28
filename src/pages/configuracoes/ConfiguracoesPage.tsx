@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,7 @@ const BACKUP_CATEGORIES = [
 const AUDIT_PAGE_SIZE = 50;
 
 export default function ConfiguracoesPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("instituicao");
   const [configs, setConfigs] = useState<Record<string, string>>({});
@@ -324,27 +326,25 @@ export default function ConfiguracoesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-foreground">Configurações Gerais</h1>
-        <p className="text-sm text-muted-foreground">Configurações institucionais e parâmetros do sistema</p>
+        <h1 className="text-xl font-bold text-foreground">{t("settings.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("settings.subtitle")}</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid grid-cols-7 w-full max-w-5xl">
-          <TabsTrigger value="instituicao"><Building2 className="h-4 w-4 mr-1" />Instituição</TabsTrigger>
-          <TabsTrigger value="bairros"><MapPin className="h-4 w-4 mr-1" />Bairros</TabsTrigger>
-          <TabsTrigger value="transporte"><Bus className="h-4 w-4 mr-1" />Transporte</TabsTrigger>
-          <TabsTrigger value="equipe"><Users className="h-4 w-4 mr-1" />Equipe</TabsTrigger>
-          <TabsTrigger value="permissoes"><Shield className="h-4 w-4 mr-1" />Permissões</TabsTrigger>
-          <TabsTrigger value="auditoria"><History className="h-4 w-4 mr-1" />Auditoria</TabsTrigger>
-          <TabsTrigger value="sistema"><Shield className="h-4 w-4 mr-1" />Sistema</TabsTrigger>
+          <TabsTrigger value="instituicao"><Building2 className="h-4 w-4 mr-1" />{t("settings.tab_institution")}</TabsTrigger>
+          <TabsTrigger value="bairros"><MapPin className="h-4 w-4 mr-1" />{t("settings.tab_neighborhoods")}</TabsTrigger>
+          <TabsTrigger value="transporte"><Bus className="h-4 w-4 mr-1" />{t("settings.tab_transport")}</TabsTrigger>
+          <TabsTrigger value="equipe"><Users className="h-4 w-4 mr-1" />{t("settings.tab_team")}</TabsTrigger>
+          <TabsTrigger value="permissoes"><Shield className="h-4 w-4 mr-1" />{t("settings.tab_permissions")}</TabsTrigger>
+          <TabsTrigger value="auditoria"><History className="h-4 w-4 mr-1" />{t("settings.tab_audit")}</TabsTrigger>
+          <TabsTrigger value="sistema"><Shield className="h-4 w-4 mr-1" />{t("settings.tab_system")}</TabsTrigger>
         </TabsList>
 
         {/* INSTITUIÇÃO */}
         <TabsContent value="instituicao">
-          <InfoCallout title="Identidade institucional">
-            Estes dados aparecem em todos os documentos oficiais, relatórios e exportações.
-            O <strong>Marco Operacional</strong> define a data de corte das métricas analíticas — alterá-lo
-            recalcula KPIs do dashboard, ELO e adesão. Restrito a coordenação.
+          <InfoCallout title={t("settings.callout.institution_title")}>
+            {t("settings.callout.institution_body")}
           </InfoCallout>
           <Card>
             <CardHeader>
@@ -391,9 +391,8 @@ export default function ConfiguracoesPage() {
 
         {/* BAIRROS E METAS */}
         <TabsContent value="bairros">
-          <InfoCallout title="Metas territoriais SCFV">
-            As metas alimentam o painel de cobertura por bairro e a Busca Ativa.
-            Atualize sempre que houver mudança de termo/convênio. Valores são auditados.
+          <InfoCallout title={t("settings.callout.neighborhoods_title")}>
+            {t("settings.callout.neighborhoods_body")}
           </InfoCallout>
           <Card>
             <CardHeader>
@@ -438,10 +437,8 @@ export default function ConfiguracoesPage() {
 
         {/* TRANSPORTE */}
         <TabsContent value="transporte">
-          <InfoCallout title="Pontos de embarque">
-            Pontos inativos não aparecem para motoristas nem para o portal da família,
-            mas mantêm o histórico para relatórios anteriores. Use “inativar” em vez de excluir
-            sempre que o ponto já tiver sido usado.
+          <InfoCallout title={t("settings.callout.transport_title")}>
+            {t("settings.callout.transport_body")}
           </InfoCallout>
           <Card>
             <CardHeader>
@@ -506,9 +503,8 @@ export default function ConfiguracoesPage() {
 
         {/* EQUIPE */}
         <TabsContent value="equipe">
-          <InfoCallout title="Gestão de RH">
-            Edições nesta aba alteram dados sensíveis (salário, carga horária, status).
-            Toda mudança é registrada em auditoria. Desligamentos são reversíveis pelo histórico funcional.
+          <InfoCallout title={t("settings.callout.team_title")}>
+            {t("settings.callout.team_body")}
           </InfoCallout>
           <Card>
             <CardHeader>
@@ -633,18 +629,15 @@ export default function ConfiguracoesPage() {
 
         {/* AUDITORIA */}
         <TabsContent value="permissoes">
-          <InfoCallout title="Permissões granulares" variant="warning">
-            Alterar permissões pode bloquear acesso de profissionais imediatamente.
-            Restrito a <strong>coordenação</strong> e <strong>super admin</strong>. As mudanças entram em vigor
-            no próximo carregamento de página do usuário afetado.
+          <InfoCallout title={t("settings.callout.permissions_title")} variant="warning">
+            {t("settings.callout.permissions_body")}
           </InfoCallout>
           <PermissoesGranularesTab />
         </TabsContent>
 
         <TabsContent value="auditoria">
-          <InfoCallout title="Trilha de auditoria">
-            Registro imutável de todas as ações sensíveis do sistema (criação, edição, exclusão e justificativas).
-            Use para prestação de contas, LGPD e investigações internas. Exporte por período antes de fechamentos mensais.
+          <InfoCallout title={t("settings.callout.audit_title")}>
+            {t("settings.callout.audit_body")}
           </InfoCallout>
           <Card>
             <CardHeader>
@@ -756,10 +749,8 @@ export default function ConfiguracoesPage() {
 
         {/* SISTEMA */}
         <TabsContent value="sistema">
-          <InfoCallout title="Configurações de sistema" variant="warning">
-            Área avançada: templates de documentos, backup do banco e ferramentas técnicas.
-            Operações de backup podem ser pesadas — execute fora do horário de pico.
-            Restrito a <strong>coordenação</strong> e <strong>super admin</strong>.
+          <InfoCallout title={t("settings.callout.system_title")} variant="warning">
+            {t("settings.callout.system_body")}
           </InfoCallout>
           <div className="grid gap-4">
             {/* Templates DOCX */}

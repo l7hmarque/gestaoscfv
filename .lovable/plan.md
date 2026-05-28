@@ -1,38 +1,75 @@
-## Objetivo
+## Fase 3 — Consolidação pós-reorganização
 
-Nas listas de chamada/presença geradas no Google Sheets, agrupar os nomes em três blocos visuais — **Ativos**, **Busca Ativa**, **Inativos (transferidos/desligados)** — mantendo intacto o design atual (cabeçalho institucional preto, bordas, merges, larguras, legenda, congelamento de linhas).
+Três frentes paralelas para finalizar o ciclo iniciado nas Fases 1 e 2.
 
-Hoje, "busca ativa" é misturado junto com "ativos". O usuário quer separá-los visualmente, sem mexer no resto do layout.
+### 1. Ampliar cobertura do i18n (PT-BR, EN-US, ES-AR, IT-IT)
 
-## Escopo (4 edge functions)
+Hoje apenas `common.*` e `nav.*` estão traduzidos. Vou expandir os locales para cobrir a UI das páginas principais — sem tocar em conteúdo de usuário (nomes, CPF, relatórios, endereços continuam intocados via `translate="no"`).
 
-1. `supabase/functions/generate-lista-chamada-gsheet/index.ts` — lista de chamada em branco (turma única).
-2. `supabase/functions/generate-lista-frequencia-gsheet/index.ts` — lista de presença preenchida (turma única).
-3. `supabase/functions/generate-listas-chamada-mes-gsheet/index.ts` — lote mensal em branco (todas as turmas).
-4. `supabase/functions/generate-listas-frequencia-mes-gsheet/index.ts` — lote mensal preenchido (todas as turmas).
+**Namespaces a adicionar** em cada um dos 4 arquivos JSON:
+- `sidebar.*` — todos os rótulos e categorias do `AppSidebar`
+- `dashboard.*` — títulos dos cards, KPIs, abas, legendas dos gráficos
+- `participants.*` — filtros, status (Ativo/Busca Ativa/Desligado/etc.), ações em lote
+- `classes.*` — categorias de turma, faixas etárias, períodos
+- `attendance.*` — banner orientador, abas Lançamento/Exportar
+- `documents.*` — abas do hub, descrições dos blocos de exportação
+- `settings.*` — títulos das 7 abas + textos dos `InfoCallout`
+- `auth.*` — tela de login, recuperação de senha
 
-## Mudanças
+**Aplicação nos componentes**: substituir strings hard-coded por `t("namespace.key")` em:
+- `AppSidebar.tsx`, `AppLayout.tsx`
+- `DashboardPage.tsx` (chrome, não dados)
+- `ParticipantesPage.tsx` (filtros e ações)
+- `TurmasPage.tsx`, `PresencaPage.tsx`, `DocumentosPage.tsx`
+- `ConfiguracoesPage.tsx` (títulos das abas + callouts)
+- `LoginPage.tsx`
 
-### Funções individuais (1 e 2)
-- A flag `busca_ativa` já é carregada do banco, mas não é usada hoje. Passo a usar:
-  - Ordenação: `ativos` → `buscaAtiva` → `transferidos` → `desligados` (todos alfabéticos dentro do bloco).
-  - Marcador no nome para quem está em Busca Ativa: sufixo `(BA)` em negrito (mesmo padrão dos marcadores `(D)`, `(T)`, `(N)`), sem riscado e sem cinza — cor preta normal.
-  - Atualizar a legenda existente para incluir `(BA) = Busca Ativa` ao lado dos demais marcadores.
-- Nenhuma linha em branco extra entre blocos (evita quebrar merges, congelamento de linhas e cálculos `signRowIdx`/`legendRowIdx`). A separação é puramente pela ordem + o marcador `(BA)`.
+Conteúdo dinâmico vindo do banco (nomes de bairros, turmas, participantes) permanece em PT-BR — i18n cobre apenas UI estática.
 
-### Funções em lote (3 e 4)
-- A RPC `get_participantes_turma` já entrega `status` e `marcador` (que inclui `(BA)` quando aplicável). Hoje a ordenação só separa `bloqueado_chamada` (transferidos/desligados ≤30d) dos demais. Vou intercalar o grupo Busca Ativa:
-  - Ordenação: `não-bloqueados ativos` → `não-bloqueados busca_ativa` → `bloqueados (transferidos/desligados)`, alfabético dentro de cada bloco.
-- A legenda da lote já contém `(BA) = Busca Ativa` — nada a mudar nela.
-- Nenhuma alteração em fontes, cores, bordas, merges, largura de colunas ou `headerStartRow`.
+### 2. QA visual das rotas afetadas
 
-## Garantias de não-regressão (design preservado)
+Verificação manual via preview (viewport 1260×785) para detectar regressões introduzidas nas Fases 1 e 2:
 
-- Não adiciono linhas separadoras → `dataRowsCount`, `signRowIdx`, `legendRowIdx`, `frozenRowCount` continuam idênticos.
-- Não toco em `baseFmt`, `headerInstFmt`, `titleFmt`, `tableHeaderFmt`, `signFmt`, `legendFmt`, merges, `autoResizeDimensions` nem `updateDimensionProperties`.
-- O frontend (`PresencaExportarPage`, `HubExportacoesPage`, `TurmaDetalhePage`) não muda — mesmas URLs, mesmo payload, mesma resposta.
-- Nome do arquivo, pasta de destino no Drive e permissões continuam iguais.
+| Rota | Verificações |
+|---|---|
+| `/documentos` | 4 abas carregam; downloads disparam; aba Gestão só aparece para coordenação/super_admin |
+| `/presenca` | Tabs controladas via query param `?tab=exportar`; banner visível; sem reset ao trocar aba |
+| `/turmas` | Bordas vermelhas nos cards (1px); divisores azul SCNSA entre categorias |
+| `/dashboard` | Gráficos Faixa Etária e Bairros com paleta institucional; sem abas Admin/Mensal |
+| `/coordenacao` | Aba "Administração" presente; permissões intactas |
+| `/configuracoes` | 7 callouts visíveis no topo de cada aba; cores corretas (primary vs warning) |
+| Sidebar | Equipe Técnica em Operação; sem "Exportar Listas" nem "Hub de Exportações"; "Documentos & Relatórios" e "Dashboard Administrativo" em Coordenação |
+| Redirects | `/mural` → `/feed`; `/relatorios/hub` → `/documentos`; `/presenca/exportar` → `/presenca?tab=exportar` |
+| Header | Seletor de idioma (`Languages` icon) visível; troca de idioma persiste no localStorage `syscfv_lang` |
 
-## Validação
+**Ferramentas**: `browser--navigate_to_sandbox` + `browser--screenshot` + `browser--read_console_logs` para cada rota. Qualquer console error ou layout quebrado vira correção pontual.
 
-- Após edição, deploy das 4 funções e teste rápido com `curl_edge_functions` em uma turma que tenha pelo menos um participante em `busca_ativa` para conferir agrupamento + marcador.
+### 3. Atualizar memórias do projeto
+
+Refletir a nova arquitetura para que futuras sessões já partam do estado atual:
+
+**Novas memórias a criar**:
+- `mem://funcionalidades/hub-documentos-relatorios` — Centralização de exports em `/documentos` (4 abas, restrição da Gestão)
+- `mem://funcionalidades/i18n-nativo` — react-i18next, 4 locales, `syscfv_lang`, não traduz dados do usuário
+- `mem://estilo/sidebar-categorias` — **atualizar** com nova organização (Equipe Técnica em Operação, hub em Coordenação)
+
+**Memórias a atualizar/remover**:
+- `mem://funcionalidades/exportacao-hub-unificado` — referenciar `/documentos` como ponto único
+- `mem://funcionalidades/configuracoes-gerais-hub` — incluir callouts orientadores
+- Remover referência ao `/mural` (página deletada)
+
+**Index** (`mem://index.md`): adicionar as 2 entradas novas, manter ordem alfabética por seção.
+
+### Critérios de aceite
+
+- Build limpo, sem erros TS
+- Trocar idioma no header muda imediatamente sidebar, abas e callouts (sem reload)
+- Nenhum dado de participante/relatório/exportação é traduzido
+- Todas as rotas listadas no QA carregam sem console error
+- Memórias refletem o estado atual do código
+
+### O que NÃO está no escopo
+
+- Traduzir conteúdo gerado pelo banco (nomes, observações, endereços)
+- Traduzir documentos exportados (PDF/DOCX/XLSX permanecem em PT-BR — padrão institucional)
+- Mudanças em RLS, edge functions ou esquema do banco
