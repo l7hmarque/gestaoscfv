@@ -72,7 +72,7 @@ export default function CoordenacaoPage() {
       </header>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-11 w-full max-w-7xl">
+        <TabsList className="grid w-full max-w-7xl grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 h-auto">
           <TabsTrigger value="painel">Painel</TabsTrigger>
           <TabsTrigger value="acoes">Ações Pendentes</TabsTrigger>
           <TabsTrigger value="decisoes">Decisões</TabsTrigger>

@@ -366,7 +366,7 @@ export default function DashboardTransporteTab() {
       </div>
 
       <Tabs value={subTab} onValueChange={(v) => setSubTab(v as any)} className="w-full">
-        <TabsList className="grid grid-cols-2 w-full sm:w-auto sm:inline-grid">
+        <TabsList className="grid w-full grid-cols-2 sm:inline-grid sm:w-auto h-auto">
           <TabsTrigger value="embarques">Embarques de Hoje</TabsTrigger>
           <TabsTrigger value="pontos">Pontos & Rotas</TabsTrigger>
         </TabsList>

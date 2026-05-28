@@ -855,7 +855,7 @@ export default function ExportarRelatoriosPage() {
       </Card>
 
       <Tabs defaultValue="drive" className="space-y-4">
-        <TabsList className="grid grid-cols-6 w-full">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto">
           <TabsTrigger value="drive">📁 Drive (Padrão)</TabsTrigger>
           <TabsTrigger value="mensal">Rel. Mensal</TabsTrigger>
           <TabsTrigger value="atividades">Atividades</TabsTrigger>
