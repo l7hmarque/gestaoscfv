@@ -17,5 +17,80 @@
     "documents": "Documenti e Report",
     "coordination": "Coordinamento",
     "settings": "Impostazioni"
+  },
+  "sidebar": {
+    "groups": {
+      "main": "Principale",
+      "activities": "Attività",
+      "operations": "Operazioni",
+      "communication": "Team e Comunicazione",
+      "coordination": "Coordinamento"
+    },
+    "items": {
+      "dashboard": "Cruscotto",
+      "participants": "Partecipanti",
+      "classes": "Classi",
+      "attendance": "Presenze",
+      "photos": "Registri Fotografici",
+      "planning": "Pianificazione",
+      "reports": "Report",
+      "schedule": "Cronoprogramma",
+      "transport": "Trasporto",
+      "kitchen": "Cucina",
+      "technical_team": "Equipe Tecnica",
+      "feed": "Feed / Bacheca",
+      "coordination_panel": "Pannello di Coordinamento",
+      "documents": "Documenti e Report",
+      "integrity": "Integrità",
+      "database": "Database",
+      "public_site": "Sito Pubblico",
+      "settings": "Impostazioni"
+    },
+    "restricted": "Riservato",
+    "my_profile": "Il Mio Profilo",
+    "sign_out": "Esci",
+    "no_permission": "Nessun permesso di accesso"
+  },
+  "attendance": {
+    "tab_register": "Registrazione",
+    "tab_export": "Esporta",
+    "banner_title": "Usa il Report di Attività",
+    "banner_body": "Le presenze devono essere registrate preferibilmente tramite il Report di Attività. Questa pagina è destinata solo a correzioni, rettifiche e casi straordinari."
+  },
+  "documents": {
+    "title": "Documenti e Report",
+    "subtitle": "Hub unificato di esportazioni e documenti ufficiali",
+    "tab_attendance": "Presenze",
+    "tab_activities": "Attività",
+    "tab_management": "Gestione",
+    "tab_official": "Ufficiali",
+    "management_restricted": "Disponibile solo per coordinamento e super admin."
+  },
+  "settings": {
+    "title": "Impostazioni Generali",
+    "subtitle": "Impostazioni istituzionali e parametri di sistema",
+    "tab_institution": "Istituzione",
+    "tab_neighborhoods": "Quartieri",
+    "tab_transport": "Trasporto",
+    "tab_team": "Equipe",
+    "tab_permissions": "Permessi",
+    "tab_audit": "Audit",
+    "tab_system": "Sistema",
+    "callout": {
+      "institution_title": "Identità istituzionale",
+      "institution_body": "Questi dati appaiono su tutti i documenti ufficiali, report ed esportazioni. Il Marco Operativo definisce la data limite delle metriche analitiche — modificarlo ricalcola KPI del cruscotto, ELO e adesione. Riservato al coordinamento.",
+      "neighborhoods_title": "Obiettivi territoriali SCFV",
+      "neighborhoods_body": "Gli obiettivi alimentano il pannello di copertura per quartiere e la Ricerca Attiva. Aggiornare quando cambia la convenzione. I valori sono auditati.",
+      "transport_title": "Punti di imbarco",
+      "transport_body": "I punti inattivi non appaiono ad autisti né al portale famiglia, ma mantengono lo storico per report precedenti. Preferisci disattivare invece di eliminare se il punto è già stato usato.",
+      "team_title": "Gestione HR",
+      "team_body": "Le modifiche qui alterano dati sensibili (stipendio, ore, stato). Ogni cambiamento è registrato in audit. Le dimissioni sono reversibili tramite lo storico funzionale.",
+      "permissions_title": "Permessi granulari",
+      "permissions_body": "Modificare i permessi può bloccare immediatamente l'accesso del personale. Riservato a coordinamento e super admin. Le modifiche hanno effetto al successivo caricamento di pagina dell'utente interessato.",
+      "audit_title": "Tracciato di audit",
+      "audit_body": "Registro immutabile di tutte le azioni sensibili (creazione, modifica, eliminazione e giustificazioni). Usalo per rendicontazione, LGPD e indagini interne. Esporta per periodo prima delle chiusure mensili.",
+      "system_title": "Impostazioni di sistema",
+      "system_body": "Area avanzata: template documenti, backup del database e strumenti tecnici. Le operazioni di backup possono essere pesanti — eseguile fuori orario di punta. Riservato a coordinamento e super admin."
+    }
   }
 }
