@@ -223,6 +223,7 @@ const PresencaPage = () => {
 };
 
 function PresencaPageShell({ children: lancamentoContent }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") === "exportar" ? "exportar" : "lancamento";
   const [tab, setTab] = useState(initialTab);
@@ -239,19 +240,16 @@ function PresencaPageShell({ children: lancamentoContent }: { children: React.Re
       </div>
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="lancamento">Lançamento</TabsTrigger>
+          <TabsTrigger value="lancamento">{t("attendance.tab_register")}</TabsTrigger>
           <TabsTrigger value="exportar" className="gap-1">
-            <FileDown className="h-3.5 w-3.5" /> Exportar
+            <FileDown className="h-3.5 w-3.5" /> {t("attendance.tab_export")}
           </TabsTrigger>
         </TabsList>
         <TabsContent value="lancamento" className="mt-4 space-y-4">
           <Alert className="border-primary/40 bg-primary/5">
             <Info className="h-4 w-4 text-primary" />
-            <AlertTitle className="text-sm">Lançamento preferencial: Relatório de Atividade</AlertTitle>
-            <AlertDescription className="text-xs">
-              As presenças do dia devem ser lançadas preferencialmente pelo <strong>Relatório de Atividade</strong>.
-              Esta página é destinada a correções, retificações e casos extraordinários.
-            </AlertDescription>
+            <AlertTitle className="text-sm">{t("attendance.banner_title")}</AlertTitle>
+            <AlertDescription className="text-xs">{t("attendance.banner_body")}</AlertDescription>
           </Alert>
           {lancamentoContent}
         </TabsContent>
