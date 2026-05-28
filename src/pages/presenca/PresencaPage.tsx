@@ -18,6 +18,13 @@ import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { useFormTimer } from "@/hooks/useFormTimer";
 import { getParticipantesDaTurma } from "@/lib/participantesTurma";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Info, FileDown } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { lazy, Suspense } from "react";
+
+const PresencaExportarPage = lazy(() => import("./PresencaExportarPage"));
 
 const FAIXAS: Record<string, [number, number]> = {
   "6-8": [6, 8],
@@ -188,11 +195,83 @@ const PresencaPage = () => {
   };
 
   return (
+    <PresencaPageShell>
+      <PresencaLancamentoContent
+        turmasAgrupadas={turmasAgrupadas}
+        selectedTurma={selectedTurma}
+        setSelectedTurma={setSelectedTurma}
+        data={data}
+        setData={setData}
+        participantes={participantes}
+        filteredParticipantes={filteredParticipantes}
+        bairros={bairros}
+        filtroBairro={filtroBairro}
+        setFiltroBairro={setFiltroBairro}
+        filtroFaixa={filtroFaixa}
+        setFiltroFaixa={setFiltroFaixa}
+        presenca={presenca}
+        setPresenca={setPresenca}
+        justificativas={justificativas}
+        setJustificativas={setJustificativas}
+        numPresentes={numPresentes}
+        handleSave={handleSave}
+        saving={saving}
+      />
+    </PresencaPageShell>
+  );
+};
+
+function PresencaPageShell({ children: lancamentoContent }: { children: React.ReactNode }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") === "exportar" ? "exportar" : "lancamento";
+  const [tab, setTab] = useState(initialTab);
+  useEffect(() => {
+    if (tab !== searchParams.get("tab")) {
+      setSearchParams((sp) => { sp.set("tab", tab); return sp; });
+    }
+  }, [tab]);
+  return (
     <div className="space-y-4 max-w-3xl">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Presença Digital</h1>
-        <p className="text-sm text-muted-foreground">Registrar frequência das turmas</p>
+        <h1 className="text-xl font-semibold text-foreground">Presença</h1>
+        <p className="text-sm text-muted-foreground">Lançamento, correções e exportação de listas mensais.</p>
       </div>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="lancamento">Lançamento</TabsTrigger>
+          <TabsTrigger value="exportar" className="gap-1">
+            <FileDown className="h-3.5 w-3.5" /> Exportar
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="lancamento" className="mt-4 space-y-4">
+          <Alert className="border-primary/40 bg-primary/5">
+            <Info className="h-4 w-4 text-primary" />
+            <AlertTitle className="text-sm">Lançamento preferencial: Relatório de Atividade</AlertTitle>
+            <AlertDescription className="text-xs">
+              As presenças do dia devem ser lançadas preferencialmente pelo <strong>Relatório de Atividade</strong>.
+              Esta página é destinada a correções, retificações e casos extraordinários.
+            </AlertDescription>
+          </Alert>
+          {lancamentoContent}
+        </TabsContent>
+        <TabsContent value="exportar" className="mt-4">
+          <Suspense fallback={<div className="text-xs text-muted-foreground py-6">Carregando exportações...</div>}>
+            <PresencaExportarPage />
+          </Suspense>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function PresencaLancamentoContent({
+  turmasAgrupadas, selectedTurma, setSelectedTurma, data, setData,
+  participantes, filteredParticipantes, bairros, filtroBairro, setFiltroBairro,
+  filtroFaixa, setFiltroFaixa, presenca, setPresenca, justificativas, setJustificativas,
+  numPresentes, handleSave, saving,
+}: any) {
+  return (
+    <>
 
       {/* Seleção de turma e data */}
       <Card>
@@ -362,8 +441,8 @@ const PresencaPage = () => {
           </Button>
         </div>
       )}
-    </div>
+    </>
   );
-};
+}
 
 export default PresencaPage;
