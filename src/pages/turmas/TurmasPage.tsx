@@ -646,9 +646,12 @@ const TurmasPage = () => {
         <div className="text-sm text-muted-foreground border border-dashed rounded-lg p-8 text-center">Nenhuma turma encontrada com os filtros aplicados.</div>
       ) : (
         <div className="space-y-4">
-          {gruposOficina.map(({ oficina, turmas: tsOf, educadores, total, semEdu }) => (
-            <section key={oficina} className="rounded-lg border border-border bg-card">
-              <header className="flex flex-wrap items-center gap-2 px-3 py-2 border-b bg-muted/40">
+          {gruposOficina.map(({ oficina, turmas: tsOf, educadores, total, semEdu }, idx) => (
+            <section
+              key={oficina}
+              className={`rounded-lg border-2 border-[hsl(var(--info))] bg-card ${idx > 0 ? "mt-5" : ""}`}
+            >
+              <header className="flex flex-wrap items-center gap-2 px-3 py-2 border-b-2 border-[hsl(var(--info))] bg-[hsl(var(--info))]/5">
                 <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">{oficina}</h2>
                 <span className="text-xs text-muted-foreground">·</span>
                 <span className="text-xs text-foreground/80">{educadores.length > 0 ? educadores.join(", ") : <span className="text-destructive">Sem educador</span>}</span>
@@ -660,7 +663,7 @@ const TurmasPage = () => {
               </header>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 p-3">
                 {tsOf.map((t) => (
-            <Card key={t.id} className={`hover:shadow-md transition-shadow h-full relative group ${batchMode && selectedIds.has(t.id) ? "ring-2 ring-destructive/50" : ""}`}>
+            <Card key={t.id} className={`hover:shadow-md transition-shadow h-full relative group border border-primary ${batchMode && selectedIds.has(t.id) ? "ring-2 ring-destructive/50" : ""}`}>
               {batchMode ? (
                 <div className="cursor-pointer" onClick={() => toggleSelect(t.id)}>
                   <CardContent className="p-4 space-y-2">
