@@ -199,19 +199,19 @@ export default function DocumentosPage() {
     <div className="space-y-4">
       <PageHeader
         icon={<FolderDown className="h-5 w-5" />}
-        title="Documentos & Relatórios"
-        subtitle="Central única de geração e exportação de documentos. Cada documento informa o que traz, para quem se destina e em que formato."
+        title={t("documents.title")}
+        subtitle={t("documents.subtitle")}
       />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex flex-wrap h-auto">
-          <TabsTrigger value="presenca" className="gap-1"><ClipboardCheck className="h-3.5 w-3.5" /> Presença</TabsTrigger>
-          <TabsTrigger value="atividades" className="gap-1"><FileText className="h-3.5 w-3.5" /> Atividades</TabsTrigger>
+          <TabsTrigger value="presenca" className="gap-1"><ClipboardCheck className="h-3.5 w-3.5" /> {t("documents.tab_attendance")}</TabsTrigger>
+          <TabsTrigger value="atividades" className="gap-1"><FileText className="h-3.5 w-3.5" /> {t("documents.tab_activities")}</TabsTrigger>
           <TabsTrigger value="gestao" className="gap-1" disabled={!canGestao}>
-            <BarChart3 className="h-3.5 w-3.5" /> Gestão {!canGestao && <Lock className="h-3 w-3 ml-1" />}
+            <BarChart3 className="h-3.5 w-3.5" /> {t("documents.tab_management")} {!canGestao && <Lock className="h-3 w-3 ml-1" />}
           </TabsTrigger>
           <TabsTrigger value="oficiais" className="gap-1">
-            <Shield className="h-3.5 w-3.5" /> Oficiais / Rede
+            <Shield className="h-3.5 w-3.5" /> {t("documents.tab_official")}
             <Badge variant="secondary" className="text-[9px] px-1 h-4 ml-1">NOVO</Badge>
           </TabsTrigger>
         </TabsList>
