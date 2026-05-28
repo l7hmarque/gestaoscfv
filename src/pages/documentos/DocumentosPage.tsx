@@ -108,6 +108,7 @@ function EmbeddedFlow({ children, intro }: { children: React.ReactNode; intro?: 
 }
 
 export default function DocumentosPage() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "presenca";
   const [tab, setTab] = useState(initialTab);
