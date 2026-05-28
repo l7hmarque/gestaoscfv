@@ -123,7 +123,9 @@ function enrichPresencas(
   return presencas;
 }
 
-export default function ExportarRelatoriosPage() {
+export type ExportarRelatoriosMode = "todos" | "pedagogico" | "institucional";
+
+export default function ExportarRelatoriosPage({ mode = "todos" }: { mode?: ExportarRelatoriosMode } = {}) {
   const now = new Date();
   const [ano, setAno] = useState(String(now.getFullYear()));
   const [mes, setMes] = useState(String(now.getMonth() + 1).padStart(2, "0"));
@@ -826,10 +828,12 @@ export default function ExportarRelatoriosPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-foreground">Exportar Relatórios</h1>
-        <p className="text-sm text-muted-foreground">Central unificada de exportação de relatórios institucionais</p>
-      </div>
+      {mode === "todos" && (
+        <div>
+          <h1 className="text-xl font-bold text-foreground">Exportar Relatórios</h1>
+          <p className="text-sm text-muted-foreground">Central unificada de exportação de relatórios institucionais</p>
+        </div>
+      )}
 
       {/* Seletor de período */}
       <Card>
