@@ -1,0 +1,21 @@
+{
+  "common": {
+    "save": "Salva",
+    "cancel": "Annulla",
+    "close": "Chiudi",
+    "export": "Esporta",
+    "search": "Cerca",
+    "loading": "Caricamento...",
+    "language": "Lingua"
+  },
+  "nav": {
+    "dashboard": "Cruscotto",
+    "participants": "Partecipanti",
+    "classes": "Classi",
+    "attendance": "Presenze",
+    "activities": "Attività",
+    "documents": "Documenti e Report",
+    "coordination": "Coordinamento",
+    "settings": "Impostazioni"
+  }
+}
