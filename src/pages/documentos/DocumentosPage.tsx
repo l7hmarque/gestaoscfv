@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams, Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,25 +7,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import {
-  FolderDown, ClipboardCheck, FileText, BarChart3, Shield, HeartHandshake,
+  FolderDown, ClipboardCheck, FileText, BarChart3, Shield,
   ExternalLink, Play, Lock, Info,
 } from "lucide-react";
 import { useCapabilities } from "@/hooks/useCapabilities";
 
-// Reusa os 7 diálogos oficiais já existentes
+// 4 diálogos oficiais que efetivamente são usados pela rede de proteção
 import FichaReferenciamentoDialog from "../relatorios/oficiais/FichaReferenciamentoDialog";
 import FaltasConsecutivasDialog from "../relatorios/oficiais/FaltasConsecutivasDialog";
 import CoberturaPrioritariaDialog from "../relatorios/oficiais/CoberturaPrioritariaDialog";
 import EvasaoDialog from "../relatorios/oficiais/EvasaoDialog";
-import EncaminhamentosDialog from "../relatorios/oficiais/EncaminhamentosDialog";
-import BoletimArticulacaoDialog from "../relatorios/oficiais/BoletimArticulacaoDialog";
-import BoletimPedagogicoDialog from "../relatorios/oficiais/BoletimPedagogicoDialog";
 
-// Embute os fluxos pesados (lazy import para não pesar a primeira carga)
-import { lazy, Suspense } from "react";
+// Fluxos pesados — lazy para não pesar a primeira carga
 const PresencaExportarPage = lazy(() => import("../presenca/PresencaExportarPage"));
 const ExportarRelatoriosPage = lazy(() => import("../relatorios/ExportarRelatoriosPage"));
-const DashboardRelatorioMensalTab = lazy(() => import("../dashboard/DashboardRelatorioMensalTab"));
 
 type CardSpec = {
   titulo: string;
@@ -126,15 +121,6 @@ export default function DocumentosPage() {
   const [openFaltas, setOpenFaltas] = useState(false);
   const [openCobertura, setOpenCobertura] = useState(false);
   const [openEvasao, setOpenEvasao] = useState(false);
-  const [openEncs, setOpenEncs] = useState(false);
-  const [openBoletim, setOpenBoletim] = useState(false);
-  const [openBoletimPed, setOpenBoletimPed] = useState(false);
-
-  // Sub-tabs Gestão
-  const [gestaoSub, setGestaoSub] = useState("mensal");
-
-  // Sub-tabs Atividades
-  const [atividadesSub, setAtividadesSub] = useState("lote");
 
   const oficiais: CardSpec[] = [
     {
@@ -169,30 +155,6 @@ export default function DocumentosPage() {
       conteudo: ["Motivos de desligamento", "Tempo de permanência", "Tentativas de busca ativa registradas"],
       action: () => setOpenEvasao(true),
     },
-    {
-      titulo: "Encaminhamentos por Órgão",
-      descricao: "Resumo e detalhamento por órgão receptor.",
-      destinatario: "Rede · MP",
-      formato: "PDF",
-      conteudo: ["Lista por CRAS, CREAS, CT, UBS, MP", "Status e datas de retorno", "Observações de devolutiva"],
-      action: () => setOpenEncs(true),
-    },
-    {
-      titulo: "Boletim de Articulação com a Rede",
-      descricao: "Consolidado mensal de articulação com a rede de proteção.",
-      destinatario: "SAS · Controladoria",
-      formato: "PDF",
-      conteudo: ["Atendidos do mês", "Ingressos e desligamentos", "Busca ativa e encaminhamentos"],
-      action: () => setOpenBoletim(true),
-    },
-    {
-      titulo: "Boletim Pedagógico Individual",
-      descricao: "Evolução do participante para a família e rede.",
-      destinatario: "Família · Rede",
-      formato: "PDF",
-      conteudo: ["Frequência mês a mês", "Atividades desenvolvidas", "Relatos da equipe técnica", "Encaminhamentos ativos"],
-      action: () => setOpenBoletimPed(true), actionLabel: "Selecionar participante",
-    },
   ];
 
   return (
@@ -212,7 +174,6 @@ export default function DocumentosPage() {
           </TabsTrigger>
           <TabsTrigger value="oficiais" className="gap-1">
             <Shield className="h-3.5 w-3.5" /> {t("documents.tab_official")}
-            <Badge variant="secondary" className="text-[9px] px-1 h-4 ml-1">NOVO</Badge>
           </TabsTrigger>
         </TabsList>
 
@@ -230,36 +191,10 @@ export default function DocumentosPage() {
         <TabsContent value="atividades">
           <EmbeddedFlow
             intro={<>
-              <strong className="text-foreground">Relatórios pedagógicos e planejamentos institucionais.</strong> Aqui você gera relatórios de atividade em lote, planejamentos consolidados e atalhos para o catálogo completo.
+              <strong className="text-foreground">Relatórios pedagógicos em lote.</strong> Exporta todos os relatórios de atividade do período em DOCX, PDF e XLSX. Para o catálogo navegável, abra <Link to="/relatorios" className="text-primary underline">Relatórios</Link>.
             </>}
           >
-            <Tabs value={atividadesSub} onValueChange={setAtividadesSub}>
-              <TabsList>
-                <TabsTrigger value="lote">Exportação em Lote</TabsTrigger>
-                <TabsTrigger value="atalhos">Atalhos</TabsTrigger>
-              </TabsList>
-              <TabsContent value="lote" className="mt-3">
-                <ExportarRelatoriosPage />
-              </TabsContent>
-              <TabsContent value="atalhos" className="mt-3">
-                <Section items={[
-                  {
-                    titulo: "Catálogo de Relatórios de Atividade",
-                    descricao: "Lista completa de relatórios pedagógicos com filtros, ranking ELO e edição.",
-                    destinatario: "Interno", formato: "Web",
-                    conteudo: ["Filtros por turma, educador e período", "Score ELO consolidado", "Edição e ressincronização"],
-                    to: "/relatorios",
-                  },
-                  {
-                    titulo: "Planejamentos Institucionais",
-                    descricao: "Banco de planejamentos validados pela Coordenação.",
-                    destinatario: "Interno", formato: "Web",
-                    conteudo: ["Estrutura rigorosa por eixo", "Formas de avaliação", "Aprovações registradas"],
-                    to: "/planejamentos",
-                  },
-                ]} />
-              </TabsContent>
-            </Tabs>
+            <ExportarRelatoriosPage mode="pedagogico" />
           </EmbeddedFlow>
         </TabsContent>
 
@@ -274,48 +209,11 @@ export default function DocumentosPage() {
           ) : (
             <EmbeddedFlow
               intro={<>
-                <strong className="text-foreground">Relatórios administrativos e técnicos para governo, MP e gestão.</strong>
-                {" "}Documentos consolidados, com dados sensíveis sob responsabilidade da Coordenação.
+                <strong className="text-foreground">Relatórios institucionais para governo, MP e gestão.</strong>
+                {" "}Relatório Mensal SCFV, Anual, Atendimentos Técnicos e Relatório de Gestão (10 seções) — dados sensíveis sob responsabilidade da Coordenação.
               </>}
             >
-              <Tabs value={gestaoSub} onValueChange={setGestaoSub}>
-                <TabsList className="flex-wrap h-auto">
-                  <TabsTrigger value="mensal">Mensal Consolidado</TabsTrigger>
-                  <TabsTrigger value="completo">Lote / Gestão (10 seções)</TabsTrigger>
-                  <TabsTrigger value="rede">Integridade & Banco</TabsTrigger>
-                </TabsList>
-                <TabsContent value="mensal" className="mt-3">
-                  <DashboardRelatorioMensalTab />
-                </TabsContent>
-                <TabsContent value="completo" className="mt-3">
-                  <ExportarRelatoriosPage />
-                </TabsContent>
-                <TabsContent value="rede" className="mt-3">
-                  <Section items={[
-                    {
-                      titulo: "Integridade dos Dados",
-                      descricao: "Pendências e inconsistências cadastrais para revisão.",
-                      destinatario: "Coord. · Interno", formato: "Web",
-                      conteudo: ["Vínculos faltantes", "Educadores sem turma", "Participantes sem responsável", "Datas e marcos incoerentes"],
-                      to: "/integridade",
-                    },
-                    {
-                      titulo: "Banco de Dados (Backup)",
-                      descricao: "Exportação completa em ZIP e administração de baixo nível.",
-                      destinatario: "Coord.", formato: "ZIP",
-                      conteudo: ["Backup completo do banco", "Tabelas individuais em CSV/JSON", "Histórico de exportações"],
-                      to: "/banco-de-dados",
-                    },
-                    {
-                      titulo: "Relatório da Equipe Técnica",
-                      descricao: "Atendimentos, encaminhamentos e roteiros de visita domiciliar.",
-                      destinatario: "Coord. · MP", formato: "Web",
-                      conteudo: ["Volume diário desduplicado", "Vulnerabilidade por território", "Roteiros e cards expansíveis"],
-                      to: "/equipe-tecnica",
-                    },
-                  ]} />
-                </TabsContent>
-              </Tabs>
+              <ExportarRelatoriosPage mode="institucional" />
             </EmbeddedFlow>
           )}
         </TabsContent>
@@ -338,9 +236,6 @@ export default function DocumentosPage() {
       <FaltasConsecutivasDialog open={openFaltas} onOpenChange={setOpenFaltas} />
       <CoberturaPrioritariaDialog open={openCobertura} onOpenChange={setOpenCobertura} />
       <EvasaoDialog open={openEvasao} onOpenChange={setOpenEvasao} />
-      <EncaminhamentosDialog open={openEncs} onOpenChange={setOpenEncs} />
-      <BoletimArticulacaoDialog open={openBoletim} onOpenChange={setOpenBoletim} />
-      <BoletimPedagogicoDialog open={openBoletimPed} onOpenChange={setOpenBoletimPed} />
     </div>
   );
 }

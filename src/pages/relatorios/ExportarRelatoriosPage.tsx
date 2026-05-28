@@ -123,7 +123,9 @@ function enrichPresencas(
   return presencas;
 }
 
-export default function ExportarRelatoriosPage() {
+export type ExportarRelatoriosMode = "todos" | "pedagogico" | "institucional";
+
+export default function ExportarRelatoriosPage({ mode = "todos" }: { mode?: ExportarRelatoriosMode } = {}) {
   const now = new Date();
   const [ano, setAno] = useState(String(now.getFullYear()));
   const [mes, setMes] = useState(String(now.getMonth() + 1).padStart(2, "0"));
@@ -826,10 +828,12 @@ export default function ExportarRelatoriosPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-foreground">Exportar Relatórios</h1>
-        <p className="text-sm text-muted-foreground">Central unificada de exportação de relatórios institucionais</p>
-      </div>
+      {mode === "todos" && (
+        <div>
+          <h1 className="text-xl font-bold text-foreground">Exportar Relatórios</h1>
+          <p className="text-sm text-muted-foreground">Central unificada de exportação de relatórios institucionais</p>
+        </div>
+      )}
 
       {/* Seletor de período */}
       <Card>
@@ -854,14 +858,23 @@ export default function ExportarRelatoriosPage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="drive" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto">
-          <TabsTrigger value="drive">📁 Drive (Padrão)</TabsTrigger>
-          <TabsTrigger value="mensal">Rel. Mensal</TabsTrigger>
-          <TabsTrigger value="atividades">Atividades</TabsTrigger>
-          <TabsTrigger value="atendimentos">Atend. Técnicos</TabsTrigger>
-          <TabsTrigger value="anual">Anual</TabsTrigger>
-          <TabsTrigger value="gestao">Gestão</TabsTrigger>
+      {(() => {
+        const showDrive = mode !== "pedagogico";
+        const showMensal = mode !== "pedagogico";
+        const showAtividades = mode !== "institucional";
+        const showAtendimentos = mode !== "pedagogico";
+        const showAnual = mode !== "pedagogico";
+        const showGestao = mode !== "pedagogico";
+        const defaultTab = mode === "pedagogico" ? "atividades" : "drive";
+        return (
+      <Tabs defaultValue={defaultTab} className="space-y-4">
+        <TabsList className="h-auto">
+          {showDrive && <TabsTrigger value="drive">📁 Drive (Padrão)</TabsTrigger>}
+          {showMensal && <TabsTrigger value="mensal">Rel. Mensal</TabsTrigger>}
+          {showAtividades && <TabsTrigger value="atividades">Atividades</TabsTrigger>}
+          {showAtendimentos && <TabsTrigger value="atendimentos">Atend. Técnicos</TabsTrigger>}
+          {showAnual && <TabsTrigger value="anual">Anual</TabsTrigger>}
+          {showGestao && <TabsTrigger value="gestao">Gestão</TabsTrigger>}
         </TabsList>
 
         {/* Aba Drive (padrão institucional) */}
@@ -1139,6 +1152,8 @@ export default function ExportarRelatoriosPage() {
           </Card>
         </TabsContent>
       </Tabs>
+        );
+      })()}
     </div>
   );
 }

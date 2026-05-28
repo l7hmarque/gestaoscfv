@@ -19,13 +19,9 @@ import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { useFormTimer } from "@/hooks/useFormTimer";
 import { getParticipantesDaTurma } from "@/lib/participantesTurma";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, FileDown } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
-import { lazy, Suspense } from "react";
-
-const PresencaExportarPage = lazy(() => import("./PresencaExportarPage"));
+import { Info } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const FAIXAS: Record<string, [number, number]> = {
   "6-8": [6, 8],
@@ -224,41 +220,21 @@ const PresencaPage = () => {
 
 function PresencaPageShell({ children: lancamentoContent }: { children: React.ReactNode }) {
   const { t } = useTranslation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = searchParams.get("tab") === "exportar" ? "exportar" : "lancamento";
-  const [tab, setTab] = useState(initialTab);
-  useEffect(() => {
-    if (tab !== searchParams.get("tab")) {
-      setSearchParams((sp) => { sp.set("tab", tab); return sp; });
-    }
-  }, [tab]);
   return (
     <div className="space-y-4 max-w-3xl">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Presença</h1>
-        <p className="text-sm text-muted-foreground">Lançamento, correções e exportação de listas mensais.</p>
+        <p className="text-sm text-muted-foreground">
+          Lançamento e correções de presença diária. Para listas mensais (Drive), use{" "}
+          <Link to="/documentos?tab=presenca" className="text-primary underline">Documentos &rsaquo; Presença</Link>.
+        </p>
       </div>
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="lancamento">{t("attendance.tab_register")}</TabsTrigger>
-          <TabsTrigger value="exportar" className="gap-1">
-            <FileDown className="h-3.5 w-3.5" /> {t("attendance.tab_export")}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="lancamento" className="mt-4 space-y-4">
-          <Alert className="border-primary/40 bg-primary/5">
-            <Info className="h-4 w-4 text-primary" />
-            <AlertTitle className="text-sm">{t("attendance.banner_title")}</AlertTitle>
-            <AlertDescription className="text-xs">{t("attendance.banner_body")}</AlertDescription>
-          </Alert>
-          {lancamentoContent}
-        </TabsContent>
-        <TabsContent value="exportar" className="mt-4">
-          <Suspense fallback={<div className="text-xs text-muted-foreground py-6">Carregando exportações...</div>}>
-            <PresencaExportarPage />
-          </Suspense>
-        </TabsContent>
-      </Tabs>
+      <Alert className="border-primary/40 bg-primary/5">
+        <Info className="h-4 w-4 text-primary" />
+        <AlertTitle className="text-sm">{t("attendance.banner_title")}</AlertTitle>
+        <AlertDescription className="text-xs">{t("attendance.banner_body")}</AlertDescription>
+      </Alert>
+      {lancamentoContent}
     </div>
   );
 }

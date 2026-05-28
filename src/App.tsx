@@ -104,7 +104,7 @@ const App = () => (
                   <Route path="/turmas/nova" element={<ModuleRoute module="turmas" level="write"><TurmaNovaPage /></ModuleRoute>} />
                   <Route path="/turmas/:id" element={<ModuleRoute module="turmas"><TurmaDetalhePage /></ModuleRoute>} />
                   <Route path="/presenca" element={<ModuleRoute module="presenca"><PresencaPage /></ModuleRoute>} />
-                  <Route path="/presenca/exportar" element={<Navigate to="/presenca?tab=exportar" replace />} />
+                  <Route path="/presenca/exportar" element={<Navigate to="/documentos?tab=presenca" replace />} />
                   <Route path="/planejamentos" element={<ModuleRoute module="planejamentos"><PlanejamentosPage /></ModuleRoute>} />
                   <Route path="/planejamentos/novo" element={<ModuleRoute module="planejamentos" level="write"><PlanejamentoNovoPage /></ModuleRoute>} />
                   <Route path="/planejamentos/:id" element={<ModuleRoute module="planejamentos"><PlanejamentoDetalhePage /></ModuleRoute>} />
