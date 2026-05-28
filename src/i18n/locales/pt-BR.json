@@ -1,0 +1,21 @@
+{
+  "common": {
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "export": "Exportar",
+    "search": "Buscar",
+    "loading": "Carregando...",
+    "language": "Idioma"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "participants": "Participantes",
+    "classes": "Turmas",
+    "attendance": "Presença",
+    "activities": "Atividades",
+    "documents": "Documentos & Relatórios",
+    "coordination": "Coordenação",
+    "settings": "Configurações"
+  }
+}
