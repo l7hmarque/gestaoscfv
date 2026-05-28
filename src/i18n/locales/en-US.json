@@ -17,5 +17,80 @@
     "documents": "Documents & Reports",
     "coordination": "Coordination",
     "settings": "Settings"
+  },
+  "sidebar": {
+    "groups": {
+      "main": "Main",
+      "activities": "Activities",
+      "operations": "Operations",
+      "communication": "Team & Communication",
+      "coordination": "Coordination"
+    },
+    "items": {
+      "dashboard": "Dashboard",
+      "participants": "Participants",
+      "classes": "Classes",
+      "attendance": "Attendance",
+      "photos": "Photo Records",
+      "planning": "Planning",
+      "reports": "Reports",
+      "schedule": "Schedule",
+      "transport": "Transport",
+      "kitchen": "Kitchen",
+      "technical_team": "Technical Team",
+      "feed": "Feed / Wall",
+      "coordination_panel": "Coordination Panel",
+      "documents": "Documents & Reports",
+      "integrity": "Integrity",
+      "database": "Database",
+      "public_site": "Public Site",
+      "settings": "Settings"
+    },
+    "restricted": "Restricted",
+    "my_profile": "My Profile",
+    "sign_out": "Sign out",
+    "no_permission": "No access permission"
+  },
+  "attendance": {
+    "tab_register": "Register",
+    "tab_export": "Export",
+    "banner_title": "Use the Activity Report",
+    "banner_body": "Attendance should preferably be recorded through the Activity Report. This page is intended only for corrections, retifications and extraordinary cases."
+  },
+  "documents": {
+    "title": "Documents & Reports",
+    "subtitle": "Unified hub for exports and official documents",
+    "tab_attendance": "Attendance",
+    "tab_activities": "Activities",
+    "tab_management": "Management",
+    "tab_official": "Official",
+    "management_restricted": "Available only to coordination and super admin."
+  },
+  "settings": {
+    "title": "General Settings",
+    "subtitle": "Institutional settings and system parameters",
+    "tab_institution": "Institution",
+    "tab_neighborhoods": "Neighborhoods",
+    "tab_transport": "Transport",
+    "tab_team": "Team",
+    "tab_permissions": "Permissions",
+    "tab_audit": "Audit",
+    "tab_system": "System",
+    "callout": {
+      "institution_title": "Institutional identity",
+      "institution_body": "These details appear on all official documents, reports and exports. The Operational Milestone defines the cutoff date for analytical metrics — changing it recalculates dashboard KPIs, ELO and adherence. Coordination only.",
+      "neighborhoods_title": "SCFV territorial targets",
+      "neighborhoods_body": "Targets feed the coverage dashboard per neighborhood and Active Search. Update whenever the agreement changes. Values are audited.",
+      "transport_title": "Pickup points",
+      "transport_body": "Inactive points do not appear to drivers or the family portal, but keep history for previous reports. Prefer deactivating instead of deleting when the point has already been used.",
+      "team_title": "HR management",
+      "team_body": "Edits here change sensitive data (salary, workload, status). Every change is logged in audit. Dismissals are reversible via functional history.",
+      "permissions_title": "Granular permissions",
+      "permissions_body": "Changing permissions can immediately block staff access. Coordination and super admin only. Changes take effect on the affected user's next page load.",
+      "audit_title": "Audit trail",
+      "audit_body": "Immutable record of all sensitive actions (creation, edition, deletion and justifications). Use it for accountability, LGPD and internal investigations. Export by period before monthly closings.",
+      "system_title": "System settings",
+      "system_body": "Advanced area: document templates, database backup and technical tools. Backup operations can be heavy — run outside peak hours. Coordination and super admin only."
+    }
   }
 }
