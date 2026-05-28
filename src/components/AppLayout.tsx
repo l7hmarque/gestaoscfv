@@ -1,4 +1,5 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
@@ -29,6 +30,7 @@ export function AppLayout() {
             <div className="flex items-center gap-1 sm:gap-1.5">
               <SendRecadoDialog toTecnicos />
               <NotificationBell />
+              <LanguageSwitcher />
               {profileId && (
                 <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => navigate(`/profissional/${profileId}`)} title="Meu Perfil">
                   <User className="h-5 w-5" />
