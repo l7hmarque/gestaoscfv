@@ -358,6 +358,13 @@ const TurmaDetalhePage = () => {
               {alertMembers.length > 0 && (
                 <Badge variant="destructive" className="text-[10px] gap-1"><AlertTriangle className="h-3 w-3" />{alertMembers.length} alerta(s)</Badge>
               )}
+              {foraFaixaCount > 0 && (
+                <Link to="/turmas/fora-faixa">
+                  <Badge variant="outline" className="text-[10px] gap-1 border-amber-500 text-amber-700 hover:bg-amber-50">
+                    <AlertTriangle className="h-3 w-3" />{foraFaixaCount} fora da faixa
+                  </Badge>
+                </Link>
+              )}
             </div>
           </div>
         </div>
