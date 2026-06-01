@@ -3750,9 +3750,63 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_participantes_fora_faixa: {
+        Row: {
+          data_entrada: string | null
+          dias_no_vinculo: number | null
+          faixa_atual: string | null
+          idade: number | null
+          nome_completo: string | null
+          participante_bairro_id: string | null
+          participante_id: string | null
+          participante_periodo:
+            | Database["public"]["Enums"]["periodo_enum"]
+            | null
+          turma_bairro_id: string | null
+          turma_faixa_etaria:
+            | Database["public"]["Enums"]["faixa_etaria_enum"]
+            | null
+          turma_faixas_etarias: string[] | null
+          turma_id: string | null
+          turma_nome: string | null
+          turma_periodo: Database["public"]["Enums"]["periodo_enum"] | null
+          vinculo_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participantes_bairro_id_fkey"
+            columns: ["participante_bairro_id"]
+            isOneToOne: false
+            referencedRelation: "bairros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "turma_participantes_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "participantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "turma_participantes_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "turmas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "turmas_bairro_id_fkey"
+            columns: ["turma_bairro_id"]
+            isOneToOne: false
+            referencedRelation: "bairros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       cleanup_old_pings: { Args: never; Returns: number }
+      contar_participantes_fora_faixa: { Args: never; Returns: Json }
       criar_projeto: {
         Args: {
           _cor?: string
