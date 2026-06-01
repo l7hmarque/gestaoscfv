@@ -586,6 +586,20 @@ const TurmaDetalhePage = () => {
                                   </TooltipContent>
                                 </Tooltip>
                               )}
+                              {foraFaixaMap[m.participante_id] && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Link to="/turmas/fora-faixa">
+                                      <Badge variant="outline" className="text-[9px] gap-1 border-amber-500 text-amber-700 hover:bg-amber-50 py-0 px-1.5">
+                                        {foraFaixaMap[m.participante_id].idade}a · fora
+                                      </Badge>
+                                    </Link>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="text-xs max-w-[220px]">
+                                    Idade atual ({foraFaixaMap[m.participante_id].idade}a) não bate com faixa desta turma. Clique para revisar transferência.
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="text-xs sm:text-sm text-muted-foreground hidden sm:table-cell">{periodoLabel[m.periodo || ""] || "—"}</TableCell>
