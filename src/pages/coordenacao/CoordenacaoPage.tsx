@@ -24,6 +24,7 @@ export default function CoordenacaoPage() {
   const [periodo, setPeriodo] = useState("30");
   const [authChecked, setAuthChecked] = useState(false);
   const [allowed, setAllowed] = useState(false);
+  const [foraFaixa, setForaFaixa] = useState<number>(0);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -37,6 +38,9 @@ export default function CoordenacaoPage() {
       }
       setAllowed(true);
       setAuthChecked(true);
+      // Carrega contagem de participantes fora da faixa etária
+      const { data: ff } = await (supabase as any).rpc("contar_participantes_fora_faixa");
+      if (ff && typeof ff.total === "number") setForaFaixa(ff.total);
     })();
   }, [user, navigate]);
 
@@ -109,6 +113,7 @@ export default function CoordenacaoPage() {
                   <FilaItem label="Recados técnicos pendentes" count={data.gestao.acoes_pendentes.recados_tecnicos_pendentes} link="/feed" />
                   <FilaItem label="Avisos expirando em 7 dias" count={data.gestao.acoes_pendentes.avisos_expirando_7d} link="/configuracoes" />
                   <FilaItem label="Encaminhamentos abertos > 30 dias" count={data.gestao.acoes_pendentes.encaminhamentos_abertos_30d} link="/equipe-tecnica" />
+                  <FilaItem label="Participantes fora da faixa etária" count={foraFaixa} link="/turmas/fora-faixa" />
                 </CardContent>
               </Card>
             </TabsContent>
