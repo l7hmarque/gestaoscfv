@@ -20,6 +20,7 @@ const ParticipantePerfilPage = lazy(() => import("./pages/participantes/Particip
 const TurmasPage = lazy(() => import("./pages/turmas/TurmasPage"));
 const TurmaNovaPage = lazy(() => import("./pages/turmas/TurmaNovaPage"));
 const TurmaDetalhePage = lazy(() => import("./pages/turmas/TurmaDetalhePage"));
+const TurmasForaFaixaPage = lazy(() => import("./pages/turmas/TurmasForaFaixaPage"));
 const PresencaPage = lazy(() => import("./pages/presenca/PresencaPage"));
 const PlanejamentosPage = lazy(() => import("./pages/planejamentos/PlanejamentosPage"));
 const PlanejamentoNovoPage = lazy(() => import("./pages/planejamentos/PlanejamentoNovoPage"));
@@ -102,6 +103,7 @@ const App = () => (
                   <Route path="/participantes/:id" element={<ModuleRoute module="participantes"><ParticipantePerfilPage /></ModuleRoute>} />
                   <Route path="/turmas" element={<ModuleRoute module="turmas"><TurmasPage /></ModuleRoute>} />
                   <Route path="/turmas/nova" element={<ModuleRoute module="turmas" level="write"><TurmaNovaPage /></ModuleRoute>} />
+                  <Route path="/turmas/fora-faixa" element={<ModuleRoute module="turmas" level="write"><TurmasForaFaixaPage /></ModuleRoute>} />
                   <Route path="/turmas/:id" element={<ModuleRoute module="turmas"><TurmaDetalhePage /></ModuleRoute>} />
                   <Route path="/presenca" element={<ModuleRoute module="presenca"><PresencaPage /></ModuleRoute>} />
                   <Route path="/presenca/exportar" element={<Navigate to="/documentos?tab=presenca" replace />} />

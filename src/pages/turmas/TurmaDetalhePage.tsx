@@ -17,6 +17,7 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type EducadorLite = { id: string; user_id: string; nome: string; cargo: string | null; ativo: boolean | null; foto_url: string | null };
 import { isBairroSCFV, OFICINAS_TURMA, PERIODO_LABELS, FAIXA_LABELS, calcAge } from "@/lib/constants";
+import { calcFaixaFromDate } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
@@ -193,6 +194,24 @@ const TurmaDetalhePage = () => {
 
   const alertMembers = members.filter(m => alerts[m.participante_id]);
 
+  // Membros cuja faixa etária atual NÃO bate com a faixa da turma
+  const turmaFaixas: string[] = (turma?.faixas_etarias && turma.faixas_etarias.length > 0)
+    ? turma.faixas_etarias
+    : (turma?.faixa_etaria ? [turma.faixa_etaria] : []);
+  const foraFaixaMap: Record<string, { idade: number; faixaAtual: string }> = {};
+  if (turmaFaixas.length > 0) {
+    members.forEach(m => {
+      const p = participantesData[m.participante_id];
+      if (!p?.data_nascimento) return;
+      const faixa = calcFaixaFromDate(p.data_nascimento);
+      if (!faixa) return;
+      if (!turmaFaixas.includes(faixa)) {
+        foraFaixaMap[m.participante_id] = { idade: calcAge(p.data_nascimento), faixaAtual: faixa };
+      }
+    });
+  }
+  const foraFaixaCount = Object.keys(foraFaixaMap).length;
+
   const exportBuscaAtiva = () => {
     const doc = new jsPDF({ orientation: "landscape" });
     const now = format(new Date(), "dd/MM/yyyy 'às' HH:mm");
@@ -338,6 +357,13 @@ const TurmaDetalhePage = () => {
               ))}
               {alertMembers.length > 0 && (
                 <Badge variant="destructive" className="text-[10px] gap-1"><AlertTriangle className="h-3 w-3" />{alertMembers.length} alerta(s)</Badge>
+              )}
+              {foraFaixaCount > 0 && (
+                <Link to="/turmas/fora-faixa">
+                  <Badge variant="outline" className="text-[10px] gap-1 border-amber-500 text-amber-700 hover:bg-amber-50">
+                    <AlertTriangle className="h-3 w-3" />{foraFaixaCount} fora da faixa
+                  </Badge>
+                </Link>
               )}
             </div>
           </div>
@@ -557,6 +583,20 @@ const TurmaDetalhePage = () => {
                                     {alert.consecutiveFaults >= 3 && <p>{alert.consecutiveFaults} faltas seguidas</p>}
                                     {alert.adesao < 65 && <p>Adesão: {alert.adesao}%</p>}
                                     {alert.lastPresent && <p>Última presença: {format(new Date(alert.lastPresent + "T12:00:00"), "dd/MM/yyyy")}</p>}
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                              {foraFaixaMap[m.participante_id] && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Link to="/turmas/fora-faixa">
+                                      <Badge variant="outline" className="text-[9px] gap-1 border-amber-500 text-amber-700 hover:bg-amber-50 py-0 px-1.5">
+                                        {foraFaixaMap[m.participante_id].idade}a · fora
+                                      </Badge>
+                                    </Link>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="text-xs max-w-[220px]">
+                                    Idade atual ({foraFaixaMap[m.participante_id].idade}a) não bate com faixa desta turma. Clique para revisar transferência.
                                   </TooltipContent>
                                 </Tooltip>
                               )}
