@@ -17,6 +17,7 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type EducadorLite = { id: string; user_id: string; nome: string; cargo: string | null; ativo: boolean | null; foto_url: string | null };
 import { isBairroSCFV, OFICINAS_TURMA, PERIODO_LABELS, FAIXA_LABELS, calcAge } from "@/lib/constants";
+import { calcFaixaFromDate } from "@/lib/constants";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
@@ -192,6 +193,24 @@ const TurmaDetalhePage = () => {
   };
 
   const alertMembers = members.filter(m => alerts[m.participante_id]);
+
+  // Membros cuja faixa etária atual NÃO bate com a faixa da turma
+  const turmaFaixas: string[] = (turma?.faixas_etarias && turma.faixas_etarias.length > 0)
+    ? turma.faixas_etarias
+    : (turma?.faixa_etaria ? [turma.faixa_etaria] : []);
+  const foraFaixaMap: Record<string, { idade: number; faixaAtual: string }> = {};
+  if (turmaFaixas.length > 0) {
+    members.forEach(m => {
+      const p = participantesData[m.participante_id];
+      if (!p?.data_nascimento) return;
+      const faixa = calcFaixaFromDate(p.data_nascimento);
+      if (!faixa) return;
+      if (!turmaFaixas.includes(faixa)) {
+        foraFaixaMap[m.participante_id] = { idade: calcAge(p.data_nascimento), faixaAtual: faixa };
+      }
+    });
+  }
+  const foraFaixaCount = Object.keys(foraFaixaMap).length;
 
   const exportBuscaAtiva = () => {
     const doc = new jsPDF({ orientation: "landscape" });
