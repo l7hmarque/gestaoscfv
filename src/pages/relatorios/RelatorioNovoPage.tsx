@@ -323,12 +323,12 @@ const RelatorioNovoPage = () => {
         // Registra o bypass no audit_log
         try {
           await (supabase.from as any)("audit_log").insert({
-            usuario_id: user?.id || null,
+            user_id: user?.id || null,
             acao: "criar_relatorio_duplicado",
             tabela: "relatorios_atividade",
             registro_id: (dupes as any[])[0]?.id || null,
             justificativa: `Coordenação autorizou criar novo relatório em ${dataStr} para turmas já cobertas: ${turmaNomes.join(", ")}`,
-            metadata: { turma_ids: form.turma_ids, data: dataStr } as any,
+            detalhes: JSON.stringify({ turma_ids: form.turma_ids, data: dataStr }),
           });
         } catch (e) { console.warn("audit_log bypass:", e); }
       }
