@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, RefreshCw, AlertTriangle, Copy, UserX, FileWarning, FileX, ArrowRight, ShieldCheck } from "lucide-react";
+import { Loader2, RefreshCw, AlertTriangle, Copy, UserX, FileWarning, FileX, ArrowRight, ShieldCheck, Wrench, Trash2, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 
 type Resumo = {
@@ -70,6 +73,46 @@ export default function AuditoriaPresencasPage() {
     const r = data.resumo;
     return r.pares_duplicados + r.presencas_faltantes + r.presencas_orfas + r.relatorios_sem_turma + r.relatorios_sem_presenca;
   }, [data]);
+
+  // ── Reconciliação ───────────────────────────────────────────────────────
+  const [dlg, setDlg] = useState<null | { tipo: "dup" | "orfa" | "falt" | "vazio"; payload: any }>(null);
+  const [just, setJust] = useState("");
+  const [manterId, setManterId] = useState<string>("");
+  const [acaoOrfa, setAcaoOrfa] = useState<"excluir" | "vincular">("excluir");
+  const [statusFalt, setStatusFalt] = useState<"P" | "A" | "J">("P");
+  const [busy, setBusy] = useState(false);
+
+  const abrir = (tipo: any, payload: any) => {
+    setJust(""); setManterId(payload?.relatorio_ids?.[0] ?? ""); setAcaoOrfa("excluir"); setStatusFalt("P");
+    setDlg({ tipo, payload });
+  };
+
+  const executar = async () => {
+    if (!dlg) return;
+    if (just.trim().length < 10) { toast.error("Justificativa precisa ter pelo menos 10 caracteres."); return; }
+    setBusy(true);
+    try {
+      let res: any;
+      if (dlg.tipo === "dup") {
+        const descartar = (dlg.payload.relatorio_ids as string[]).filter((x) => x !== manterId);
+        res = await supabase.rpc("reconciliar_duplicados" as any, { _manter_id: manterId, _descartar_ids: descartar, _justificativa: just });
+      } else if (dlg.tipo === "orfa") {
+        res = await supabase.rpc("resolver_presenca_orfa" as any, { _presenca_id: dlg.payload.presenca_id, _acao: acaoOrfa, _justificativa: just });
+      } else if (dlg.tipo === "falt") {
+        res = await supabase.rpc("completar_presenca_faltante" as any, { _relatorio_id: dlg.payload.relatorio_id, _participante_id: dlg.payload.participante_id, _status: statusFalt, _justificativa: just });
+      } else {
+        res = await supabase.rpc("excluir_relatorio_vazio" as any, { _relatorio_id: dlg.payload.relatorio_id, _justificativa: just });
+      }
+      if (res.error) throw res.error;
+      toast.success("Reconciliação aplicada.");
+      setDlg(null);
+      await carregar();
+    } catch (e: any) {
+      toast.error("Falha: " + (e?.message ?? String(e)));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-7xl">
@@ -140,7 +183,7 @@ export default function AuditoriaPresencasPage() {
                 <CardContent className="p-0">
                   {data.pares_duplicados.length === 0 ? <Vazio msg="Nenhum par duplicado." /> : (
                     <Table>
-                      <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Turma</TableHead><TableHead>Qtd.</TableHead><TableHead>Relatórios</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Turma</TableHead><TableHead>Qtd.</TableHead><TableHead>Relatórios</TableHead><TableHead className="text-right">Ação</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {data.pares_duplicados.map((d, i) => (
                           <TableRow key={i}>
@@ -153,6 +196,11 @@ export default function AuditoriaPresencasPage() {
                                   <Link to={`/relatorios/${rid}`}>{rid.slice(0, 8)}</Link>
                                 </Button>
                               ))}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant="outline" onClick={() => abrir("dup", d)}>
+                                <Wrench className="h-3.5 w-3.5 mr-1" />Mesclar
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -168,7 +216,7 @@ export default function AuditoriaPresencasPage() {
                 <CardContent className="p-0">
                   {data.presencas_faltantes.length === 0 ? <Vazio msg="Toda chamada está completa no período." /> : (
                     <Table>
-                      <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Turma</TableHead><TableHead>Participante</TableHead><TableHead>Status</TableHead><TableHead>Relatório</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Turma</TableHead><TableHead>Participante</TableHead><TableHead>Status</TableHead><TableHead>Relatório</TableHead><TableHead className="text-right">Ação</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {data.presencas_faltantes.map((f, i) => (
                           <TableRow key={i}>
@@ -177,6 +225,9 @@ export default function AuditoriaPresencasPage() {
                             <TableCell>{f.participante_nome}</TableCell>
                             <TableCell><Badge variant="outline" className="capitalize">{f.participante_status}</Badge></TableCell>
                             <TableCell><Button asChild variant="link" size="sm" className="h-auto p-0"><Link to={`/relatorios/${f.relatorio_id}`}>abrir</Link></Button></TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant="outline" onClick={() => abrir("falt", f)}>Marcar P/A/J</Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -191,13 +242,16 @@ export default function AuditoriaPresencasPage() {
                 <CardContent className="p-0">
                   {data.presencas_orfas.length === 0 ? <Vazio msg="Nenhuma presença órfã." /> : (
                     <Table>
-                      <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Participante</TableHead><TableHead>Relatório</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Participante</TableHead><TableHead>Relatório</TableHead><TableHead className="text-right">Ação</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {data.presencas_orfas.slice(0, 500).map((o, i) => (
                           <TableRow key={i}>
                             <TableCell className="font-mono text-xs">{fmtDate(o.data)}</TableCell>
                             <TableCell>{o.participante_nome ?? o.participante_id.slice(0, 8)}</TableCell>
                             <TableCell><Button asChild variant="link" size="sm" className="h-auto p-0"><Link to={`/relatorios/${o.relatorio_id}`}>abrir</Link></Button></TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant="outline" onClick={() => abrir("orfa", o)}>Resolver</Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -213,13 +267,18 @@ export default function AuditoriaPresencasPage() {
                 <CardContent className="p-0">
                   {data.relatorios_sem_turma.length === 0 ? <Vazio msg="Todos os relatórios têm turma." /> : (
                     <Table>
-                      <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Atividade</TableHead><TableHead /></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Atividade</TableHead><TableHead /><TableHead className="text-right">Ação</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {data.relatorios_sem_turma.map((r) => (
                           <TableRow key={r.relatorio_id}>
                             <TableCell className="font-mono text-xs">{fmtDate(r.data)}</TableCell>
                             <TableCell>{r.nome_atividade ?? "—"}</TableCell>
                             <TableCell><Button asChild variant="link" size="sm" className="h-auto p-0"><Link to={`/relatorios/${r.relatorio_id}`}>abrir</Link></Button></TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant="destructive" onClick={() => abrir("vazio", r)}>
+                                <Trash2 className="h-3.5 w-3.5 mr-1" />Excluir
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -234,13 +293,18 @@ export default function AuditoriaPresencasPage() {
                 <CardContent className="p-0">
                   {data.relatorios_sem_presenca.length === 0 ? <Vazio msg="Todos os relatórios têm presença." /> : (
                     <Table>
-                      <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Atividade</TableHead><TableHead /></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Atividade</TableHead><TableHead /><TableHead className="text-right">Ação</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {data.relatorios_sem_presenca.map((r) => (
                           <TableRow key={r.relatorio_id}>
                             <TableCell className="font-mono text-xs">{fmtDate(r.data)}</TableCell>
                             <TableCell>{r.nome_atividade ?? "—"}</TableCell>
                             <TableCell><Button asChild variant="link" size="sm" className="h-auto p-0"><Link to={`/relatorios/${r.relatorio_id}`}>abrir</Link></Button></TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant="destructive" onClick={() => abrir("vazio", r)}>
+                                <Trash2 className="h-3.5 w-3.5 mr-1" />Excluir
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -252,6 +316,70 @@ export default function AuditoriaPresencasPage() {
           </Tabs>
         </>
       )}
+
+      <Dialog open={!!dlg} onOpenChange={(o) => !o && setDlg(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {dlg?.tipo === "dup" && "Mesclar relatórios duplicados"}
+              {dlg?.tipo === "orfa" && "Resolver presença órfã"}
+              {dlg?.tipo === "falt" && "Completar presença faltante"}
+              {dlg?.tipo === "vazio" && "Excluir relatório vazio"}
+            </DialogTitle>
+            <DialogDescription>
+              Ação auditada e irreversível. Justificativa obrigatória (mín. 10 caracteres).
+            </DialogDescription>
+          </DialogHeader>
+
+          {dlg?.tipo === "dup" && (
+            <div className="space-y-2">
+              <Label>Qual relatório manter?</Label>
+              <RadioGroup value={manterId} onValueChange={setManterId}>
+                {(dlg.payload.relatorio_ids as string[]).map((rid) => (
+                  <div key={rid} className="flex items-center gap-2">
+                    <RadioGroupItem value={rid} id={rid} />
+                    <Label htmlFor={rid} className="font-mono text-xs">{rid}</Label>
+                  </div>
+                ))}
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground">As turmas, presenças e fotos dos demais serão migradas para o escolhido antes da exclusão.</p>
+            </div>
+          )}
+
+          {dlg?.tipo === "orfa" && (
+            <div className="space-y-2">
+              <Label>Como tratar?</Label>
+              <RadioGroup value={acaoOrfa} onValueChange={(v) => setAcaoOrfa(v as any)}>
+                <div className="flex items-center gap-2"><RadioGroupItem value="excluir" id="ex" /><Label htmlFor="ex"><Trash2 className="h-3 w-3 inline mr-1" />Excluir o registro de presença</Label></div>
+                <div className="flex items-center gap-2"><RadioGroupItem value="vincular" id="vi" /><Label htmlFor="vi"><Link2 className="h-3 w-3 inline mr-1" />Vincular participante à turma (manter presença)</Label></div>
+              </RadioGroup>
+            </div>
+          )}
+
+          {dlg?.tipo === "falt" && (
+            <div className="space-y-2">
+              <Label>Status a registrar para {dlg.payload.participante_nome}</Label>
+              <RadioGroup value={statusFalt} onValueChange={(v) => setStatusFalt(v as any)} className="flex gap-4">
+                <div className="flex items-center gap-2"><RadioGroupItem value="P" id="p" /><Label htmlFor="p">P — Presente</Label></div>
+                <div className="flex items-center gap-2"><RadioGroupItem value="A" id="a" /><Label htmlFor="a">A — Ausente</Label></div>
+                <div className="flex items-center gap-2"><RadioGroupItem value="J" id="j" /><Label htmlFor="j">J — Justificada</Label></div>
+              </RadioGroup>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="just">Justificativa</Label>
+            <Textarea id="just" rows={3} value={just} onChange={(e) => setJust(e.target.value)} placeholder="Ex.: chamada física conferida com educador X em DD/MM" />
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDlg(null)} disabled={busy}>Cancelar</Button>
+            <Button onClick={executar} disabled={busy || just.trim().length < 10}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -3816,6 +3816,15 @@ export type Database = {
         Returns: Json
       }
       cleanup_old_pings: { Args: never; Returns: number }
+      completar_presenca_faltante: {
+        Args: {
+          _justificativa: string
+          _participante_id: string
+          _relatorio_id: string
+          _status: string
+        }
+        Returns: Json
+      }
       contar_participantes_fora_faixa: { Args: never; Returns: Json }
       criar_projeto: {
         Args: {
@@ -3835,6 +3844,10 @@ export type Database = {
       enqueue_drive_sync: {
         Args: { _origem_id: string; _tipo: string }
         Returns: undefined
+      }
+      excluir_relatorio_vazio: {
+        Args: { _justificativa: string; _relatorio_id: string }
+        Returns: Json
       }
       excluir_turma_com_auditoria: {
         Args: { _justificativa?: string; _turma_id: string }
@@ -4046,8 +4059,20 @@ export type Database = {
         Returns: Json
       }
       recalcular_vinculos_turmas: { Args: never; Returns: Json }
+      reconciliar_duplicados: {
+        Args: {
+          _descartar_ids: string[]
+          _justificativa: string
+          _manter_id: string
+        }
+        Returns: Json
+      }
       resolver_orfaos_lote: {
         Args: { _acoes: Json; _justificativa?: string }
+        Returns: Json
+      }
+      resolver_presenca_orfa: {
+        Args: { _acao: string; _justificativa: string; _presenca_id: string }
         Returns: Json
       }
       show_limit: { Args: never; Returns: number }
