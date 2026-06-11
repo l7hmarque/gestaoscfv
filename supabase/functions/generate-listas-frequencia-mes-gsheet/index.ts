@@ -339,7 +339,7 @@ Deno.serve(async (req) => {
 
     // presencasByTurma: turma_id -> participante_id -> dataISO -> { presente, justificativa }
     const presencasByTurma: Record<string, Record<string, Record<string, { presente: boolean; justificativa: string | null }>>> = {};
-    (presencas || []).forEach((p: any) => {
+    presencas.forEach((p: any) => {
       const meta = relMeta[p.relatorio_id]; if (!meta) return;
       meta.turmas.forEach(tid => {
         if (!presencasByTurma[tid]) presencasByTurma[tid] = {};
