@@ -3074,6 +3074,8 @@ export type Database = {
           situacoes_relevantes: string[] | null
           tipo_atividade: string[] | null
           tipo_atividade_detalhe: string | null
+          validado_em: string | null
+          validado_por: string | null
         }
         Insert: {
           analise_ia?: string | null
@@ -3109,6 +3111,8 @@ export type Database = {
           situacoes_relevantes?: string[] | null
           tipo_atividade?: string[] | null
           tipo_atividade_detalhe?: string | null
+          validado_em?: string | null
+          validado_por?: string | null
         }
         Update: {
           analise_ia?: string | null
@@ -3144,6 +3148,8 @@ export type Database = {
           situacoes_relevantes?: string[] | null
           tipo_atividade?: string[] | null
           tipo_atividade_detalhe?: string | null
+          validado_em?: string | null
+          validado_por?: string | null
         }
         Relationships: [
           {
@@ -3805,6 +3811,10 @@ export type Database = {
       }
     }
     Functions: {
+      auditar_integridade_presencas: {
+        Args: { _ate?: string; _de?: string }
+        Returns: Json
+      }
       cleanup_old_pings: { Args: never; Returns: number }
       contar_participantes_fora_faixa: { Args: never; Returns: Json }
       criar_projeto: {
