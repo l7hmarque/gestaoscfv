@@ -147,8 +147,8 @@ Deno.serve(async (req) => {
     const supaAnon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supaSvc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const userClient = createClient(supaUrl, supaAnon, { global: { headers: { Authorization: auth } } });
-    const { data: claims, error: claimsErr } = await userClient.auth.getClaims(auth.replace("Bearer ", ""));
-    if (claimsErr || !claims?.claims) {
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData?.user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -205,9 +205,28 @@ Deno.serve(async (req) => {
     const dataByRel: Record<string, string> = {};
     (relatorios || []).forEach((r: any) => { dataByRel[r.id] = r.data; });
 
-    const { data: presencas } = relIds.length
-      ? await svc.from("relatorio_presenca").select("relatorio_id, participante_id, presente, justificativa").in("relatorio_id", relIds)
-      : { data: [] as any[] };
+    const presencas: any[] = [];
+    if (relIds.length) {
+      const CHUNK = 200;
+      for (let i = 0; i < relIds.length; i += CHUNK) {
+        const slice = relIds.slice(i, i + CHUNK);
+        let from = 0;
+        const PAGE = 1000;
+        while (true) {
+          const { data: pageRows, error: pErr } = await svc
+            .from("relatorio_presenca")
+            .select("relatorio_id, participante_id, presente, justificativa")
+            .in("relatorio_id", slice)
+            .range(from, from + PAGE - 1);
+          if (pErr) throw pErr;
+          const rows = pageRows || [];
+          presencas.push(...rows);
+          if (rows.length < PAGE) break;
+          from += PAGE;
+        }
+      }
+      console.log(`[lista-turma] relIds=${relIds.length} presencas_total=${presencas.length}`);
+    }
 
     // Datas canônicas vêm de turma.dias_semana — todas as datas planejadas do mês.
     // Se a turma não tem dias_semana cadastrados, cai no fallback: datas que tiveram relatório.
@@ -225,7 +244,7 @@ Deno.serve(async (req) => {
 
     // index: por participante -> por data ISO -> {presente, justificativa}
     const map: Record<string, Record<string, { presente: boolean; justificativa: string | null }>> = {};
-    (presencas || []).forEach((p: any) => {
+    presencas.forEach((p: any) => {
       const dt = dataByRel[p.relatorio_id]; if (!dt) return;
       if (!map[p.participante_id]) map[p.participante_id] = {};
       map[p.participante_id][dt] = { presente: !!p.presente, justificativa: p.justificativa || null };
