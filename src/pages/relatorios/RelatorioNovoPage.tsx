@@ -303,6 +303,37 @@ const RelatorioNovoPage = () => {
     if (guardDemo(isDemo)) return;
     if (!form.data) { toast.error("Data é obrigatória"); return; }
     if (!form.nome_atividade.trim()) { toast.error("Nome da atividade é obrigatório"); return; }
+
+    // === Onda C: bloqueio de duplicata (turma + data) ===
+    const dataStr = format(form.data, "yyyy-MM-dd");
+    if (form.turma_ids.length > 0) {
+      const { data: dupes } = await supabase
+        .from("relatorios_atividade")
+        .select("id, nome_atividade, relatorio_turmas!inner(turma_id, turmas(nome))")
+        .eq("data", dataStr)
+        .in("relatorio_turmas.turma_id", form.turma_ids);
+      if (dupes && dupes.length > 0) {
+        const turmaNomes = Array.from(new Set((dupes as any[])
+          .flatMap(d => (d.relatorio_turmas || []).map((rt: any) => rt.turmas?.nome).filter(Boolean))));
+        const msg = `Já existe relatório nesta data (${format(form.data, "dd/MM/yyyy")}) para:\n\n• ${turmaNomes.join("\n• ")}\n\nDeseja CONTINUAR mesmo assim e criar uma duplicata?\n\n(A ação será registrada em audit_log para revisão da coordenação.)`;
+        if (!window.confirm(msg)) {
+          toast.info("Criação cancelada. Abra o relatório existente para editar.");
+          return;
+        }
+        // Registra o bypass no audit_log
+        try {
+          await (supabase.from as any)("audit_log").insert({
+            usuario_id: user?.id || null,
+            acao: "criar_relatorio_duplicado",
+            tabela: "relatorios_atividade",
+            registro_id: (dupes as any[])[0]?.id || null,
+            justificativa: `Coordenação autorizou criar novo relatório em ${dataStr} para turmas já cobertas: ${turmaNomes.join(", ")}`,
+            metadata: { turma_ids: form.turma_ids, data: dataStr } as any,
+          });
+        } catch (e) { console.warn("audit_log bypass:", e); }
+      }
+    }
+
     setSaving(true);
     try {
       const { data: rel, error } = await supabase.from("relatorios_atividade").insert({
