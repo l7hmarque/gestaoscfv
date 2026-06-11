@@ -413,6 +413,32 @@ const RelatorioDetalhePage = () => {
 
   const handleSaveEdit = async () => {
     if (!id) return;
+    // === Onda C: bloqueio de duplicata se data ou turmas mudaram ===
+    const novaData = editForm.data ? format(editForm.data, "yyyy-MM-dd") : item.data;
+    if (selectedTurmaIds.length > 0) {
+      const { data: dupes } = await supabase
+        .from("relatorios_atividade")
+        .select("id, relatorio_turmas!inner(turma_id, turmas(nome))")
+        .eq("data", novaData)
+        .in("relatorio_turmas.turma_id", selectedTurmaIds)
+        .neq("id", id);
+      if (dupes && dupes.length > 0) {
+        const turmaNomes = Array.from(new Set((dupes as any[])
+          .flatMap(d => (d.relatorio_turmas || []).map((rt: any) => rt.turmas?.nome).filter(Boolean))));
+        const msg = `Já existe OUTRO relatório em ${novaData.split("-").reverse().join("/")} para:\n\n• ${turmaNomes.join("\n• ")}\n\nDeseja salvar mesmo assim?\n\n(A ação será registrada em audit_log.)`;
+        if (!window.confirm(msg)) { toast.info("Edição cancelada."); return; }
+        try {
+          await (supabase.from as any)("audit_log").insert({
+            usuario_id: user?.id || null,
+            acao: "editar_relatorio_gera_duplicata",
+            tabela: "relatorios_atividade",
+            registro_id: id,
+            justificativa: `Edição do relatório ${id} para ${novaData} coincide com relatórios existentes nas turmas: ${turmaNomes.join(", ")}`,
+            metadata: { turma_ids: selectedTurmaIds, data: novaData } as any,
+          });
+        } catch (e) { console.warn("audit_log:", e); }
+      }
+    }
     setSavingEdit(true);
     try {
       // 0. Update main report fields
