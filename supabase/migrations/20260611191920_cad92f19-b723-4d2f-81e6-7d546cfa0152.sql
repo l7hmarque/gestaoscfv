@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.auditar_integridade_presencas(date, date) FROM PUBLIC, anon;
