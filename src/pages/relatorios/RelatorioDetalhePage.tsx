@@ -429,12 +429,12 @@ const RelatorioDetalhePage = () => {
         if (!window.confirm(msg)) { toast.info("Edição cancelada."); return; }
         try {
           await (supabase.from as any)("audit_log").insert({
-            usuario_id: user?.id || null,
+            user_id: user?.id || null,
             acao: "editar_relatorio_gera_duplicata",
             tabela: "relatorios_atividade",
             registro_id: id,
             justificativa: `Edição do relatório ${id} para ${novaData} coincide com relatórios existentes nas turmas: ${turmaNomes.join(", ")}`,
-            metadata: { turma_ids: selectedTurmaIds, data: novaData } as any,
+            detalhes: JSON.stringify({ turma_ids: selectedTurmaIds, data: novaData }),
           });
         } catch (e) { console.warn("audit_log:", e); }
       }
