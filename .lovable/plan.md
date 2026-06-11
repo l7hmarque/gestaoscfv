@@ -1,63 +1,120 @@
-## Reorganização da `/documentos` — fim das duplicações
 
-Objetivo: 1 lugar para cada documento, navegação previsível, sem sub-abas redundantes.
+## Garantia de integridade — Sistema de Relatórios + Frequências
 
-### Nova estrutura de `/documentos` (4 abas, sem sub-abas)
+Plano em 4 ondas. Tudo aditivo, validado no preview, e só publicado em `Update` após você aprovar cada etapa.
 
-```text
-/documentos
-├── Presença          → Listas de Frequência e Chamada (Google Drive, mensal)
-├── Atividades        → Pedagógico: lote DOCX/PDF/XLSX de relatórios de atividade
-├── Gestão (restrita) → Institucional: Relatório Mensal SCFV, Anual, Atendimentos, Gestão 10 seções
-└── Oficiais          → 4 documentos para a rede de proteção
-```
+---
 
-Removendo as sub-abas internas (Atividades-lote/atalhos e Gestão-mensal/completo/rede), cada aba carrega direto sua tela única — ninguém mais precisa "encontrar" o botão.
+### Princípio de integridade (regra de ouro)
 
-### Mudanças concretas
+Para qualquer participante **P**, turma **T**, data **D**:
+> Se existe relatório de **T** em **D** e **P** estava ativo em **T** naquela data (entre `data_entrada` e `data_saida`, e não bloqueado retroativamente), **deve existir exatamente um registro** em `relatorio_presenca` com `presente ∈ {true, false}` e `justificativa` opcional.
 
-**1. Aba Presença (/documentos)**
-- Continua embutindo `PresencaExportarPage` (Lista de Frequência + Lista de Chamada).
-- Banner explica que correções diárias seguem em `/presenca`.
+Tudo abaixo serve para garantir, detectar e corrigir desvios dessa regra — sem nunca inventar dado.
 
-**2. Página `/presenca` — remover aba Exportar**
-- `PresencaPage` volta a ser página única de lançamento (sem `Tabs`, sem `?tab=exportar`).
-- Redirect: `/presenca?tab=exportar` → `/documentos?tab=presenca` (ProtectedRoute redirect simples para não quebrar bookmarks).
+---
 
-**3. Aba Atividades (/documentos) — só pedagógico**
-- Render direto do bloco **"Relatórios de Atividade em Lote"** extraído de `ExportarRelatoriosPage` (filtros: período + educador, formatos DOCX/PDF/XLSX). Hoje esse bloco está embutido no meio do `ExportarRelatoriosPage`; vou isolá-lo em um sub-componente exportado e reusar.
-- Remover sub-aba "Atalhos" (Catálogo de Relatórios + Planejamentos já estão na sidebar).
+## Onda A — Auditoria e visibilidade (read-only, sem risco)
 
-**4. Aba Gestão (/documentos) — só institucional**
-- Render direto de uma versão "podada" do `ExportarRelatoriosPage` contendo apenas: Relatório Mensal SCFV, Relatório Anual, Atendimentos Técnicos, Relatório de Gestão 10 seções.
-- Remover sub-aba "Mensal Consolidado" (`DashboardRelatorioMensalTab` — mesmo dado do Mensal SCFV).
-- Remover sub-aba "Integridade & Banco" (Integridade, Banco de Dados e Equipe Técnica continuam na sidebar).
+**A.1 RPC `auditar_integridade_presencas(_de, _ate)`** — retorna 4 listas:
+- `pares_duplicados`: (turma, data) com 2+ relatórios
+- `presencas_faltantes`: (turma, data, participante) ativos sem registro
+- `presencas_orfas`: registros de participantes que não estavam ativos naquela data
+- `relatorios_sem_turma` e `relatorios_sem_presenca`
 
-**5. Aba Oficiais (/documentos) — 4 diálogos**
-- Mantém: Ficha de Referenciamento, Faltas Consecutivas com Alerta, Cobertura de Público Prioritário, Relatório de Evasão.
-- Remove cards e imports: `BoletimArticulacaoDialog`, `BoletimPedagogicoDialog`, `EncaminhamentosDialog`.
-- Arquivos dos 3 diálogos removidos para não deixar código morto: `src/pages/relatorios/oficiais/BoletimArticulacaoDialog.tsx`, `BoletimPedagogicoDialog.tsx`, `EncaminhamentosDialog.tsx`.
+**A.2 Página `/coordenacao/auditoria-presencas`** (somente coordenação)
+Tabela navegável dos 4 grupos, com botões "ver relatório", "ver turma", "ver participante". Sem ações destrutivas — só diagnóstico.
 
-**6. Remover `HubExportacoesPage` (catálogo paralelo)**
-- Deletar `src/pages/relatorios/HubExportacoesPage.tsx`.
-- Remover rota correspondente em `src/App.tsx` (e item de menu na `AppSidebar` se houver).
-- Qualquer link para `/relatorios/hub` passa a apontar para `/documentos`.
+**A.3 Histórico carimbado**
+Adicionar coluna `validado_em timestamptz` em `relatorios_atividade` (NULL = não revisado). Servirá para Onda C.
 
-### Detalhes técnicos
+---
 
-- **Refator de `ExportarRelatoriosPage`**: hoje é um único componente monolítico (~1144 linhas) que mistura pedagógico e institucional. Vou extrair dois sub-componentes exportados no mesmo arquivo (sem duplicar lógica): `AtividadesLoteSection` e `RelatoriosInstitucionaisSection`. A página `/relatorios/exportar` continua existindo (compõe os dois para quem prefere ver tudo junto, mas pode ser removida depois — não removo agora para não quebrar bookmarks).
-- **i18n**: atualizar chaves `documents.*` nos 4 locales (pt-BR, en-US, es-AR, it-IT) — remover sub-abas, ajustar subtítulos.
-- **Memória**: atualizar `mem://funcionalidades/hub-documentos-relatorios` refletindo as 4 abas sem sub-abas e a remoção do HubExportacoesPage.
+## Onda B — Exportação fiel (Opção 2)
 
-### Arquivos afetados
+**B.1 Função `generate-listas-frequencia-mes-gsheet`**
+- Para cada célula vazia, classificar o motivo:
+  - `"—"` (cinza) → participante não estava na turma na data, ou bloqueado_chamada
+  - `"?"` (amarelo) → relatório existe, participante ativo, mas SEM registro → pendência real
+  - `vazio` → não há relatório para essa data (educadora não lançou nada no dia)
+- Cada `?` vira nota na célula: "Pendente: revisar com o(a) educador(a)"
 
-- Editar: `src/pages/documentos/DocumentosPage.tsx`, `src/pages/presenca/PresencaPage.tsx`, `src/pages/relatorios/ExportarRelatoriosPage.tsx`, `src/App.tsx`, `src/components/AppSidebar.tsx` (se referenciar Hub), `src/i18n/locales/{pt-BR,en-US,es-AR,it-IT}.json`.
-- Deletar: `src/pages/relatorios/HubExportacoesPage.tsx`, `src/pages/relatorios/oficiais/BoletimArticulacaoDialog.tsx`, `src/pages/relatorios/oficiais/BoletimPedagogicoDialog.tsx`, `src/pages/relatorios/oficiais/EncaminhamentosDialog.tsx`.
-- Memória: `mem://funcionalidades/hub-documentos-relatorios`, `mem://index.md`.
+**B.2 Aba extra "Pendências"** no mesmo spreadsheet
+Lista (Turma, Participante, Data, Motivo). Se zero pendências, aba não é criada.
 
-### Resultado para o usuário
+**B.3 Aba extra "Auditoria"**
+Resumo: total de células P/A/J/?/—, relatórios duplicados detectados (com link), datas sem relatório por turma.
 
-- 1 lugar único para cada documento — fim de "qual aba mesmo?".
-- 7 sub-abas eliminadas (2 em Atividades, 3 em Gestão, 2 em /presenca).
-- 1 página fantasma removida (HubExportacoesPage).
-- 3 diálogos oficiais não usados removidos do código.
+**B.4 Mesma lógica replicada** em `generate-lista-frequencia-gsheet` (turma única) e nas exportações DOCX/PDF/XLSX de presença.
+
+---
+
+## Onda C — Prevenção na criação de relatórios (Opção 3)
+
+**C.1 Bloqueio de duplicata na UI** (`CriarRelatorio`, `EditarRelatorio`)
+Ao escolher turmas + data, consultar se já existe relatório para qualquer dessas combinações. Se existir:
+- Mostrar aviso com link para o relatório existente
+- Oferecer 3 opções: **Abrir o existente**, **Mesclar este com o existente** (preserva presenças já lançadas e adiciona as novas), **Criar mesmo assim** (com justificativa obrigatória registrada em `audit_log`)
+
+**C.2 Chamada completa obrigatória**
+Ao abrir a tela de presença, carregar **todos os participantes ativos da turma na data do relatório** (via RPC `get_participantes_turma`). Cada um com 3 botões: P / A / J. Botão "Salvar" só habilita quando todos têm status. "Salvar como rascunho" permitido para sair e voltar, mas relatórios em rascunho ficam destacados na listagem como "incompletos".
+
+**C.3 Trigger de integridade no banco** (`relatorios_atividade.iniciado_em`)
+Ao marcar relatório como `finalizado_em` (novo campo), validar que toda participação ativa da turma está em `relatorio_presenca`. Se faltar, bloquear com erro claro: "Faltam X participantes sem marcação".
+
+**C.4 Auto-reconciliação ao adicionar/remover participante**
+Quando participante é transferido/desligado/adicionado a uma turma com `data_entrada > X`, ajustar `bloqueado_desde` automaticamente para preservar a fidelidade do histórico (já feito parcialmente — vou completar).
+
+---
+
+## Onda D — Reconciliação do histórico (com aprovação humana)
+
+**D.1 Painel `/coordenacao/reconciliacao-presencas`**
+Lista os 18 pares duplicados de Maio (e qualquer outro detectado). Para cada par:
+- Mostra os dois relatórios lado a lado: participantes em cada um, presenças marcadas, autor, data de criação
+- 3 ações: **Mesclar** (consolida em um único relatório, preserva todas as presenças, soft-delete do outro com motivo registrado), **Manter ambos** (assume que eram intervenções legítimas distintas — registra decisão em audit), **Excluir um** (com justificativa obrigatória)
+
+**D.2 Para `presencas_faltantes`**
+Painel mostra (Turma × Data × Participante). Coordenação tem 3 opções por linha: marcar **A** com nota "Lançado retroativo pela coordenação", marcar **J** com justificativa, ou marcar como **N/A** (participante estava ausente justificadamente do território — não conta nem como A nem como P). Toda decisão gera entrada em `audit_log` com `decidido_por` e `motivo`.
+
+**D.3 Garantia "nunca apagar dado real"**
+Nenhuma ação D destrói presença já lançada. Mesclar = união, não substituição. Exclusão = soft-delete (`deleted_at`, `deleted_by`, `deleted_motivo`) — relatório some das telas mas é recuperável.
+
+---
+
+## Garantias técnicas de integridade
+
+| Risco | Mitigação |
+|---|---|
+| Lançamento incompleto | Onda C.2 + C.3 (bloqueio em banco) |
+| Relatório duplicado | Onda C.1 (bloqueio na UI) + Onda D.1 (limpeza histórico) |
+| Célula em branco "silenciosa" | Onda B.1 (passa a sinalizar `?` com nota) |
+| Participante transferido aparece como ausente errado | Onda C.4 (`bloqueado_desde` automático) |
+| Dado real perdido em correção | Onda D.3 (soft-delete + audit_log obrigatório) |
+| Falha de paginação Supabase | Já corrigido na última iteração (validado: 1.980 presenças) |
+| Educadora corrige tarde | `validado_em` + tela mostra "Última revisão: X" |
+
+---
+
+## Ordem de execução e validação
+
+1. **Onda A** primeiro (read-only, 0 risco). Mostro relatório de Maio antes/depois com tabela completa.
+2. **Onda B** em paralelo (só a função de exportação). Geramos planilha de Maio e comparamos a atual lado a lado.
+3. **Onda C** com flag `bloqueio_chamada_completa` em `configuracoes_gerais` (você liga quando quiser começar a exigir).
+4. **Onda D** apenas após você usar a auditoria da Onda A e confirmar os casos a tratar.
+5. Cada onda passa pelo seu preview antes de `Update`.
+
+---
+
+## O que NÃO vou fazer (compromissos)
+
+- Não vou marcar ninguém como "A" automaticamente sem decisão humana.
+- Não vou deletar relatório existente — só soft-delete com motivo.
+- Não vou alterar `relatorio_presenca` em massa sem você aprovar registro a registro.
+- Não vou mudar lógica de KPIs/indicadores nesta fase (isso ficará na Onda 2 do plano maior, já combinada).
+
+---
+
+## Aprovação solicitada
+
+Posso começar pela **Onda A** (auditoria, sem mexer em nada) já neste push? Assim você vê a foto real do banco antes de decidirmos qualquer correção. Se aprovar, sigo direto para B em seguida.

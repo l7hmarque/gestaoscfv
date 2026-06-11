@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.auditar_integridade_presencas(date, date) TO postgres;
