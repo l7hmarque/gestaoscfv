@@ -244,7 +244,7 @@ Deno.serve(async (req) => {
 
     // index: por participante -> por data ISO -> {presente, justificativa}
     const map: Record<string, Record<string, { presente: boolean; justificativa: string | null }>> = {};
-    (presencas || []).forEach((p: any) => {
+    presencas.forEach((p: any) => {
       const dt = dataByRel[p.relatorio_id]; if (!dt) return;
       if (!map[p.participante_id]) map[p.participante_id] = {};
       map[p.participante_id][dt] = { presente: !!p.presente, justificativa: p.justificativa || null };
