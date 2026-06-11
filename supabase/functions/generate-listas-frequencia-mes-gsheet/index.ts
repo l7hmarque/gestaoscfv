@@ -119,7 +119,15 @@ function plainCell(value: string | number | null, opts: any = {}, note?: string)
   return c;
 }
 
-function buildTurmaSheet(turma: any, members: any[], presencasMap: Record<string, Record<string, { presente: boolean; justificativa: string | null }>>, anoNum: number, mesNum: number) {
+function buildTurmaSheet(
+  turma: any,
+  members: any[],
+  presencasMap: Record<string, Record<string, { presente: boolean; justificativa: string | null }>>,
+  relatorioDates: Set<string>,
+  anoNum: number,
+  mesNum: number,
+  pendenciasOut: Array<{ turma: string; data: string; participante: string; motivo: string }>,
+) {
   const diasSemana: string[] = turma.dias_semana || [];
   const datesISO = diasDoMesPorSemana(anoNum, mesNum, diasSemana);
   if (!datesISO.length) return null;
@@ -145,6 +153,8 @@ function buildTurmaSheet(turma: any, members: any[], presencasMap: Record<string
   const cellNameFmt = { ...baseFmt, horizontalAlignment: "LEFT" };
   const signFmt = { ...baseFmt, horizontalAlignment: "LEFT", textFormat: { fontFamily: "Calibri", fontSize: 10, bold: true, italic: true } };
   const legendFmt = { ...baseFmt, horizontalAlignment: "LEFT", textFormat: { fontFamily: "Calibri", fontSize: 9 } };
+  const pendenteFmt = { ...baseFmt, backgroundColor: { red: 1, green: 0.95, blue: 0.6 }, textFormat: { ...baseFmt.textFormat, bold: true, foregroundColor: { red: 0.6, green: 0.45, blue: 0 } } };
+  const semRelFmt = { ...baseFmt, backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 } };
 
   const fillRow = (firstCell: any, rest: number, fmt: any) => {
     const arr = [firstCell]; for (let i = 0; i < rest; i++) arr.push(plainCell("", fmt)); return { values: arr };
@@ -198,7 +208,19 @@ function buildTurmaSheet(turma: any, members: any[], presencasMap: Record<string
         continue;
       }
       const rec = (presencasMap[m.id] || {})[dtIso];
-      if (!rec) { arr.push(plainCell("", baseFmt)); continue; }
+      if (!rec) {
+        if (relatorioDates.has(dtIso)) {
+          // Relatório existe mas presença do participante não foi registrada → pendência
+          const dataBr = `${dtIso.slice(8,10)}/${dtIso.slice(5,7)}`;
+          const nota = `Pendente: relatório registrado em ${dataBr} sem P/A/J para ${m.nome}. Revisar com o(a) educador(a).`;
+          arr.push(plainCell("?", pendenteFmt, nota));
+          pendenciasOut.push({ turma: turma.nome, data: dataBr, participante: m.nome, motivo: "Sem P/A/J no relatório" });
+        } else {
+          // Não houve relatório para a turma nesse dia → célula cinza-claro vazia
+          arr.push(plainCell("", semRelFmt));
+        }
+        continue;
+      }
       if (rec.presente) arr.push(plainCell("P", { ...baseFmt, textFormat: { ...baseFmt.textFormat, bold: true } }));
       else if (rec.justificativa) arr.push(plainCell("J", baseFmt, rec.justificativa));
       else arr.push(plainCell("A", baseFmt));
@@ -219,6 +241,8 @@ function buildTurmaSheet(turma: any, members: any[], presencasMap: Record<string
       { text: "P", bold: true }, { text: " = Presente  ·  " },
       { text: "A", bold: true }, { text: " = Ausente  ·  " },
       { text: "J", bold: true }, { text: " = Ausência justificada (justificativa em comentário)  ·  " },
+      { text: "?", bold: true }, { text: " = Pendência (relatório sem P/A/J — revisar)  ·  " },
+      { text: "(vazio)", bold: true }, { text: " = Sem relatório registrado no dia  ·  " },
       { text: "—", bold: true }, { text: " = Sem aula/desligado  ·  " },
       { text: "(BA)", bold: true }, { text: " = Busca Ativa  ·  " },
       { text: "(Desligado)", bold: true }, { text: " = Desligado (≤30d)  ·  " },
