@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, RefreshCw, AlertTriangle, Copy, UserX, FileWarning, FileX, ArrowRight, ShieldCheck } from "lucide-react";
+import { Loader2, RefreshCw, AlertTriangle, Copy, UserX, FileWarning, FileX, ArrowRight, ShieldCheck, Wrench, Trash2, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 
 type Resumo = {
@@ -70,6 +73,46 @@ export default function AuditoriaPresencasPage() {
     const r = data.resumo;
     return r.pares_duplicados + r.presencas_faltantes + r.presencas_orfas + r.relatorios_sem_turma + r.relatorios_sem_presenca;
   }, [data]);
+
+  // ── Reconciliação ───────────────────────────────────────────────────────
+  const [dlg, setDlg] = useState<null | { tipo: "dup" | "orfa" | "falt" | "vazio"; payload: any }>(null);
+  const [just, setJust] = useState("");
+  const [manterId, setManterId] = useState<string>("");
+  const [acaoOrfa, setAcaoOrfa] = useState<"excluir" | "vincular">("excluir");
+  const [statusFalt, setStatusFalt] = useState<"P" | "A" | "J">("P");
+  const [busy, setBusy] = useState(false);
+
+  const abrir = (tipo: any, payload: any) => {
+    setJust(""); setManterId(payload?.relatorio_ids?.[0] ?? ""); setAcaoOrfa("excluir"); setStatusFalt("P");
+    setDlg({ tipo, payload });
+  };
+
+  const executar = async () => {
+    if (!dlg) return;
+    if (just.trim().length < 10) { toast.error("Justificativa precisa ter pelo menos 10 caracteres."); return; }
+    setBusy(true);
+    try {
+      let res: any;
+      if (dlg.tipo === "dup") {
+        const descartar = (dlg.payload.relatorio_ids as string[]).filter((x) => x !== manterId);
+        res = await supabase.rpc("reconciliar_duplicados" as any, { _manter_id: manterId, _descartar_ids: descartar, _justificativa: just });
+      } else if (dlg.tipo === "orfa") {
+        res = await supabase.rpc("resolver_presenca_orfa" as any, { _presenca_id: dlg.payload.presenca_id, _acao: acaoOrfa, _justificativa: just });
+      } else if (dlg.tipo === "falt") {
+        res = await supabase.rpc("completar_presenca_faltante" as any, { _relatorio_id: dlg.payload.relatorio_id, _participante_id: dlg.payload.participante_id, _status: statusFalt, _justificativa: just });
+      } else {
+        res = await supabase.rpc("excluir_relatorio_vazio" as any, { _relatorio_id: dlg.payload.relatorio_id, _justificativa: just });
+      }
+      if (res.error) throw res.error;
+      toast.success("Reconciliação aplicada.");
+      setDlg(null);
+      await carregar();
+    } catch (e: any) {
+      toast.error("Falha: " + (e?.message ?? String(e)));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-7xl">
