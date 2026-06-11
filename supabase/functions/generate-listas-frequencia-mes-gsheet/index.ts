@@ -372,6 +372,17 @@ Deno.serve(async (req) => {
       });
     });
 
+    // relatorioDatesByTurma: turma_id -> Set<dataISO> em que existe relatório registrado
+    const relatorioDatesByTurma: Record<string, Set<string>> = {};
+    Object.values(relMeta).forEach((meta) => {
+      meta.turmas.forEach((tid) => {
+        if (!relatorioDatesByTurma[tid]) relatorioDatesByTurma[tid] = new Set<string>();
+        relatorioDatesByTurma[tid].add(meta.data);
+      });
+    });
+
+    const pendencias: Array<{ turma: string; data: string; participante: string; motivo: string }> = [];
+
     const sheets: any[] = [];
     const sheetMeta: Array<{ sheetId: number; totalCols: number; dataRowsCount: number; headerStartRow: number }> = [];
     let sheetIdSeq = 0;
@@ -379,7 +390,14 @@ Deno.serve(async (req) => {
     let skipped = 0;
 
     for (const t of turmas as any[]) {
-      const built = buildTurmaSheet(t, membersByTurma[t.id] || [], presencasByTurma[t.id] || {}, anoNum, mesNum);
+      const built = buildTurmaSheet(
+        t,
+        membersByTurma[t.id] || [],
+        presencasByTurma[t.id] || {},
+        relatorioDatesByTurma[t.id] || new Set<string>(),
+        anoNum, mesNum,
+        pendencias,
+      );
       if (!built) { skipped++; continue; }
       let title = safeTab(t.nome); let sfx = 2;
       while (usedTitles.has(title)) title = safeTab(`${t.nome} (${sfx++})`);
@@ -391,6 +409,56 @@ Deno.serve(async (req) => {
       });
       sheetMeta.push({ sheetId, totalCols: built.totalCols, dataRowsCount: built.dataRowsCount, headerStartRow: built.headerStartRow });
     }
+
+    // === Aba Pendências (apenas se houver) ===
+    const black2 = { red: 0, green: 0, blue: 0 };
+    const white2 = { red: 1, green: 1, blue: 1 };
+    const border2 = { style: "SOLID", color: black2 };
+    const allBorders2 = { top: border2, bottom: border2, left: border2, right: border2 };
+    const baseFmt2 = { borders: allBorders2, verticalAlignment: "MIDDLE", horizontalAlignment: "LEFT", wrapStrategy: "WRAP", textFormat: { fontFamily: "Calibri", fontSize: 11 } };
+    const headerFmt2 = { ...baseFmt2, backgroundColor: black2, horizontalAlignment: "CENTER", textFormat: { fontFamily: "Calibri", fontSize: 11, bold: true, foregroundColor: white2 } };
+
+    let pendenciasSheetId: number | null = null;
+    let pendenciasRowsLen = 0;
+    if (pendencias.length) {
+      const rows: any[] = [];
+      rows.push({ values: [plainCell("Turma", headerFmt2), plainCell("Data", headerFmt2), plainCell("Participante", headerFmt2), plainCell("Motivo", headerFmt2)] });
+      pendencias
+        .sort((a, b) => a.turma.localeCompare(b.turma) || a.data.localeCompare(b.data) || a.participante.localeCompare(b.participante))
+        .forEach((p) => {
+          rows.push({ values: [plainCell(p.turma, baseFmt2), plainCell(p.data, { ...baseFmt2, horizontalAlignment: "CENTER" }), plainCell(p.participante, baseFmt2), plainCell(p.motivo, baseFmt2)] });
+        });
+      pendenciasSheetId = sheetIdSeq++;
+      pendenciasRowsLen = rows.length;
+      sheets.unshift({
+        properties: { sheetId: pendenciasSheetId, title: "Pendências", gridProperties: { rowCount: Math.max(rows.length + 5, 30), columnCount: 4 } },
+        data: [{ startRow: 0, startColumn: 0, rowData: rows }],
+      });
+    }
+
+    // === Aba Auditoria (sempre) ===
+    const auditTotalP = presencas.filter((p: any) => p.presente).length;
+    const auditTotalA = presencas.filter((p: any) => !p.presente && !p.justificativa).length;
+    const auditTotalJ = presencas.filter((p: any) => !p.presente && p.justificativa).length;
+    const auditRelCount = relIds.length;
+    const auditTurmasCount = sheetMeta.length;
+    const auditRows: any[] = [];
+    auditRows.push({ values: [plainCell("Auditoria — Lista de Frequência Mensal", headerFmt2), plainCell("", headerFmt2)] });
+    auditRows.push({ values: [plainCell("Mês / Ano", baseFmt2), plainCell(`${MESES[mesNum-1]} / ${anoNum}`, baseFmt2)] });
+    auditRows.push({ values: [plainCell("Turmas exportadas", baseFmt2), plainCell(auditTurmasCount, { ...baseFmt2, horizontalAlignment: "RIGHT" })] });
+    auditRows.push({ values: [plainCell("Turmas sem dias_semana (ignoradas)", baseFmt2), plainCell(skipped, { ...baseFmt2, horizontalAlignment: "RIGHT" })] });
+    auditRows.push({ values: [plainCell("Relatórios encontrados no mês", baseFmt2), plainCell(auditRelCount, { ...baseFmt2, horizontalAlignment: "RIGHT" })] });
+    auditRows.push({ values: [plainCell("Total de registros de presença", baseFmt2), plainCell(presencas.length, { ...baseFmt2, horizontalAlignment: "RIGHT" })] });
+    auditRows.push({ values: [plainCell("  → Presentes (P)", baseFmt2), plainCell(auditTotalP, { ...baseFmt2, horizontalAlignment: "RIGHT" })] });
+    auditRows.push({ values: [plainCell("  → Ausentes (A)", baseFmt2), plainCell(auditTotalA, { ...baseFmt2, horizontalAlignment: "RIGHT" })] });
+    auditRows.push({ values: [plainCell("  → Justificados (J)", baseFmt2), plainCell(auditTotalJ, { ...baseFmt2, horizontalAlignment: "RIGHT" })] });
+    auditRows.push({ values: [plainCell("Pendências detectadas (?)", { ...baseFmt2, textFormat: { ...baseFmt2.textFormat, bold: true } }), plainCell(pendencias.length, { ...baseFmt2, horizontalAlignment: "RIGHT", textFormat: { ...baseFmt2.textFormat, bold: true } })] });
+    auditRows.push({ values: [plainCell("Gerado em", baseFmt2), plainCell(new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }), baseFmt2)] });
+    const auditSheetId = sheetIdSeq++;
+    sheets.push({
+      properties: { sheetId: auditSheetId, title: "Auditoria", gridProperties: { rowCount: auditRows.length + 5, columnCount: 2 } },
+      data: [{ startRow: 0, startColumn: 0, rowData: auditRows }],
+    });
 
     if (!sheets.length) {
       return new Response(JSON.stringify({ error: "Nenhuma turma com dias_semana cadastrados para este mês" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -432,7 +500,7 @@ Deno.serve(async (req) => {
       if (folderId) await moveFileToFolder(fileId, folderId, GOOGLE_DRIVE_API_KEY, LOVABLE_API_KEY);
     } catch (e) { console.warn("[listas-frequencia-mes] mover pasta:", e); }
 
-    return new Response(JSON.stringify({ url: sheetUrl, fileId, turmas: sheetMeta.length, skipped }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ url: sheetUrl, fileId, turmas: sheetMeta.length, skipped, pendencias: pendencias.length }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     console.error("[generate-listas-frequencia-mes-gsheet] erro:", err);
     const msg = err instanceof Error ? err.message : String(err);
