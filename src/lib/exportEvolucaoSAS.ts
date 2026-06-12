@@ -99,6 +99,22 @@ async function fetchAsDataURL(url: string): Promise<string | null> {
 // Coleta de dados e cálculo de KPIs
 // ============================================================
 
+async function fetchRangePaged(table: string, select: string, dateCol: string, gte: string, lte: string): Promise<any[]> {
+  const pageSize = 1000;
+  const out: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await (supabase.from as any)(table)
+      .select(select).gte(dateCol, gte).lte(dateCol, lte).range(from, from + pageSize - 1);
+    if (error) throw error;
+    const rows = data || [];
+    out.push(...rows);
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return out;
+}
+
 async function carregarDados(mesInicio: string, mesFim: string) {
   const { ini } = rangeDoMes(mesInicio);
   const { fim: fimUltimoDia } = rangeDoMes(mesFim);
@@ -107,35 +123,11 @@ async function carregarDados(mesInicio: string, mesFim: string) {
     fetchAllRows("participantes", {
       select: "id, status, iniciou_em, data_desligamento, created_at",
     }),
-    fetchAllRows("presenca", {
-      select: "participante_id, data, presente, justificativa",
-      filters: [
-        { col: "data", op: "gte", val: ini },
-        { col: "data", op: "lte", val: fimUltimoDia },
-      ],
-    }),
-    fetchAllRows("atendimentos", {
-      select: "id, data_atendimento",
-      filters: [
-        { col: "data_atendimento", op: "gte", val: ini },
-        { col: "data_atendimento", op: "lte", val: fimUltimoDia },
-      ],
-    }),
-    fetchAllRows("relatorios_atividade", {
-      select: "id, data, nome_atividade, observacoes, intervencoes, num_participantes, num_matriculados",
-      filters: [
-        { col: "data", op: "gte", val: ini },
-        { col: "data", op: "lte", val: fimUltimoDia },
-      ],
-    }),
+    fetchRangePaged("presenca", "participante_id, data, presente, justificativa", "data", ini, fimUltimoDia),
+    fetchRangePaged("atendimentos", "id, data_atendimento", "data_atendimento", ini, fimUltimoDia),
+    fetchRangePaged("relatorios_atividade", "id, data, nome_atividade, observacoes, intervencoes, num_participantes, num_matriculados", "data", ini, fimUltimoDia),
     fetchAllRows("relatorio_fotos", { select: "relatorio_id, foto_url, ordem" }),
-    fetchAllRows("busca_ativa_registros", {
-      select: "id, data_registro",
-      filters: [
-        { col: "data_registro", op: "gte", val: ini },
-        { col: "data_registro", op: "lte", val: fimUltimoDia },
-      ],
-    }),
+    fetchRangePaged("busca_ativa_registros", "id, data_registro", "data_registro", ini, fimUltimoDia),
   ]);
 
   return {
