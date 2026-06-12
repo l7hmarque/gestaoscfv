@@ -26,6 +26,7 @@ import { Plus, AlertTriangle, Users, FileText, ClipboardList, Activity, Download
 import { calcFaixaFromDate, displayAge, PERIODO_LABELS } from "@/lib/constants";
 import { RecadosEquipeCards } from "@/components/RecadosEquipeCards";
 import { RoteirosTab } from "./roteiros/RoteirosTab";
+import { formatDataBR } from "@/lib/formatDate";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
@@ -264,7 +265,7 @@ const EquipeTecnicaPage = () => {
       acao: "exclusao_atendimento",
       tabela: "atendimentos",
       registro_id: deleteTarget.id,
-      detalhes: `${partName(deleteTarget.participante_id)} — ${tipoLabel(deleteTarget.tipo)} — ${deleteTarget.data_atendimento}`,
+      detalhes: `${partName(deleteTarget.participante_id)} — ${tipoLabel(deleteTarget.tipo)} — ${formatDataBR(deleteTarget.data_atendimento)}`,
       justificativa: isCoordenacao ? (deleteJustificativa.trim() || "Exclusão pela coordenação") : deleteJustificativa.trim(),
     });
     const { error } = await supabase.from("atendimentos").delete().eq("id", deleteTarget.id);
@@ -1415,7 +1416,7 @@ const EquipeTecnicaPage = () => {
                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum atendimento registrado</TableCell></TableRow>
                  ) : filteredAtd.map(a => (
                    <TableRow key={a.id}>
-                     <TableCell className="text-xs">{a.data_atendimento}</TableCell>
+                     <TableCell className="text-xs">{formatDataBR(a.data_atendimento)}</TableCell>
                      <TableCell className="text-xs font-medium">
                        <Link to={`/participantes/${a.participante_id}`} className="text-primary hover:underline">{partName(a.participante_id)}</Link>
                      </TableCell>
@@ -1650,7 +1651,7 @@ const EquipeTecnicaPage = () => {
                     <TableBody>
                       {relAtendimentos.slice(0, 20).map(a => (
                         <TableRow key={a.id}>
-                          <TableCell className="text-xs">{a.data_atendimento}</TableCell>
+                          <TableCell className="text-xs">{formatDataBR(a.data_atendimento)}</TableCell>
                           <TableCell className="text-xs">{profName(a.profissional_id)}</TableCell>
                           <TableCell className="text-xs">{partName(a.participante_id)}</TableCell>
                           <TableCell><Badge variant="secondary" className="text-[10px]">{tipoLabel(a.tipo)}</Badge></TableCell>
@@ -1924,7 +1925,7 @@ const EquipeTecnicaPage = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Atendimento</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget && `${partName(deleteTarget.participante_id)} — ${tipoLabel(deleteTarget.tipo)} — ${deleteTarget.data_atendimento}`}
+              {deleteTarget && `${partName(deleteTarget.participante_id)} — ${tipoLabel(deleteTarget.tipo)} — ${formatDataBR(deleteTarget.data_atendimento)}`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {!isCoordenacao && (
