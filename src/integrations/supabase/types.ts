@@ -3827,6 +3827,20 @@ export type Database = {
         Returns: Json
       }
       contar_participantes_fora_faixa: { Args: never; Returns: Json }
+      corrigir_cluster_desligamentos: {
+        Args: { _cluster_timestamp: string; _justificativa: string }
+        Returns: Json
+      }
+      corrigir_data_participante: {
+        Args: {
+          _coluna: string
+          _data_proposta: string
+          _decisao: string
+          _justificativa?: string
+          _participante_id: string
+        }
+        Returns: Json
+      }
       criar_projeto: {
         Args: {
           _cor?: string
