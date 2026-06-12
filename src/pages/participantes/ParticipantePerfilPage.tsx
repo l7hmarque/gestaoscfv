@@ -20,6 +20,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
 import { maskCPF, maskPhone, unmaskDigits, displayCPF, displayPhone } from "@/lib/utils";
 import { SendRecadoDialog } from "@/components/SendRecadoDialog";
+import { formatDataBR } from "@/lib/formatDate";
 
 const MOTIVOS_DESLIGAMENTO = [
   "Mudança de município",
@@ -402,7 +403,7 @@ const ParticipantePerfilPage = () => {
             ) : (
               <>
                 <InfoField label="Nome" value={participante.nome_completo} />
-                <InfoField label="Data de Nascimento" value={participante.data_nascimento} />
+                <InfoField label="Data de Nascimento" value={formatDataBR(participante.data_nascimento)} />
                 <InfoField label="Gênero" value={participante.genero} />
                 <InfoField label="Cor/Raça" value={participante.cor_raca} />
                 <InfoField label="Período" value={participante.periodo ? periodoLabel[participante.periodo] : null} />
@@ -471,8 +472,8 @@ const ParticipantePerfilPage = () => {
             ) : (
               <>
                 <InfoField label="Origem" value={participante.origem_encaminhamento} /><InfoField label="Resp. Técnico" value={participante.responsavel_tecnico} />
-                <InfoField label="Vulnerabilidade" value={participante.categoria_vulnerabilidade} /><InfoField label="Início SCFV" value={participante.iniciou_em} />
-                <InfoField label="Data Desligamento" value={(participante as any).data_desligamento} /><InfoField label="Dias Contraturno" value={(participante as any).dias_contraturno} />
+                <InfoField label="Vulnerabilidade" value={participante.categoria_vulnerabilidade} /><InfoField label="Início SCFV" value={formatDataBR(participante.iniciou_em)} />
+                <InfoField label="Data Desligamento" value={formatDataBR((participante as any).data_desligamento)} /><InfoField label="Dias Contraturno" value={(participante as any).dias_contraturno} />
                 <InfoField label="Restrição Alimentar" value={participante.restricao_alimentar} /><InfoField label="Laudo" value={participante.laudo} />
                 <InfoField label="Remédio Contínuo" value={(participante as any).remedio_continuo} /><InfoField label="Outras Condições" value={(participante as any).outras_condicoes} />
               </>
@@ -625,7 +626,7 @@ const ParticipantePerfilPage = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary" className="text-[10px]">{a.tipo.replace(/_/g, " ")}</Badge>
-                      <span className="text-xs text-muted-foreground">{a.data_atendimento}</span>
+                      <span className="text-xs text-muted-foreground">{formatDataBR(a.data_atendimento)}</span>
                     </div>
                     <span className="text-[10px] text-muted-foreground">{allProfiles.find(p => p.id === a.profissional_id)?.nome || "—"}</span>
                   </div>
