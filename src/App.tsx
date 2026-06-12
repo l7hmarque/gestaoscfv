@@ -54,6 +54,7 @@ const CronogramaPage = lazy(() => import("./pages/cronograma/CronogramaPage"));
 const IntegridadePage = lazy(() => import("./pages/integridade/IntegridadePage"));
 const CoordenacaoPage = lazy(() => import("./pages/coordenacao/CoordenacaoPage"));
 const AuditoriaPresencasPage = lazy(() => import("./pages/coordenacao/AuditoriaPresencasPage"));
+const AuditoriaDatasPage = lazy(() => import("./pages/coordenacao/AuditoriaDatasPage"));
 const CozinhaPage = lazy(() => import("./pages/cozinha/CozinhaPage"));
 const TransportePage = lazy(() => import("./pages/transporte/TransportePage"));
 const RegistrosFotograficosPage = lazy(() => import("./pages/registros-fotograficos/RegistrosFotograficosPage"));
@@ -130,6 +131,7 @@ const App = () => (
                   <Route path="/integridade" element={<ModuleRoute module="integridade"><IntegridadePage /></ModuleRoute>} />
                   <Route path="/coordenacao" element={<ModuleRoute module="coordenacao" level="admin"><CoordenacaoPage /></ModuleRoute>} />
                   <Route path="/coordenacao/auditoria-presencas" element={<ModuleRoute module="coordenacao" level="admin"><AuditoriaPresencasPage /></ModuleRoute>} />
+                  <Route path="/coordenacao/auditoria-datas" element={<ModuleRoute module="coordenacao" level="admin"><AuditoriaDatasPage /></ModuleRoute>} />
                   <Route path="/cozinha" element={<ModuleRoute module="cozinha"><CozinhaPage /></ModuleRoute>} />
                   <Route path="/transporte" element={<ModuleRoute module="transporte"><TransportePage /></ModuleRoute>} />
                   <Route path="/registros-fotograficos" element={<ModuleRoute module="registros_fotograficos"><RegistrosFotograficosPage /></ModuleRoute>} />

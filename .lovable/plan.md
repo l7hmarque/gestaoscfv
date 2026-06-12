@@ -1,120 +1,109 @@
 
-## Garantia de integridade — Sistema de Relatórios + Frequências
+# Padronização DD/MM/AAAA + Auditoria de Datas
 
-Plano em 4 ondas. Tudo aditivo, validado no preview, e só publicado em `Update` após você aprovar cada etapa.
-
----
-
-### Princípio de integridade (regra de ouro)
-
-Para qualquer participante **P**, turma **T**, data **D**:
-> Se existe relatório de **T** em **D** e **P** estava ativo em **T** naquela data (entre `data_entrada` e `data_saida`, e não bloqueado retroativamente), **deve existir exatamente um registro** em `relatorio_presenca` com `presente ∈ {true, false}` e `justificativa` opcional.
-
-Tudo abaixo serve para garantir, detectar e corrigir desvios dessa regra — sem nunca inventar dado.
+Escopo confirmado: **apenas exibição/exportação** (banco continua ISO `YYYY-MM-DD`, que é tecnicamente correto e preserva ordenação, filtros, RPCs e indicadores). Separador único: **barra (DD/MM/AAAA)**. Inclui a varredura do bug de inversão DD↔MM (caso Sofia).
 
 ---
 
-## Onda A — Auditoria e visibilidade (read-only, sem risco)
+## Fase 1 — Auditoria de exibição (read-only, 0 risco)
 
-**A.1 RPC `auditar_integridade_presencas(_de, _ate)`** — retorna 4 listas:
-- `pares_duplicados`: (turma, data) com 2+ relatórios
-- `presencas_faltantes`: (turma, data, participante) ativos sem registro
-- `presencas_orfas`: registros de participantes que não estavam ativos naquela data
-- `relatorios_sem_turma` e `relatorios_sem_presenca`
+**1.1 Varredura técnica do código** — script que lista toda ocorrência de formatação de data e classifica em:
+- Conforme (`dd/MM/yyyy` via date-fns ou helper `formatDataBR`)
+- Divergente (`yyyy-MM-dd`, `MM/dd/yyyy`, `dd-MM-yyyy`, `toLocaleDateString` sem locale, `toISOString().slice(0,10)` exibido cru)
+- Datas em nomes de arquivo (`SysCFV_*_YYYY-MM-DD_HHmmss` — mantido por ser ordenável e já é padrão institucional)
 
-**A.2 Página `/coordenacao/auditoria-presencas`** (somente coordenação)
-Tabela navegável dos 4 grupos, com botões "ver relatório", "ver turma", "ver participante". Sem ações destrutivas — só diagnóstico.
+Áreas auditadas: `src/pages/**`, `src/components/**`, `src/lib/**` (exportListaPresenca, exportRelacaoTurmasPdf, listaFrequencia, transporteRelatorio, fileNaming), `supabase/functions/**` (todas as 28 edge functions de export), templates DOCX/PDF.
 
-**A.3 Histórico carimbado**
-Adicionar coluna `validado_em timestamptz` em `relatorios_atividade` (NULL = não revisado). Servirá para Onda C.
+Entrega: **relatório CSV em `/mnt/documents/`** com arquivo, linha, snippet e padrão atual → padrão proposto.
 
----
+**1.2 Auditoria de dados históricos (inversões DD↔MM)** — RPC `auditar_datas_invertidas()` que varre todas as colunas date/timestamp do schema public e sinaliza candidatos a inversão:
 
-## Onda B — Exportação fiel (Opção 2)
-
-**B.1 Função `generate-listas-frequencia-mes-gsheet`**
-- Para cada célula vazia, classificar o motivo:
-  - `"—"` (cinza) → participante não estava na turma na data, ou bloqueado_chamada
-  - `"?"` (amarelo) → relatório existe, participante ativo, mas SEM registro → pendência real
-  - `vazio` → não há relatório para essa data (educadora não lançou nada no dia)
-- Cada `?` vira nota na célula: "Pendente: revisar com o(a) educador(a)"
-
-**B.2 Aba extra "Pendências"** no mesmo spreadsheet
-Lista (Turma, Participante, Data, Motivo). Se zero pendências, aba não é criada.
-
-**B.3 Aba extra "Auditoria"**
-Resumo: total de células P/A/J/?/—, relatórios duplicados detectados (com link), datas sem relatório por turma.
-
-**B.4 Mesma lógica replicada** em `generate-lista-frequencia-gsheet` (turma única) e nas exportações DOCX/PDF/XLSX de presença.
-
----
-
-## Onda C — Prevenção na criação de relatórios (Opção 3)
-
-**C.1 Bloqueio de duplicata na UI** (`CriarRelatorio`, `EditarRelatorio`)
-Ao escolher turmas + data, consultar se já existe relatório para qualquer dessas combinações. Se existir:
-- Mostrar aviso com link para o relatório existente
-- Oferecer 3 opções: **Abrir o existente**, **Mesclar este com o existente** (preserva presenças já lançadas e adiciona as novas), **Criar mesmo assim** (com justificativa obrigatória registrada em `audit_log`)
-
-**C.2 Chamada completa obrigatória**
-Ao abrir a tela de presença, carregar **todos os participantes ativos da turma na data do relatório** (via RPC `get_participantes_turma`). Cada um com 3 botões: P / A / J. Botão "Salvar" só habilita quando todos têm status. "Salvar como rascunho" permitido para sair e voltar, mas relatórios em rascunho ficam destacados na listagem como "incompletos".
-
-**C.3 Trigger de integridade no banco** (`relatorios_atividade.iniciado_em`)
-Ao marcar relatório como `finalizado_em` (novo campo), validar que toda participação ativa da turma está em `relatorio_presenca`. Se faltar, bloquear com erro claro: "Faltam X participantes sem marcação".
-
-**C.4 Auto-reconciliação ao adicionar/remover participante**
-Quando participante é transferido/desligado/adicionado a uma turma com `data_entrada > X`, ajustar `bloqueado_desde` automaticamente para preservar a fidelidade do histórico (já feito parcialmente — vou completar).
-
----
-
-## Onda D — Reconciliação do histórico (com aprovação humana)
-
-**D.1 Painel `/coordenacao/reconciliacao-presencas`**
-Lista os 18 pares duplicados de Maio (e qualquer outro detectado). Para cada par:
-- Mostra os dois relatórios lado a lado: participantes em cada um, presenças marcadas, autor, data de criação
-- 3 ações: **Mesclar** (consolida em um único relatório, preserva todas as presenças, soft-delete do outro com motivo registrado), **Manter ambos** (assume que eram intervenções legítimas distintas — registra decisão em audit), **Excluir um** (com justificativa obrigatória)
-
-**D.2 Para `presencas_faltantes`**
-Painel mostra (Turma × Data × Participante). Coordenação tem 3 opções por linha: marcar **A** com nota "Lançado retroativo pela coordenação", marcar **J** com justificativa, ou marcar como **N/A** (participante estava ausente justificadamente do território — não conta nem como A nem como P). Toda decisão gera entrada em `audit_log` com `decidido_por` e `motivo`.
-
-**D.3 Garantia "nunca apagar dado real"**
-Nenhuma ação D destrói presença já lançada. Mesclar = união, não substituição. Exclusão = soft-delete (`deleted_at`, `deleted_by`, `deleted_motivo`) — relatório some das telas mas é recuperável.
-
----
-
-## Garantias técnicas de integridade
-
-| Risco | Mitigação |
+| Critério | O que captura |
 |---|---|
-| Lançamento incompleto | Onda C.2 + C.3 (bloqueio em banco) |
-| Relatório duplicado | Onda C.1 (bloqueio na UI) + Onda D.1 (limpeza histórico) |
-| Célula em branco "silenciosa" | Onda B.1 (passa a sinalizar `?` com nota) |
-| Participante transferido aparece como ausente errado | Onda C.4 (`bloqueado_desde` automático) |
-| Dado real perdido em correção | Onda D.3 (soft-delete + audit_log obrigatório) |
-| Falha de paginação Supabase | Já corrigido na última iteração (validado: 1.980 presenças) |
-| Educadora corrige tarde | `validado_em` + tela mostra "Última revisão: X" |
+| Data futura impossível | `data_desligamento > current_date` em participantes ativos no passado (caso Sofia) |
+| Salto temporal absurdo | `data_entrada > data_saida`, `data_nascimento > data_matricula` |
+| Cluster de `updated_at` idêntico | Sinaliza import em lote (já achamos `2026-05-19 16:39:21.436692+00` com 26 registros) |
+| Ambiguidade DD↔MM | dia≤12 E mês≤12 com `updated_at` no cluster suspeito |
+| Sem entrada em `audit_log` | Confirma origem de migração e não de ação de usuário |
+
+Tabelas varridas: `participantes` (data_nascimento, data_matricula, data_desligamento), `turma_participantes` (data_entrada, data_saida), `participante_transferencias`, `relatorios_atividade` (data), `presenca`, `atendimentos`, `encaminhamentos_externos`, `busca_ativa_registros`, `roteiros_visita`, `coordenacao_atividades`, `cronograma_*`.
+
+Entrega: **painel `/coordenacao/auditoria-datas`** (somente coordenação) com 3 abas:
+- **Inversões prováveis** (alto confiança — data futura ou cluster de import)
+- **Ambíguas** (dia≤12 e mês≤12, requer decisão humana)
+- **Conformes** (contagem por tabela)
+
+Mais relatório breve em Markdown: `/mnt/documents/Auditoria_Datas_SysCFV.md` com totais por tabela, lista de registros afetados, e estimativa de impacto em indicadores.
 
 ---
 
-## Ordem de execução e validação
+## Fase 2 — Padronização da exibição (DD/MM/AAAA)
 
-1. **Onda A** primeiro (read-only, 0 risco). Mostro relatório de Maio antes/depois com tabela completa.
-2. **Onda B** em paralelo (só a função de exportação). Geramos planilha de Maio e comparamos a atual lado a lado.
-3. **Onda C** com flag `bloqueio_chamada_completa` em `configuracoes_gerais` (você liga quando quiser começar a exigir).
-4. **Onda D** apenas após você usar a auditoria da Onda A e confirmar os casos a tratar.
-5. Cada onda passa pelo seu preview antes de `Update`.
+**2.1 Helper único** `src/lib/formatDate.ts`:
+```ts
+formatDataBR(d) → "19/05/2026"
+formatDataHoraBR(d) → "19/05/2026 14:30"
+formatDataExtensoBR(d) → "19 de maio de 2026"
+parseDataBR("19/05/2026") → Date  // para inputs futuros
+```
+
+**2.2 Substituição assistida** das ocorrências divergentes detectadas em 1.1. Critérios:
+- Telas de listagem, cards, tooltips, drawers → `formatDataBR`
+- Exports DOCX/PDF/XLSX (edge functions e cliente) → `dd/MM/yyyy`
+- Inputs `<Input type="date">` continuam ISO (HTML padrão) mas o label/preview ao lado mostra DD/MM/AAAA
+- **Mantido** o padrão `YYYY-MM-DD_HHmmss` em nomes de arquivo (ordenação cronológica em pastas, já é norma)
+
+**2.3 Lint guard** — regra ESLint custom que bloqueia novas ocorrências de `toLocaleDateString()` sem locale e `format(d, "yyyy-MM-dd")` em código de UI.
 
 ---
 
-## O que NÃO vou fazer (compromissos)
+## Fase 3 — Correção do histórico invertido (com aprovação)
 
-- Não vou marcar ninguém como "A" automaticamente sem decisão humana.
-- Não vou deletar relatório existente — só soft-delete com motivo.
-- Não vou alterar `relatorio_presenca` em massa sem você aprovar registro a registro.
-- Não vou mudar lógica de KPIs/indicadores nesta fase (isso ficará na Onda 2 do plano maior, já combinada).
+Para cada registro classificado como **inversão provável** em 1.2:
+- Painel `/coordenacao/auditoria-datas` mostra `valor atual → valor proposto` lado a lado
+- 3 botões por linha: **Corrigir** (swap DD↔MM), **Manter** (registra decisão), **Editar manualmente**
+- Toda correção registrada em `audit_log` com `valor_antes`, `valor_depois`, `decidido_por`, `motivo`
+- Modo **lote** disponível só para o cluster `2026-05-19 16:39:21` (origem comprovada de import inconsistente)
+
+Nada é alterado sem aprovação registro a registro ou aprovação explícita do lote.
 
 ---
 
-## Aprovação solicitada
+## Fase 4 — Reprocessamento de indicadores
 
-Posso começar pela **Onda A** (auditoria, sem mexer em nada) já neste push? Assim você vê a foto real do banco antes de decidirmos qualquer correção. Se aprovar, sigo direto para B em seguida.
+Após Fase 3, datas corrigidas afetam:
+- `get_dashboard_stats` (já recalcula on-the-fly)
+- `get_coordenacao_stats` (idem)
+- `get_pendencias_integridade` (idem)
+- Indicadores históricos públicos `/site/indicadores` — invalidar cache TanStack Query
+- Relatórios mensais já exportados em PDF/DOCX continuam intocados (snapshot histórico); novo export reflete dados corrigidos
+
+Não há tabelas materializadas de indicadores — todos são calculados em tempo real, então a correção se reflete automaticamente no retroativo. ✅
+
+---
+
+## Fase 5 — Relatório final de impacto
+
+`/mnt/documents/Relatorio_Impacto_Padronizacao_Datas.md`:
+- Total de telas/componentes/exports padronizados (esperado: ~120–180 ocorrências)
+- Total de registros com inversão detectada e corrigida por tabela
+- Indicadores que mudaram (antes/depois): cobertura por bairro, % adesão mensal, mapa de calor de presença, taxa de desligamento Maio
+- Lista de participantes cujo status histórico foi reconciliado (provavelmente os 26+ desligamentos suspeitos)
+- Recomendações de processo (importadores futuros usando ISO obrigatório, validação de cluster `updated_at`)
+
+---
+
+## Ordem de execução e aprovação
+
+1. Fase 1 inteira (read-only) → você revê relatório e painel
+2. Fase 2 com flag de preview em uma página piloto (ex: `/participantes`) → aprovação → roll-out
+3. Fase 3 caso a caso (ou lote do cluster) com seu aval
+4. Fase 4 automática
+5. Fase 5 entregue como artefato
+
+## Garantias
+
+- Banco intocado estruturalmente (sem migração de tipo de coluna)
+- Nenhum dado sobrescrito sem `audit_log` + valor anterior preservado
+- Snapshots exportados (PDF/DOCX já gerados) permanecem como estavam
+- Lint guard impede regressão futura
