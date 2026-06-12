@@ -243,6 +243,17 @@ export default function CoordenacaoPage() {
                   </p>
                 </CardContent>
               </Card>
+              <Card className="mb-3">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Auditoria de Datas (DD/MM/AAAA)</CardTitle>
+                </CardHeader>
+                <CardContent className="text-xs text-muted-foreground space-y-2">
+                  <p>Detecta inversões DD↔MM, datas futuras impossíveis e clusters de importação suspeitos. Apenas leitura.</p>
+                  <Button size="sm" onClick={() => navigate("/coordenacao/auditoria-datas")} className="gap-2">
+                    <ExternalLink className="h-4 w-4" /> Abrir painel
+                  </Button>
+                </CardContent>
+              </Card>
               <DashboardAdminTab />
             </TabsContent>
           </>
