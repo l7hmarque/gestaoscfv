@@ -1,52 +1,39 @@
-# Correção: "Sem permissão ou erro ao carregar a auditoria"
+# Saneamento — versão final aprovada
 
-## Causa
+## Decisões consolidadas
+- **Grupo A (5 ativos)**: limpar campos de desligamento, manter `status='ativo'`.
+- **Grupo B (6 desligados)**: `status='desligado'`, `data_desligamento=NULL`, `desligado_registrado_em=now()`.
+- **`turma_participantes` do Grupo B**: `data_saida = data da última P` ou, se nunca houve P, `data_saida = data_entrada`. Na prática todos caem no segundo caso (zero P).
+- **`presenca` do Grupo B**: apagar **apenas registros com `presente = false` E `justificada = false`** (faltas puras, F). Manter **J (justificada)** — pois se foi justificada, havia vínculo real reconhecido.
 
-As três RPCs criadas na Fase 3 (`auditar_datas_invertidas`, `corrigir_data_participante`, `corrigir_cluster_desligamentos`) restringem acesso a:
+## Migration (uma única transação)
 
-```sql
-IF v_uid IS NULL OR NOT public.has_role(v_uid, 'coordenacao') THEN
-  RETURN jsonb_build_object('error', 'forbidden');
-END IF;
-```
+1. **5× `UPDATE participantes`** (Grupo A): zera `data_desligamento`, `motivo_desligamento`, `desligado_registrado_em`, `justificativa_desligamento`.
+2. **6× `UPDATE participantes`** (Grupo B): seta `status='desligado'`, `data_desligamento=NULL`, `desligado_registrado_em=now()`, `motivo_desligamento` preservado quando vier do import, `justificativa_desligamento` = nota explicativa do saneamento.
+3. **Para cada `turma_participantes` aberto dos 6 do Grupo B**:
+   ```sql
+   UPDATE turma_participantes
+      SET data_saida = COALESCE(
+            (SELECT MAX(data_aula) FROM presenca
+              WHERE participante_id = tp.participante_id
+                AND turma_id = tp.turma_id
+                AND presente = true),
+            tp.data_entrada
+          ),
+          motivo_saida = 'Saneamento 12/06/2026: vínculo encerrado por inexistência de presença real'
+    WHERE ...
+   ```
+4. **`DELETE FROM presenca`** dos 6 do Grupo B onde `presente = false AND justificada = false` (apaga só **F**, preserva **J**).
+5. **11× `INSERT INTO audit_log`** (`acao='saneamento_data_desligamento'`) com payload `{antes, depois, faltas_apagadas: N}` por participante.
 
-Porém a rota `/coordenacao/auditoria-datas` está protegida por `ModuleRoute module="coordenacao" level="admin"`, que **autoriza super_admins** (via `get_my_module_access` → `is_super_admin`) mesmo quando o usuário não tem a role `coordenacao` em `user_roles`. Resultado: o super_admin entra na página mas a RPC devolve `forbidden`, e a UI mostra "Sem permissão ou erro ao carregar a auditoria."
+## Verificação pós-migration
+SELECT consolidado mostrando:
+- Estado final dos 11 participantes (status + todos os campos de desligamento).
+- Vínculos de turma dos 6 do Grupo B com `data_saida` calculada.
+- Contagem de registros `presenca` removidos por participante.
+- Amostra: contagem de membros das turmas afetadas em maio/2026 e junho/2026 antes vs. depois (para evidenciar a correção retroativa dos KPIs).
 
-Confirmações:
-- `enum app_role` não possui valor `admin` — só `coordenacao`, `educador`, `tecnico`, `motorista`, `cozinheiro`, `visitante`, `marketing`.
-- `public.is_super_admin(uuid)` já existe e é usado em outras RPCs sensíveis.
-- A função `auditar_datas_invertidas` é `SECURITY DEFINER` com `EXECUTE` para PUBLIC — o único bloqueio é o `IF` interno.
-
-## Mudança
-
-Nova migration que substitui as três RPCs (mesma assinatura, mesma lógica) trocando o gate por:
-
-```sql
-IF v_uid IS NULL OR NOT (
-     public.has_role(v_uid, 'coordenacao'::app_role)
-     OR public.is_super_admin(v_uid)
-) THEN
-  RETURN jsonb_build_object('error', 'forbidden');
-END IF;
-```
-
-Aplicado em:
-1. `auditar_datas_invertidas()`
-2. `corrigir_data_participante(uuid, text, date, text, text)`
-3. `corrigir_cluster_desligamentos(timestamptz, text)`
-
-Os logs em `audit_log` continuam registrando `auth.uid()` do executor (rastro preservado, independentemente da role usada para autorizar).
-
-## Não muda
-
-- Frontend (`AuditoriaDatasPage.tsx`) — fica igual.
-- Rota e `ModuleRoute` — já permitem super_admin corretamente.
-- Demais RPCs/políticas RLS.
-- Dados — apenas redefinição de funções (`CREATE OR REPLACE`).
-
-## Verificação
-
-Após aplicar, recarregar `/coordenacao/auditoria-datas`:
-- Super_admin: KPIs carregam, botões Corrigir/Manter funcionam.
-- Coordenação: continua funcionando como antes.
-- Demais perfis: continuam recebendo `forbidden` (e ModuleRoute nem deixa abrir a rota).
+## Próximas etapas (fora desta migration)
+- **Trigger preventivo `participantes_status_sync`** (rejeita `data_desligamento > CURRENT_DATE`; limpa campos quando status sai de `desligado`).
+- **Auditoria ampla "Zero P"** dos 175 candidatos, com aprovação em blocos.
+- **`get_participantes_turma` / RPCs de chamada**: garantir filtro `tp.data_saida IS NULL OR tp.data_saida > data_da_chamada` para que vínculos fechados retroativamente não reapareçam.
