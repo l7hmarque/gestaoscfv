@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { ArrowLeft, AlertTriangle, Calendar, History, FileWarning, Loader2 } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Calendar, History, FileWarning, Loader2, Check, X, Wrench } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDataBR, formatDataHoraBR } from "@/lib/formatDate";
+import { toast } from "sonner";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 type Auditoria = {
   totais?: Record<string, number>;
@@ -24,6 +31,50 @@ type Auditoria = {
 
 const AuditoriaDatasPage = () => {
   const [tab, setTab] = useState("desligamentos");
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [clusterJust, setClusterJust] = useState("");
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ["auditoria-datas"] });
+
+  const corrigir = async (row: any, coluna: string, decisao: "corrigir" | "manter", justificativa?: string) => {
+    setBusy(row.id + coluna + decisao);
+    try {
+      const { error } = await supabase.rpc("corrigir_data_participante" as any, {
+        _participante_id: row.id,
+        _coluna: coluna,
+        _data_proposta: row.data_proposta,
+        _decisao: decisao,
+        _justificativa: justificativa ?? null,
+      });
+      if (error) throw error;
+      toast.success(decisao === "corrigir" ? "Data corrigida" : "Decisão registrada");
+      refresh();
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const corrigirCluster = async (ts: string) => {
+    if (clusterJust.trim().length < 5) { toast.error("Justificativa obrigatória (mín. 5 caracteres)"); return; }
+    setBusy("cluster" + ts);
+    try {
+      const { data, error } = await supabase.rpc("corrigir_cluster_desligamentos" as any, {
+        _cluster_timestamp: ts,
+        _justificativa: clusterJust,
+      });
+      if (error) throw error;
+      toast.success(`Cluster corrigido: ${(data as any)?.afetados ?? 0} registros`);
+      setClusterJust("");
+      refresh();
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const { data, isLoading, isError } = useQuery<Auditoria>({
     queryKey: ["auditoria-datas"],
@@ -95,30 +146,90 @@ const AuditoriaDatasPage = () => {
             </TabsList>
 
             <TabsContent value="desligamentos" className="mt-3">
-              <ListaTable rows={desligamentos} cols={[
-                { k: "nome", h: "Participante" },
-                { k: "data_atual", h: "Data atual", fmt: formatDataBR },
-                { k: "data_proposta", h: "Data proposta (DD↔MM)", fmt: formatDataBR },
-                { k: "motivo_desligamento", h: "Motivo" },
-                { k: "updated_at", h: "Atualizado em", fmt: formatDataHoraBR },
-              ]} link={(r) => `/participantes/${r.id}`} />
+              <AcaoTable
+                rows={desligamentos}
+                coluna="data_desligamento"
+                extraCols={[
+                  { k: "motivo_desligamento", h: "Motivo" },
+                  { k: "updated_at", h: "Atualizado em", fmt: formatDataHoraBR },
+                ]}
+                onCorrigir={(r) => corrigir(r, "data_desligamento", "corrigir")}
+                onManter={(r) => corrigir(r, "data_desligamento", "manter", "Mantido pela coordenação")}
+                busy={busy}
+              />
             </TabsContent>
 
             <TabsContent value="ambiguas" className="mt-3">
-              <ListaTable rows={ambiguas} cols={[
-                { k: "nome", h: "Participante" },
-                { k: "data_atual", h: "Data atual", fmt: formatDataBR },
-                { k: "data_proposta", h: "Data proposta", fmt: formatDataBR },
-                { k: "tem_audit", h: "Tem audit?", fmt: (v) => v ? "Sim" : "Não" },
-                { k: "updated_at", h: "Atualizado em", fmt: formatDataHoraBR },
-              ]} link={(r) => `/participantes/${r.id}`} />
+              <AcaoTable
+                rows={ambiguas}
+                coluna="data_desligamento"
+                extraCols={[
+                  { k: "tem_audit", h: "Tem audit?", fmt: (v) => v ? "Sim" : "Não" },
+                  { k: "updated_at", h: "Atualizado em", fmt: formatDataHoraBR },
+                ]}
+                onCorrigir={(r) => corrigir(r, "data_desligamento", "corrigir")}
+                onManter={(r) => corrigir(r, "data_desligamento", "manter", "Confirmado como correto")}
+                busy={busy}
+              />
             </TabsContent>
 
             <TabsContent value="clusters" className="mt-3">
-              <ListaTable rows={clusters} cols={[
-                { k: "updated_at", h: "Timestamp do import", fmt: formatDataHoraBR },
-                { k: "qtd", h: "Registros afetados" },
-              ]} />
+              {clusters.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">Nenhum cluster suspeito.</p>
+              ) : (
+                <div className="overflow-x-auto rounded border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Timestamp do import</TableHead>
+                        <TableHead className="text-xs">Registros</TableHead>
+                        <TableHead className="text-xs w-40">Ação em lote</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {clusters.map((c: any, i: number) => (
+                        <TableRow key={i}>
+                          <TableCell className="text-xs">{formatDataHoraBR(c.updated_at)}</TableCell>
+                          <TableCell className="text-xs">{c.qtd}</TableCell>
+                          <TableCell>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="destructive" disabled={!!busy}>
+                                  <Wrench className="h-3 w-3 mr-1" /> Corrigir lote
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Corrigir cluster de import</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Aplica swap DD↔MM em todos os desligamentos futuros deste cluster ({c.qtd} registros).
+                                    Cada alteração será registrada em audit_log.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <div className="space-y-2">
+                                  <Label className="text-xs">Justificativa (obrigatória)</Label>
+                                  <Textarea
+                                    value={clusterJust}
+                                    onChange={(e) => setClusterJust(e.target.value)}
+                                    placeholder="Ex: Cluster de import identificado em auditoria — datas DD↔MM invertidas"
+                                    rows={3}
+                                  />
+                                </div>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => corrigirCluster(c.updated_at)}>
+                                    Aplicar correção
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground mt-2">
                 Clusters com 5+ registros desligados no mesmo instante indicam importação em lote — provável origem de inversões DD↔MM.
               </p>
@@ -216,3 +327,63 @@ const ListaTable = ({
 };
 
 export default AuditoriaDatasPage;
+
+const AcaoTable = ({
+  rows, coluna, extraCols, onCorrigir, onManter, busy,
+}: {
+  rows: any[];
+  coluna: string;
+  extraCols: { k: string; h: string; fmt?: (v: any) => string }[];
+  onCorrigir: (r: any) => void;
+  onManter: (r: any) => void;
+  busy: string | null;
+}) => {
+  if (!rows.length) {
+    return <p className="text-sm text-muted-foreground py-6 text-center">Nada a sinalizar aqui.</p>;
+  }
+  return (
+    <div className="overflow-x-auto rounded border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="text-xs">Participante</TableHead>
+            <TableHead className="text-xs">Atual</TableHead>
+            <TableHead className="text-xs">Proposta (DD↔MM)</TableHead>
+            {extraCols.map((c) => <TableHead key={c.k} className="text-xs">{c.h}</TableHead>)}
+            <TableHead className="text-xs w-44">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r: any) => {
+            const keyC = r.id + coluna + "corrigir";
+            const keyM = r.id + coluna + "manter";
+            return (
+              <TableRow key={r.id}>
+                <TableCell className="text-xs">
+                  <Link to={`/participantes/${r.id}`} className="text-primary hover:underline">{r.nome}</Link>
+                </TableCell>
+                <TableCell className="text-xs">{formatDataBR(r.data_atual)}</TableCell>
+                <TableCell className="text-xs font-medium">{formatDataBR(r.data_proposta)}</TableCell>
+                {extraCols.map((c) => (
+                  <TableCell key={c.k} className="text-xs">
+                    {c.fmt ? c.fmt(r[c.k]) : (r[c.k] ?? "—")}
+                  </TableCell>
+                ))}
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="default" disabled={busy === keyC} onClick={() => onCorrigir(r)}>
+                      <Check className="h-3 w-3 mr-1" /> Corrigir
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={busy === keyM} onClick={() => onManter(r)}>
+                      <X className="h-3 w-3 mr-1" /> Manter
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+};
