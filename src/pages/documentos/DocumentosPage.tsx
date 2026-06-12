@@ -17,6 +17,7 @@ import FichaReferenciamentoDialog from "../relatorios/oficiais/FichaReferenciame
 import FaltasConsecutivasDialog from "../relatorios/oficiais/FaltasConsecutivasDialog";
 import CoberturaPrioritariaDialog from "../relatorios/oficiais/CoberturaPrioritariaDialog";
 import EvasaoDialog from "../relatorios/oficiais/EvasaoDialog";
+import EvolucaoSASDialog from "../relatorios/oficiais/EvolucaoSASDialog";
 
 // Fluxos pesados — lazy para não pesar a primeira carga
 const PresencaExportarPage = lazy(() => import("../presenca/PresencaExportarPage"));
