@@ -3811,6 +3811,7 @@ export type Database = {
       }
     }
     Functions: {
+      auditar_datas_invertidas: { Args: never; Returns: Json }
       auditar_integridade_presencas: {
         Args: { _ate?: string; _de?: string }
         Returns: Json
