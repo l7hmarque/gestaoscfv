@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import {
   FolderDown, ClipboardCheck, FileText, BarChart3, Shield,
-  ExternalLink, Play, Lock, Info,
+  ExternalLink, Play, Lock, Info, TrendingUp,
 } from "lucide-react";
 import { useCapabilities } from "@/hooks/useCapabilities";
 
@@ -122,6 +122,7 @@ export default function DocumentosPage() {
   const [openFaltas, setOpenFaltas] = useState(false);
   const [openCobertura, setOpenCobertura] = useState(false);
   const [openEvasao, setOpenEvasao] = useState(false);
+  const [openEvolucaoSAS, setOpenEvolucaoSAS] = useState(false);
 
   const oficiais: CardSpec[] = [
     {
@@ -214,6 +215,24 @@ export default function DocumentosPage() {
                 {" "}Relatório Mensal SCFV, Anual, Atendimentos Técnicos e Relatório de Gestão (10 seções) — dados sensíveis sob responsabilidade da Coordenação.
               </>}
             >
+              <Card className="border-l-4 border-l-primary/80">
+                <CardContent className="p-4 flex items-start justify-between gap-3 flex-wrap">
+                  <div className="space-y-1 max-w-xl">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-primary" />
+                      <h3 className="text-sm font-semibold">Relatório de Evolução SAS (Mar–Mai/2026)</h3>
+                      <Badge variant="outline" className="text-[10px]">PDF · SAS</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      KPIs mês a mês com gráficos, top 3 atividades por mês com fotos, vínculo, adesão, retenção
+                      e texto-modelo interpretativo. Indicadores anteriores ao marco operacional (01/04/2026) entram como linha de base.
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={() => setOpenEvolucaoSAS(true)}>
+                    <Play className="h-3.5 w-3.5 mr-1" /> Gerar
+                  </Button>
+                </CardContent>
+              </Card>
               <ExportarRelatoriosPage mode="institucional" />
             </EmbeddedFlow>
           )}
@@ -237,6 +256,7 @@ export default function DocumentosPage() {
       <FaltasConsecutivasDialog open={openFaltas} onOpenChange={setOpenFaltas} />
       <CoberturaPrioritariaDialog open={openCobertura} onOpenChange={setOpenCobertura} />
       <EvasaoDialog open={openEvasao} onOpenChange={setOpenEvasao} />
+      <EvolucaoSASDialog open={openEvolucaoSAS} onOpenChange={setOpenEvolucaoSAS} />
     </div>
   );
 }
