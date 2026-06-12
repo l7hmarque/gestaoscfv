@@ -327,3 +327,63 @@ const ListaTable = ({
 };
 
 export default AuditoriaDatasPage;
+
+const AcaoTable = ({
+  rows, coluna, extraCols, onCorrigir, onManter, busy,
+}: {
+  rows: any[];
+  coluna: string;
+  extraCols: { k: string; h: string; fmt?: (v: any) => string }[];
+  onCorrigir: (r: any) => void;
+  onManter: (r: any) => void;
+  busy: string | null;
+}) => {
+  if (!rows.length) {
+    return <p className="text-sm text-muted-foreground py-6 text-center">Nada a sinalizar aqui.</p>;
+  }
+  return (
+    <div className="overflow-x-auto rounded border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="text-xs">Participante</TableHead>
+            <TableHead className="text-xs">Atual</TableHead>
+            <TableHead className="text-xs">Proposta (DD↔MM)</TableHead>
+            {extraCols.map((c) => <TableHead key={c.k} className="text-xs">{c.h}</TableHead>)}
+            <TableHead className="text-xs w-44">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r: any) => {
+            const keyC = r.id + coluna + "corrigir";
+            const keyM = r.id + coluna + "manter";
+            return (
+              <TableRow key={r.id}>
+                <TableCell className="text-xs">
+                  <Link to={`/participantes/${r.id}`} className="text-primary hover:underline">{r.nome}</Link>
+                </TableCell>
+                <TableCell className="text-xs">{formatDataBR(r.data_atual)}</TableCell>
+                <TableCell className="text-xs font-medium">{formatDataBR(r.data_proposta)}</TableCell>
+                {extraCols.map((c) => (
+                  <TableCell key={c.k} className="text-xs">
+                    {c.fmt ? c.fmt(r[c.k]) : (r[c.k] ?? "—")}
+                  </TableCell>
+                ))}
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="default" disabled={busy === keyC} onClick={() => onCorrigir(r)}>
+                      <Check className="h-3 w-3 mr-1" /> Corrigir
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={busy === keyM} onClick={() => onManter(r)}>
+                      <X className="h-3 w-3 mr-1" /> Manter
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+};
