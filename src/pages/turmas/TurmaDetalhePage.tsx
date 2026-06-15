@@ -171,9 +171,9 @@ const TurmaDetalhePage = () => {
     if (guardDemo(isDemo)) return;
     setSaving(true);
     const payload: Record<string, unknown> = { ...form };
-    if (!payload.bairro_id) payload.bairro_id = null;
-    if (!payload.educador_id) payload.educador_id = null;
-    if (!payload.faixa_etaria) payload.faixa_etaria = null;
+    // Normaliza "" → null em campos uuid/enum (Postgres rejeita "" nesses tipos)
+    const NULLABLE_EMPTY_FIELDS = ["bairro_id", "educador_id", "faixa_etaria"];
+    NULLABLE_EMPTY_FIELDS.forEach((k) => { if (payload[k] === "" || payload[k] === undefined) payload[k] = null; });
     // Ensure arrays are saved
     payload.faixas_etarias = form.faixas_etarias || [];
     payload.bairro_ids = form.bairro_ids || [];

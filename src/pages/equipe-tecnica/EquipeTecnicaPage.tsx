@@ -374,6 +374,7 @@ const EquipeTecnicaPage = () => {
     const payload: any = {
       ...encForm,
       profissional_id: myProfileId,
+      data_encaminhamento: encForm.data_encaminhamento || null,
       data_retorno: encForm.data_retorno || null,
     };
     if (encEdit) {
