@@ -157,8 +157,13 @@ const ParticipantePerfilPage = () => {
     // Remove system fields
     delete payload.id; delete payload.created_at; delete payload.updated_at; delete payload.visualizado_em;
 
-    // Nullify empty date/timestamp fields
-    ["bairro_id", "ponto_transporte_id", "data_nascimento", "iniciou_em", "data_desligamento"].forEach((k) => { if (!payload[k]) payload[k] = null; });
+    // Normaliza "" → null em campos de data/timestamp/uuid (Postgres rejeita "" nesses tipos)
+    const NULLABLE_EMPTY_FIELDS = [
+      "bairro_id", "ponto_transporte_id",
+      "data_nascimento", "iniciou_em", "data_desligamento",
+      "busca_ativa_desde", "desligado_registrado_em",
+    ];
+    NULLABLE_EMPTY_FIELDS.forEach((k) => { if (payload[k] === "" || payload[k] === undefined || payload[k] === null) payload[k] = null; });
     if (!canSeeConfidential) delete payload.observacoes_sigilosas;
 
     // Apply Title Case to text fields
