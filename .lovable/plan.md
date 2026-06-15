@@ -1,91 +1,85 @@
-## Plano final validado — helpers globais com escopo cirúrgico
+## O que a auditoria mostrou
 
-Auditei cada premissa contra o código real (4 sites de `toISOString`, 8 de `format(new Date())`, 81 de `error.message`, 4 de `normalize("NFD")`, e os 3 fixes já aplicados). Os riscos identificados na revisão crítica anterior se confirmaram, e o escopo abaixo está calibrado para **não quebrar nada do que já funciona hoje**.
+A marcação de ausência pelo educador não é o que mantém o nome na lista. O problema é anterior: a geração da planilha escolhe quem entra na lista usando uma regra permissiva demais.
 
----
+Para Maio/2026, a regra atual monta a lista assim:
 
-### Garantias contra regressão
+- Usa o 1º dia do mês como referência.
+- Inclui participantes em `busca_ativa` sem corte real para a lista oficial.
+- Ainda permite desligados/transferidos em alguns casos do mês.
+- Depois disso, as ausências/presenças apenas preenchem as células de quem já entrou.
 
+Números da varredura de Maio/2026:
 
-| Risco potencial                                                              | Mitigação aplicada no plano                                                                                                                                                                                     |
-| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| UPDATE parcial apagaria colunas se `undefined → null`                        | `sanitizeEmptyStrings` só toca `""`. `undefined` permanece intacto (JSON.stringify omite).                                                                                                                      |
-| Trocar fuso UTC→local nos 4 sites de `toISOString` quebraria queries         | Esses 4 sites **não são tocados**. Helper novo é nomeado `todayLocalISO` (explícito) e só substitui os 8 `format(new Date(), "yyyy-MM-dd")` que já são locais.                                                  |
-| `handleSupabaseError` esconderia stack para dev                              | Helper **sempre** chama `console.error("[supabase]", error)` antes de retornar a mensagem amigável.                                                                                                             |
-| i18n quebrado com mensagens em PT-BR hardcoded                               | Mensagens vão para `pt-BR.json`/`en-US.json`/`es-AR.json`/`it-IT.json` sob `errors.db.*`. Fallback = `error.message` cru.                                                                                       |
-| Migrar 55 call sites de `error.message` de uma vez = alto risco de regressão | **Não migrar em massa.** H2 só é aplicado nos 3 arquivos já em foco (`EquipeTecnicaPage`, `TurmaDetalhePage`, `ParticipantePerfilPage`) + criar o helper. Os outros 50+ ficam para migração futura caso a caso. |
-| `toTitleCase` em particulas PT (`"Joao Dos Santos"`)                         | Helper `toNomeProprio` com lista de partículas. Mas **só extrai** o que já existe em `ParticipantePerfilPage:49` — comportamento idêntico ao atual.                                                             |
-| Inconsistência cadastro novo (CAIXA ALTA) vs perfil (Title Case)             | **Não resolvida nesta entrega.** Decisão fora de escopo.                                                                                                                                                        |
+- Lista atual: 704 linhas de participantes/vínculos.
+- Lista limpa recomendada: 601 linhas.
+- Remoção estimada: 103 linhas.
+- Dessas remoções, 94 são vínculos de participantes em `busca_ativa`.
+- Esses nomes de busca ativa tinham 235 marcações em maio: 230 ausências e 5 presenças. Isso confirma que as faltas apareceram porque o nome já estava listado; a ausência não deveria decidir a permanência na lista oficial.
+- Também há inconsistência de dados: existem participantes `ativos` com `busca_ativa_desde` preenchido. Isso precisa aparecer em auditoria, mas não deve bagunçar a lista oficial.
 
+## Decisão técnica recomendada
 
----
+Abandonar a regra de “busca ativa até 30 dias” para a Lista de Frequência preenchida oficial.
 
-### Arquivos a criar
+A lista oficial deve ser limpa e objetiva:
 
-1. `**src/lib/dbPayload.ts**` (novo)
-  ```ts
-   export function sanitizeEmptyStrings<T extends Record<string, any>>(
-     payload: T,
-     fields: string[]   // ← obrigatório, lista explícita
-   ): T {
-     const out: any = { ...payload };
-     for (const k of fields) {
-       if (out[k] === "") out[k] = null;
-       // undefined NÃO é tocado — preserva semântica de UPDATE parcial
-     }
-     return out;
-   }
-  ```
-2. `**src/lib/supabaseErrors.ts**` (novo)
-  ```ts
-   import i18n from "@/i18n";
-   export function handleSupabaseError(error: any, fallback?: string): string {
-     console.error("[supabase]", error);  // dev sempre vê o erro cru
-     const code = error?.code;
-     const key = `errors.db.${code}`;
-     const translated = i18n.t(key, { defaultValue: "" });
-     return translated || fallback || error?.message || "Erro desconhecido";
-   }
-  ```
-   Cobre códigos: `22007` (data inválida), `22P02` (uuid/enum inválido), `23502` (NOT NULL), `23503` (FK), `23505` (unique), `42501` (RLS), `PGRST116` (no rows), `PGRST301` (JWT).
+- Entra somente quem estava vinculado à turma no último dia do mês.
+- Entra somente status `ativo` ou `cadastro_incompleto`.
+- Sai quem está `busca_ativa`, `desligado`, transferido ou sem vínculo no último dia do mês.
+- As presenças já lançadas desses removidos não serão apagadas; irão para aba de auditoria/inconsistências.
 
-### Arquivos a editar (mudanças aditivas — não removem nada)
+Isso resolve o problema de nomes “fantasma” sem destruir histórico.
 
-3. `**src/lib/formatDate.ts**` — adicionar `todayLocalISO()` e `todayUTCISO()`. Não tocar funções existentes.
-4. `**src/lib/utils.ts**` — adicionar `stripAccents()` e `toNomeProprio()`. Não tocar `cn()` existente.
-5. `**src/i18n/locales/*.json**` (4 arquivos) — adicionar bloco `errors.db.*` com 8 chaves.
+## Plano seguro antes de aplicar em produção
 
-### Aplicação cirúrgica (apenas os 3 arquivos já em foco)
+### 1. Gerar uma planilha-preview, sem mexer na geração atual
 
-6. `**ParticipantePerfilPage.tsx**` — substituir o loop inline `NULLABLE_EMPTY_FIELDS` por `sanitizeEmptyStrings(payload, FIELDS)`. Substituir `toTitleCase` local por import de `@/lib/utils`. Substituir o `toast.error` do save por `handleSupabaseError`.
-7. `**TurmaDetalhePage.tsx**` — substituir loop inline por `sanitizeEmptyStrings`. Manter os outros `toast.error(error.message)` deste arquivo intactos (estão fora do escopo do bug original).
-8. `**EquipeTecnicaPage.tsx**` — substituir loop inline por `sanitizeEmptyStrings`. Manter os outros 9 `toast.error` deste arquivo intactos.
+Criar uma geração temporária/preview para Maio/2026 com o mesmo formato visual do Google Sheets atual, mas usando a regra limpa.
 
-### Fora desta entrega (decisões/riscos pendentes)
+A planilha-preview terá:
 
-- 50+ call sites de `error.message` em outros arquivos — migração futura, 1 PR por arquivo, opcional.
-- 4 sites de `toISOString().split("T")[0]` — exigem decisão por arquivo sobre semântica UTC vs local.
-- Padronização CAIXA ALTA vs Title Case em nomes de participantes — aguarda decisão.
-- Edge functions (Deno) — `handleSupabaseError` é client-only por design.
-- Helper `upsertTurmaParticipantes` (H6) — descartado, ganho desprezível.
+- Uma aba por turma, já no formato final limpo.
+- Aba `RESUMO`, comparando atual x limpo por turma.
+- Aba `REMOVIDOS`, com nome, turma e motivo da remoção.
+- Aba `INCONSISTÊNCIAS`, mostrando casos como:
+  - busca ativa com presença marcada;
+  - ativo com `busca_ativa_desde` preenchido;
+  - desligado/transferido com presença no mês.
 
----
+Essa etapa não altera o botão atual de `/documentos`.
 
-### Validação pós-implementação
+### 2. Validar que a planilha-preview não quebrou nada
 
-- TypeScript compila (build automático do harness).
-- Os 3 fluxos onde o bug original ocorria continuam funcionando (Bairro do participante, edição de turma, encaminhamento externo).
-- Console mostra erros crus em qualquer falha de Supabase (verificável via DevTools).
-- Nenhuma string traduzida quebra com fallback para `error.message`.
+Antes de te mandar o link, validar:
 
-### O que **não** muda no sistema
+- A função gerou sem erro.
+- O Google Sheets abriu com as abas corretas.
+- As turmas continuam com datas e cabeçalhos corretos.
+- Nenhuma aba oficial contém `busca_ativa`, `desligado` ou vínculo encerrado.
+- As presenças removidas ficaram preservadas na aba de auditoria, não perdidas.
 
-- Nenhum arquivo de `supabase/migrations/*` é tocado.
-- Nenhuma RLS, GRANT, edge function ou tipo gerado é alterado.
-- Nenhuma rota, layout, componente UI ou estilo é tocado.
-- Nenhum dos 50+ outros call sites de `error.message` é afetado.
-- Performance idêntica (helpers são funções puras síncronas).
+### 3. Você avalia a planilha
 
-### Confirmação solicitada
+Eu te envio o link da planilha-preview.
 
-Posso implementar com este escopo cirúrgico, ou prefere ampliar (migrar os 50+ `error.message` agora) / reduzir (só criar os helpers sem aplicar)? implemente o escopo cirurgico.
+Você decide se:
+
+- aplica exatamente assim;
+- ajusta algum critério;
+- ou descarta.
+
+### 4. Só depois da sua confirmação, aplicar na geração real de `/documentos`
+
+Se você aprovar, aí sim aplicar a correção oficial:
+
+- Atualizar a função de banco `get_participantes_turma` com um modo novo e seguro, por exemplo `frequencia_oficial`.
+- Alterar `generate-listas-frequencia-mes-gsheet` para usar a data do último dia do mês e esse modo limpo.
+- Remover da lista oficial os marcadores `(BA)`, `(Desligado)`, `(Transferido)` e os traços `—` para pessoas que nem deveriam aparecer.
+- Manter abas `Auditoria`/`Inconsistências` para rastreabilidade.
+- Não mexer na Lista de Chamada em branco.
+- Não apagar nenhum registro histórico de presença.
+
+## Resultado esperado
+
+A Lista de Frequência preenchida fica clean: só participantes realmente vinculados e ativos no fechamento do mês aparecem no corpo das turmas; casos problemáticos saem da lista oficial e ficam separados para conferência.
