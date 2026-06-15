@@ -28,6 +28,8 @@ import { RecadosEquipeCards } from "@/components/RecadosEquipeCards";
 import { RoteirosTab } from "./roteiros/RoteirosTab";
 import { formatDataBR } from "@/lib/formatDate";
 import * as XLSX from "xlsx-js-style";
+import { sanitizeEmptyStrings } from "@/lib/dbPayload";
+import { handleSupabaseError } from "@/lib/supabaseErrors";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
