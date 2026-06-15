@@ -18,9 +18,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDocumentScanner, CATEGORIES, compressFileForUpload } from "@/hooks/useDocumentScanner";
 import type { Tables } from "@/integrations/supabase/types";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
-import { maskCPF, maskPhone, unmaskDigits, displayCPF, displayPhone } from "@/lib/utils";
+import { maskCPF, maskPhone, unmaskDigits, displayCPF, displayPhone, toNomeProprio } from "@/lib/utils";
 import { SendRecadoDialog } from "@/components/SendRecadoDialog";
 import { formatDataBR } from "@/lib/formatDate";
+import { sanitizeEmptyStrings } from "@/lib/dbPayload";
+import { handleSupabaseError } from "@/lib/supabaseErrors";
 
 const MOTIVOS_DESLIGAMENTO = [
   "Mudança de município",
@@ -46,17 +48,7 @@ function calcFaixaEtaria(dataNasc: string | null): string {
   return `${age} anos`;
 }
 
-function toTitleCase(str: string): string {
-  const lowerWords = new Set(["de", "da", "do", "das", "dos", "e", "em", "com", "para", "por"]);
-  return str
-    .toLowerCase()
-    .split(/\s+/)
-    .map((word, i) => {
-      if (i > 0 && lowerWords.has(word)) return word;
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    })
-    .join(" ");
-}
+// toTitleCase movido para src/lib/utils.ts como toNomeProprio()
 
 interface DocRow { id: string; categoria: string; nome_arquivo: string; arquivo_url: string; created_at: string; }
 
@@ -153,24 +145,23 @@ const ParticipantePerfilPage = () => {
   const handleSave = async () => {
     if (guardDemo(isDemo)) return;
     setSaving(true);
-    const payload: Record<string, unknown> = { ...form };
+    let payload: Record<string, unknown> = { ...form };
     // Remove system fields
     delete payload.id; delete payload.created_at; delete payload.updated_at; delete payload.visualizado_em;
 
     // Normaliza "" → null em campos de data/timestamp/uuid (Postgres rejeita "" nesses tipos)
-    const NULLABLE_EMPTY_FIELDS = [
+    payload = sanitizeEmptyStrings(payload, [
       "bairro_id", "ponto_transporte_id",
       "data_nascimento", "iniciou_em", "data_desligamento",
       "busca_ativa_desde", "desligado_registrado_em",
-    ];
-    NULLABLE_EMPTY_FIELDS.forEach((k) => { if (payload[k] === "" || payload[k] === undefined || payload[k] === null) payload[k] = null; });
+    ]);
     if (!canSeeConfidential) delete payload.observacoes_sigilosas;
 
     // Apply Title Case to text fields
     const titleCaseFields = ["nome_completo", "responsavel1_nome", "responsavel2_nome", "escola", "endereco_rua", "endereco_bairro"];
     titleCaseFields.forEach((k) => {
       if (payload[k] && typeof payload[k] === "string" && (payload[k] as string).trim()) {
-        payload[k] = toTitleCase(payload[k] as string);
+        payload[k] = toNomeProprio(payload[k] as string);
       }
     });
 
@@ -186,7 +177,7 @@ const ParticipantePerfilPage = () => {
 
     const { error } = await supabase.from("participantes").update(payload as any).eq("id", id!);
     setSaving(false);
-    if (error) { toast.error("Erro: " + error.message); return; }
+    if (error) { toast.error(handleSupabaseError(error, "Erro ao salvar")); return; }
     toast.success("Atualizado com sucesso!");
 
     // Automação 1: Desligar → abrir dialog para preencher motivo/justificativa

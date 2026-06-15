@@ -26,6 +26,8 @@ import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import { sysCfvFileName } from "@/lib/fileNaming";
 import { exportSingleListaPresenca } from "@/lib/exportListaPresenca";
+import { sanitizeEmptyStrings } from "@/lib/dbPayload";
+import { handleSupabaseError } from "@/lib/supabaseErrors";
 
 const periodoLabel = PERIODO_LABELS;
 const faixaLabel = FAIXA_LABELS;
@@ -170,10 +172,9 @@ const TurmaDetalhePage = () => {
   const handleSave = async () => {
     if (guardDemo(isDemo)) return;
     setSaving(true);
-    const payload: Record<string, unknown> = { ...form };
+    let payload: Record<string, unknown> = { ...form };
     // Normaliza "" → null em campos uuid/enum (Postgres rejeita "" nesses tipos)
-    const NULLABLE_EMPTY_FIELDS = ["bairro_id", "educador_id", "faixa_etaria"];
-    NULLABLE_EMPTY_FIELDS.forEach((k) => { if (payload[k] === "" || payload[k] === undefined) payload[k] = null; });
+    payload = sanitizeEmptyStrings(payload, ["bairro_id", "educador_id", "faixa_etaria"]);
     // Ensure arrays are saved
     payload.faixas_etarias = form.faixas_etarias || [];
     payload.bairro_ids = form.bairro_ids || [];
@@ -182,7 +183,7 @@ const TurmaDetalhePage = () => {
     if ((form.bairro_ids || []).length > 0) payload.bairro_id = form.bairro_ids[0];
     const { error } = await supabase.from("turmas").update(payload as any).eq("id", id!);
     setSaving(false);
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error(handleSupabaseError(error, "Erro ao atualizar turma")); return; }
     toast.success("Turma atualizada!");
     setEditing(false);
     fetchAll();
