@@ -92,5 +92,19 @@
       "system_title": "Configuración del sistema",
       "system_body": "Área avanzada: plantillas de documentos, copia de seguridad de la base y herramientas técnicas. Las operaciones de respaldo pueden ser pesadas — ejecútelas fuera del horario pico. Restringido a coordinación y super admin."
     }
+  },
+  "errors": {
+    "db": {
+      "22007": "Fecha inválida. Verifique el formato de los campos de fecha.",
+      "22008": "Fecha fuera del intervalo aceptado.",
+      "22P02": "Valor inválido en uno de los campos (verifique selecciones y códigos).",
+      "23502": "Campo obligatorio sin completar.",
+      "23503": "Operación bloqueada: existen registros vinculados a este ítem.",
+      "23505": "Ya existe un registro con esos datos.",
+      "23514": "El valor no cumple con las reglas de validación del sistema.",
+      "42501": "No tiene permiso para realizar esta acción.",
+      "PGRST116": "Registro no encontrado.",
+      "PGRST301": "Sesión expirada. Inicie sesión nuevamente."
+    }
   }
 }

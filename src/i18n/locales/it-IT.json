@@ -92,5 +92,19 @@
       "system_title": "Impostazioni di sistema",
       "system_body": "Area avanzata: template documenti, backup del database e strumenti tecnici. Le operazioni di backup possono essere pesanti — eseguile fuori orario di punta. Riservato a coordinamento e super admin."
     }
+  },
+  "errors": {
+    "db": {
+      "22007": "Data non valida. Verifica il formato dei campi data.",
+      "22008": "Data fuori dall'intervallo accettato.",
+      "22P02": "Valore non valido in uno dei campi (verifica selezioni e codici).",
+      "23502": "Campo obbligatorio non compilato.",
+      "23503": "Operazione bloccata: esistono record collegati a questo elemento.",
+      "23505": "Esiste già un record con questi dati.",
+      "23514": "Il valore non soddisfa le regole di validazione del sistema.",
+      "42501": "Non hai i permessi per eseguire questa azione.",
+      "PGRST116": "Record non trovato.",
+      "PGRST301": "Sessione scaduta. Effettua di nuovo l'accesso."
+    }
   }
 }
