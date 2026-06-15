@@ -58,3 +58,25 @@ export function toISODate(input: Date | string | number | null | undefined): str
   if (!d) return "";
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
+
+/**
+ * YYYY-MM-DD no fuso LOCAL do navegador.
+ * Use quando "hoje" significa o dia do operador (formulários, defaults de
+ * data_atendimento, data_encaminhamento etc.).
+ *
+ * NÃO use para queries que comparam com colunas geradas a partir de NOW() do
+ * banco — nesse caso prefira todayUTCISO() para evitar desalinhamento depois
+ * das 21h em São Paulo.
+ */
+export function todayLocalISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/**
+ * YYYY-MM-DD em UTC. Mantém paridade com colunas date geradas via NOW() do
+ * Postgres (servidor em UTC). Use somente quando essa for a semântica desejada.
+ */
+export function todayUTCISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}

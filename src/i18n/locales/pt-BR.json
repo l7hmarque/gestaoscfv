@@ -92,5 +92,19 @@
       "system_title": "Configurações de sistema",
       "system_body": "Área avançada: templates de documentos, backup do banco e ferramentas técnicas. Operações de backup podem ser pesadas — execute fora do horário de pico. Restrito a coordenação e super admin."
     }
+  },
+  "errors": {
+    "db": {
+      "22007": "Data inválida. Verifique o formato dos campos de data.",
+      "22008": "Data fora do intervalo aceito.",
+      "22P02": "Valor inválido em um dos campos (verifique seleções e códigos).",
+      "23502": "Campo obrigatório não preenchido.",
+      "23503": "Operação bloqueada: existem registros vinculados a este item.",
+      "23505": "Já existe um registro com esses dados.",
+      "23514": "Valor não atende às regras de validação do sistema.",
+      "42501": "Você não tem permissão para realizar esta ação.",
+      "PGRST116": "Registro não encontrado.",
+      "PGRST301": "Sessão expirada. Faça login novamente."
+    }
   }
 }

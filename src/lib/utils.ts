@@ -37,3 +37,32 @@ export function displayPhone(value: string | null | undefined): string {
   if (d.length === 10 || d.length === 11) return maskPhone(d);
   return value;
 }
+
+/**
+ * Remove acentos diacríticos (NFD + faixa combining marks).
+ * Use para normalização de busca (case-insensitive + accent-insensitive).
+ */
+export function stripAccents(value: string | null | undefined): string {
+  if (!value) return "";
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
+ * Title Case ciente de partículas em português ("João dos Santos", não
+ * "João Dos Santos"). Primeira palavra é sempre capitalizada.
+ * NÃO altera acentos — apenas caixa.
+ */
+const PT_PARTICULAS = new Set([
+  "de", "da", "do", "das", "dos", "e", "em", "com", "para", "por",
+]);
+export function toNomeProprio(value: string | null | undefined): string {
+  if (!value) return "";
+  return value
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word, i) => {
+      if (i > 0 && PT_PARTICULAS.has(word)) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ");
+}

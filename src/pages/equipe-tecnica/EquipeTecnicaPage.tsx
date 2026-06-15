@@ -28,6 +28,8 @@ import { RecadosEquipeCards } from "@/components/RecadosEquipeCards";
 import { RoteirosTab } from "./roteiros/RoteirosTab";
 import { formatDataBR } from "@/lib/formatDate";
 import * as XLSX from "xlsx-js-style";
+import { sanitizeEmptyStrings } from "@/lib/dbPayload";
+import { handleSupabaseError } from "@/lib/supabaseErrors";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -371,20 +373,20 @@ const EquipeTecnicaPage = () => {
       toast.error("Preencha participante, órgão e motivo");
       return;
     }
-    const payload: any = {
+    let payload: any = {
       ...encForm,
       profissional_id: myProfileId,
-      data_encaminhamento: encForm.data_encaminhamento || null,
-      data_retorno: encForm.data_retorno || null,
     };
+    // Normaliza "" → null em campos date (Postgres rejeita "" em tipos date)
+    payload = sanitizeEmptyStrings(payload, ["data_encaminhamento", "data_retorno"]);
     if (encEdit) {
       const { error } = await (supabase.from as any)("encaminhamentos_externos").update(payload).eq("id", encEdit.id);
-      if (error) { toast.error("Erro: " + error.message); return; }
+      if (error) { toast.error(handleSupabaseError(error, "Erro ao atualizar encaminhamento")); return; }
       encTimer.stop(encEdit.id);
       toast.success("Encaminhamento atualizado");
     } else {
       const { data: novoEnc, error } = await (supabase.from as any)("encaminhamentos_externos").insert(payload).select().single();
-      if (error) { toast.error("Erro: " + error.message); return; }
+      if (error) { toast.error(handleSupabaseError(error, "Erro ao registrar encaminhamento")); return; }
       encTimer.stop(novoEnc?.id);
       toast.success("Encaminhamento registrado");
     }

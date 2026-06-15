@@ -92,5 +92,19 @@
       "system_title": "System settings",
       "system_body": "Advanced area: document templates, database backup and technical tools. Backup operations can be heavy — run outside peak hours. Coordination and super admin only."
     }
+  },
+  "errors": {
+    "db": {
+      "22007": "Invalid date. Check the format of date fields.",
+      "22008": "Date out of accepted range.",
+      "22P02": "Invalid value in one of the fields (check selections and codes).",
+      "23502": "Required field is missing.",
+      "23503": "Blocked: there are linked records depending on this item.",
+      "23505": "A record with these details already exists.",
+      "23514": "Value does not meet system validation rules.",
+      "42501": "You don't have permission to perform this action.",
+      "PGRST116": "Record not found.",
+      "PGRST301": "Session expired. Please sign in again."
+    }
   }
 }
