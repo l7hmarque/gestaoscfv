@@ -72,6 +72,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "atendimentos_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
+          },
+          {
             foreignKeyName: "atendimentos_profissional_id_fkey"
             columns: ["profissional_id"]
             isOneToOne: false
@@ -164,6 +171,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "participantes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "auditoria_abril_desligamentos_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
           },
           {
             foreignKeyName: "auditoria_abril_desligamentos_turma_id_fkey"
@@ -284,6 +298,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "participantes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "busca_ativa_registros_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
           },
           {
             foreignKeyName: "busca_ativa_registros_profissional_id_fkey"
@@ -1514,6 +1535,13 @@ export type Database = {
             referencedRelation: "participantes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "formulario_respostas_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
+          },
         ]
       }
       formularios_familia: {
@@ -1680,6 +1708,13 @@ export type Database = {
             referencedRelation: "participantes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "participante_checkins_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
+          },
         ]
       }
       participante_documentos: {
@@ -1714,6 +1749,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "participantes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participante_documentos_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
           },
         ]
       }
@@ -1754,6 +1796,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "participante_transferencias_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
+          },
+          {
             foreignKeyName: "participante_transferencias_turma_destino_id_fkey"
             columns: ["turma_destino_id"]
             isOneToOne: false
@@ -1779,6 +1828,7 @@ export type Database = {
           created_at: string | null
           data_desligamento: string | null
           data_nascimento: string | null
+          data_retorno: string | null
           desligado_registrado_em: string | null
           dias_contraturno: string | null
           endereco_bairro: string | null
@@ -1825,6 +1875,7 @@ export type Database = {
           created_at?: string | null
           data_desligamento?: string | null
           data_nascimento?: string | null
+          data_retorno?: string | null
           desligado_registrado_em?: string | null
           dias_contraturno?: string | null
           endereco_bairro?: string | null
@@ -1871,6 +1922,7 @@ export type Database = {
           created_at?: string | null
           data_desligamento?: string | null
           data_nascimento?: string | null
+          data_retorno?: string | null
           desligado_registrado_em?: string | null
           dias_contraturno?: string | null
           endereco_bairro?: string | null
@@ -2109,6 +2161,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "participantes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "presenca_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
           },
           {
             foreignKeyName: "presenca_registrado_por_fkey"
@@ -2681,6 +2740,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "recados_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
+          },
+          {
             foreignKeyName: "recados_remetente_id_fkey"
             columns: ["remetente_id"]
             isOneToOne: false
@@ -2731,6 +2797,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "participantes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recados_familia_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
           },
           {
             foreignKeyName: "recados_familia_remetente_id_fkey"
@@ -2866,6 +2939,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "relato_equipe_participantes_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
+          },
+          {
             foreignKeyName: "relato_equipe_participantes_relato_id_fkey"
             columns: ["relato_id"]
             isOneToOne: false
@@ -2996,6 +3076,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "participantes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "relatorio_presenca_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
           },
           {
             foreignKeyName: "relatorio_presenca_relatorio_id_fkey"
@@ -3529,6 +3616,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "turma_participantes_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
+          },
+          {
             foreignKeyName: "turma_participantes_turma_id_fkey"
             columns: ["turma_id"]
             isOneToOne: false
@@ -3756,6 +3850,27 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_participante_frequencia_status: {
+        Row: {
+          dias_sem_presenca: number | null
+          frequentando: boolean | null
+          motivo_exclusao: string | null
+          participante_id: string | null
+          status_atual: string | null
+          turma_id: string | null
+          ultima_presenca_em: string | null
+          vinculo_aberto: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "turma_participantes_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vw_participantes_fora_faixa: {
         Row: {
           data_entrada: string | null
@@ -3792,6 +3907,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "participantes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "turma_participantes_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
           },
           {
             foreignKeyName: "turma_participantes_turma_id_fkey"

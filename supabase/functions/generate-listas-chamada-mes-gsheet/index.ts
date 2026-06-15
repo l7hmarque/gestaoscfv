@@ -202,10 +202,7 @@ function buildTurmaSheet(turma: any, members: any[], anoNum: number, mesNum: num
   {
     const legendRuns = [
       { text: "Legenda: " },
-      { text: "(BA)", bold: true }, { text: " = Busca Ativa  ·  " },
-      { text: "(Desligado)", bold: true }, { text: " = Desligado (≤30d)  ·  " },
-      { text: '(Transferido DD/MM para "Turma")', bold: true }, { text: " = Transferido (≤30d)  ·  " },
-      { text: "—", bold: true }, { text: " = Sem aula/desligado" },
+      { text: "(BA)", bold: true }, { text: " = Busca Ativa (≤ 30 dias)" },
     ];
     const arr: any[] = [plainCell("", legendFmt), richCell(legendRuns, legendFmt)];
     for (let j = 2; j < totalCols; j++) arr.push(plainCell("", legendFmt));
@@ -247,6 +244,8 @@ Deno.serve(async (req) => {
     const anoNum = Number(ano);
     const dataIniMes = `${anoNum}-${pad2(mesNum)}-01`;
     const proxMes = mesNum === 12 ? `${anoNum + 1}-01-01` : `${anoNum}-${pad2(mesNum + 1)}-01`;
+    const lastDay = new Date(anoNum, mesNum, 0).getDate();
+    const dataFimMes = `${anoNum}-${pad2(mesNum)}-${pad2(lastDay)}`;
 
     const svc = createClient(supaUrl, supaSvc);
 
@@ -266,7 +265,7 @@ Deno.serve(async (req) => {
     await Promise.all(turmaIds.map(async (tid: string) => {
       const { data: rows, error: rpcErr } = await svc.rpc("get_participantes_turma", {
         _turma_id: tid,
-        _ref_date: dataIniMes,
+        _ref_date: dataFimMes,
         _modo: "chamada_branco",
       });
       if (rpcErr) { console.warn("[get_participantes_turma]", tid, rpcErr); return; }
