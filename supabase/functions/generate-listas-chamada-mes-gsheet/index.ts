@@ -202,10 +202,7 @@ function buildTurmaSheet(turma: any, members: any[], anoNum: number, mesNum: num
   {
     const legendRuns = [
       { text: "Legenda: " },
-      { text: "(BA)", bold: true }, { text: " = Busca Ativa  ·  " },
-      { text: "(Desligado)", bold: true }, { text: " = Desligado (≤30d)  ·  " },
-      { text: '(Transferido DD/MM para "Turma")', bold: true }, { text: " = Transferido (≤30d)  ·  " },
-      { text: "—", bold: true }, { text: " = Sem aula/desligado" },
+      { text: "(BA)", bold: true }, { text: " = Busca Ativa (≤ 30 dias)" },
     ];
     const arr: any[] = [plainCell("", legendFmt), richCell(legendRuns, legendFmt)];
     for (let j = 2; j < totalCols; j++) arr.push(plainCell("", legendFmt));
