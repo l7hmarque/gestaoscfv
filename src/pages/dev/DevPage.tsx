@@ -10,6 +10,7 @@ import { Shield, Trash2, Plus, Database, Users, BookOpen, FileText, ClipboardLis
 import { toast } from "sonner";
 import { Constants } from "@/integrations/supabase/types";
 import { useIsDemo, guardDemo } from "@/hooks/useIsDemo";
+import LinkHealthCard from "@/components/dev/LinkHealthCard";
 
 const ROLES = Constants.public.Enums.app_role;
 
@@ -193,6 +194,9 @@ export default function DevPage() {
           <p className="text-[10px] text-muted-foreground mt-2">* Educadores podem deletar seus próprios planejamentos e relatórios.</p>
         </CardContent>
       </Card>
+
+      {/* Saúde dos Vínculos */}
+      <LinkHealthCard />
 
       {/* Role management */}
       <Card>
