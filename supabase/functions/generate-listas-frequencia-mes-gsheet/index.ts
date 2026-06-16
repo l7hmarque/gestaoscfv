@@ -183,10 +183,18 @@ function buildTurmaSheet(
   }
 
   const sortedAll = [...members].sort((a, b) => a.nome.localeCompare(b.nome));
+  // Filtro: remover linhas vazias (sem nenhum P/A/J no mês e sem marcador
+  // institucional — BA / Desligado / Transferido). Mantém quem tem marcador
+  // mesmo sem lançamento para preservar contexto pedagógico.
+  const filtered = sortedAll.filter((m) => {
+    const temLancamento = Object.keys(presencasMap[m.id] || {}).length > 0;
+    const temMarcador = !!(m.marcador && String(m.marcador).trim());
+    return temLancamento || temMarcador;
+  });
   const ordered = [
-    ...sortedAll.filter(m => !m.bloqueado_chamada && m.status !== "busca_ativa"),
-    ...sortedAll.filter(m => !m.bloqueado_chamada && m.status === "busca_ativa"),
-    ...sortedAll.filter(m => m.bloqueado_chamada),
+    ...filtered.filter(m => !m.bloqueado_chamada && m.status !== "busca_ativa"),
+    ...filtered.filter(m => !m.bloqueado_chamada && m.status === "busca_ativa"),
+    ...filtered.filter(m => m.bloqueado_chamada),
   ];
 
   ordered.forEach((m, i) => {
