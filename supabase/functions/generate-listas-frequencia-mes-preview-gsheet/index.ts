@@ -179,7 +179,10 @@ function buildTurmaSheet(turma: any, members: any[], presencasMap: any, relatori
     rows.push({ values: arr });
   }
 
-  const ordered = [...members].sort((a, b) => a.nome.localeCompare(b.nome));
+  // Remover linhas vazias: sem nenhum P/A/J no mês (preview não tem marcadores institucionais).
+  const ordered = [...members]
+    .filter((m) => Object.keys(presencasMap[m.id] || {}).length > 0)
+    .sort((a, b) => a.nome.localeCompare(b.nome));
 
   ordered.forEach((m, i) => {
     const arr: any[] = [plainCell(i + 1, baseFmt), plainCell(m.nome, cellNameFmt)];
