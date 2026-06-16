@@ -6,7 +6,7 @@ import { Activity, Download, RefreshCw, Loader2, Play } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx-js-style";
 import { saveAs } from "file-saver";
-import { buildFileName } from "@/lib/fileNaming";
+import { sysCfvFileName } from "@/lib/fileNaming";
 
 type Bucket = "ativos_sem_vinculo" | "desligados_com_vinculo" | "busca_ativa_stale" | "ativos_sem_presenca";
 
@@ -72,7 +72,7 @@ export default function LinkHealthCard() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, BUCKET_LABELS[bucket].label.slice(0, 30));
       const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-      const filename = buildFileName(`SaudeVinculos_${bucket}`, "xlsx");
+      const filename = sysCfvFileName(`SaudeVinculos_${bucket}`, "xlsx");
       saveAs(new Blob([buf]), filename);
     } catch (e: any) {
       toast.error("Falha ao gerar planilha: " + (e?.message || e));
