@@ -22,6 +22,7 @@ export interface ParticipanteTurma {
   bloqueado_desde: string | null;
   turma_destino_nome: string | null;
   data_transferencia: string | null;
+  vinculo_saida: string | null;
 }
 
 /**
