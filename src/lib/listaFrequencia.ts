@@ -94,8 +94,22 @@ async function carregarDadosTurma(turma: ListaTurma, mes: number, ano: number) {
   (presData || []).forEach((p: any) => datasSet.add(p.data));
   const datas = Array.from(datasSet).sort();
 
+  // Quem teve algum lançamento no mês de referência (recorte 1º..último do mês).
+  const inicioMes = refDate;
+  const fimMes = new Date(ano, mes, 0).toISOString().slice(0, 10);
+  const lancouNoMes = new Set<string>();
+  (presData || []).forEach((x: any) => {
+    if (x.data >= inicioMes && x.data <= fimMes) lancouNoMes.add(x.participante_id);
+  });
+
+  // Remover linhas vazias: sem nenhum P/A/J no mês e sem marcador institucional.
+  const elegiveisFiltrados = elegiveis.filter((p) => {
+    const temMarcador = !!(p.marcador && String(p.marcador).trim());
+    return lancouNoMes.has(p.participante_id) || temMarcador;
+  });
+
   // Matriz com símbolos P/A/J/— já resolvidos
-  const matriz = elegiveis.map((p) => {
+  const matriz = elegiveisFiltrados.map((p) => {
     const presencas: Record<string, string> = {};
     const minhas = (presData || []).filter(
       (x: any) => x.participante_id === p.participante_id
@@ -120,7 +134,7 @@ async function carregarDadosTurma(turma: ListaTurma, mes: number, ano: number) {
   });
 
   // Estrutura para builders XLSX (lista de chamada / frequência mensal)
-  const membersXlsx = elegiveis.map((p) => ({
+  const membersXlsx = elegiveisFiltrados.map((p) => ({
     nome: p.nome,
     marcador: p.marcador || "",
     desligado: p.status === "desligado",
@@ -129,7 +143,7 @@ async function carregarDadosTurma(turma: ListaTurma, mes: number, ano: number) {
     busca_ativa: p.status === "busca_ativa",
   }));
 
-  return { matriz, datas, membersXlsx, participantesRaw: elegiveis };
+  return { matriz, datas, membersXlsx, participantesRaw: elegiveisFiltrados };
 }
 
 /**
