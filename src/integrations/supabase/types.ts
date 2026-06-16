@@ -14,6 +14,74 @@ export type Database = {
   }
   public: {
     Tables: {
+      alertas_desligamento_sugerido: {
+        Row: {
+          created_at: string
+          decisao: string
+          dias_sem_presenca: number
+          id: string
+          observacao: string | null
+          participante_id: string
+          revisado_em: string | null
+          revisado_por: string | null
+          sugerido_em: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          decisao?: string
+          dias_sem_presenca: number
+          id?: string
+          observacao?: string | null
+          participante_id: string
+          revisado_em?: string | null
+          revisado_por?: string | null
+          sugerido_em?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          decisao?: string
+          dias_sem_presenca?: number
+          id?: string
+          observacao?: string | null
+          participante_id?: string
+          revisado_em?: string | null
+          revisado_por?: string | null
+          sugerido_em?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_desligamento_sugerido_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "participantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_desligamento_sugerido_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "vw_participante_frequencia_status"
+            referencedColumns: ["participante_id"]
+          },
+          {
+            foreignKeyName: "alertas_desligamento_sugerido_revisado_por_fkey"
+            columns: ["revisado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_desligamento_sugerido_revisado_por_fkey"
+            columns: ["revisado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       atendimentos: {
         Row: {
           busca_ativa_origem_id: string | null
@@ -4051,6 +4119,19 @@ export type Database = {
         }
         Returns: Json
       }
+      get_link_health_list: {
+        Args: { _bucket: string }
+        Returns: {
+          bairro: string
+          dias_sem_presenca: number
+          nome: string
+          participante_id: string
+          periodo: string
+          status: string
+          ultima_presenca: string
+        }[]
+      }
+      get_link_health_stats: { Args: never; Returns: Json }
       get_my_module_access: {
         Args: never
         Returns: {
