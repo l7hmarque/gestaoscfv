@@ -320,6 +320,7 @@ Deno.serve(async (req) => {
         status: r.status,
         desligado: r.status === "desligado",
         transferido: !!r.data_transferencia && r.status !== "desligado",
+        vinculo_saida: r.vinculo_saida || null,
       }));
     }));
 
