@@ -346,6 +346,7 @@ Deno.serve(async (req) => {
         desligado: r.status === "desligado",
         transferido: !!r.data_transferencia && r.status !== "desligado",
         vinculo_saida: r.vinculo_saida || null,
+        vinculo_entrada: r.vinculo_entrada || null,
       }));
     }));
 
@@ -407,6 +408,37 @@ Deno.serve(async (req) => {
       });
     });
 
+    // primeiroLancamentoByTurma: turma_id -> participante_id -> primeira dataISO com P/A/J registrado
+    // (historicamente, incluindo o mês corrente). Usado para distinguir "?" (pendência real) de "/"
+    // (participante ainda não constava como ativo na turma — vínculo posterior ou em busca ativa).
+    const primeiroLancamentoByTurma: Record<string, Record<string, string>> = {};
+    {
+      const PAGE = 1000;
+      for (const tid of turmaIds) {
+        let from = 0;
+        while (true) {
+          const { data: pageRows, error: pErr } = await svc
+            .from("relatorio_presenca")
+            .select("participante_id, relatorios_atividade!inner(data, relatorio_turmas!inner(turma_id))")
+            .eq("relatorios_atividade.relatorio_turmas.turma_id", tid)
+            .lt("relatorios_atividade.data", proxMes)
+            .range(from, from + PAGE - 1);
+          if (pErr) { console.warn("[primeiro-lancamento]", tid, pErr); break; }
+          const rows = pageRows || [];
+          for (const row of rows) {
+            const dt = (row as any).relatorios_atividade?.data;
+            const pid = (row as any).participante_id;
+            if (!dt || !pid) continue;
+            if (!primeiroLancamentoByTurma[tid]) primeiroLancamentoByTurma[tid] = {};
+            const cur = primeiroLancamentoByTurma[tid][pid];
+            if (!cur || dt < cur) primeiroLancamentoByTurma[tid][pid] = dt;
+          }
+          if (rows.length < PAGE) break;
+          from += PAGE;
+        }
+      }
+    }
+
     const pendencias: Array<{ turma: string; data: string; participante: string; motivo: string }> = [];
 
     const sheets: any[] = [];
@@ -423,6 +455,7 @@ Deno.serve(async (req) => {
         relatorioDatesByTurma[t.id] || new Set<string>(),
         anoNum, mesNum,
         pendencias,
+        primeiroLancamentoByTurma[t.id] || {},
       );
       if (!built) { skipped++; continue; }
       let title = safeTab(t.nome); let sfx = 2;
