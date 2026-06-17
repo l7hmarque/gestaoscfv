@@ -23,6 +23,7 @@ export interface ParticipanteTurma {
   turma_destino_nome: string | null;
   data_transferencia: string | null;
   vinculo_saida: string | null;
+  vinculo_entrada: string | null;
 }
 
 /**
