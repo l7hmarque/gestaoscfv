@@ -4155,6 +4155,7 @@ export type Database = {
           participante_id: string
           status: string
           turma_destino_nome: string
+          vinculo_entrada: string
           vinculo_saida: string
         }[]
       }

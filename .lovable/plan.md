@@ -1,78 +1,81 @@
-## Problema
+## Diagnóstico
 
-Na planilha de Listas de Frequência Preenchidas (Maio/2026 e demais meses), abas de cada turma trazem linhas com "?" em várias datas. Hoje a regra do `get_participantes_turma` (modo `frequencia`) inclui todo participante cujo vínculo `turma_participantes` tenha qualquer interseção com o mês — mesmo que `data_saida` seja antes do 1º dia do mês ou que ele nunca tenha presença lançada.
+Investiguei a edge function `generate-listas-frequencia-mes-gsheet` (linhas 218–225). O "?" só é colocado quando, para aquela data:
+1. **Existe** um relatório registrado para a turma; **e**
+2. **Não existe** nenhum registro de P/A/J para aquele participante.
 
-Resultado: aparecem na lista pessoas que já não pertenciam à turma e linhas inteiras com colunas "?" sem motivo institucional (sem desligamento, sem transferência registrada).
+A RPC `get_participantes_turma` hoje devolve `vinculo_saida` (corte na saída), mas **não devolve `vinculo_entrada` (data em que o participante foi vinculado à turma)**. Por isso a edge function não consegue distinguir:
 
-## Decisão de comportamento
+- Participante que entrou na turma **depois** da data do relatório → o sistema acha que ele "faltou de marcar" e pinta "?".
+- Participante que estava em **Busca Ativa** naquela data e voltou ao status `ativo` depois → mesma confusão.
 
-Aplicar 3 regras combinadas, que valem para **todos os geradores** que usam a RPC `get_participantes_turma` em modo `frequencia` (Google Sheets mensal, DOCX/PDF/XLSX em `listaFrequencia.ts`, e a versão preview):
+Não há histórico de status `ativo ↔ busca_ativa` no banco (apenas `busca_ativa_desde` do estado atual), mas há um proxy confiável: **a primeira data em que esse participante teve algum P/A/J nesta turma** marca o início efetivo da participação. Antes disso, ele não estava operacionalmente ativo na turma, seja por vínculo recente, seja por retorno de BA.
 
-1. **Excluir quem saiu antes do mês** — se `tp.data_saida` existir e for `< primeiro_dia_do_mês`, não aparece.
-2. **Suprimir "?" fora do período de vínculo** — quando existir `tp.data_saida` dentro do mês, células de datas posteriores a essa saída viram "—" (cinza, sem aula), em vez de "?".
-3. **Remover linhas totalmente vazias** — se um participante terminou com **nenhum** P/A/J no mês inteiro e **não tem marcador institucional** ((BA), (Desligado), (Transferido)), a linha é omitida do arquivo gerado. Pessoas com marcador continuam aparecendo (bloqueadas/cinza) mesmo sem lançamentos.
+## Solução
 
-## Implementação
+Introduzir um novo marcador **"/"** com semântica clara:
 
-### Camada de banco — RPC `get_participantes_turma`
+> **/** = participante não constava como ativo na turma nesta data (vínculo posterior à data **ou** em busca ativa no período).
 
-Migration alterando a função (mode `frequencia` apenas):
+### 1. RPC `get_participantes_turma`
 
-- No CTE `base`, devolver também `tp.data_saida` como `vinculo_saida`.
-- Trocar o filtro de janela para:
-  ```
-  tp.data_entrada <= v_last
-  AND (tp.data_saida IS NULL OR tp.data_saida >= v_first)
-  ```
-  (já é assim — mantém)
-- Adicionar coluna de saída do retorno: `vinculo_saida date`.
-- Regra de `bloqueado_desde`: passar a usar `LEAST(bloqueado_desde_existente, vinculo_saida + 1)` quando `vinculo_saida` cair dentro do mês, para que o "—" comece logo após a saída.
-- Não alterar `chamada_branco`.
+Migração para incluir uma nova coluna no retorno:
 
-Atualizar `src/integrations/supabase/types.ts` (regerado) e `participantesTurma.ts` para tipar `vinculo_saida`.
+- `vinculo_entrada date` — `tp.data_entrada` da turma_participantes.
 
-### Edge function `generate-listas-frequencia-mes-gsheet`
+Mantém todo o resto inalterado. Atualizar `types.ts`, `ParticipanteTurma` em `src/lib/participantesTurma.ts` e `MemberRow` na edge function para receber o campo.
 
-Em `buildTurmaSheet` (linhas ~185-229):
+### 2. Edge function `generate-listas-frequencia-mes-gsheet`
 
-1. **Filtro de saída pré-mês**: a RPC já cuida com o filtro `>= v_first`. Sem mudança.
-2. **Bloqueio por `vinculo_saida`**: tratar `vinculo_saida` como bloqueio adicional. Em vez de só `bloqueado_chamada`, calcular `cutoff = bloqueado_desde ?? (vinculo_saida + 1d)`. Para `dtIso >= cutoff`, renderizar "—" sem gerar pendência.
-3. **Drop de linhas vazias**: após montar `ordered`, percorrer e calcular para cada `m`:
-   - `temLancamento` = existe algum `presencasMap[m.id][dt]` no mês;
-   - `temMarcador` = `m.marcador` não-vazio (BA / Desligado / Transferido);
-   - se `!temLancamento && !temMarcador` → descartar a linha (e não emitir pendências para ela).
-4. Recalcular numeração sequencial após o filtro.
+No loop de células (linhas 212–235), antes de cair no ramo de "?", calcular:
 
-### `src/lib/listaFrequencia.ts`
+```ts
+const primeiroLancamento = primeiroDiaComPAJ(m.id); // min(data) em presença para esta turma+participante (em qualquer mês)
+const cutoffEntrada = m.vinculo_entrada ?? null;
+const naoEstavaAtivo =
+  (cutoffEntrada && dtIso < cutoffEntrada) ||
+  (primeiroLancamento && dtIso < primeiroLancamento);
 
-Mesma lógica do (2) e (3) acima em `carregarDadosTurma`:
-- Calcular `temLancamento` por participante via `presData`.
-- Filtrar `elegiveis` removendo quem `!temLancamento && !marcador && !bloqueado_chamada`.
-- Repassar `vinculo_saida` ao `celulaPresenca` para forçar `—` em datas pós-saída.
+if (!rec) {
+  if (relatorioDates.has(dtIso)) {
+    if (naoEstavaAtivo) {
+      arr.push(plainCell("/", inativoFmt,
+        "Participante não constava como ativo nesta data " +
+        "(vínculo posterior ou em busca ativa)."));
+      // NÃO adiciona em pendenciasOut — não é pendência do educador.
+    } else {
+      arr.push(plainCell("?", pendenteFmt, nota)); // pendência real
+      pendenciasOut.push(...);
+    }
+  } else {
+    arr.push(plainCell("", semRelFmt));
+  }
+}
+```
 
-Pequena extensão em `marcadoresFrequencia.celulaPresenca`: aceitar `vinculoSaida` opcional; se a data for posterior, retorna `MARCADOR_BLOQUEADO`.
+Para alimentar `primeiroLancamento`, ampliar a query de presenças no início da função para também buscar **todas** as presenças do participante naquela turma (não só do mês), reduzindo client-side para um `Map<participante_id, minDate>`. Custo baixo (uma única query por turma com `SELECT participante_id, MIN(data)` agrupado).
 
-### Edge `generate-listas-frequencia-mes-preview-gsheet`
+Novo estilo `inativoFmt`: fundo cinza-claro, texto cinza médio (não amarelo de pendência), para sinalizar visualmente que não é problema.
 
-Mesmo tratamento (gera o mesmo HTML/preview a partir da mesma RPC). Aplicar o filtro de linhas vazias e o cutoff por `vinculo_saida`.
+### 3. Legenda
 
-### Pendências reportadas
+Acrescentar ao bloco de legenda (linhas 247–258):
 
-Hoje o array `pendenciasOut` recebe entradas para cada "?" gerado. Com as novas regras:
-- Não criar pendência para datas após `cutoff`.
-- Não criar pendência para participantes que serão omitidos por estarem totalmente vazios + sem marcador.
+```
+/ = Participante não constava como ativo na turma nesta data
+    (vínculo posterior à data ou em busca ativa no período)
+```
 
-## Não muda
+Manter "?" reservado para o caso legítimo: relatório existe, vínculo já estava ativo e mesmo assim o educador não marcou.
 
-- Lista de Chamada em branco (`chamada_branco`) continua igual: só `ativo` + `busca_ativa` ≤30d.
-- Marcadores (BA), (Desligado), (Transferido) continuam aparecendo conforme regra atual da RPC.
-- Janela de 30 dias de visibilidade de desligados não é alterada.
+### 4. Aba de Pendências
 
-## Como validar depois da implementação
+A aba de pendências consolidadas (já gerada pela função) passa a listar **apenas "?"** — os casos "/" não viram pendência, pois são esperados.
 
-1. Regenerar a planilha de Maio/2026 pelo /documentos.
-2. Conferir nas abas:
-   - Participantes com `tp.data_saida < 2026-05-01` não aparecem mais.
-   - Participantes desligados/transferidos no meio do mês aparecem com "—" a partir do dia seguinte à saída.
-   - Linhas com "?" em todas as colunas (zero lançamentos e sem marcador) sumiram.
-3. Conferir que pendências exportadas só listam casos legítimos (educador esqueceu de marcar alguém ainda ativo).
+## Validação
+
+Regerar a planilha de Maio/2026 e conferir, no Google Drive:
+- Participantes que entraram na turma depois do início do mês: dias anteriores ficam com "/" cinza.
+- Participantes retornados de BA: dias anteriores ao primeiro P/A/J ficam com "/" cinza.
+- Pendências reais (relatório existe, vínculo ativo, sem marcação) continuam como "?" amarelo e na aba Pendências.
+- Legenda da planilha mostra a entrada nova.
