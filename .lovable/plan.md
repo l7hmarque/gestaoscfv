@@ -1,55 +1,69 @@
-## v5 — Correções e geração validada
+## Objetivo
 
-### Bugs do v4 a corrigir
+Gerar um único XLSX com ~39 abas de listas de presença de Maio/2026, 100% extraído do banco, com totais conciliados com a auditoria v5 (161 únicos).
 
-1. **Datas repetidas nas abas por profissional** (caso da Andreia/Carlos no print)
-   - Causa: aba agrupa por participante mas emite N linhas (uma por `registro_id`), repetindo a string concatenada de datas em todas.
-   - Correção: **1 linha por presença** (não por participante). Colunas: `Nome | Idade | Data Nasc. | Data Presença (DD/MM, singular) | Fonte | ID Registro | Registrado em | Log Auditoria`.
-   - Cabeçalho da aba: bloco de resumo com `Total de presenças | Participantes únicos atendidos | Período`.
+## Estrutura das abas
 
-2. **PARQUE INDEPENDÊNCIA zerado no Resumo Único** (44 únicos perdidos)
-   - Causa: normalização de acento inconsistente entre coluna "Bairro" e header da matriz.
-   - Correção: normalizar com `unicodedata` antes do `groupby`; cabeçalho fixo com acento correto.
+**Bloco A — Bairro × Faixa × Período (8 abas)**
 
-3. **Total Geral Único 114 em vez de 161**
-   - Consequência do bug 2 + omissão de fora-de-faixa.
-   - Correção: incluir todos os 161 únicos; adicionar coluna "Fora faixa (5 e ≥18)" no Resumo, sem esconder.
+- JARDIM IRENE 6-8 MANHÃ / TARDE
+- JARDIM IRENE 9-11 MANHÃ / TARDE
+- ALVORADA 6-8 MANHÃ / TARDE
+- ALVORADA 9-11 MANHÃ / TARDE
 
-4. **13 células do Resumo Único com contagem errada**
-   - Correção: recalcular cada célula com SQL `COUNT(DISTINCT participante_id)` direto do banco.
+**Bloco B — Faixa 12-17 unificada (2 abas)**
 
-5. **106 registros com "Profissional Registrador" não comprovado**
-   - Correção: nova coluna **"Origem do Registrador"** com 3 valores:
-     - `audit_log INSERT` (713 linhas)
-     - `presenca.registrado_por`
-     - `Sem comprovação documental` — nome do registrador vai em branco/`(?)`, NUNCA chutar o educador da turma
+- 12-17 MANHÃ (3 bairros, coluna Bairro em cada linha)
+- 12-17 TARDE (3 bairros, coluna Bairro em cada linha)
 
-### Construção
+**Bloco C — Oficinas por profissional registrador (8 abas cada)**
+Filtro: `audit_log` do INSERT de `relatorio_presenca`/`presenca` com `user_id` = profissional.
 
-- Reconstrução 100% a partir do banco vivo via `supabase--read_query` / `psql`. Sem reuso de TSVs do v4.
-- Fontes oficiais: `relatorio_presenca` (presente=true) + `relatorios_atividade.data` BETWEEN 2026-05-01 AND 2026-05-31, `participantes`, `bairros`, `audit_log`, `profiles`.
-- Faixa etária calculada na data da presença (não na data de hoje).
+- KARATE (Felipe Gomes) — 6-8/9-11 × Jardim Irene/Alvorada × M/T
+- ESPORTE E RECREAÇÃO (Jenifer) — idem
+- ARTÍSTICAS E CULTURAIS (Laila) — idem
 
-### Aba "Validação Interna" (nova)
+**Bloco D — DANÇA E POESIA (2 abas)**
 
-Executa as 11 checagens do relatório de auditoria contra o próprio v5 antes de salvar:
-- Cobertura (linhas no banco = linhas no XLSX)
-- DISTINCT por bairro × período × faixa = banco
-- Total Geral Único = 161
-- 0 nomes/datas/bairros/períodos divergentes
-- Todos os PARQUE INDEPENDÊNCIA presentes
-- Fora-de-faixa contabilizado
-- Origem do Registrador preenchida em 100% das linhas
+- DANÇA E POESIA MANHÃ = cópia/espelho da aba 12-17 MANHÃ
+- DANÇA E POESIA TARDE = cópia/espelho da aba 12-17 TARDE
 
-Se qualquer checagem falhar → script aborta e não salva o arquivo, te avisa exatamente o que falhou. Só gera o arquivo se passar tudo com 0 divergências.
+**Bloco E — IDOSOS (1 aba)**
 
-### Estrutura final do v5
+- Participantes 71 e 73 anos (não entram em nenhuma outra aba)
 
-- **Resumo Único** — matriz Bairro × Período × Faixa (DISTINCT por célula, DISTINCT global nos totais), incluindo PARQUE INDEPENDÊNCIA e fora-de-faixa.
-- **N abas por profissional** (uma por pessoa que registrou ≥1 presença em maio), com 1 linha por presença.
-- **Auditoria Detalhada Completa** — todos os 819 registros com `Origem do Registrador`.
-- **Validação Interna** — checagens passadas/falhadas, contagens lado a lado banco × XLSX.
+**Total: ~37 abas de listas + 1 Validação Interna**
 
-### Saída
+## Regras-chave
 
-`/mnt/documents/SysCFV_PresentesMaio2026_Auditoria_v5_<timestamp>.xlsx` + relatório-resumo no chat das 11 checagens.
+- **5 anos** → entra em 6-8
+- **71 e 73 anos** → APENAS aba IDOSOS
+- **Bloco A/B/D** = todos os profissionais
+- **Bloco C** = filtra por registrador (Felipe/Jenifer/Laila)
+- **Coluna Bairro** sempre presente
+- Sobreposição entre Bloco A/B e Bloco C/D é esperada
+- **Soma de únicos deduplicada (todas as abas) = 161**
+
+## Colunas por aba
+
+`Nome | Bairro | Idade | Data Nasc. | Datas de Presença (DD/MM,…) | Total Presenças` 
+
+Cabeçalho de cada aba: Titulo Institucional: "Sociedade Civil Nossa Senhora Aparecida | SCFV-CAIA Medianeira | Lista de Presenca", TITULO DA LISTA conforme nome dos itens dos Blocos, Total Unicos, Mes de Referencia (Maio de 2026)
+
+## Aba de Validação Interna
+
+- Únicos deduplicados em todas as abas = **161**
+- Total de registros Bloco A+B+E = **819** (sem dupla contagem)
+- Bloco C/D conferem com filtros aplicados
+- Quantidade "Sem comprovação documental" = **106**
+- Participantes fora de qualquer aba = 0
+
+## Técnico
+
+- Fonte: `relatorio_presenca` (presente=true) + `relatorios_atividade.data` 2026-05-01..31
+- Joins: `participantes`, `bairros`, `audit_log`, `profiles`
+- Idade na data da presença
+- Normalização accent via `unicodedata` (PARQUE INDEPENDÊNCIA)
+- `PER_MAP` para período
+- Estilo black and white, autofit 55, padrão SysCFV
+- Arquivo: `/mnt/documents/SysCFV_ListasPresenca_Maio2026_<timestamp>.xlsx`
