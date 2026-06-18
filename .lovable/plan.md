@@ -13,16 +13,13 @@ Contagem de participantes **distintos** (sem repetição) que tiveram ≥1 prese
 - Colunas: Faixa 6–8 | Faixa 9–11 | Faixa 12–17 | **Total Linha**
 - Última linha: **Total Geral** por faixa e total absoluto
 
-Cada célula = COUNT(DISTINCT participante_id) — o mesmo participante nunca conta duas vezes na mesma célula.
-Totais usam DISTINCT global (participante que aparece em duas faixas/bairros é contado uma única vez no Total Geral).
-
-Regra absoluta de contagem (Resumo Único): cada participante é contado no máximo UMA vez no planilha inteira. Se um participante teve presença em múltiplas combinações (ex: JARDIM IRENE Manhã e depois mudou para ALVORADA Tarde), ele entra em apenas uma célula — a primeira combinação onde aparece na ordenação — e em nenhuma outra. Nunca soma >1 para o mesmo participante_id em totais de linha, coluna ou geral.
+Cada célula = COUNT(DISTINCT participante_id) — o mesmo participante pode aparecer em múltiplas células se teve presença em combinações diferentes (ex: JARDIM IRENE Manhã e depois ALVORADA Tarde). **Porém, os totais (Total Linha, Total Coluna, Total Geral) usam DISTINCT global** — Maria, mesmo aparecendo em duas células, contribui com apenas 1 para qualquer total.
 
 Abaixo da matriz, três mini-tabelas separadas:
-- Total único por Bairro (DISTINCT sobre todos os participantes daquele bairro, sem duplicar quem mudou)
-- Total único por Período
-- Total único por Faixa
-- **Total geral de participantes únicos no mês** — soma das células da matriz, garantido sem duplicatas
+- Total único por Bairro (DISTINCT sobre todos os participantes do bairro; quem aparece em 2 períodos conta 1 vez)
+- Total único por Período (DISTINCT; quem aparece em 2 bairros conta 1 vez)
+- Total único por Faixa (DISTINCT; quem aparece em 2 faixas conta 1 vez)
+- **Total geral de participantes únicos no mês** — soma dos totais de linha (já deduplicados), garantido sem duplicatas
 
 **2. Abas por agrupamento (Bairro × Período × Faixa × Profissional)**
 
