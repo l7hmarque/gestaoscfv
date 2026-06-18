@@ -1,69 +1,24 @@
-## Objetivo
+# Listas de Presença Maio/2026 — v2 (executar)
 
-Gerar um único XLSX com ~39 abas de listas de presença de Maio/2026, 100% extraído do banco, com totais conciliados com a auditoria v5 (161 únicos).
+Únicos preservados: **161** (idêntico à auditoria). Verificado.
 
-## Estrutura das abas
+## Mudanças sobre a v1
 
-**Bloco A — Bairro × Faixa × Período (8 abas)**
+1. **Coluna única "Profissional Registrador"** em todas as abas. Sem sufixos `(relator)`/`(registrou)`. Fonte: `audit_log.user_nome` quando existir, senão `relatorios_atividade.educador_id → profiles.nome`.
+2. **Filtro anti-oficineiro nos Blocos A, B, D, E**: descarto qualquer registro cujo registrador resolvido seja Laila, Felipe ou Jenifer. 39 participantes ficam só nas abas do Bloco C (todos têm tag de oficina compatível, nenhum órfão).
+3. **Dança e Poesia (manhã/tarde)**: coluna registrador = texto literal **"Fabio Barbosa Pereira"** em todas as linhas.
+4. **Bloco C corrigido**:
+  - Filtros por tag usam `'tag' = ANY(tipo_atividade)` (era igualdade de string).
+  - Karate = registros do Felipe + tag `karate`.
+  - Esporte = registros da Jenifer + tag `futebol_esportes`/`esporte_recreacao`.
+  - Artísticas = registros da Laila + tag `arte_cultura` (volta a ter dados).
+  - Só gera aba (profissional × bairro × faixa × período) com ≥1 registro real.
+5. **Fallback de período**: `periodo_atividade` nulo → usa `participantes.periodo` (recupera 622 registros que estavam em limbo).
+6. **Fallback de registrador**: 106 registros sem `audit_log` (anteriores a 19/05) usam `educador_id`. Cobertura final = 100%.
+7. **Aba de validação**: total únicos = 161, registros = 819, distribuição por aba, lista de participantes que saíram dos Blocos A/B/D/E por serem registrados só por oficineiros.
+8. **Aba de divergências**: ex. participante de Parque Independência marcado por equipe de Alvorada.
+9. **Aba de qualidade**: relatórios com `periodo_atividade` nulo, por profissional, para cobrança.
 
-- JARDIM IRENE 6-8 MANHÃ / TARDE
-- JARDIM IRENE 9-11 MANHÃ / TARDE
-- ALVORADA 6-8 MANHÃ / TARDE
-- ALVORADA 9-11 MANHÃ / TARDE
+## Saída
 
-**Bloco B — Faixa 12-17 unificada (2 abas)**
-
-- 12-17 MANHÃ (3 bairros, coluna Bairro em cada linha)
-- 12-17 TARDE (3 bairros, coluna Bairro em cada linha)
-
-**Bloco C — Oficinas por profissional registrador (8 abas cada)**
-Filtro: `audit_log` do INSERT de `relatorio_presenca`/`presenca` com `user_id` = profissional.
-
-- KARATE (Felipe Gomes) — 6-8/9-11 × Jardim Irene/Alvorada × M/T
-- ESPORTE E RECREAÇÃO (Jenifer) — idem
-- ARTÍSTICAS E CULTURAIS (Laila) — idem
-
-**Bloco D — DANÇA E POESIA (2 abas)**
-
-- DANÇA E POESIA MANHÃ = cópia/espelho da aba 12-17 MANHÃ
-- DANÇA E POESIA TARDE = cópia/espelho da aba 12-17 TARDE
-
-**Bloco E — IDOSOS (1 aba)**
-
-- Participantes 71 e 73 anos (não entram em nenhuma outra aba)
-
-**Total: ~37 abas de listas + 1 Validação Interna**
-
-## Regras-chave
-
-- **5 anos** → entra em 6-8
-- **71 e 73 anos** → APENAS aba IDOSOS
-- **Bloco A/B/D** = todos os profissionais
-- **Bloco C** = filtra por registrador (Felipe/Jenifer/Laila)
-- **Coluna Bairro** sempre presente
-- Sobreposição entre Bloco A/B e Bloco C/D é esperada
-- **Soma de únicos deduplicada (todas as abas) = 161**
-
-## Colunas por aba
-
-`Nome | Bairro | Idade | Data Nasc. | Datas de Presença (DD/MM,…) | Total Presenças` 
-
-Cabeçalho de cada aba: Titulo Institucional: "Sociedade Civil Nossa Senhora Aparecida | SCFV-CAIA Medianeira | Lista de Presenca", TITULO DA LISTA conforme nome dos itens dos Blocos, Total Unicos, Mes de Referencia (Maio de 2026)
-
-## Aba de Validação Interna
-
-- Únicos deduplicados em todas as abas = **161**
-- Total de registros Bloco A+B+E = **819** (sem dupla contagem)
-- Bloco C/D conferem com filtros aplicados
-- Quantidade "Sem comprovação documental" = **106**
-- Participantes fora de qualquer aba = 0
-
-## Técnico
-
-- Fonte: `relatorio_presenca` (presente=true) + `relatorios_atividade.data` 2026-05-01..31
-- Joins: `participantes`, `bairros`, `audit_log`, `profiles`
-- Idade na data da presença
-- Normalização accent via `unicodedata` (PARQUE INDEPENDÊNCIA)
-- `PER_MAP` para período
-- Estilo black and white, autofit 55, padrão SysCFV
-- Arquivo: `/mnt/documents/SysCFV_ListasPresenca_Maio2026_<timestamp>.xlsx`
+Arquivo único `/mnt/documents/SysCFV_ListasPresenca_Maio2026_<timestamp>.xlsx`, estilo black and white padrão SysCFV.
