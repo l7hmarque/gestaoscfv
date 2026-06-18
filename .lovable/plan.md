@@ -1,54 +1,55 @@
-## Auditoria e Validação dos Dados — v4
+## v5 — Correções e geração validada
 
-Objetivo: garantir que cada número, nome, data e registro de auditoria no arquivo `SysCFV_PresentesMaio2026_Auditoria_v4` corresponde **exatamente** ao que está no banco de dados, sem qualquer transformação, suposição ou perda.
+### Bugs do v4 a corrigir
 
-### 1. Reconstrução independente a partir do banco
+1. **Datas repetidas nas abas por profissional** (caso da Andreia/Carlos no print)
+   - Causa: aba agrupa por participante mas emite N linhas (uma por `registro_id`), repetindo a string concatenada de datas em todas.
+   - Correção: **1 linha por presença** (não por participante). Colunas: `Nome | Idade | Data Nasc. | Data Presença (DD/MM, singular) | Fonte | ID Registro | Registrado em | Log Auditoria`.
+   - Cabeçalho da aba: bloco de resumo com `Total de presenças | Participantes únicos atendidos | Período`.
 
-Vou rodar consultas SQL diretamente no banco (somente leitura) e comparar linha-a-linha com o XLSX gerado. Nada será "recalculado" no Python a partir de TSVs intermediários — a fonte é o banco vivo.
+2. **PARQUE INDEPENDÊNCIA zerado no Resumo Único** (44 únicos perdidos)
+   - Causa: normalização de acento inconsistente entre coluna "Bairro" e header da matriz.
+   - Correção: normalizar com `unicodedata` antes do `groupby`; cabeçalho fixo com acento correto.
 
-Fontes oficiais consultadas:
-- `presenca` (registros individuais de presença)
-- `relatorio_presenca` + `relatorios_atividade` (presença via relatório de atividade)
-- `participantes` (nome, DOB, bairro, período, status)
-- `participante_transferencias` (para validar bairro/período na data da presença)
-- `audit_log` (autor real do INSERT de cada registro)
-- `profiles` (nome do profissional registrador)
-- `turma_participantes` + `turmas` (vínculo na data)
+3. **Total Geral Único 114 em vez de 161**
+   - Consequência do bug 2 + omissão de fora-de-faixa.
+   - Correção: incluir todos os 161 únicos; adicionar coluna "Fora faixa (5 e ≥18)" no Resumo, sem esconder.
 
-### 2. Checagens de integridade
+4. **13 células do Resumo Único com contagem errada**
+   - Correção: recalcular cada célula com SQL `COUNT(DISTINCT participante_id)` direto do banco.
 
-| # | Verificação | Critério de aprovação |
-|---|---|---|
-| 1 | Total de registros de presença em maio/2026 | Igual ao `COUNT(*)` no banco filtrado por `data BETWEEN 2026-05-01 AND 2026-05-31` |
-| 2 | Participantes únicos com ≥1 presença | Igual ao `COUNT(DISTINCT participante_id)` no banco |
-| 3 | Profissional registrador | Igual ao autor do **primeiro INSERT** em `audit_log` para aquele `(tabela, registro_id)`; se ausente, marcar explicitamente como "Sem log de auditoria" — nunca inventar |
-| 4 | Data de cada presença | Bate com `presenca.data` ou `relatorios_atividade.iniciou_em::date` |
-| 5 | Bairro/Período do participante | Reflete o vínculo **na data da presença**, não o estado atual (considerar transferências) |
-| 6 | Faixa etária | Recalculada a partir de `data_nascimento` na data da presença (não na data de hoje) |
-| 7 | Resumo Único — células | `COUNT(DISTINCT participante_id)` por (bairro × período × faixa) confere com SQL |
-| 8 | Resumo Único — totais | Cada total (linha, coluna, geral) = DISTINCT global; nenhum participante contado 2× em totais |
-| 9 | Log de auditoria por linha | Texto bate exatamente com `audit_log.dados_novos`/`acao`/`autor_nome`/`criado_em` correspondente |
-| 10 | Cobertura | Nenhuma presença de maio existente no banco está ausente do XLSX; nenhuma linha do XLSX é inventada |
+5. **106 registros com "Profissional Registrador" não comprovado**
+   - Correção: nova coluna **"Origem do Registrador"** com 3 valores:
+     - `audit_log INSERT` (713 linhas)
+     - `presenca.registrado_por`
+     - `Sem comprovação documental` — nome do registrador vai em branco/`(?)`, NUNCA chutar o educador da turma
 
-### 3. Relatório de divergências
+### Construção
 
-Saída: arquivo `SysCFV_Auditoria_Validacao_v4_<timestamp>.xlsx` com abas:
+- Reconstrução 100% a partir do banco vivo via `supabase--read_query` / `psql`. Sem reuso de TSVs do v4.
+- Fontes oficiais: `relatorio_presenca` (presente=true) + `relatorios_atividade.data` BETWEEN 2026-05-01 AND 2026-05-31, `participantes`, `bairros`, `audit_log`, `profiles`.
+- Faixa etária calculada na data da presença (não na data de hoje).
 
-- **Resumo Validação** — passou/falhou por verificação, com contagens lado a lado (Banco × XLSX × Diferença)
-- **Divergências Detalhadas** — lista linha-a-linha de qualquer registro onde XLSX ≠ Banco (campo divergente, valor esperado, valor encontrado, `registro_id`)
-- **Registros Sem Audit Log** — presenças cujo INSERT não aparece em `audit_log` (risco: profissional registrador não pode ser comprovado documentalmente)
-- **Participantes Sem Vínculo na Data** — presenças onde o participante não tinha turma/bairro/período válido naquele dia
-- **Conferência Resumo Único** — matriz reconstruída pelo SQL ao lado da matriz do XLSX, com células divergentes destacadas
+### Aba "Validação Interna" (nova)
 
-### 4. Decisão final
+Executa as 11 checagens do relatório de auditoria contra o próprio v5 antes de salvar:
+- Cobertura (linhas no banco = linhas no XLSX)
+- DISTINCT por bairro × período × faixa = banco
+- Total Geral Único = 161
+- 0 nomes/datas/bairros/períodos divergentes
+- Todos os PARQUE INDEPENDÊNCIA presentes
+- Fora-de-faixa contabilizado
+- Origem do Registrador preenchida em 100% das linhas
 
-- **0 divergências** → arquivo v4 está auditado e seguro para uso oficial.
-- **Qualquer divergência** → v4 **não deve ser usado** como documento oficial; gero v5 corrigido apenas após você revisar o relatório de divergências e aprovar as correções.
+Se qualquer checagem falhar → script aborta e não salva o arquivo, te avisa exatamente o que falhou. Só gera o arquivo se passar tudo com 0 divergências.
 
-### Detalhes técnicos
+### Estrutura final do v5
 
-- Consultas via `supabase--read_query` (somente leitura, sem alterar o banco).
-- Reconstrução em Python usando `pandas` + `openpyxl`, sem reutilizar nenhum TSV intermediário do v4.
-- Comparação por `participante_id` + `data` + `fonte` + `registro_id` (chave composta única).
-- Para campos textuais (nome, autor), comparação case-insensitive e com `strip()`, mas qualquer diferença real é reportada.
-- O arquivo de validação tem cabeçalho institucional explicando metodologia, escopo (maio/2026), data da auditoria e fonte (banco de produção no momento da execução).
+- **Resumo Único** — matriz Bairro × Período × Faixa (DISTINCT por célula, DISTINCT global nos totais), incluindo PARQUE INDEPENDÊNCIA e fora-de-faixa.
+- **N abas por profissional** (uma por pessoa que registrou ≥1 presença em maio), com 1 linha por presença.
+- **Auditoria Detalhada Completa** — todos os 819 registros com `Origem do Registrador`.
+- **Validação Interna** — checagens passadas/falhadas, contagens lado a lado banco × XLSX.
+
+### Saída
+
+`/mnt/documents/SysCFV_PresentesMaio2026_Auditoria_v5_<timestamp>.xlsx` + relatório-resumo no chat das 11 checagens.
