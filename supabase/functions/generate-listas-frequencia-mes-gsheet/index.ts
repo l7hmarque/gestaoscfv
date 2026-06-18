@@ -17,13 +17,24 @@ const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Ag
 const MESES_UPPER = MESES.map(m => m.toUpperCase());
 const PERIODO_LABEL: Record<string, string> = { manha: "Manhã", tarde: "Tarde", integral: "Integral" };
 const FAIXA_LABEL: Record<string, string> = { "6-8": "6-8 anos", "9-11": "9-11 anos", "12-17": "12-17 anos", idosos: "Idosos" };
-const DIA_SEMANA_MAP: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
+const DIA_SEMANA_MAP: Record<string, number> = {
+  dom: 0, domingo: 0,
+  seg: 1, segunda: 1, "segunda-feira": 1,
+  ter: 2, terca: 2, "terca-feira": 2,
+  qua: 3, quarta: 3, "quarta-feira": 3,
+  qui: 4, quinta: 4, "quinta-feira": 4,
+  sex: 5, sexta: 5, "sexta-feira": 5,
+  sab: 6, sabado: 6,
+};
+function normDia(d: string): string {
+  return String(d || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+}
 
 function pad2(n: number): string { return String(n).padStart(2, "0"); }
 function safeTab(s: string): string { return (s || "Turma").replace(/[\[\]\*\?\/\\:]/g, " ").slice(0, 95); }
 
 function diasDoMesPorSemana(ano: number, mes: number, diasSemana: string[]): string[] {
-  const targets = new Set((diasSemana || []).map(d => DIA_SEMANA_MAP[String(d).toLowerCase()]).filter(n => n !== undefined));
+  const targets = new Set((diasSemana || []).map(d => DIA_SEMANA_MAP[normDia(d)]).filter(n => n !== undefined));
   if (!targets.size) return [];
   const out: string[] = [];
   const last = new Date(ano, mes, 0).getDate();

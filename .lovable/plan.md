@@ -1,81 +1,59 @@
-## Diagnóstico
+## Causa raiz
 
-Investiguei a edge function `generate-listas-frequencia-mes-gsheet` (linhas 218–225). O "?" só é colocado quando, para aquela data:
-1. **Existe** um relatório registrado para a turma; **e**
-2. **Não existe** nenhum registro de P/A/J para aquele participante.
+As turmas de **Karate**, **Dança e Poesia** e **Atividades Culturais e Artísticas** estão sendo silenciosamente puladas na geração da planilha porque o campo `turmas.dias_semana` delas usa nomes **completos** (`segunda`, `terca`, `quarta`, `quinta`), mas o mapa de dias da semana na edge function só reconhece a forma **abreviada** (`seg`, `ter`, `qua`, `qui`, `sex`, `sab`, `dom`).
 
-A RPC `get_participantes_turma` hoje devolve `vinculo_saida` (corte na saída), mas **não devolve `vinculo_entrada` (data em que o participante foi vinculado à turma)**. Por isso a edge function não consegue distinguir:
-
-- Participante que entrou na turma **depois** da data do relatório → o sistema acha que ele "faltou de marcar" e pinta "?".
-- Participante que estava em **Busca Ativa** naquela data e voltou ao status `ativo` depois → mesma confusão.
-
-Não há histórico de status `ativo ↔ busca_ativa` no banco (apenas `busca_ativa_desde` do estado atual), mas há um proxy confiável: **a primeira data em que esse participante teve algum P/A/J nesta turma** marca o início efetivo da participação. Antes disso, ele não estava operacionalmente ativo na turma, seja por vínculo recente, seja por retorno de BA.
-
-## Solução
-
-Introduzir um novo marcador **"/"** com semântica clara:
-
-> **/** = participante não constava como ativo na turma nesta data (vínculo posterior à data **ou** em busca ativa no período).
-
-### 1. RPC `get_participantes_turma`
-
-Migração para incluir uma nova coluna no retorno:
-
-- `vinculo_entrada date` — `tp.data_entrada` da turma_participantes.
-
-Mantém todo o resto inalterado. Atualizar `types.ts`, `ParticipanteTurma` em `src/lib/participantesTurma.ts` e `MemberRow` na edge function para receber o campo.
-
-### 2. Edge function `generate-listas-frequencia-mes-gsheet`
-
-No loop de células (linhas 212–235), antes de cair no ramo de "?", calcular:
+Trecho atual em `supabase/functions/generate-listas-frequencia-mes-gsheet/index.ts`:
 
 ```ts
-const primeiroLancamento = primeiroDiaComPAJ(m.id); // min(data) em presença para esta turma+participante (em qualquer mês)
-const cutoffEntrada = m.vinculo_entrada ?? null;
-const naoEstavaAtivo =
-  (cutoffEntrada && dtIso < cutoffEntrada) ||
-  (primeiroLancamento && dtIso < primeiroLancamento);
-
-if (!rec) {
-  if (relatorioDates.has(dtIso)) {
-    if (naoEstavaAtivo) {
-      arr.push(plainCell("/", inativoFmt,
-        "Participante não constava como ativo nesta data " +
-        "(vínculo posterior ou em busca ativa)."));
-      // NÃO adiciona em pendenciasOut — não é pendência do educador.
-    } else {
-      arr.push(plainCell("?", pendenteFmt, nota)); // pendência real
-      pendenciasOut.push(...);
-    }
-  } else {
-    arr.push(plainCell("", semRelFmt));
-  }
-}
+const DIA_SEMANA_MAP: Record<string, number> = {
+  dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6
+};
 ```
 
-Para alimentar `primeiroLancamento`, ampliar a query de presenças no início da função para também buscar **todas** as presenças do participante naquela turma (não só do mês), reduzindo client-side para um `Map<participante_id, minDate>`. Custo baixo (uma única query por turma com `SELECT participante_id, MIN(data)` agrupado).
+Quando `diasDoMesPorSemana` recebe `["segunda","quarta"]`, todos os tokens caem no `filter(n => n !== undefined)` e o array de datas fica vazio → `buildTurmaSheet` retorna `null` → a aba é descartada (apenas incrementa `skipped` em "Auditoria").
 
-Novo estilo `inativoFmt`: fundo cinza-claro, texto cinza médio (não amarelo de pendência), para sinalizar visualmente que não é problema.
-
-### 3. Legenda
-
-Acrescentar ao bloco de legenda (linhas 247–258):
+Conferência no banco — convivem hoje os dois formatos no mesmo sistema:
 
 ```
-/ = Participante não constava como ativo na turma nesta data
-    (vínculo posterior à data ou em busca ativa no período)
+[segunda terca]   ← KARATE Jardim Irene
+[quarta]          ← KARATE Alvorada
+[quinta]          ← KARATE / DANCA Parque Independência
+[segunda quarta]  ← ATIVIDADES CULTURAIS E ARTISTICAS, DANCA E POESIA TODOS OS BAIRROS
+[terca]           ← DANCA E POESIA Jardim Irene
+[seg qua]         ← (outras turmas, funcionam)
+[ter qui]         ← (outras turmas, funcionam)
+[sex] / [qui]     ← (outras turmas, funcionam)
 ```
 
-Manter "?" reservado para o caso legítimo: relatório existe, vínculo já estava ativo e mesmo assim o educador não marcou.
+## Correção
 
-### 4. Aba de Pendências
+Estender `DIA_SEMANA_MAP` para aceitar ambos os formatos, com normalização de acentos/caixa, mantendo retro-compatibilidade total:
 
-A aba de pendências consolidadas (já gerada pela função) passa a listar **apenas "?"** — os casos "/" não viram pendência, pois são esperados.
+```ts
+const DIA_SEMANA_MAP: Record<string, number> = {
+  dom: 0, domingo: 0,
+  seg: 1, segunda: 1, "segunda-feira": 1,
+  ter: 2, terca: 2, "terca-feira": 2,
+  qua: 3, quarta: 3, "quarta-feira": 3,
+  qui: 4, quinta: 4, "quinta-feira": 4,
+  sex: 5, sexta: 5, "sexta-feira": 5,
+  sab: 6, sabado: 6,
+};
+```
 
-## Validação
+Ajustar `diasDoMesPorSemana` para normalizar antes do lookup:
 
-Regerar a planilha de Maio/2026 e conferir, no Google Drive:
-- Participantes que entraram na turma depois do início do mês: dias anteriores ficam com "/" cinza.
-- Participantes retornados de BA: dias anteriores ao primeiro P/A/J ficam com "/" cinza.
-- Pendências reais (relatório existe, vínculo ativo, sem marcação) continuam como "?" amarelo e na aba Pendências.
-- Legenda da planilha mostra a entrada nova.
+```ts
+const norm = (d: string) => String(d).toLowerCase()
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")  // remove acentos
+  .trim();
+const targets = new Set((diasSemana || []).map(d => DIA_SEMANA_MAP[norm(d)]).filter(n => n !== undefined));
+```
+
+Deploy da function `generate-listas-frequencia-mes-gsheet` e regerar Maio/2026 para confirmar que Karate, Dança e Poesia e Atividades Culturais e Artísticas passam a aparecer.
+
+## Escopo
+
+- Apenas `supabase/functions/generate-listas-frequencia-mes-gsheet/index.ts`.
+- Nenhuma mudança de schema, RLS, RPC ou frontend.
+- Nenhuma migração de dados (não vou re-normalizar `turmas.dias_semana` para não criar efeito colateral em outras funções; a edge function passa a tolerar os dois formatos).
