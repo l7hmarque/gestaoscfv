@@ -1,49 +1,49 @@
-## Objetivo
+## Nova lista v3 — Auditoria de Presenças Maio/2026
 
-Enriquecer o XLSX `SysCFV_PresentesMaio2026_2026-06-18_173301.xlsx` com a auditoria de presenças de maio/2026: para cada participante listado, mostrar em quais datas houve presença, quem registrou e a evidência (log do sistema).
+Gerar novo arquivo XLSX versionado (não sobrescreve v1/v2):
+`SysCFV_PresentesMaio2026_Auditoria_v3_{YYYY-MM-DD}_{HHmmss}.xlsx`
 
-## Fontes de dados
+### Estrutura de abas
 
-1. **`presenca`** (check-in diário) — colunas: `participante_id`, `data`, `presente`, `criado_por`, `created_at`.
-2. **`relatorio_presenca`** (presença vinculada a relatório de atividade) — JOIN com `relatorios_atividade` para obter `data`, `criado_por`, `created_at`.
-3. **`audit_log`** — buscar entradas referentes a inserção/edição em `presenca` e `relatorio_presenca` no intervalo 01–31/maio/2026 (filtro por `tabela` e `registro_id`/payload).
-4. **`profiles`** — resolver `criado_por` (UUID) → nome do profissional.
+**1. Aba "Resumo Único" (primeira aba — exclusiva de contagem)**
 
-## Estrutura do novo arquivo
+Contagem de participantes **distintos** (sem repetição) que tiveram ≥1 presença em Maio/2026, cruzando:
 
-Arquivo novo (versionado, não sobrescreve o original):
-`/mnt/documents/SysCFV_PresentesMaio2026_Auditoria_v2_{YYYY-MM-DD}_{HHmmss}.xlsx`
+- Linhas: Bairro × Período (JARDIM IRENE Manhã, JARDIM IRENE Tarde, PARQUE INDEPENDÊNCIA Manhã, …, ALVORADA Tarde)
+- Colunas: Faixa 6–8 | Faixa 9–11 | Faixa 12–17 | **Total Linha**
+- Última linha: **Total Geral** por faixa e total absoluto
 
-### Abas
+Cada célula = COUNT(DISTINCT participante_id) — o mesmo participante nunca conta duas vezes na mesma célula.
+Totais usam DISTINCT global (participante que aparece em duas faixas/bairros é contado uma única vez no Total Geral).
 
-1. **18 abas originais** (bairro × período × faixa) — mantidas iguais à v1, com colunas adicionais:
-   - `#`, `Nome Completo`, `Idade`, `Data de Nascimento`
-   - **Datas com Presença (Maio)** — lista compacta `DD/MM` separadas por vírgula
-   - **Qtd. Presenças**
-   - **Registrado por (resumo)** — nomes únicos dos profissionais que marcaram, separados por `;`
+Abaixo da matriz, três mini-tabelas separadas:
+- Total único por Bairro
+- Total único por Período
+- Total único por Faixa
+- **Total geral de participantes únicos no mês**
 
-2. **Aba `Auditoria Detalhada`** — uma linha por (participante × data × fonte):
-   - `Nome Completo`, `Bairro`, `Período`, `Faixa`
-   - `Data` (DD/MM/2026)
-   - `Fonte` (`presenca` ou `relatorio_presenca`)
-   - `ID do Registro` (UUID da linha de presença/relatorio_presenca)
-   - `Marcado por` (nome do profissional via `profiles`)
-   - `UUID do autor`
-   - `Registrado em` (timestamp `created_at`)
-   - `Relatório vinculado` (UUID do `relatorios_atividade`, se aplicável)
-   - `Log de auditoria` (texto: ação + timestamp + usuário do `audit_log` correspondente; se ausente, marcar `— sem entrada em audit_log —`)
+**2. Abas por agrupamento (Bairro × Período × Faixa × Profissional)**
 
-3. **Aba `Resumo por Data`** — agregação por data de maio:
-   - `Data`, `Qtd. Participantes Presentes`, `Qtd. Registros (presenca)`, `Qtd. Registros (relatorio_presenca)`, `Profissionais que registraram` (lista única)
+Uma aba por combinação `{Bairro} - {Período} - {Faixa} - {Profissional}`, agrupando participantes pelo profissional que registrou a presença. Nome da aba truncado em 31 caracteres (limite Excel) com hash se necessário.
 
-## Detalhes técnicos
+Colunas:
+| # | Nome | Idade | Data Nasc. | Datas Presença (DD/MM, …) | Qtd. | Fonte | ID Registro | Registrado em | Log Auditoria |
 
-- Query única via `psql COPY` juntando `presenca` + `relatorio_presenca` + `relatorios_atividade` + `participantes` + `bairros` + `profiles`, filtrada por datas de maio/2026 e pelos participantes da lista v1.
-- Query separada em `audit_log` filtrando `created_at` em maio/2026 e `tabela IN ('presenca','relatorio_presenca')`, com cruzamento por `registro_id`.
-- Quando não houver linha em `audit_log` (registros antigos ou sem trigger), preencher com fallback: `INSERT detectado via created_at={timestamp} por {profile.nome}` (a partir do próprio registro).
-- Geração com `openpyxl` (estilo grayscale do padrão SysCFV, header institucional via `xlsxInstHeader` equivalente, auto-fit 60 chars).
-- Sem alterações no app, no banco ou em edge functions.
+Uma linha por (participante × data × fonte). Permite ver claramente quais datas cada profissional registrou para cada participante.
 
-## Entrega
+**3. Aba "Auditoria Detalhada Completa"** (mantida do v2, achatada)
 
-Novo arquivo `SysCFV_PresentesMaio2026_Auditoria_v2_*.xlsx` em `/mnt/documents/`, exposto via `<presentation-artifact>`. Arquivo v1 permanece intacto.
+Todas as linhas (participante × data × fonte) com: Nome, Bairro, Período, Faixa, Data, Fonte (presenca/relatorio_presenca), ID Registro, Profissional, UUID Autor, Registrado em, Relatório Vinculado, Log Auditoria.
+
+### Detalhes técnicos
+
+- Reusar queries `psql COPY` do v2 (presenca + relatorio_presenca + audit_log + profiles).
+- DISTINCT por `participante_id` para a aba Resumo (usar set Python).
+- Agrupamento por profissional: `GROUP BY (bairro, periodo, faixa, autor_nome)` no Python.
+- Truncamento de nome de aba: se >31 chars, usar `{prefix}_{hash6}`.
+- Estilo grayscale, auto-fit 60 chars (padrão SysCFV).
+- Saída em `/mnt/documents/`, apresentada via `<presentation-artifact>`.
+
+### Confirmar antes de gerar
+
+Algum ajuste no escopo, ou pode prosseguir?
