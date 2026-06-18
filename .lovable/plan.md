@@ -1,59 +1,32 @@
-## Causa raiz
+## Objetivo
+Gerar um arquivo `.xlsx` único (one-off) com os participantes que tiveram **pelo menos 1 presença registrada em maio/2026**, segmentados por bairro × período × faixa etária.
 
-As turmas de **Karate**, **Dança e Poesia** e **Atividades Culturais e Artísticas** estão sendo silenciosamente puladas na geração da planilha porque o campo `turmas.dias_semana` delas usa nomes **completos** (`segunda`, `terca`, `quarta`, `quinta`), mas o mapa de dias da semana na edge function só reconhece a forma **abreviada** (`seg`, `ter`, `qua`, `qui`, `sex`, `sab`, `dom`).
+## Fonte de dados
+- Presenças vindas de `relatorio_presenca` (com `presente = true`) unidas ao `relatorios_atividade.data` entre `2026-05-01` e `2026-05-31`, conforme a lógica oficial de presença do sistema.
+- União com `presenca.presente = true` no mesmo intervalo, para cobrir registros diretos.
+- Dados do participante: `participantes.nome_completo`, `data_nascimento`, `periodo`, `bairro_id → bairros.nome`.
+- Faixa etária calculada a partir da idade em `2026-05-31`.
 
-Trecho atual em `supabase/functions/generate-listas-frequencia-mes-gsheet/index.ts`:
+## Estrutura do XLSX
+- **9 abas** (uma por combinação Bairro × Período × Faixa):
+  - JARDIM IRENE — MANHÃ — 6-8, 9-11, 12-17
+  - JARDIM IRENE — TARDE — 6-8, 9-11, 12-17
+  - PARQUE INDEPENDÊNCIA — MANHÃ — 6-8, 9-11, 12-17
+  - PARQUE INDEPENDÊNCIA — TARDE — 6-8, 9-11, 12-17
+  - ALVORADA — MANHÃ — 6-8, 9-11, 12-17
+  - ALVORADA — TARDE — 6-8, 9-11, 12-17
+  - (apenas as abas não vazias serão criadas; total até 18)
+- Cada aba contém colunas: **#** (dígito contador sequencial), **Nome Completo**, **Idade**, **Data de Nascimento**.
+- Cabeçalho institucional na primeira linha com Bairro / Período / Faixa / Mês de referência.
+- Nomes em Title Case, ordenados alfabeticamente, sem duplicatas.
+- Estilo grayscale conforme padrão SysCFV; auto-fit de coluna até 60 caracteres.
 
-```ts
-const DIA_SEMANA_MAP: Record<string, number> = {
-  dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6
-};
-```
+## Entrega
+- Arquivo salvo em `/mnt/documents/SysCFV_PresentesMaio2026_{YYYY-MM-DD}_{HHmmss}.xlsx` e exposto via `<presentation-artifact>` para download imediato.
+- Sem alterações no app, no banco ou em edge functions.
 
-Quando `diasDoMesPorSemana` recebe `["segunda","quarta"]`, todos os tokens caem no `filter(n => n !== undefined)` e o array de datas fica vazio → `buildTurmaSheet` retorna `null` → a aba é descartada (apenas incrementa `skipped` em "Auditoria").
-
-Conferência no banco — convivem hoje os dois formatos no mesmo sistema:
-
-```
-[segunda terca]   ← KARATE Jardim Irene
-[quarta]          ← KARATE Alvorada
-[quinta]          ← KARATE / DANCA Parque Independência
-[segunda quarta]  ← ATIVIDADES CULTURAIS E ARTISTICAS, DANCA E POESIA TODOS OS BAIRROS
-[terca]           ← DANCA E POESIA Jardim Irene
-[seg qua]         ← (outras turmas, funcionam)
-[ter qui]         ← (outras turmas, funcionam)
-[sex] / [qui]     ← (outras turmas, funcionam)
-```
-
-## Correção
-
-Estender `DIA_SEMANA_MAP` para aceitar ambos os formatos, com normalização de acentos/caixa, mantendo retro-compatibilidade total:
-
-```ts
-const DIA_SEMANA_MAP: Record<string, number> = {
-  dom: 0, domingo: 0,
-  seg: 1, segunda: 1, "segunda-feira": 1,
-  ter: 2, terca: 2, "terca-feira": 2,
-  qua: 3, quarta: 3, "quarta-feira": 3,
-  qui: 4, quinta: 4, "quinta-feira": 4,
-  sex: 5, sexta: 5, "sexta-feira": 5,
-  sab: 6, sabado: 6,
-};
-```
-
-Ajustar `diasDoMesPorSemana` para normalizar antes do lookup:
-
-```ts
-const norm = (d: string) => String(d).toLowerCase()
-  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")  // remove acentos
-  .trim();
-const targets = new Set((diasSemana || []).map(d => DIA_SEMANA_MAP[norm(d)]).filter(n => n !== undefined));
-```
-
-Deploy da function `generate-listas-frequencia-mes-gsheet` e regerar Maio/2026 para confirmar que Karate, Dança e Poesia e Atividades Culturais e Artísticas passam a aparecer.
-
-## Escopo
-
-- Apenas `supabase/functions/generate-listas-frequencia-mes-gsheet/index.ts`.
-- Nenhuma mudança de schema, RLS, RPC ou frontend.
-- Nenhuma migração de dados (não vou re-normalizar `turmas.dias_semana` para não criar efeito colateral em outras funções; a edge function passa a tolerar os dois formatos).
+## Detalhes técnicos
+- Script Python (pandas + openpyxl) executado via `code--exec`, consultando o banco com `psql -c "COPY (...) TO STDOUT WITH CSV HEADER"`.
+- Idade: `floor((date('2026-05-31') - data_nascimento)/365.25)`; faixas: 6–8, 9–11, 12–17 (demais idades ignoradas).
+- Bairro normalizado em maiúsculas e sem acentos para casar `PARQUE INDEPENDÊNCIA`/`PARQUE INDEPENDENCIA`.
+- Inclui participantes desligados/inativos que registraram presença no período (snapshot histórico).
