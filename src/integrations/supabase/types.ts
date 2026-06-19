@@ -2274,6 +2274,9 @@ export type Database = {
           foto_url: string | null
           id: string
           nome: string
+          papel_profissional:
+            | Database["public"]["Enums"]["papel_profissional"]
+            | null
           registro_profissional: string | null
           rg: string | null
           rg_data_expedicao: string | null
@@ -2296,6 +2299,9 @@ export type Database = {
           foto_url?: string | null
           id?: string
           nome?: string
+          papel_profissional?:
+            | Database["public"]["Enums"]["papel_profissional"]
+            | null
           registro_profissional?: string | null
           rg?: string | null
           rg_data_expedicao?: string | null
@@ -2318,6 +2324,9 @@ export type Database = {
           foto_url?: string | null
           id?: string
           nome?: string
+          papel_profissional?:
+            | Database["public"]["Enums"]["papel_profissional"]
+            | null
           registro_profissional?: string | null
           rg?: string | null
           rg_data_expedicao?: string | null
@@ -3229,6 +3238,7 @@ export type Database = {
           situacoes_relevantes: string[] | null
           tipo_atividade: string[] | null
           tipo_atividade_detalhe: string | null
+          tipo_oficina: Database["public"]["Enums"]["tipo_oficina"] | null
           validado_em: string | null
           validado_por: string | null
         }
@@ -3266,6 +3276,7 @@ export type Database = {
           situacoes_relevantes?: string[] | null
           tipo_atividade?: string[] | null
           tipo_atividade_detalhe?: string | null
+          tipo_oficina?: Database["public"]["Enums"]["tipo_oficina"] | null
           validado_em?: string | null
           validado_por?: string | null
         }
@@ -3303,6 +3314,7 @@ export type Database = {
           situacoes_relevantes?: string[] | null
           tipo_atividade?: string[] | null
           tipo_atividade_detalhe?: string | null
+          tipo_oficina?: Database["public"]["Enums"]["tipo_oficina"] | null
           validado_em?: string | null
           validado_por?: string | null
         }
@@ -4180,6 +4192,9 @@ export type Database = {
           foto_url: string | null
           id: string
           nome: string
+          papel_profissional:
+            | Database["public"]["Enums"]["papel_profissional"]
+            | null
           registro_profissional: string | null
           rg: string | null
           rg_data_expedicao: string | null
@@ -4310,10 +4325,23 @@ export type Database = {
         | "marketing"
       faixa_etaria_enum: "6-8" | "9-11" | "12-17" | "idosos"
       objetivo_resultado: "alcancado" | "parcial" | "nao_alcancado"
+      papel_profissional:
+        | "oficineiro"
+        | "educador_social"
+        | "tecnico"
+        | "coordenacao"
+        | "apoio"
+        | "visitante"
       periodo_enum: "manha" | "tarde" | "integral"
       status_participante: "ativo" | "busca_ativa" | "desligado"
       tipo_feed_post: "manual" | "relatorio_auto" | "conquista"
       tipo_mural: "aviso" | "lembrete" | "informativo"
+      tipo_oficina:
+        | "karate"
+        | "esporte"
+        | "artistica"
+        | "danca_poesia"
+        | "convivencia"
       tipo_reacao: "like" | "amei"
       tipo_turma: "ordinaria" | "extraordinaria"
     }
@@ -4454,10 +4482,25 @@ export const Constants = {
       ],
       faixa_etaria_enum: ["6-8", "9-11", "12-17", "idosos"],
       objetivo_resultado: ["alcancado", "parcial", "nao_alcancado"],
+      papel_profissional: [
+        "oficineiro",
+        "educador_social",
+        "tecnico",
+        "coordenacao",
+        "apoio",
+        "visitante",
+      ],
       periodo_enum: ["manha", "tarde", "integral"],
       status_participante: ["ativo", "busca_ativa", "desligado"],
       tipo_feed_post: ["manual", "relatorio_auto", "conquista"],
       tipo_mural: ["aviso", "lembrete", "informativo"],
+      tipo_oficina: [
+        "karate",
+        "esporte",
+        "artistica",
+        "danca_poesia",
+        "convivencia",
+      ],
       tipo_reacao: ["like", "amei"],
       tipo_turma: ["ordinaria", "extraordinaria"],
     },
