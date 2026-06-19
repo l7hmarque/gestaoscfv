@@ -3217,11 +3217,13 @@ export type Database = {
           educador_apoio_id: string | null
           educador_id: string | null
           engajamento: string[] | null
+          flag_divergencia: boolean
           gdoc_id: string | null
           gdoc_url: string | null
           id: string
           iniciativa: number | null
           intervencoes: string | null
+          motivos_divergencia: string[]
           nome_atividade: string | null
           num_ausentes: number | null
           num_matriculados: number | null
@@ -3255,11 +3257,13 @@ export type Database = {
           educador_apoio_id?: string | null
           educador_id?: string | null
           engajamento?: string[] | null
+          flag_divergencia?: boolean
           gdoc_id?: string | null
           gdoc_url?: string | null
           id?: string
           iniciativa?: number | null
           intervencoes?: string | null
+          motivos_divergencia?: string[]
           nome_atividade?: string | null
           num_ausentes?: number | null
           num_matriculados?: number | null
@@ -3293,11 +3297,13 @@ export type Database = {
           educador_apoio_id?: string | null
           educador_id?: string | null
           engajamento?: string[] | null
+          flag_divergencia?: boolean
           gdoc_id?: string | null
           gdoc_url?: string | null
           id?: string
           iniciativa?: number | null
           intervencoes?: string | null
+          motivos_divergencia?: string[]
           nome_atividade?: string | null
           num_ausentes?: number | null
           num_matriculados?: number | null
@@ -4098,6 +4104,18 @@ export type Database = {
       fn_enqueue_drive_sync: {
         Args: { _origem_id: string; _tipo: string }
         Returns: undefined
+      }
+      fn_recompute_relatorio_flags: {
+        Args: { _rel_id: string }
+        Returns: undefined
+      }
+      fn_relatorio_periodo_predominante: {
+        Args: { _rel_id: string }
+        Returns: string
+      }
+      fn_relatorio_tem_divergencia_territorial: {
+        Args: { _rel_id: string }
+        Returns: boolean
       }
       get_coordenacao_stats: {
         Args: { _periodo_dias?: number; _user_id?: string }
