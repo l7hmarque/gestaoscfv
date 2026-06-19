@@ -135,6 +135,19 @@ export default function CoordenacaoPage() {
             </TabsContent>
 
             <TabsContent value="qualidade" className="mt-6 space-y-4">
+              <Card className="border-l-4 border-l-amber-500">
+                <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="text-sm">
+                    <p className="font-medium">Painel de Qualidade de Dados</p>
+                    <p className="text-xs text-muted-foreground">
+                      Relatórios sinalizados pelos invariantes da Frente 2 (período indefinido, território divergente, etc.).
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={() => navigate("/coordenacao/qualidade-dados")} className="gap-2">
+                    <ExternalLink className="h-4 w-4" /> Abrir painel
+                  </Button>
+                </CardContent>
+              </Card>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                 <StatCard label="% Educadores ativos no mês" value={`${data.gestao.qualidade.pct_educadores_ativos}%`} />
                 <StatCard label="% Turmas com educador" value={`${data.gestao.qualidade.pct_turmas_com_educador}%`} />
