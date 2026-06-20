@@ -18,9 +18,16 @@ Deno.serve(async (req) => {
         "recompute_dias_inatividade_busca_ativa",
         "recompute_dias_alerta_desligamento",
         "recompute_dias_reativacao",
+        "recompute_pausado",
       ]);
     const map: Record<string, string> = {};
     (cfg || []).forEach((c: any) => { map[c.chave] = c.valor; });
+    if ((map["recompute_pausado"] || "false") === "true") {
+      await supabase.from("configuracoes_gerais")
+        .update({ valor: JSON.stringify({ paused: true, at: new Date().toISOString() }) })
+        .eq("chave", "recompute_ultimo_resultado");
+      return ok({ paused: true });
+    }
     const diasInativ = parseInt(map["recompute_dias_inatividade_busca_ativa"] || "21", 10);
     const diasAlerta = parseInt(map["recompute_dias_alerta_desligamento"] || "30", 10);
     const diasReativ = parseInt(map["recompute_dias_reativacao"] || "7", 10);

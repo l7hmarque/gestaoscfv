@@ -1,74 +1,86 @@
-## Objetivo
+## Pausar o cron e desfazer impacto retroativo
 
-Gerar uma ficha de cadastro individual para cada um dos **320 participantes** (qualquer status: ativo, busca_ativa, desligado), preservando 100% o layout do `.docx` enviado (logo, fonte Nunito, tabelas, cabeçalho), e entregar tudo empacotado em um único `.zip` em `/mnt/documents/`.
+### 1. Pausar o cron (edge function `recompute-participantes-status`)
 
-## Estratégia
+A função é disparada por um agendamento externo (pg_cron com `net.http_post`, fora do repositório). Em vez de tentar removê-lo, **adiciono um guard na própria função**: nova chave em `configuracoes_gerais` chamada `recompute_pausado`. Se `= 'true'`, a função retorna imediatamente sem alterar nada e registra `paused` em `recompute_ultimo_resultado`.
 
-Trabalho como **script Python local** (fora do código do app) — é uma entrega pontual, não uma feature do sistema. Nenhum arquivo do projeto será editado.
-
-### Fluxo
-
-1. **Carregar dados** (1 query consolidada):
-   - `participantes` (todos os 320, inclusive `is_teste`) com join em `bairros` (território), `pontos_transporte` (transporte) e turma principal via `turma_participantes` + `turmas`.
-   - Para cada participante, buscar **histórico de presença completo**: união de `presenca` direta + interseção via `relatorio_presenca` ↔ `relatorios_atividade` (data + nome/tipo da atividade), deduplicado por (data, atividade).
-
-2. **Preencher o modelo `.docx`** (uma cópia por participante):
-   - Descompactar `word/document.xml` uma vez como template-string.
-   - Substituir cada bloco `{...}` pelo dado real, usando regex tolerante a quebras de run XML (faço um pré-processo que mescla runs adjacentes para garantir que os placeholders fiquem contíguos).
-   - Checkboxes de moradia: trocar o placeholder inteiro por `( X )` ou `(   )` conforme `situacao_moradia`.
-   - Pág. 3 — histórico de presença: substituir o placeholder de instrução por uma **tabela OOXML real** (preto/branco, fonte Nunito 10pt, 2 colunas: Data `DD/MM/AAAA` | Atividade), uma linha por presença, ordem cronológica decrescente. Se zero presenças: linha única "Sem presenças registradas".
-   - Re-zipar como `.docx` válido.
-
-3. **Converter cada `.docx` → `.pdf`** via LibreOffice headless (`run_libreoffice.py --convert-to pdf`), em lote.
-
-4. **Empacotar** em `/mnt/documents/SysCFV_Fichas_Participantes_2026-06-19.zip`, nome de cada PDF: `SysCFV_Ficha_{NomeTitleCase}_{YYYY-MM-DD}.pdf` (sanitizando caracteres inválidos).
-
-5. **QA visual** (obrigatório):
-   - Converter 5 PDFs amostrais (1º, 80º, 160º, 240º, último) para JPG via `pdftoppm` e inspecionar com `code--view`.
-   - Checar: logo presente, fonte Nunito mantida, acentuação correta, nenhum `{...}` residual, checkboxes coerentes, tabela de presença renderizada, sem páginas em branco/quebras estranhas.
-   - Se algo quebrar, ajustar o script e regerar só os afetados.
-
-## Mapeamento de placeholders → banco
-
-| Placeholder | Fonte |
-|---|---|
-| nome completo | `participantes.nome_completo` (Title Case) |
-| D.N | `data_nascimento` → `DD/MM/AAAA` |
-| CPF participante | `participantes.cpf` (formatado `000.000.000-00`) ou "sem registro do dado" |
-| GÊNERO | `genero` |
-| ORIGEM DO ENC. | `origem_encaminhamento` ou "sem registro do dado" |
-| TERRITÓRIO | `bairros.nome` (Alvorada / Parque Independência / Jardim Irene) |
-| ESCOLA | `escola` |
-| SÉRIE | `serie` (extrair número) |
-| TURNO escola | derivado de `dias_contraturno` ou campo específico — fallback "sem registro do dado" |
-| TURMA | `turmas.nome` da turma principal (via `turma_participantes`) |
-| TRANSPORTE | `pontos_transporte.nome` ou "não precisa" |
-| RESP. LEGAL / CPF / VÍNCULO / CONTATO | `responsavel1_nome`, `responsavel1_cpf`, `vinculo_resp1`, `responsavel1_whatsapp` |
-| LOGRADOURO / NÚMERO / BAIRRO | `endereco_rua`, `endereco_numero`, `endereco_bairro` |
-| Moradia (4 checkboxes) | `situacao_moradia` → marca uma `( X )` |
-| LAUDO? | `laudo` (regra "sim" → "Sim, não registrado ou não especificado"; "não" → "Não possui") |
-| RESTR. ALIMENTAR? | `restricao_alimentar` (mesma regra) |
-| OUTRA CONDIÇÃO? | `outras_condicoes` ou "Nenhuma registrada" |
-| Histórico presença | tabela montada de `presenca` + `relatorio_presenca`+`relatorios_atividade` |
-
-## Riscos & mitigação
-
-- **Placeholders quebrados entre `<w:r>`:** mesclo runs antes do replace (script `extract_document.py` da skill docx já faz isso).
-- **Nomes longos / caracteres inválidos no filename:** sanitizo (`re.sub(r'[^\w\s-]','')`, trim, max 80 chars) e adiciono sufixo `_id8` se houver colisão.
-- **LibreOffice lento para 320 docs:** processo em lotes paralelos (4 workers) com `run_libreoffice.py`; estimativa ~5-10 min total.
-- **Memória/zip grande:** PDFs A4 simples ficam ~50-150 KB → zip final estimado 20-50 MB, dentro do limite.
-- **Dados faltantes:** todo campo nulo vira "sem registro do dado" (ou regra equivalente acima), nunca string vazia.
-
-## Entrega
-
-Um único artifact:
+Migration:
+```sql
+INSERT INTO configuracoes_gerais (chave, valor)
+VALUES ('recompute_pausado', 'true')
+ON CONFLICT (chave) DO UPDATE SET valor='true';
 ```
-<presentation-artifact path="SysCFV_Fichas_Participantes_2026-06-19.zip" mime_type="application/zip"></presentation-artifact>
+
+Edição de `supabase/functions/recompute-participantes-status/index.ts`:
+```ts
+// após carregar cfg
+if ((map["recompute_pausado"] || "false") === "true") {
+  await supabase.from("configuracoes_gerais")
+    .update({ valor: JSON.stringify({ paused: true, at: new Date().toISOString() }) })
+    .eq("chave", "recompute_ultimo_resultado");
+  return ok({ paused: true });
+}
 ```
-Acompanhado de um resumo: total gerado, eventuais participantes pulados (e motivo), amostras de QA inspecionadas.
+Incluo `recompute_pausado` no `.in([...])` do select de config.
 
-## Detalhes técnicos
+### 2. Correção retroativa dos dados
 
-- Linguagem: Python 3 no sandbox (psycopg2/psql para dados, `zipfile`+`re` para docx, `subprocess` para LibreOffice, `zipfile` para pacote final).
-- Sem alterações no repositório, sem migrations, sem deploy.
-- Tempo estimado de execução: 8-12 minutos.
+Tudo que o cron tocou está rastreável via `audit_log` (`acao='recompute_status'`) — 217 mudanças. Faço uma **migration única** (idempotente) que:
+
+**a) Restaura status para `ativo`** todos os participantes que hoje estão em `busca_ativa` ou `desligado` **e** têm pelo menos uma entrada `recompute_status` no audit_log que os marcou como `busca ativa`:
+```sql
+UPDATE participantes p
+SET status = 'ativo',
+    busca_ativa_desde = NULL,
+    data_desligamento = NULL,
+    motivo_desligamento = NULL,
+    desligado_em = NULL
+WHERE p.status IN ('busca_ativa','desligado')
+  AND EXISTS (
+    SELECT 1 FROM audit_log a
+    WHERE a.tabela='participantes'
+      AND a.acao='recompute_status'
+      AND a.registro_id = p.id::text
+      AND a.detalhes ILIKE 'Marcado como busca ativa%'
+  );
+```
+
+**b) Limpa indicadores derivados** gerados pelo cron:
+```sql
+-- alertas de desligamento sugeridos pelo cron
+DELETE FROM alertas_desligamento_sugerido
+WHERE created_at >= '2026-04-16';   -- início das execuções automáticas
+
+-- registros automáticos de busca ativa (se houver)
+DELETE FROM busca_ativa_registros
+WHERE registrado_por = '00000000-0000-0000-0000-000000000000'
+   OR observacao ILIKE '%recompute%';
+```
+
+**c) Apaga rastro no audit_log** para que dashboards de auditoria/atividade não contabilizem as 217 ações automáticas:
+```sql
+DELETE FROM audit_log
+WHERE tabela='participantes' AND acao='recompute_status';
+```
+
+**d) Reseta o resumo da última execução:**
+```sql
+UPDATE configuracoes_gerais SET valor='{"paused":true}'
+WHERE chave='recompute_ultimo_resultado';
+```
+
+### 3. Verificação após aplicar
+
+Rodo 3 consultas:
+- `SELECT status, COUNT(*) FROM participantes GROUP BY status` → espero ~321 ativos, 0 ou pouquíssimos `busca_ativa`/`desligado` (só os que vieram de ações humanas reais, se houver).
+- `SELECT COUNT(*) FROM audit_log WHERE acao='recompute_status'` → 0.
+- `SELECT COUNT(*) FROM alertas_desligamento_sugerido` → 0 (ou só anteriores a 16/04 se existirem).
+
+### 4. Reativar quando quiser
+
+Para religar o cron no futuro, basta `UPDATE configuracoes_gerais SET valor='false' WHERE chave='recompute_pausado'` — sem deploy.
+
+### Risco / reversibilidade
+
+- A migration toca apenas dados criados/alterados pelo cron (identificados pelo `audit_log`). Não afeta desligamentos/transferências feitas por usuários reais (essas têm `acao` diferente: `desligamento`, `transferencia`, etc.).
+- Se algo der errado, posso restaurar o estado consultando o `audit_log` antes do DELETE — então proponho **primeiro fazer um SELECT de validação**, mostrar a você, e só depois rodar o DELETE.
