@@ -1,86 +1,50 @@
-## Pausar o cron e desfazer impacto retroativo
+## Geração dos Relatórios REO e RMA — Junho/2026 (01/06 a 25/06)
 
-### 1. Pausar o cron (edge function `recompute-participantes-status`)
+Entrega: **1 arquivo XLSX** com múltiplas abas + **1 arquivo ZIP** com as fotos do mês, ambos salvos em `/mnt/documents/` para download direto.
 
-A função é disparada por um agendamento externo (pg_cron com `net.http_post`, fora do repositório). Em vez de tentar removê-lo, **adiciono um guard na própria função**: nova chave em `configuracoes_gerais` chamada `recompute_pausado`. Se `= 'true'`, a função retorna imediatamente sem alterar nada e registra `paused` em `recompute_ultimo_resultado`.
+### Arquivo 1 — `SysCFV_REO-RMA_Junho2026_{timestamp}.xlsx`
 
-Migration:
-```sql
-INSERT INTO configuracoes_gerais (chave, valor)
-VALUES ('recompute_pausado', 'true')
-ON CONFLICT (chave) DO UPDATE SET valor='true';
-```
+Abas:
 
-Edição de `supabase/functions/recompute-participantes-status/index.ts`:
-```ts
-// após carregar cfg
-if ((map["recompute_pausado"] || "false") === "true") {
-  await supabase.from("configuracoes_gerais")
-    .update({ valor: JSON.stringify({ paused: true, at: new Date().toISOString() }) })
-    .eq("chave", "recompute_ultimo_resultado");
-  return ok({ paused: true });
-}
-```
-Incluo `recompute_pausado` no `.in([...])` do select de config.
+1. **Capa** — Cabeçalho institucional, período (01–25/06/2026), metas territoriais, data de emissão.
 
-### 2. Correção retroativa dos dados
+2. **REO — Atividades** — Tabela comparativa:
+   - Atividades **planejadas** em Junho (de `planejamentos` por `data_aplicacao`).
+   - Atividades **realizadas** em Junho (de `relatorios_atividade` por `iniciou_em`).
+   - Coluna "Resultado Alcançado" por atividade — texto breve técnico ancorado nas diretrizes SCFV (Tipificação Nacional / Resolução CNAS 109/2009 e Caderno de Orientações Técnicas SCFV), gerada a partir do tema/objetivos/tipo de cada atividade.
 
-Tudo que o cron tocou está rastreável via `audit_log` (`acao='recompute_status'`) — 217 mudanças. Faço uma **migration única** (idempotente) que:
+3. **REO — Resultado Consolidado** — Síntese técnica geral do mês, consolidando os resultados individuais (fortalecimento de vínculos, prevenção de situações de risco, convivência intergeracional, etc., conforme SCFV).
 
-**a) Restaura status para `ativo`** todos os participantes que hoje estão em `busca_ativa` ou `desligado` **e** têm pelo menos uma entrada `recompute_status` no audit_log que os marcou como `busca ativa`:
-```sql
-UPDATE participantes p
-SET status = 'ativo',
-    busca_ativa_desde = NULL,
-    data_desligamento = NULL,
-    motivo_desligamento = NULL,
-    desligado_em = NULL
-WHERE p.status IN ('busca_ativa','desligado')
-  AND EXISTS (
-    SELECT 1 FROM audit_log a
-    WHERE a.tabela='participantes'
-      AND a.acao='recompute_status'
-      AND a.registro_id = p.id::text
-      AND a.detalhes ILIKE 'Marcado como busca ativa%'
-  );
-```
+4. **REO — Participantes (Crianças e Adolescentes)** — Apenas participantes ≤17 anos que tiveram **pelo menos 1 presença=true em Junho**, cruzando por:
+   - Bairro: Jardim Irene / Parque Independência / Alvorada
+   - Faixa etária: **Abaixo da faixa (<6)**, 6–8, 9–11, 12–17
+   - Totais por linha/coluna
+   - % do total geral em relação à **meta de 440**
 
-**b) Limpa indicadores derivados** gerados pelo cron:
-```sql
--- alertas de desligamento sugeridos pelo cron
-DELETE FROM alertas_desligamento_sugerido
-WHERE created_at >= '2026-04-16';   -- início das execuções automáticas
+5. **RMA** — Total único (desduplicado) de crianças e adolescentes com ≥1 presença no mês, e matriz **Gênero × Faixa Etária**:
+   - Feminino: <6, 6–8, 9–11, 12–14, 15–17, Total
+   - Masculino: <6, 6–8, 9–11, 12–14, 15–17, Total
 
--- registros automáticos de busca ativa (se houver)
-DELETE FROM busca_ativa_registros
-WHERE registrado_por = '00000000-0000-0000-0000-000000000000'
-   OR observacao ILIKE '%recompute%';
-```
+6. **Listas de Presença — {Profissional}** (uma aba por `registrado_por`) — Mesmo formato da entrega anterior: participantes nas linhas, datas de Junho nas colunas, presença marcada com `■`, estilo grayscale, nomes em Title Case. Filtra apenas crianças/adolescentes (≤17).
 
-**c) Apaga rastro no audit_log** para que dashboards de auditoria/atividade não contabilizem as 217 ações automáticas:
-```sql
-DELETE FROM audit_log
-WHERE tabela='participantes' AND acao='recompute_status';
-```
+### Arquivo 2 — `SysCFV_Fotos_Junho2026_{timestamp}.zip`
 
-**d) Reseta o resumo da última execução:**
-```sql
-UPDATE configuracoes_gerais SET valor='{"paused":true}'
-WHERE chave='recompute_ultimo_resultado';
-```
+- Fotos com `created_at` em Junho/2026 vindas de `relatorio_fotos` **+** `registros_fotograficos`.
+- Baixadas do storage, convertidas para `.jpeg` quando necessário, renomeadas como `{origem}_{data}_{seq}.jpeg`.
+- ZIP plano (sem subpastas) para anexar diretamente no processo.
 
-### 3. Verificação após aplicar
+### Regras aplicadas (de acordo com memória do projeto)
 
-Rodo 3 consultas:
-- `SELECT status, COUNT(*) FROM participantes GROUP BY status` → espero ~321 ativos, 0 ou pouquíssimos `busca_ativa`/`desligado` (só os que vieram de ações humanas reais, se houver).
-- `SELECT COUNT(*) FROM audit_log WHERE acao='recompute_status'` → 0.
-- `SELECT COUNT(*) FROM alertas_desligamento_sugerido` → 0 (ou só anteriores a 16/04 se existirem).
+- Idade calculada em 30/06/2026; **exclui >17 anos** em todas as contagens do REO e RMA.
+- Exclui registros `is_teste=true`.
+- Considera o marco operacional ≥ 01/04/2026 (irrelevante aqui pois recorte é Junho).
+- Desduplicação por `participante_id` (1 presença basta).
+- Estilo de exportação institucional: grayscale, datas `DD/MM`, presença `■`, fonte profissional, nome padronizado `SysCFV_...`.
 
-### 4. Reativar quando quiser
+### Execução
 
-Para religar o cron no futuro, basta `UPDATE configuracoes_gerais SET valor='false' WHERE chave='recompute_pausado'` — sem deploy.
+Tudo será gerado por um script Python único (`openpyxl` + `requests` + `zipfile`) rodando no sandbox via `code--exec`, consultando o banco via `psql`/`supabase--read_query` e baixando fotos pelo Storage público. Após gerar, faço QA visual das abas-chave e entrego com tags `<presentation-artifact>` para o XLSX e o ZIP.
 
-### Risco / reversibilidade
+### Observação técnica
 
-- A migration toca apenas dados criados/alterados pelo cron (identificados pelo `audit_log`). Não afeta desligamentos/transferências feitas por usuários reais (essas têm `acao` diferente: `desligamento`, `transferencia`, etc.).
-- Se algo der errado, posso restaurar o estado consultando o `audit_log` antes do DELETE — então proponho **primeiro fazer um SELECT de validação**, mostrar a você, e só depois rodar o DELETE.
+Como é uma entrega de artefato (não há mudança no app), nenhum arquivo do projeto será alterado e nenhuma migração será criada.
